@@ -189,6 +189,42 @@
   },
   "entity": {
     "sensor": {
+      "avg_accuracy_30d": {
+        "name": "Prediction Accuracy 30 Day"
+      },
+      "forecast_remaining": {
+        "name": "Forecast Today Remaining"
+      },
+      "forecast_tomorrow": {
+        "name": "Forecast Tomorrow"
+      },
+      "forecast_day_after_tomorrow": {
+        "name": "Forecast Day After Tomorrow"
+      },
+      "max_peak_today": {
+        "name": "Peak Power Today"
+      },
+      "max_peak_all_time": {
+        "name": "All Time Peak Power"
+      },
+      "avg_yield_7d": {
+        "name": "Average Yield 7 Day"
+      },
+      "avg_yield_30d": {
+        "name": "Average Yield 30 Day"
+      },
+      "weekly_yield": {
+        "name": "Weekly Yield"
+      },
+      "weekly_consumption": {
+        "name": "Weekly Consumption"
+      },
+      "monthly_yield": {
+        "name": "Monthly Yield"
+      },
+      "monthly_consumption": {
+        "name": "Monthly Consumption"
+      },
       "today_forecast": {
         "name": "Forecast Today Remaining"
       },
