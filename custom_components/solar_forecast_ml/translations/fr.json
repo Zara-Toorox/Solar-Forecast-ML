@@ -40,7 +40,7 @@
           "panel_groups_input": "Groupes de panneaux"
         },
         "data_description": {
-          "panel_groups_input": "Format : Puissance/Azimut/Inclinaison/Capteur-kWh-jour - separes par virgules ou lignes"
+          "panel_groups_input": "Format : Nom/Puissance/Azimut/Inclinaison[/Capteur-kWh-jour] - separes par virgules ou lignes"
         }
       },
       "reconfigure_panel_groups": {
@@ -50,7 +50,7 @@
           "panel_groups_input": "Groupes de panneaux"
         },
         "data_description": {
-          "panel_groups_input": "Format : Puissance/Azimut/Inclinaison/Capteur-kWh-jour - separes par virgules ou lignes"
+          "panel_groups_input": "Format : Nom/Puissance/Azimut/Inclinaison[/Capteur-kWh-jour] - separes par virgules ou lignes"
         }
       },
       "reconfigure": {
@@ -96,8 +96,8 @@
       "already_configured": "Entite meteo deja utilisee",
       "sensor_not_found": "Entite capteur introuvable",
       "invalid_sensor_state": "Etat du capteur invalide ou indisponible",
-      "invalid_panel_format": "Format invalide. Utilisez : Puissance/Azimut/Inclinaison (ex. 1200/180/30)",
-      "panel_groups_required": "Au moins 1 groupe de panneaux requis. Format : Puissance/Azimut/Inclinaison/Capteur (ex. 5000/180/30/sensor.pv_today)",
+      "invalid_panel_format": "Format invalide. Utilisez : Nom/Puissance/Azimut/Inclinaison (ex. Sud/1200/180/30)",
+      "panel_groups_required": "Au moins 1 groupe de panneaux requis. Format : Nom/Puissance/Azimut/Inclinaison[/Capteur] (ex. Sud/5000/180/30/sensor.pv_today)",
       "too_many_panel_groups": "Maximum 4 groupes de panneaux autorises",
       "energy_sensor_not_found": "Capteur d'energie introuvable dans Home Assistant. Verifiez l'ID de l'entite.",
       "energy_sensor_not_numeric": "La valeur du capteur d'energie n'est pas numerique. Verifiez l'etat du capteur."

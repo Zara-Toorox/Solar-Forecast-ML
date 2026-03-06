@@ -40,7 +40,7 @@
           "panel_groups_input": "Grupos de paneles"
         },
         "data_description": {
-          "panel_groups_input": "Formato: Potencia/Azimut/Inclinacion/Sensor-kWh-diario - separados por comas o lineas"
+          "panel_groups_input": "Formato: Nombre/Potencia/Azimut/Inclinacion[/Sensor-kWh-diario] - separados por comas o lineas"
         }
       },
       "reconfigure_panel_groups": {
@@ -50,7 +50,7 @@
           "panel_groups_input": "Grupos de paneles"
         },
         "data_description": {
-          "panel_groups_input": "Formato: Potencia/Azimut/Inclinacion/Sensor-kWh-diario - separados por comas o lineas"
+          "panel_groups_input": "Formato: Nombre/Potencia/Azimut/Inclinacion[/Sensor-kWh-diario] - separados por comas o lineas"
         }
       },
       "reconfigure": {
@@ -96,8 +96,8 @@
       "already_configured": "Entidad meteorologica ya en uso",
       "sensor_not_found": "Entidad del sensor no encontrada",
       "invalid_sensor_state": "Estado del sensor invalido o no disponible",
-      "invalid_panel_format": "Formato invalido. Utilice: Potencia/Azimut/Inclinacion (ej. 1200/180/30)",
-      "panel_groups_required": "Se requiere al menos 1 grupo de paneles. Formato: Potencia/Azimut/Inclinacion/Sensor (ej. 5000/180/30/sensor.pv_today)",
+      "invalid_panel_format": "Formato invalido. Utilice: Nombre/Potencia/Azimut/Inclinacion (ej. Sur/1200/180/30)",
+      "panel_groups_required": "Se requiere al menos 1 grupo de paneles. Formato: Nombre/Potencia/Azimut/Inclinacion[/Sensor] (ej. Sur/5000/180/30/sensor.pv_today)",
       "too_many_panel_groups": "Maximo 4 grupos de paneles permitidos",
       "energy_sensor_not_found": "Sensor de energia no encontrado en Home Assistant. Verifique el ID de la entidad.",
       "energy_sensor_not_numeric": "El valor del sensor de energia no es numerico. Verifique el estado del sensor."

@@ -186,8 +186,11 @@ def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
     Supported formats:
     - Old: "power_wp/azimuth/tilt" (e.g., "1200/180/30, 900/270/10")
     - New: "power_wp/azimuth/tilt/energy_sensor" (e.g., "870/180/47/sensor.pv_gruppe1_energy")
+    - Named: "name/power_wp/azimuth/tilt" (e.g., "South/1200/180/30")
+    - Named: "name/power_wp/azimuth/tilt/energy_sensor"
 
-    The energy_sensor is optional and enables per-group learning.
+    The name and energy_sensor are optional. Names are user-defined when provided.
+    The energy_sensor enables per-group learning.
     """
     if not panel_groups_str or not panel_groups_str.strip():
         return []
@@ -199,36 +202,56 @@ def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
 
     for idx, entry in enumerate(entries):
         parts = [p.strip() for p in entry.split("/")]
-        if len(parts) >= 3:
+        if len(parts) < 3:
+            continue
+
+        group_name = f"Gruppe {idx + 1}"
+        energy_sensor: str | None = None
+
+        try:
+            # Legacy formats:
+            #   power/azimuth/tilt
+            #   power/azimuth/tilt/sensor
+            power_wp = float(parts[0])
+            azimuth = float(parts[1])
+            tilt = float(parts[2])
+            if len(parts) >= 4 and parts[3]:
+                energy_sensor = parts[3].strip()
+        except (ValueError, TypeError):
+            # Named formats:
+            #   name/power/azimuth/tilt
+            #   name/power/azimuth/tilt/sensor
+            if len(parts) < 4 or not parts[0]:
+                continue
             try:
-                power_wp = float(parts[0])
-                azimuth = float(parts[1])
-                tilt = float(parts[2])
-
-                # Validate ranges @zara
-                if power_wp <= 0 or power_wp > 100000:
-                    continue
-                if azimuth < 0 or azimuth > 360:
-                    continue
-                if tilt < 0 or tilt > 90:
-                    continue
-
-                group_data = {
-                    CONF_PANEL_GROUP_NAME: f"Gruppe {idx + 1}",
-                    CONF_PANEL_GROUP_POWER: power_wp,
-                    CONF_PANEL_GROUP_AZIMUTH: azimuth,
-                    CONF_PANEL_GROUP_TILT: tilt,
-                }
-
-                # Optional: Parse energy sensor (4th parameter) @zara
-                if len(parts) >= 4 and parts[3]:
-                    energy_sensor = parts[3].strip()
-                    if "." in energy_sensor and len(energy_sensor) > 3:
-                        group_data[CONF_PANEL_GROUP_ENERGY_SENSOR] = energy_sensor
-
-                groups.append(group_data)
+                group_name = parts[0]
+                power_wp = float(parts[1])
+                azimuth = float(parts[2])
+                tilt = float(parts[3])
+                if len(parts) >= 5 and parts[4]:
+                    energy_sensor = parts[4].strip()
             except (ValueError, TypeError):
                 continue
+
+        # Validate ranges @zara
+        if power_wp <= 0 or power_wp > 100000:
+            continue
+        if azimuth < 0 or azimuth > 360:
+            continue
+        if tilt < 0 or tilt > 90:
+            continue
+
+        group_data = {
+            CONF_PANEL_GROUP_NAME: group_name,
+            CONF_PANEL_GROUP_POWER: power_wp,
+            CONF_PANEL_GROUP_AZIMUTH: azimuth,
+            CONF_PANEL_GROUP_TILT: tilt,
+        }
+
+        if energy_sensor and "." in energy_sensor and len(energy_sensor) > 3:
+            group_data[CONF_PANEL_GROUP_ENERGY_SENSOR] = energy_sensor
+
+        groups.append(group_data)
 
     return groups
 
@@ -246,15 +269,18 @@ def _format_panel_groups(panel_groups: list[dict]) -> str:
 
     lines = []
     for group in panel_groups:
+        name = group.get(CONF_PANEL_GROUP_NAME) or "Unnamed"
         power = group.get(CONF_PANEL_GROUP_POWER, 0)
         azimuth = group.get(CONF_PANEL_GROUP_AZIMUTH, DEFAULT_PANEL_AZIMUTH)
         tilt = group.get(CONF_PANEL_GROUP_TILT, DEFAULT_PANEL_TILT)
         energy_sensor = group.get(CONF_PANEL_GROUP_ENERGY_SENSOR)
 
         if energy_sensor:
-            lines.append(f"{fmt(power)}/{fmt(azimuth)}/{fmt(tilt)}/{energy_sensor}")
+            lines.append(
+                f"{name}/{fmt(power)}/{fmt(azimuth)}/{fmt(tilt)}/{energy_sensor}"
+            )
         else:
-            lines.append(f"{fmt(power)}/{fmt(azimuth)}/{fmt(tilt)}")
+            lines.append(f"{name}/{fmt(power)}/{fmt(azimuth)}/{fmt(tilt)}")
 
     return ", ".join(lines)
 
@@ -383,8 +409,8 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the panel groups configuration step. @zara
 
         Panel groups are required (min 1, max 4).
-        Format: power_wp/azimuth/tilt[/energy_sensor]
-        e.g. "1200/180/30/sensor.pv_today, 900/270/10/sensor.pv_west_today"
+        Format: name/power_wp/azimuth/tilt[/energy_sensor]
+        e.g. "South/1200/180/30/sensor.pv_today, West/900/270/10/sensor.pv_west_today"
         """
         errors = {}
 
@@ -442,8 +468,8 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=errors,
             description_placeholders={
-                "example": "5000/180/30/sensor.pv_energy_today",
-                "format": "Power(Wp)/Azimuth(deg)/Tilt(deg)/Daily-kWh-Sensor",
+                "example": "South/5000/180/30/sensor.pv_energy_today",
+                "format": "Name/Power(Wp)/Azimuth(deg)/Tilt(deg)/Daily-kWh-Sensor",
             },
         )
 
@@ -668,8 +694,8 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=errors,
             description_placeholders={
-                "example": "5000/180/30/sensor.pv_energy_today",
-                "format": "Power(Wp)/Azimuth(deg)/Tilt(deg)/Daily-kWh-Sensor",
+                "example": "South/5000/180/30/sensor.pv_energy_today",
+                "format": "Name/Power(Wp)/Azimuth(deg)/Tilt(deg)/Daily-kWh-Sensor",
             },
         )
 
