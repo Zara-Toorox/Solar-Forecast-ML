@@ -24,11 +24,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import slugify
 
 from .const import (
     CONF_DIAGNOSTIC,
     CONF_EVCC_FORECAST,
     CONF_HOURLY,
+    CONF_PANEL_GROUPS,
     DOMAIN,
     VERSION,
 )
@@ -51,6 +53,7 @@ from .sensors.sensor_base import (
     MonthlyConsumptionSensor,
     MonthlyYieldSensor,
     NextHourSensor,
+    PanelGroupForecastSensor,
     PeakProductionHourSensor,
     ProductionTimeSensor,
     SolarForecastSensor,
@@ -139,6 +142,23 @@ async def async_setup_entry(
         YieldSensorStateSensor(hass, entry),
         NextHourSensor(coordinator, entry),
     ]
+
+    for group in entry.data.get(CONF_PANEL_GROUPS, []):
+        group_name = group.get("name")
+        if not group_name:
+            continue
+
+        essential_production_entities.extend(
+            [
+                PanelGroupForecastSensor(coordinator, entry, group_name, "next_hour"),
+                PanelGroupForecastSensor(coordinator, entry, group_name, "today"),
+                PanelGroupForecastSensor(coordinator, entry, group_name, "remaining"),
+                PanelGroupForecastSensor(coordinator, entry, group_name, "tomorrow"),
+                PanelGroupForecastSensor(
+                    coordinator, entry, group_name, "day_after_tomorrow"
+                ),
+            ]
+        )
 
     entities_to_add = essential_production_entities
 
@@ -254,6 +274,13 @@ async def _cleanup_orphaned_entities(
         "eod_duration",
     ]
 
+    panel_group_unique_ids = {
+        f"{entry.entry_id}_{config['unique_id_prefix']}_{slugify(group.get('name')) or 'panel_group'}"
+        for group in entry.data.get(CONF_PANEL_GROUPS, [])
+        if group.get("name")
+        for config in PanelGroupForecastSensor._KEY_CONFIG.values()
+    }
+
     entities_removed = 0
 
     for entity_entry in list(ent_reg.entities.values()):
@@ -280,6 +307,15 @@ async def _cleanup_orphaned_entities(
             )
             ent_reg.async_remove(entity_entry.entity_id)
             entities_removed += 1
+
+        if unique_id_lower.startswith(f"{entry.entry_id}_ml_panel_group_"):
+            if str(entity_entry.unique_id) not in panel_group_unique_ids:
+                _LOGGER.debug(
+                    "Removing orphaned panel group forecast entity: %s",
+                    entity_entry.entity_id,
+                )
+                ent_reg.async_remove(entity_entry.entity_id)
+                entities_removed += 1
 
     if entities_removed > 0:
         _LOGGER.info(
