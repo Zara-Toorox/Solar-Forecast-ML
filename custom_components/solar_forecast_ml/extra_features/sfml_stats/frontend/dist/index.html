@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SFML STATS - Energy-Dashboard V14 by Zara</title>
+    <title>SFML STATS - SFML-Dashboard V14 by Zara</title>
 
     <!-- ECharts for Charts -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
@@ -32,7 +32,7 @@
 
     <div id="app">
         <header class="header">
-            <h1>SFML STATS - Energy-Dashboard V14 by Zara</h1>
+            <h1>SFML STATS - SFML-Dashboard V14 by Zara</h1>
             <div class="header-controls">
                 <button @click="toggleDashboardStyle" class="style-toggle" :class="{'active-3d': dashboardStyle === '3d', 'active-2d': dashboardStyle === '2d', 'active-list': dashboardStyle === 'list'}" :title="dashboardStyle === '3d' ? 'Zu 2D wechseln' : dashboardStyle === '2d' ? 'Zur Liste wechseln' : 'Zu 3D wechseln'">
                     <span class="style-toggle-icon">{{ getDashboardStyleIcon() }}</span>
@@ -42,7 +42,7 @@
                     <span>🖖</span>
                     <span>LCARS</span>
                 </button>
-                <button @click="toggleTheme" class="theme-toggle" :title="themeMode === 'dark' ? 'Zu Glass wechseln' : themeMode === 'glass' ? 'Zu Hell wechseln' : 'Zu Dunkel wechseln'">
+                <button @click="toggleTheme" class="theme-toggle" :title="themeMode === 'glass' ? 'Zu Dunkel wechseln' : themeMode === 'dark' ? 'Zu Hell wechseln' : 'Zu Glass wechseln'">
                     {{ getThemeIcon() }}
                 </button>
                 <button @click="resetSectionOrder" class="reset-order-btn" title="Sortierung zurücksetzen">
@@ -1874,7 +1874,7 @@
                         </div>
                         <div class="modal-stat-card">
                             <div class="modal-stat-value">{{ batteryModal.stats.cycles?.toFixed(1) || '—' }}</div>
-                            <div class="modal-stat-label">Zyklen (Monat)</div>
+                            <div class="modal-stat-label">Zyklen (Mo-So)</div>
                         </div>
                         <div class="modal-stat-card">
                             <div class="modal-stat-value">{{ batteryModal.stats.solarShare?.toFixed(0) || '—' }}%</div>
@@ -3164,29 +3164,29 @@
             setup() {
                 const lastUpdate = ref('—');
 
-                // Theme Toggle (Dark → Glass → Light)
-                const themeModes = ['dark', 'glass', 'light'];
-                const themeMode = ref(localStorage.getItem('sfml-theme') || 'dark');
+                // Theme Toggle (Glass → Dark → Light)
+                const themeModes = ['glass', 'dark', 'light'];
+                const themeMode = ref(localStorage.getItem('sfml-theme') || 'glass');
                 const isDarkTheme = computed(() => themeMode.value !== 'light');
 
                 function toggleTheme() {
                     const idx = themeModes.indexOf(themeMode.value);
                     themeMode.value = themeModes[(idx + 1) % themeModes.length];
-                    document.documentElement.classList.remove('light-theme', 'glass-theme');
+                    document.documentElement.classList.remove('light-theme', 'dark-theme');
                     if (themeMode.value === 'light') document.documentElement.classList.add('light-theme');
-                    else if (themeMode.value === 'glass') document.documentElement.classList.add('glass-theme');
+                    else if (themeMode.value === 'dark') document.documentElement.classList.add('dark-theme');
                     localStorage.setItem('sfml-theme', themeMode.value);
                 }
 
                 function getThemeIcon() {
-                    if (themeMode.value === 'dark') return '💎';
-                    if (themeMode.value === 'glass') return '☀️';
+                    if (themeMode.value === 'glass') return '💎';
+                    if (themeMode.value === 'dark') return '☀️';
                     return '🌙';
                 }
 
                 // Initialize theme on load
                 if (themeMode.value === 'light') document.documentElement.classList.add('light-theme');
-                else if (themeMode.value === 'glass') document.documentElement.classList.add('glass-theme');
+                else if (themeMode.value === 'dark') document.documentElement.classList.add('dark-theme');
 
                 // Dashboard Style Toggle (2D/3D)
                 const dashboardStyle = ref(localStorage.getItem('sfml-dashboard-style') || '3d');
@@ -4154,15 +4154,16 @@
                         batteryModal.stats.weekDischarged = weekData.reduce((sum, d) => sum + d.discharged_kwh, 0);
                         // SOC from live data
                         batteryModal.stats.avgSOC = energyFlow.battery?.soc || 0;
-                        const totalCharged = history.reduce((sum, d) => sum + d.charged_kwh, 0);
-                        const totalDischarged = history.reduce((sum, d) => sum + d.discharged_kwh, 0);
-                        batteryModal.stats.efficiency = totalCharged > 0 ? (totalDischarged / totalCharged) * 100 : 0;
-                        // Estimate capacity from max daily discharge
-                        const maxDailyDischarge = history.length > 0 ? Math.max(...history.map(d => d.discharged_kwh)) : 10;
-                        const estimatedCapacity = Math.max(5, Math.ceil(maxDailyDischarge));
-                        batteryModal.stats.cycles = batteryModal.stats.weekDischarged / estimatedCapacity;
-                        const totalSolarCharge = history.reduce((sum, d) => sum + d.charged_solar_kwh, 0);
-                        batteryModal.stats.solarShare = totalCharged > 0 ? (totalSolarCharge / totalCharged) * 100 : 0;
+                        // Wirkungsgrad nur über Wochendaten
+                        const weekTotalCharged = batteryModal.stats.weekCharged;
+                        const weekTotalDischarged = batteryModal.stats.weekDischarged;
+                        batteryModal.stats.efficiency = weekTotalCharged > 0 ? (weekTotalDischarged / weekTotalCharged) * 100 : 0;
+                        // Zyklen: Nutze Batterie-Kapazität aus energyFlow, Fallback auf geschätzten Wert
+                        const batteryCapacity = energyFlow.battery?.capacity_kwh || energyFlow.battery?.capacity || 10;
+                        batteryModal.stats.cycles = batteryCapacity > 0 ? weekTotalDischarged / batteryCapacity : 0;
+                        // Solaranteil nur über Wochendaten
+                        const weekSolarCharge = weekData.reduce((sum, d) => sum + d.charged_solar_kwh, 0);
+                        batteryModal.stats.solarShare = weekTotalCharged > 0 ? (weekSolarCharge / weekTotalCharged) * 100 : 0;
 
                         renderBatteryCharts();
                     } catch (error) {
@@ -4177,6 +4178,11 @@
                     if (!data.length) return;
 
                     const dates = data.map(d => d.date.slice(5));
+
+                    // X-Axis scaling based on data length
+                    const bXInterval = data.length <= 7 ? 0 : data.length <= 31 ? 1 : Math.floor(data.length / 12);
+                    const bXRotate = data.length <= 7 ? 0 : 45;
+                    const bXBottom = data.length <= 7 ? 50 : 70;
 
                     // Charge Sources Chart (Solar vs Grid)
                     if (batterySOCChart.value) {
@@ -4204,15 +4210,28 @@
                     // Charge/Discharge Chart
                     if (batteryChargeChart.value) {
                         batteryChargeChart.value.setOption({
-                            tooltip: { trigger: 'axis', backgroundColor: 'rgba(30, 30, 62, 0.95)', borderColor: '#22c55e', textStyle: { color: '#fff' } },
+                            tooltip: {
+                                trigger: 'axis',
+                                backgroundColor: 'rgba(30, 30, 62, 0.95)',
+                                borderColor: '#22c55e',
+                                textStyle: { color: '#fff' },
+                                formatter: function(params) {
+                                    let html = params[0].axisValue + '<br/>';
+                                    params.forEach(p => {
+                                        const val = Math.abs(p.value).toFixed(2);
+                                        html += p.marker + ' ' + p.seriesName + ': ' + val + ' kWh<br/>';
+                                    });
+                                    return html;
+                                }
+                            },
                             legend: { data: ['Geladen', 'Entladen'], textStyle: { color: '#fff' } },
-                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: data.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: '#444' } } },
+                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: bXRotate, interval: bXInterval }, axisLine: { lineStyle: { color: '#444' } } },
                             yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: '#fff' }, axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#333' } } },
                             series: [
                                 { name: 'Geladen', type: 'bar', data: data.map(d => d.charged_kwh), itemStyle: { color: '#22c55e' } },
                                 { name: 'Entladen', type: 'bar', data: data.map(d => -d.discharged_kwh), itemStyle: { color: '#fb923c' } }
                             ],
-                            grid: { left: 60, right: 30, top: 60, bottom: 50 }
+                            grid: { left: 60, right: 30, top: 60, bottom: bXBottom }
                         });
                     }
 
@@ -4222,13 +4241,13 @@
                         batteryEfficiencyChart.value.setOption({
                             tooltip: { trigger: 'axis', backgroundColor: 'rgba(30, 30, 62, 0.95)', borderColor: '#3b82f6', textStyle: { color: '#fff' } },
                             legend: { data: ['Wirkungsgrad', 'Durchschnitt'], textStyle: { color: '#fff' } },
-                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: data.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: '#444' } } },
+                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: bXRotate, interval: bXInterval }, axisLine: { lineStyle: { color: '#444' } } },
                             yAxis: { type: 'value', name: '%', min: 0, max: 100, nameTextStyle: { color: '#fff' }, axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#333' } } },
                             series: [
                                 { name: 'Wirkungsgrad', type: 'line', data: data.map(d => d.efficiency), smooth: true, itemStyle: { color: '#3b82f6' }, lineStyle: { width: 2 } },
                                 { name: 'Durchschnitt', type: 'line', data: Array(data.length).fill(avgEff), lineStyle: { type: 'dashed', color: '#fb923c' } }
                             ],
-                            grid: { left: 60, right: 30, top: 60, bottom: 50 }
+                            grid: { left: 60, right: 30, top: 60, bottom: bXBottom }
                         });
                     }
 
@@ -4237,14 +4256,14 @@
                         batteryPowerChart.value.setOption({
                             tooltip: { trigger: 'axis', backgroundColor: 'rgba(30, 30, 62, 0.95)', borderColor: '#22c55e', textStyle: { color: '#fff' } },
                             legend: { data: ['Solar-Ladung', 'Netz-Ladung', 'Entladung'], textStyle: { color: '#fff' } },
-                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: data.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: '#444' } } },
+                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: bXRotate, interval: bXInterval }, axisLine: { lineStyle: { color: '#444' } } },
                             yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: '#fff' }, axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#333' } } },
                             series: [
                                 { name: 'Solar-Ladung', type: 'bar', stack: 'charge', data: data.map(d => d.charged_solar_kwh), itemStyle: { color: '#fbbf24' } },
                                 { name: 'Netz-Ladung', type: 'bar', stack: 'charge', data: data.map(d => d.charged_grid_kwh), itemStyle: { color: '#8b5cf6' } },
                                 { name: 'Entladung', type: 'bar', data: data.map(d => -d.discharged_kwh), itemStyle: { color: '#fb923c' } }
                             ],
-                            grid: { left: 60, right: 30, top: 60, bottom: 50 }
+                            grid: { left: 60, right: 30, top: 60, bottom: bXBottom }
                         });
                     }
                 }
@@ -4404,13 +4423,23 @@
                         const weekData = history.filter(d => d.date >= mondayStr && d.date <= sundayStr);
 
                         houseModal.stats.weekConsumption = weekData.reduce((sum, d) => sum + d.consumption_kwh, 0);
-                        houseModal.stats.avgDaily = history.length > 0 ? history.reduce((sum, d) => sum + d.consumption_kwh, 0) / history.length : 0;
-                        houseModal.stats.autarky = history.length > 0 ? history.reduce((sum, d) => sum + d.autarky, 0) / history.length : 0;
-                        houseModal.stats.selfConsumption = history.length > 0 ? history.reduce((sum, d) => sum + d.self_consumption, 0) / history.length : 0;
-                        const totalSolar = history.reduce((sum, d) => sum + d.solar_kwh, 0);
-                        const totalConsumption = history.reduce((sum, d) => sum + d.consumption_kwh, 0);
+                        houseModal.stats.avgDaily = weekData.length > 0 ? weekData.reduce((sum, d) => sum + d.consumption_kwh, 0) / weekData.length : 0;
+                        houseModal.stats.autarky = weekData.length > 0 ? weekData.reduce((sum, d) => sum + d.autarky, 0) / weekData.length : 0;
+                        houseModal.stats.selfConsumption = weekData.length > 0 ? weekData.reduce((sum, d) => sum + d.self_consumption, 0) / weekData.length : 0;
+                        const totalSolar = weekData.reduce((sum, d) => sum + d.solar_kwh, 0);
+                        const totalConsumption = weekData.reduce((sum, d) => sum + d.consumption_kwh, 0);
                         houseModal.stats.solarCoverage = totalConsumption > 0 ? (totalSolar / totalConsumption) * 100 : 0;
-                        houseModal.stats.peakPower = history.length > 0 ? Math.max(...history.map(d => d.peak_wh || 0)) : 0;
+                        // Peak: höchster Stundenwert aus hourly_consumption (Wh)
+                        const hourlyConsData = houseModal.hourlyConsumption || {};
+                        let maxPeakWh = 0;
+                        for (const d of weekData) {
+                            const dayHourly = hourlyConsData[d.date] || {};
+                            for (const [hour, kwh] of Object.entries(dayHourly)) {
+                                const wh = (kwh || 0) * 1000;
+                                if (wh > maxPeakWh) maxPeakWh = wh;
+                            }
+                        }
+                        houseModal.stats.peakPower = Math.round(maxPeakWh);
 
                         renderHouseCharts();
                     } catch (error) {
@@ -4424,11 +4453,16 @@
 
                     const dates = data.map(d => d.date.slice(5));
 
+                    // X-Axis scaling based on data length
+                    const hXInterval = data.length <= 7 ? 0 : data.length <= 31 ? 1 : Math.floor(data.length / 12);
+                    const hXRotate = data.length <= 7 ? 0 : 45;
+                    const hXBottom = data.length <= 7 ? 50 : 70;
+
                     // Consumption Chart
                     if (houseConsumptionChart.value) {
                         houseConsumptionChart.value.setOption({
                             tooltip: { trigger: 'axis', backgroundColor: 'rgba(30, 30, 62, 0.95)', borderColor: '#00ffff', textStyle: { color: '#fff' } },
-                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: data.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: '#444' } } },
+                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: hXRotate, interval: hXInterval }, axisLine: { lineStyle: { color: '#444' } } },
                             yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: '#fff' }, axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#333' } } },
                             series: [{
                                 name: 'Verbrauch',
@@ -4436,7 +4470,7 @@
                                 data: data.map(d => d.consumption_kwh),
                                 itemStyle: { color: '#00ffff' }
                             }],
-                            grid: { left: 60, right: 30, top: 40, bottom: 50 }
+                            grid: { left: 60, right: 30, top: 40, bottom: hXBottom }
                         });
                     }
 
@@ -4445,13 +4479,13 @@
                         houseAutarkyChart.value.setOption({
                             tooltip: { trigger: 'axis', backgroundColor: 'rgba(30, 30, 62, 0.95)', borderColor: '#00ffff', textStyle: { color: '#fff' } },
                             legend: { data: ['Autarkie', 'Eigenverbrauch'], textStyle: { color: '#fff' } },
-                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: data.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: '#444' } } },
+                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: hXRotate, interval: hXInterval }, axisLine: { lineStyle: { color: '#444' } } },
                             yAxis: { type: 'value', name: '%', min: 0, max: 100, nameTextStyle: { color: '#fff' }, axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#333' } } },
                             series: [
                                 { name: 'Autarkie', type: 'line', data: data.map(d => d.autarky), smooth: true, itemStyle: { color: '#22c55e' }, lineStyle: { width: 2 } },
                                 { name: 'Eigenverbrauch', type: 'line', data: data.map(d => d.self_consumption), smooth: true, itemStyle: { color: '#fbbf24' }, lineStyle: { width: 2 } }
                             ],
-                            grid: { left: 60, right: 30, top: 60, bottom: 50 }
+                            grid: { left: 60, right: 30, top: 60, bottom: hXBottom }
                         });
                     }
 
@@ -4675,18 +4709,36 @@
 
                     const dates = data.map(d => d.date.slice(5));
 
-                    // Grid Flow Chart
+                    // X-Axis label interval based on data length
+                    const xAxisInterval = data.length <= 7 ? 0 : data.length <= 31 ? 1 : Math.floor(data.length / 12);
+                    const xAxisRotate = data.length <= 7 ? 0 : 45;
+                    const xAxisBottom = data.length <= 7 ? 50 : 70;
+
+                    // Grid Flow Chart - separate stacks to avoid negative offset
                     if (gridFlowChart.value) {
                         gridFlowChart.value.setOption({
-                            tooltip: { trigger: 'axis', backgroundColor: 'rgba(30, 30, 62, 0.95)', borderColor: '#8b5cf6', textStyle: { color: '#fff' } },
+                            tooltip: {
+                                trigger: 'axis',
+                                backgroundColor: 'rgba(30, 30, 62, 0.95)',
+                                borderColor: '#8b5cf6',
+                                textStyle: { color: '#fff' },
+                                formatter: function(params) {
+                                    let html = params[0].axisValue + '<br/>';
+                                    params.forEach(p => {
+                                        const val = Math.abs(p.value).toFixed(2);
+                                        html += p.marker + ' ' + p.seriesName + ': ' + val + ' kWh<br/>';
+                                    });
+                                    return html;
+                                }
+                            },
                             legend: { data: ['Bezug', 'Einspeisung'], textStyle: { color: '#fff' } },
-                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: data.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: '#444' } } },
+                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: xAxisRotate, interval: xAxisInterval }, axisLine: { lineStyle: { color: '#444' } } },
                             yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: '#fff' }, axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#333' } } },
                             series: [
-                                { name: 'Bezug', type: 'bar', data: data.map(d => d.import_kwh), itemStyle: { color: '#ef4444' }, stack: 'total' },
-                                { name: 'Einspeisung', type: 'bar', data: data.map(d => -d.export_kwh), itemStyle: { color: '#22c55e' }, stack: 'total' }
+                                { name: 'Bezug', type: 'bar', data: data.map(d => d.import_kwh), itemStyle: { color: '#ef4444' } },
+                                { name: 'Einspeisung', type: 'bar', data: data.map(d => -d.export_kwh), itemStyle: { color: '#22c55e' } }
                             ],
-                            grid: { left: 60, right: 30, top: 60, bottom: 50 }
+                            grid: { left: 60, right: 30, top: 60, bottom: xAxisBottom }
                         });
                     }
 
@@ -4696,13 +4748,13 @@
                         gridPriceChart.value.setOption({
                             tooltip: { trigger: 'axis', backgroundColor: 'rgba(30, 30, 62, 0.95)', borderColor: '#8b5cf6', textStyle: { color: '#fff' } },
                             legend: { data: ['Strompreis', 'Durchschnitt'], textStyle: { color: '#fff' } },
-                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: data.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: '#444' } } },
+                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: xAxisRotate, interval: xAxisInterval }, axisLine: { lineStyle: { color: '#444' } } },
                             yAxis: { type: 'value', name: 'ct/kWh', nameTextStyle: { color: '#fff' }, axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#333' } } },
                             series: [
                                 { name: 'Strompreis', type: 'line', data: data.map(d => d.avg_price_ct), smooth: true, itemStyle: { color: '#8b5cf6' }, lineStyle: { width: 2 }, areaStyle: { color: 'rgba(139, 92, 246, 0.2)' } },
                                 { name: 'Durchschnitt', type: 'line', data: Array(data.length).fill(avgPrice), lineStyle: { type: 'dashed', color: '#fbbf24' } }
                             ],
-                            grid: { left: 60, right: 30, top: 60, bottom: 50 }
+                            grid: { left: 60, right: 30, top: 60, bottom: xAxisBottom }
                         });
                     }
 
@@ -4711,13 +4763,13 @@
                         gridMoneyChart.value.setOption({
                             tooltip: { trigger: 'axis', backgroundColor: 'rgba(30, 30, 62, 0.95)', borderColor: '#8b5cf6', textStyle: { color: '#fff' } },
                             legend: { data: ['Kosten', 'Erlöse'], textStyle: { color: '#fff' } },
-                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: data.length > 20 ? 45 : 0 }, axisLine: { lineStyle: { color: '#444' } } },
+                            xAxis: { type: 'category', data: dates, axisLabel: { color: '#888', rotate: xAxisRotate, interval: xAxisInterval }, axisLine: { lineStyle: { color: '#444' } } },
                             yAxis: { type: 'value', name: '€', nameTextStyle: { color: '#fff' }, axisLabel: { color: '#888' }, splitLine: { lineStyle: { color: '#333' } } },
                             series: [
                                 { name: 'Kosten', type: 'bar', data: data.map(d => d.costs_eur), itemStyle: { color: '#ef4444' } },
                                 { name: 'Erlöse', type: 'bar', data: data.map(d => d.revenue_eur), itemStyle: { color: '#22c55e' } }
                             ],
-                            grid: { left: 60, right: 30, top: 60, bottom: 50 }
+                            grid: { left: 60, right: 30, top: 60, bottom: xAxisBottom }
                         });
                     }
 
