@@ -71,15 +71,15 @@ class SafeDateTimeUtil:
             return ha_dt_util.as_local(dt)
         local_tz = get_local_tz()
         if dt.tzinfo is None:
-            _LOGGER.debug("as_local received naive datetime, assuming UTC")
-            dt = dt.replace(tzinfo=timezone.utc)
+            _LOGGER.debug("as_local received naive datetime, assuming local timezone")
+            return dt.replace(tzinfo=local_tz)
         return dt.astimezone(local_tz)
 
     @staticmethod
     def as_utc(dt: datetime) -> datetime:
         """Convert a timezone-aware datetime to UTC. @zara"""
         if dt.tzinfo is None:
-            _LOGGER.warning("as_utc received naive datetime, assuming local timezone")
+            _LOGGER.debug("as_utc received naive datetime, assuming local timezone")
             dt = SafeDateTimeUtil.ensure_local(dt)
         return dt.astimezone(timezone.utc)
 
@@ -87,10 +87,8 @@ class SafeDateTimeUtil:
     def ensure_local(dt: datetime) -> datetime:
         """Ensure datetime is timezone-aware and in local timezone. @zara"""
         if dt.tzinfo is None:
-            _LOGGER.debug("ensure_local: Naive datetime, localizing to local timezone")
-            if _HAS_HA_DT:
-                return ha_dt_util.as_local(dt.replace(tzinfo=timezone.utc))
-            local_tz = get_local_tz()
+            _LOGGER.debug("ensure_local: Naive datetime, assuming local timezone")
+            local_tz = ha_dt_util.get_default_time_zone() if _HAS_HA_DT else get_local_tz()
             return dt.replace(tzinfo=local_tz)
         return SafeDateTimeUtil.as_local(dt)
 
