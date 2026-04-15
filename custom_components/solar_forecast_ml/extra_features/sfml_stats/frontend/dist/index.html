@@ -1255,6 +1255,32 @@
                 <div class="chart-container tall" ref="todayProductionChart"></div>
             </section>
 
+            <!-- Monatlicher Solarertrag — Jahresvergleich -->
+            <section class="chart-card sortable-item" data-section="monthlyYield" style="margin-bottom: var(--spacing-lg);">
+                <div class="chart-header">
+                    <div class="chart-title">📊 Monatlicher Solarertrag (kWh)</div>
+                </div>
+                <div style="display: flex; gap: var(--spacing-sm); flex-wrap: wrap; margin-bottom: var(--spacing-md); padding: 0 var(--spacing-md);">
+                    <div class="kpi-card" style="flex: 1; min-width: 140px; background: rgba(0, 255, 255, 0.06); border: 1px solid rgba(0, 255, 255, 0.2); padding: 10px 14px; text-align: center;">
+                        <div style="font-size: 1.3em; font-weight: 700; color: #00ffff;" id="monthlyKpiTotal">—</div>
+                        <div style="font-size: 0.75em; color: #94a3b8;">Gesamt kWh</div>
+                    </div>
+                    <div class="kpi-card" style="flex: 1; min-width: 140px; background: rgba(255, 193, 7, 0.06); border: 1px solid rgba(255, 193, 7, 0.2); padding: 10px 14px; text-align: center;">
+                        <div style="font-size: 1.3em; font-weight: 700; color: #ffc107;" id="monthlyKpiBestMonth">—</div>
+                        <div style="font-size: 0.75em; color: #94a3b8;">Bester Monat</div>
+                    </div>
+                    <div class="kpi-card" style="flex: 1; min-width: 140px; background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.2); padding: 10px 14px; text-align: center;">
+                        <div style="font-size: 1.3em; font-weight: 700; color: #10b981;" id="monthlyKpiCurrentYear">—</div>
+                        <div style="font-size: 0.75em; color: #94a3b8;" id="monthlyKpiCurrentYearLabel">2026 kWh</div>
+                    </div>
+                    <div class="kpi-card" style="flex: 1; min-width: 140px; background: rgba(139, 92, 246, 0.06); border: 1px solid rgba(139, 92, 246, 0.2); padding: 10px 14px; text-align: center;">
+                        <div style="font-size: 1.3em; font-weight: 700; color: #8b5cf6;" id="monthlyKpiAvg">—</div>
+                        <div style="font-size: 0.75em; color: #94a3b8;">&#216;/Monat</div>
+                    </div>
+                </div>
+                <div class="chart-container" ref="monthlyChart" style="height: 350px;"></div>
+            </section>
+
             <!-- Panel-Gruppen Produktion (Prognose vs IST pro Gruppe) -->
             <section class="collapsible-section sortable-item" data-section="panelGroups" style="margin-bottom: var(--spacing-lg);" v-if="panelGroups.available">
                 <div class="section-header" @click="toggleSection('panelGroups')">
@@ -1732,6 +1758,94 @@
                     <div class="ai-status-item">
                         <span class="ai-status-label">Drift-Events (7d)</span>
                         <span class="ai-status-value" :style="{ color: aiStatus.driftEvents > 0 ? '#f59e0b' : '#10b981' }">{{ aiStatus.driftEvents }}</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Jahresprognose -->
+            <section class="collapsible-section sortable-item" data-section="annualForecast" style="margin-top: var(--spacing-lg);">
+                <div class="section-header" @click="toggleSection('annualForecast')">
+                    <span class="section-title">📅 Jahresprognose</span>
+                    <span class="section-toggle">{{ isSectionCollapsed('annualForecast') ? '+' : '−' }}</span>
+                </div>
+                <div v-show="!isSectionCollapsed('annualForecast')">
+                    <div v-if="!annualForecast.loaded" style="text-align:center; padding: 20px; color: var(--text-muted);">
+                        Lade Jahresprognose...
+                    </div>
+                    <div v-else>
+                        <!-- KPI Cards -->
+                        <div class="kpi-grid" style="margin-bottom: var(--spacing-md);">
+                            <div class="kpi-card solar">
+                                <div class="kpi-value">{{ annualForecast.annual.yield_kwh?.toFixed(0) || '—' }}</div>
+                                <div class="kpi-label">kWh / Jahr</div>
+                            </div>
+                            <div class="kpi-card accuracy">
+                                <div class="kpi-value">{{ annualForecast.annual.specific_yield?.toFixed(0) || '—' }}</div>
+                                <div class="kpi-label">kWh/kWp</div>
+                            </div>
+                            <div class="kpi-card price">
+                                <div class="kpi-value">{{ annualForecast.annual.performance_ratio?.toFixed(1) || '—' }}%</div>
+                                <div class="kpi-label">Performance Ratio</div>
+                            </div>
+                            <div class="kpi-card forecast">
+                                <div class="kpi-value">{{ annualForecast.coverage.confidence?.toFixed(0) || '—' }}%</div>
+                                <div class="kpi-label">Konfidenz</div>
+                            </div>
+                        </div>
+
+                        <!-- Monthly Bar Chart -->
+                        <div class="chart-card" style="margin-bottom: var(--spacing-md);">
+                            <div class="chart-title">Monatlicher Ertrag (kWh)</div>
+                            <div class="chart-container" ref="annualChart" style="height: 320px;"></div>
+                        </div>
+
+                        <!-- Yield Band -->
+                        <div style="display: flex; gap: var(--spacing-md); flex-wrap: wrap; margin-bottom: var(--spacing-md);">
+                            <div class="kpi-card" style="flex: 1; min-width: 200px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3);">
+                                <div class="kpi-value" style="color: #10b981;">{{ annualForecast.annual.optimistic?.toFixed(0) || '—' }} kWh</div>
+                                <div class="kpi-label">Optimistisch (sonniges Jahr)</div>
+                            </div>
+                            <div class="kpi-card" style="flex: 1; min-width: 200px; background: rgba(255, 193, 7, 0.08); border: 1px solid rgba(255, 193, 7, 0.3);">
+                                <div class="kpi-value" style="color: #ffc107;">{{ annualForecast.annual.yield_kwh?.toFixed(0) || '—' }} kWh</div>
+                                <div class="kpi-label">Erwartungswert</div>
+                            </div>
+                            <div class="kpi-card" style="flex: 1; min-width: 200px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3);">
+                                <div class="kpi-value" style="color: #ef4444;">{{ annualForecast.annual.pessimistic?.toFixed(0) || '—' }} kWh</div>
+                                <div class="kpi-label">Pessimistisch (trübes Jahr)</div>
+                            </div>
+                        </div>
+
+                        <!-- Records & System -->
+                        <div style="display: flex; gap: var(--spacing-md); flex-wrap: wrap; margin-bottom: var(--spacing-md);">
+                            <div class="kpi-card" style="flex: 1; min-width: 180px;">
+                                <div class="kpi-value" style="color: #f59e0b;">{{ annualForecast.records.best_day?.toFixed(2) || '—' }} kWh</div>
+                                <div class="kpi-label">Rekord-Tag ({{ annualForecast.records.best_day_date || '—' }})</div>
+                            </div>
+                            <div class="kpi-card" style="flex: 1; min-width: 180px;">
+                                <div class="kpi-value" style="color: #a78bfa;">{{ annualForecast.records.peak_w?.toFixed(0) || '—' }} W</div>
+                                <div class="kpi-label">Peak-Leistung</div>
+                            </div>
+                            <div class="kpi-card" style="flex: 1; min-width: 180px;">
+                                <div class="kpi-value" style="color: #00ffff;">{{ annualForecast.system.installed_kwp || '—' }} kWp</div>
+                                <div class="kpi-label">Installierte Leistung</div>
+                            </div>
+                        </div>
+
+                        <!-- Calibration Status -->
+                        <div v-if="annualForecast.system.panel_groups && annualForecast.system.panel_groups.length" class="ai-status-bar" style="margin-bottom: var(--spacing-md);">
+                            <div v-for="pg in annualForecast.system.panel_groups" :key="pg.group_name" class="ai-status-item">
+                                <span class="ai-status-label">{{ pg.group_name }}</span>
+                                <span class="ai-status-value" style="color: #a78bfa;">Faktor {{ pg.global_factor }} ({{ pg.sample_count }} Samples)</span>
+                            </div>
+                        </div>
+
+                        <!-- Data Coverage Info -->
+                        <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 8px;">
+                            Datengrundlage: {{ annualForecast.coverage.total_days }} Tage
+                            ({{ annualForecast.coverage.first_date }} bis {{ annualForecast.coverage.last_date }})
+                            · {{ annualForecast.coverage.measured_months }} Monate gemessen,
+                            {{ annualForecast.coverage.estimated_months }} geschätzt
+                        </div>
                     </div>
                 </div>
             </section>
@@ -3245,7 +3359,7 @@
                 let sortableInstance = null;
                 const defaultSectionOrder = [
                     'weather', 'energyMatrix', 'powerSources', 'forecast', 'todayProduction',
-                    'panelGroups', 'liveWidgets', 'energyBalance', 'stats', 'kpis', 'mainCharts', 'extendedCharts'
+                    'panelGroups', 'liveWidgets', 'energyBalance', 'stats', 'kpis', 'mainCharts', 'extendedCharts', 'annualForecast'
                 ];
 
                 function initSortable() {
@@ -3667,6 +3781,18 @@
                 const shadowCharts = { heatmap: null, causes: null, dailyLoss: null };
 
                 // KI-Status
+                // Annual Forecast
+                const annualForecast = reactive({
+                    loaded: false,
+                    annual: { yield_kwh: null, specific_yield: null, performance_ratio: null, optimistic: null, pessimistic: null },
+                    coverage: { first_date: null, last_date: null, total_days: 0, measured_months: 0, estimated_months: 0, confidence: null },
+                    records: { best_day: null, best_day_date: null, peak_w: null },
+                    system: { installed_kwp: null, panel_groups: [] },
+                    months: [],
+                });
+                const annualChart = ref(null);
+                let annualChartInstance = null;
+
                 const aiStatus = reactive({
                     loaded: false,
                     model: '—',
@@ -6838,6 +6964,134 @@
                     }
                 });
 
+                // Annual Forecast - Jahresprognose laden und Chart rendern
+                async function loadAnnualForecast() {
+                    try {
+                        const res = await fetch('/api/sfml_stats/annual_forecast');
+                        const data = await res.json();
+                        if (!data.success) return;
+
+                        annualForecast.annual.yield_kwh = data.annual.yield_kwh;
+                        annualForecast.annual.specific_yield = data.annual.specific_yield_kwh_per_kwp;
+                        annualForecast.annual.performance_ratio = data.annual.performance_ratio;
+                        annualForecast.annual.optimistic = data.annual.optimistic_kwh;
+                        annualForecast.annual.pessimistic = data.annual.pessimistic_kwh;
+
+                        annualForecast.coverage.first_date = data.data_coverage.first_date;
+                        annualForecast.coverage.last_date = data.data_coverage.last_date;
+                        annualForecast.coverage.total_days = data.data_coverage.total_measured_days;
+                        annualForecast.coverage.measured_months = data.data_coverage.measured_months;
+                        annualForecast.coverage.estimated_months = data.data_coverage.estimated_months;
+                        annualForecast.coverage.confidence = data.data_coverage.confidence_percent;
+
+                        annualForecast.records.best_day = data.records.best_day_kwh;
+                        annualForecast.records.best_day_date = data.records.best_day_date;
+                        annualForecast.records.peak_w = data.records.peak_power_w;
+
+                        annualForecast.system.installed_kwp = data.system.installed_kwp;
+                        annualForecast.system.panel_groups = data.system.panel_groups || [];
+
+                        annualForecast.months = data.months || [];
+                        annualForecast.loaded = true;
+
+                        nextTick(() => renderAnnualChart());
+                    } catch (e) {
+                        console.warn('Annual forecast load failed:', e);
+                    }
+                }
+
+                function renderAnnualChart() {
+                    if (!annualChart.value || !annualForecast.months.length) return;
+
+                    if (annualChartInstance) annualChartInstance.dispose();
+                    annualChartInstance = echarts.init(annualChart.value);
+
+                    const monthNames = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+                    const months = annualForecast.months;
+
+                    const measuredData = months.map(m => m.source !== 'estimated' ? m.measured_yield_kwh : 0);
+                    const projectedData = months.map(m => m.projected_yield_kwh);
+                    const sourceColors = months.map(m => {
+                        if (m.source === 'measured') return '#10b981';
+                        if (m.source === 'partial') return '#f59e0b';
+                        return 'rgba(100, 100, 100, 0.4)';
+                    });
+
+                    const option = {
+                        backgroundColor: 'transparent',
+                        tooltip: {
+                            trigger: 'axis',
+                            backgroundColor: 'rgba(20, 20, 30, 0.95)',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            textStyle: { color: '#e0e0e0', fontSize: 12 },
+                            formatter: function(params) {
+                                const idx = params[0].dataIndex;
+                                const m = months[idx];
+                                const src = m.source === 'measured' ? 'Gemessen' : m.source === 'partial' ? 'Teilweise' : 'Geschätzt';
+                                let html = '<b>' + monthNames[idx] + '</b> (' + src + ')<br/>';
+                                html += 'Prognose: <b>' + m.projected_yield_kwh.toFixed(1) + ' kWh</b><br/>';
+                                if (m.source !== 'estimated') {
+                                    html += 'Gemessen: ' + m.measured_yield_kwh.toFixed(1) + ' kWh (' + m.measured_days + ' Tage)<br/>';
+                                    html += 'Ø Tag: ' + m.avg_daily_kwh.toFixed(2) + ' kWh<br/>';
+                                    html += 'Min/Max: ' + m.min_day_kwh.toFixed(2) + ' / ' + m.max_day_kwh.toFixed(2) + ' kWh<br/>';
+                                    if (m.avg_peak_w > 0) html += 'Ø Peak: ' + m.avg_peak_w.toFixed(0) + ' W<br/>';
+                                }
+                                if (m.avg_autarky_percent > 0) html += 'Autarkie: ' + m.avg_autarky_percent.toFixed(0) + '%';
+                                return html;
+                            }
+                        },
+                        grid: { left: 50, right: 20, top: 30, bottom: 40 },
+                        xAxis: {
+                            type: 'category',
+                            data: monthNames,
+                            axisLabel: { color: '#a0a0a0' },
+                            axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+                        },
+                        yAxis: {
+                            type: 'value',
+                            name: 'kWh',
+                            nameTextStyle: { color: '#a0a0a0' },
+                            axisLabel: { color: '#a0a0a0' },
+                            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+                        },
+                        series: [
+                            {
+                                name: 'Prognose',
+                                type: 'bar',
+                                data: projectedData.map((val, i) => ({
+                                    value: val,
+                                    itemStyle: { color: sourceColors[i], borderRadius: [4, 4, 0, 0] }
+                                })),
+                                barWidth: '50%',
+                                label: {
+                                    show: true,
+                                    position: 'top',
+                                    color: '#a0a0a0',
+                                    fontSize: 10,
+                                    formatter: p => p.value > 0 ? p.value.toFixed(0) : '',
+                                },
+                            },
+                            {
+                                name: 'Gemessen',
+                                type: 'line',
+                                data: measuredData.map(v => v > 0 ? v : null),
+                                lineStyle: { color: '#ffc107', width: 2, type: 'dashed' },
+                                itemStyle: { color: '#ffc107' },
+                                symbol: 'circle',
+                                symbolSize: 6,
+                                connectNulls: false,
+                            },
+                        ],
+                        legend: {
+                            data: ['Prognose', 'Gemessen'],
+                            textStyle: { color: '#a0a0a0' },
+                            bottom: 0,
+                        },
+                    };
+
+                    annualChartInstance.setOption(option);
+                }
+
                 // Energy Balance - Lädt Jahresbilanz aus Recorder (Riemann-Summe)
                 async function fetchBillingData() {
                     try {
@@ -7062,6 +7316,7 @@
                                 panelGroups.available = statsData.panel_groups.available;
                                 panelGroups.groups = statsData.panel_groups.groups || {};
                             }
+
                         }
 
                         if (summary?.success) {
@@ -7226,8 +7481,9 @@
                             });
 
                             // Erweiterte Charts mit History-Daten
-                            if (solar.data.history) {
-                                updateExtendedCharts(solar.data.history, solar.data.astronomy || {}, solar.data.statistics);
+                            const historySource = statsData?.history || solar.data.history;
+                            if (historySource) {
+                                updateExtendedCharts(historySource, solar.data.astronomy || {}, statsData?.statistics || {});
                             }
                         }
 
@@ -7775,7 +8031,6 @@
                 }
 
                 function updateTodayProductionChart(hourly, currentSolarPower) {
-                    // Lazy init: chart may not exist yet if section was hidden via v-if
                     if (!charts.todayProduction && todayProductionChart.value) {
                         charts.todayProduction = echarts.init(todayProductionChart.value);
                     }
@@ -7787,41 +8042,50 @@
                         String(now.getDate()).padStart(2, '0');
                     const currentHour = now.getHours();
 
-                    // Filtere nur heute und sortiere nach Stunde
                     const todayData = hourly
                         .filter(h => h.target_date === todayStr)
                         .sort((a, b) => a.target_hour - b.target_hour);
 
                     const { startHour: START_HOUR, endHour: END_HOUR } = getProductionHourRange();
-
                     const hours = Array.from({length: END_HOUR - START_HOUR + 1}, (_, i) => i + START_HOUR);
 
-                    // Tatsächliche Produktion (kWh pro Stunde) - 0 für fehlende Stunden
                     const actualData = hours.map(h => {
                         const found = todayData.find(d => d.target_hour === h);
                         return found?.actual_kwh ?? 0;
                     });
 
-                    // Vorhersage (kWh pro Stunde) - 0 für fehlende Stunden
-                    const forecastData = hours.map(h => {
+                    const blendData = hours.map(h => {
                         const found = todayData.find(d => d.target_hour === h);
                         return found?.prediction_kwh ?? 0;
                     });
 
-                    // Aktuelle Leistung als Linie (W -> kW für Skalierung)
-                    const powerData = hours.map(h => {
-                        if (h === currentHour && currentSolarPower > 0) {
-                            return (currentSolarPower / 1000).toFixed(2); // W -> kW
-                        }
-                        return null;
+                    const modelKeys = ['physics_kwh', 'ridge_kwh', 'lstm_kwh', 'ai_kwh', 'tfs_kwh'];
+                    const modelLabels = { physics_kwh: 'Physics', ridge_kwh: 'Ridge', lstm_kwh: 'LSTM', ai_kwh: 'AI-Blend', tfs_kwh: 'TFS' };
+
+                    const modelData = hours.map(h => {
+                        const found = todayData.find(d => d.target_hour === h);
+                        const vals = {};
+                        modelKeys.forEach(k => { vals[k] = found?.[k] ?? null; });
+                        return vals;
                     });
 
-                    // Genauigkeit pro Stunde berechnen
-                    const accuracyData = hours.map(h => {
-                        const actual = actualData[h];
-                        const pred = forecastData[h];
-                        if (actual != null && pred != null && pred > 0) {
-                            return (actual / pred) * 100;
+                    const bandMin = hours.map((h, i) => {
+                        const vals = modelKeys.map(k => modelData[i][k]).filter(v => v != null && v > 0);
+                        if (vals.length === 0) return blendData[i];
+                        return Math.min(...vals);
+                    });
+
+                    const bandMax = hours.map((h, i) => {
+                        const vals = modelKeys.map(k => modelData[i][k]).filter(v => v != null && v > 0);
+                        if (vals.length === 0) return blendData[i];
+                        return Math.max(...vals);
+                    });
+
+                    const bandRange = hours.map((h, i) => bandMax[i] - bandMin[i]);
+
+                    const powerData = hours.map(h => {
+                        if (h === currentHour && currentSolarPower > 0) {
+                            return (currentSolarPower / 1000).toFixed(2);
                         }
                         return null;
                     });
@@ -7832,27 +8096,43 @@
                             trigger: 'axis',
                             backgroundColor: '#1e1e3e',
                             borderColor: '#00ffff33',
-                            textStyle: { color: '#e2e8f0' },
+                            textStyle: { color: '#e2e8f0', fontSize: 12 },
                             formatter: params => {
-                                const hourIdx = params[0].dataIndex;
-                                let result = `<b>${params[0].axisValue}</b><br/>`;
-                                params.forEach(p => {
-                                    if (p.value !== null && p.value !== undefined) {
-                                        const unit = p.seriesName === 'Aktuell' ? 'kW' : 'kWh';
-                                        result += `${p.marker} ${p.seriesName}: <b>${parseFloat(p.value).toFixed(3)} ${unit}</b><br/>`;
+                                const idx = params[0].dataIndex;
+                                const md = modelData[idx];
+                                let result = `<b style="color:#00ffff">${params[0].axisValue}</b><br/>`;
+                                const ist = actualData[idx];
+                                const blend = blendData[idx];
+                                if (ist != null && ist > 0) {
+                                    result += `<span style="color:#10b981">\u25CF IST: <b>${ist.toFixed(3)} kWh</b></span><br/>`;
+                                }
+                                result += `<span style="color:#00ffff">\u25CF Blend: <b>${blend.toFixed(3)} kWh</b></span><br/>`;
+                                result += `<div style="border-top:1px solid #333;margin:4px 0;padding-top:4px">`;
+                                modelKeys.forEach(k => {
+                                    const v = md[k];
+                                    if (v != null && v > 0) {
+                                        result += `<span style="color:#64748b">\u25CB ${modelLabels[k]}: ${v.toFixed(3)} kWh</span><br/>`;
                                     }
                                 });
-                                // Abweichung hinzufügen wenn beide Werte vorhanden
-                                const acc = accuracyData[hourIdx];
-                                if (acc !== null) {
-                                    const dev = acc - 100;
-                                    const devColor = Math.abs(dev) <= 20 ? '#00ff88' : Math.abs(dev) <= 50 ? '#ffdd00' : '#ef4444';
-                                    result += `<span style="color:${devColor}">📊 Abweichung: <b>${dev >= 0 ? '+' : ''}${dev.toFixed(0)}%</b></span>`;
+                                result += `</div>`;
+                                const pwr = powerData[idx];
+                                if (pwr != null) {
+                                    result += `<span style="color:#ffdd00">\u26A1 Aktuell: <b>${parseFloat(pwr).toFixed(2)} kW</b></span><br/>`;
+                                }
+                                if (ist > 0 && blend > 0) {
+                                    const dev = ((ist / blend) - 1) * 100;
+                                    const devColor = Math.abs(dev) <= 20 ? '#10b981' : Math.abs(dev) <= 50 ? '#ffdd00' : '#ef4444';
+                                    result += `<span style="color:${devColor}">\u0394 ${dev >= 0 ? '+' : ''}${dev.toFixed(0)}%</span>`;
                                 }
                                 return result;
                             }
                         },
-                        legend: { data: ['Tatsächlich', 'Vorhersage', 'Aktuell'], textStyle: { color: '#94a3b8' }, top: 0 },
+                        legend: {
+                            data: ['Konfidenzband', 'Blend (Forecast)', 'IST', 'Aktuell'],
+                            textStyle: { color: '#94a3b8' },
+                            top: 0,
+                            selected: { 'Band-Basis': true }
+                        },
                         grid: { left: '3%', right: '4%', bottom: '3%', top: '12%', containLabel: true },
                         xAxis: {
                             type: 'category',
@@ -7868,41 +8148,68 @@
                         },
                         series: [
                             {
-                                name: 'Tatsächlich',
+                                name: 'Band-Basis',
                                 type: 'line',
-                                data: actualData,
+                                data: bandMin,
                                 smooth: true,
-                                lineStyle: { color: '#00ff88', width: 3 },
-                                itemStyle: { color: '#00ff88' },
-                                symbol: 'circle',
-                                symbolSize: 6,
-                                areaStyle: {
-                                    color: {
-                                        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                                        colorStops: [
-                                            { offset: 0, color: 'rgba(0, 255, 136, 0.4)' },
-                                            { offset: 1, color: 'rgba(0, 255, 136, 0.05)' }
-                                        ]
-                                    }
-                                }
+                                stack: 'confidence',
+                                lineStyle: { opacity: 0 },
+                                itemStyle: { opacity: 0 },
+                                symbol: 'none',
+                                areaStyle: { opacity: 0 },
+                                z: 1
                             },
                             {
-                                name: 'Vorhersage',
+                                name: 'Konfidenzband',
                                 type: 'line',
-                                data: forecastData,
+                                data: bandRange,
                                 smooth: true,
-                                lineStyle: { color: '#8b5cf6', width: 2, type: 'dashed' },
-                                itemStyle: { color: '#8b5cf6' },
+                                stack: 'confidence',
+                                lineStyle: { opacity: 0 },
+                                itemStyle: { color: 'rgba(0, 200, 255, 0.2)' },
                                 symbol: 'none',
                                 areaStyle: {
                                     color: {
                                         type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
                                         colorStops: [
-                                            { offset: 0, color: 'rgba(139, 92, 246, 0.2)' },
-                                            { offset: 1, color: 'rgba(139, 92, 246, 0)' }
+                                            { offset: 0, color: 'rgba(0, 255, 255, 0.22)' },
+                                            { offset: 0.5, color: 'rgba(0, 150, 255, 0.12)' },
+                                            { offset: 1, color: 'rgba(0, 100, 255, 0.06)' }
                                         ]
                                     }
-                                }
+                                },
+                                z: 1
+                            },
+                            {
+                                name: 'Blend (Forecast)',
+                                type: 'line',
+                                data: blendData,
+                                smooth: true,
+                                lineStyle: { color: '#00ffff', width: 2 },
+                                itemStyle: { color: '#00ffff' },
+                                symbol: 'none',
+                                z: 3
+                            },
+                            {
+                                name: 'IST',
+                                type: 'line',
+                                data: actualData,
+                                smooth: true,
+                                lineStyle: { color: '#10b981', width: 2.5 },
+                                itemStyle: { color: '#10b981' },
+                                symbol: 'circle',
+                                symbolSize: 5,
+                                showSymbol: true,
+                                areaStyle: {
+                                    color: {
+                                        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                                        colorStops: [
+                                            { offset: 0, color: 'rgba(16, 185, 129, 0.25)' },
+                                            { offset: 1, color: 'rgba(16, 185, 129, 0.02)' }
+                                        ]
+                                    }
+                                },
+                                z: 4
                             },
                             {
                                 name: 'Aktuell',
@@ -7913,16 +8220,16 @@
                                     color: '#ffdd00',
                                     shadowBlur: 10,
                                     shadowColor: 'rgba(255, 221, 0, 0.5)'
-                                }
+                                },
+                                markLine: {
+                                    silent: true,
+                                    data: [{ xAxis: currentHour - START_HOUR }],
+                                    lineStyle: { color: '#ffdd00', width: 2, type: 'solid' },
+                                    label: { show: false }
+                                },
+                                z: 5
                             }
-                        ],
-                        // Markierung für aktuelle Stunde
-                        markLine: {
-                            silent: true,
-                            data: [{ xAxis: currentHour }],
-                            lineStyle: { color: '#ffdd00', width: 2, type: 'solid' },
-                            label: { show: false }
-                        }
+                        ]
                     });
                 }
 
@@ -8086,27 +8393,74 @@
                     });
                 }
 
-                // Monats-Vergleich Chart
+                // Monatlicher Solarertrag — Jahresvergleich
                 function updateMonthlyChart(data) {
+                    if (!charts.monthly && monthlyChart.value) {
+                        charts.monthly = echarts.init(monthlyChart.value);
+                    }
                     if (!charts.monthly) return;
 
-                    // Gruppiere nach Monat
-                    const monthly = {};
+                    const monthLabels = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
+                    const yearColors = {
+                        2023: '#f59e0b',
+                        2024: '#10b981',
+                        2025: '#3b82f6',
+                        2026: '#ffc107',
+                        2027: '#8b5cf6',
+                        2028: '#ef4444',
+                    };
+
+                    const yearData = {};
+                    let grandTotal = 0;
+                    let bestVal = 0, bestLabel = '';
+
                     data.forEach(d => {
-                        const month = d.date.slice(0, 7); // YYYY-MM
-                        if (!monthly[month]) monthly[month] = { production: 0, forecast: 0, days: 0 };
-                        monthly[month].production += d.actual_kwh || 0;
-                        monthly[month].forecast += d.predicted_kwh || 0;
-                        monthly[month].days++;
+                        const actual = d.actual_kwh || 0;
+                        if (actual <= 0) return;
+                        const [y, m] = d.date.split('-');
+                        const year = parseInt(y);
+                        const month = parseInt(m) - 1;
+                        if (!yearData[year]) yearData[year] = new Array(12).fill(0);
+                        yearData[year][month] += actual;
+                        grandTotal += actual;
                     });
 
-                    const months = Object.keys(monthly).sort();
-                    const monthNames = months.map(m => {
-                        const [y, mo] = m.split('-');
-                        return ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'][parseInt(mo)-1] + ' ' + y.slice(2);
+                    const years = Object.keys(yearData).map(Number).sort();
+                    const currentYear = new Date().getFullYear();
+
+                    years.forEach(y => {
+                        yearData[y].forEach((val, mi) => {
+                            if (val > bestVal) {
+                                bestVal = val;
+                                bestLabel = monthLabels[mi] + ' ' + y;
+                            }
+                        });
                     });
-                    const production = months.map(m => monthly[m].production.toFixed(1));
-                    const forecast = months.map(m => monthly[m].forecast.toFixed(1));
+
+                    const currentYearTotal = yearData[currentYear] ? yearData[currentYear].reduce((a, b) => a + b, 0) : 0;
+                    const monthsWithData = years.reduce((cnt, y) => cnt + yearData[y].filter(v => v > 0).length, 0);
+                    const avgPerMonth = monthsWithData > 0 ? grandTotal / monthsWithData : 0;
+
+                    const el = id => document.getElementById(id);
+                    if (el('monthlyKpiTotal')) el('monthlyKpiTotal').textContent = grandTotal.toFixed(0);
+                    if (el('monthlyKpiBestMonth')) el('monthlyKpiBestMonth').textContent = bestLabel || '—';
+                    if (el('monthlyKpiCurrentYear')) el('monthlyKpiCurrentYear').textContent = currentYearTotal.toFixed(0);
+                    if (el('monthlyKpiCurrentYearLabel')) el('monthlyKpiCurrentYearLabel').textContent = currentYear + ' kWh';
+                    if (el('monthlyKpiAvg')) el('monthlyKpiAvg').textContent = avgPerMonth.toFixed(1);
+
+                    const series = years.map(y => ({
+                        name: '' + y,
+                        type: 'bar',
+                        data: yearData[y].map(v => v > 0 ? parseFloat(v.toFixed(1)) : 0),
+                        itemStyle: {
+                            color: yearColors[y] || '#94a3b8',
+                            borderRadius: [3, 3, 0, 0]
+                        },
+                        barMaxWidth: 28,
+                        label: {
+                            show: false
+                        }
+                    }));
 
                     charts.monthly.setOption({
                         backgroundColor: 'transparent',
@@ -8114,34 +8468,36 @@
                             trigger: 'axis',
                             backgroundColor: '#1e1e3e',
                             borderColor: '#00ffff33',
-                            textStyle: { color: '#e2e8f0' }
+                            textStyle: { color: '#e2e8f0', fontSize: 12 },
+                            formatter: params => {
+                                let html = '<b style="color:#00ffff">' + params[0].axisValue + '</b><br/>';
+                                params.forEach(p => {
+                                    if (p.value > 0) {
+                                        html += '<span style="color:' + (yearColors[parseInt(p.seriesName)] || '#94a3b8') + '">\u25A0</span> ' +
+                                            p.seriesName + ': <b>' + p.value.toFixed(1) + ' kWh</b><br/>';
+                                    }
+                                });
+                                return html;
+                            }
                         },
-                        legend: { data: ['Produktion', 'Prognose'], textStyle: { color: '#94a3b8' }, top: 0 },
-                        grid: { left: '3%', right: '4%', bottom: '3%', top: '15%', containLabel: true },
+                        legend: {
+                            data: years.map(String),
+                            textStyle: { color: '#94a3b8' },
+                            top: 0
+                        },
+                        grid: { left: '3%', right: '4%', bottom: '3%', top: '12%', containLabel: true },
                         xAxis: {
                             type: 'category',
-                            data: monthNames,
-                            axisLabel: { color: '#94a3b8' }
+                            data: monthLabels,
+                            axisLabel: { color: '#a0a0a0' },
+                            axisLine: { lineStyle: { color: '#1a1a3a' } }
                         },
                         yAxis: {
                             type: 'value',
-                            axisLabel: { color: '#94a3b8', formatter: '{value} kWh' },
+                            axisLabel: { color: '#a0a0a0', formatter: '{value} kWh' },
                             splitLine: { lineStyle: { color: '#1a1a3a' } }
                         },
-                        series: [
-                            {
-                                name: 'Produktion',
-                                type: 'bar',
-                                data: production,
-                                itemStyle: { color: '#00ff88', borderRadius: [4, 4, 0, 0] }
-                            },
-                            {
-                                name: 'Prognose',
-                                type: 'bar',
-                                data: forecast,
-                                itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] }
-                            }
-                        ]
+                        series: series
                     });
                 }
 
@@ -8159,6 +8515,7 @@
                      powerSourcesMainChart, powerSourcesSOCChart, powerSourcesPieChart,
                      consumerBarChart, forecastComparisonChart
                     ].forEach(c => c.value?.resize());
+                    if (annualChartInstance) annualChartInstance.resize();
                     Object.values(panelGroupCharts).forEach(c => c?.resize());
                 }
 
@@ -8193,6 +8550,7 @@
                     fetchData();
                     setTimeout(() => updatePowerSourcesPreviewChart(), 1500);
                     loadAIStatus();
+                    loadAnnualForecast();
                     _startPolling();
                     window.addEventListener('resize', _onResize);
                     document.addEventListener('visibilitychange', _onVisibilityChange);
@@ -8207,6 +8565,7 @@
                     window.removeEventListener('resize', _onResize);
                     document.removeEventListener('visibilitychange', _onVisibilityChange);
                     Object.values(charts).forEach(c => c?.dispose());
+                    if (annualChartInstance) annualChartInstance.dispose();
                 });
 
                 return {
@@ -8235,7 +8594,8 @@
                     clothingModal, openClothingModal, closeClothingModal,
                     forecastComparisonModal, openForecastComparisonModal, closeForecastComparisonModal,
                     shadowModal, openShadowAnalyticsModal, closeShadowAnalyticsModal,
-                    aiStatus
+                    aiStatus,
+                    annualForecast, annualChart
                 };
             }
         }).mount('#app');

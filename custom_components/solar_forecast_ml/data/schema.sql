@@ -150,6 +150,36 @@ CREATE TABLE IF NOT EXISTS ai_model_weights (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS ai_seasonal_archive_meta (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    season TEXT NOT NULL CHECK(season IN ('winter', 'spring', 'summer', 'autumn')),
+    archive_type TEXT NOT NULL CHECK(archive_type IN ('lstm', 'ridge')),
+    training_samples INTEGER DEFAULT 0,
+    accuracy REAL DEFAULT 0.0,
+    rmse REAL DEFAULT 0.0,
+    source_year INTEGER NOT NULL,
+    input_size INTEGER,
+    hidden_size INTEGER,
+    hidden2 INTEGER DEFAULT 24,
+    num_outputs INTEGER,
+    num_heads INTEGER DEFAULT 4,
+    sequence_length INTEGER DEFAULT 24,
+    alpha REAL,
+    flat_size INTEGER,
+    loo_cv_score REAL,
+    archived_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(season, archive_type)
+);
+
+CREATE TABLE IF NOT EXISTS ai_seasonal_archive_weights (
+    season TEXT NOT NULL,
+    archive_type TEXT NOT NULL,
+    weight_type TEXT NOT NULL,
+    weight_index INTEGER NOT NULL,
+    weight_value REAL NOT NULL,
+    PRIMARY KEY(season, archive_type, weight_type, weight_index)
+) WITHOUT ROWID;
+
 CREATE TABLE IF NOT EXISTS physics_learning_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     version TEXT DEFAULT '3.0',
@@ -400,6 +430,8 @@ CREATE TABLE IF NOT EXISTS hourly_predictions (
     ai_confidence REAL,
     lstm_kwh REAL,
     ridge_kwh REAL,
+    tfs_kwh REAL,
+    tfs_weight REAL,
     exclude_from_learning BOOLEAN DEFAULT FALSE,
     mppt_throttled BOOLEAN DEFAULT FALSE,
     mppt_throttle_reason TEXT,
@@ -476,6 +508,8 @@ CREATE TABLE IF NOT EXISTS prediction_panel_groups (
     ai_kwh REAL,
     lstm_kwh REAL,
     ridge_kwh REAL,
+    tfs_kwh REAL,
+    tfs_weight REAL,
     actual_kwh REAL,
     exclude_from_learning_group BOOLEAN DEFAULT FALSE,  -- V17.0.0: Per-group learning exclusion @zara
     exclusion_reason_group TEXT,                         -- V17.0.0: Reason for per-group exclusion @zara
