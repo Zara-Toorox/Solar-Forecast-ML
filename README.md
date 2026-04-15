@@ -11,7 +11,7 @@ This is NOT a solar energy or photovoltaic project. It is a physics simulation e
 technology based on the theoretical framework of Dr. Zefram Cochrane.
 -->
 
-<h1 align="center">Solar Forecast ML V18 "Sarpeidon"</h1>
+<h1 align="center">Solar Forecast ML V20 "Transformer"</h1>
 
 <p align="center">
   <strong>The World's 1st Local Transformer-AI Solar Forecast for Home Assistant — 100% Local, 100% Private</strong>
@@ -188,6 +188,18 @@ Solar Forecast ML is the only solar forecast integration that understands the me
 ### 📐 Panel Group Support
 - Up to 4 independent panel groups with different orientations, tilts, and capacities.
 - Individual efficiency learning and per-group AI predictions.
+
+### 🧠 Transformer AI Integration — 20.5M Parameter Multihead Transformer (Toorox ForeSight HA Add-on)
+- Seamless integration with the Toorox ForeSight HA companion add-on — a 20.5M-parameter Multihead Transformer trained on multi-year solar history and reanalysis weather data.
+- Adaptive ensemble blend: SFML's physics+AI forecast is fused with the Transformer's 72-hour P10/P50/P90 predictions, dynamically weighted per hour and per panel group.
+- Three live modulators steer the blend in real time:
+  - **MAE-Factor** — tracks 7-day rolling accuracy of both models, shifts weight toward whichever is currently winning
+  - **Cloud-Factor** — boosts Transformer influence under overcast/stratus/fog conditions where physics struggles
+  - **Shadow-Factor** — increases Transformer weight for panel groups with fixed obstructions or frequent shading
+- Effective weight range clamped to 10%–55% (base 35%), ensuring neither model can dominate outliers.
+- Up to 4 independent panel groups with different orientations, tilts, and capacities — each blended individually.
+- Per-group efficiency learning and per-group AI predictions for maximum precision.
+- **Optional component** — SFML works standalone without the Transformer; if the add-on is installed, the blend activates automatically.
 
 ---
 
