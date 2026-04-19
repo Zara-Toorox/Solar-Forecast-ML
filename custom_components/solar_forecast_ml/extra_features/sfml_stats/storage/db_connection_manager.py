@@ -105,12 +105,109 @@ class DatabaseConnectionManager:
             await self._connection.execute("PRAGMA busy_timeout = 30000")
             self._is_connected = True
             _LOGGER.info("Database connection established (DELETE mode, 30s timeout): %s", self._db_path)
+            await self._ensure_gpm_tables()
             return True
         except Exception as err:
             _LOGGER.error("Failed to connect to database: %s", err)
             self._connection = None
             self._is_connected = False
             return False
+
+    async def _ensure_gpm_tables(self) -> None:
+        """Create GPM tables if they do not exist. @zara"""
+        if self._connection is None:
+            return
+
+        try:
+            await self._connection.executescript("""
+                CREATE TABLE IF NOT EXISTS GPM_price_cache_meta (
+                    id INTEGER PRIMARY KEY DEFAULT 1,
+                    last_fetch TEXT,
+                    valid_until TEXT,
+                    country TEXT,
+                    CHECK (id = 1)
+                );
+
+                CREATE TABLE IF NOT EXISTS GPM_price_cache (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL UNIQUE,
+                    price REAL NOT NULL,
+                    total_price REAL,
+                    hour INTEGER NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS GPM_price_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL UNIQUE,
+                    price_net REAL NOT NULL,
+                    total_price REAL,
+                    hour INTEGER NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_gpm_price_history_ts ON GPM_price_history(timestamp);
+
+                CREATE TABLE IF NOT EXISTS GPM_daily_averages (
+                    date TEXT PRIMARY KEY,
+                    average_net REAL NOT NULL,
+                    average_total REAL NOT NULL,
+                    min_price REAL,
+                    max_price REAL
+                );
+
+                CREATE TABLE IF NOT EXISTS GPM_monthly_summaries (
+                    month TEXT PRIMARY KEY,
+                    average_price REAL NOT NULL,
+                    cheap_hours INTEGER NOT NULL DEFAULT 0,
+                    country TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS GPM_price_extremes (
+                    id INTEGER PRIMARY KEY DEFAULT 1,
+                    all_time_low REAL,
+                    all_time_low_date TEXT,
+                    all_time_high REAL,
+                    all_time_high_date TEXT,
+                    CHECK (id = 1)
+                );
+
+                CREATE TABLE IF NOT EXISTS GPM_battery_stats (
+                    id INTEGER PRIMARY KEY DEFAULT 1,
+                    energy_today_wh REAL DEFAULT 0.0,
+                    energy_week_wh REAL DEFAULT 0.0,
+                    energy_month_wh REAL DEFAULT 0.0,
+                    current_day INTEGER,
+                    current_week INTEGER,
+                    current_month INTEGER,
+                    CHECK (id = 1)
+                );
+
+                CREATE TABLE IF NOT EXISTS GPM_battery_totals (
+                    id INTEGER PRIMARY KEY DEFAULT 1,
+                    today_kwh REAL DEFAULT 0.0,
+                    week_kwh REAL DEFAULT 0.0,
+                    month_kwh REAL DEFAULT 0.0,
+                    CHECK (id = 1)
+                );
+
+                CREATE TABLE IF NOT EXISTS GPM_current_price (
+                    id INTEGER PRIMARY KEY DEFAULT 1,
+                    timestamp TEXT NOT NULL,
+                    spot_price_net REAL,
+                    spot_price_gross REAL,
+                    total_price REAL,
+                    price_next_hour REAL,
+                    is_cheap INTEGER DEFAULT 0,
+                    average_today REAL,
+                    cheapest_today REAL,
+                    most_expensive_today REAL,
+                    country TEXT,
+                    last_updated TEXT NOT NULL,
+                    CHECK (id = 1)
+                );
+            """)
+            _LOGGER.info("GPM tables ensured successfully")
+        except Exception as err:
+            _LOGGER.error("Failed to create GPM tables: %s", err)
 
     async def close(self) -> None:
         """Close database connection. @zara"""

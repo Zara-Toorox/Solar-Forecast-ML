@@ -38,7 +38,6 @@ from ..const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Notification IDs
 NOTIFICATION_ID_DEPENDENCIES = "solar_forecast_ml_dependencies"
 NOTIFICATION_ID_INSTALLATION = "solar_forecast_ml_installation"
 NOTIFICATION_ID_SUCCESS = "solar_forecast_ml_success"
@@ -100,7 +99,7 @@ class NotificationService:
         enabled = self.entry.options.get(notification_type, True)
 
         if not enabled:
-            _LOGGER.debug(f"Notification '{notification_type}' disabled by option")
+            _LOGGER.debug(f"Notification {notification_type} disabled by option")
 
         return enabled
 
@@ -111,7 +110,7 @@ class NotificationService:
         if not self._initialized:
             _LOGGER.warning(
                 f"[!] NotificationService not initialized - "
-                f"Notification '{notification_id}' will not be displayed"
+                f"Notification {notification_id} will not be displayed"
             )
             return False
 
@@ -126,12 +125,12 @@ class NotificationService:
                 },
                 blocking=True,
             )
-            _LOGGER.debug(f"[OK] Notification '{notification_id}' created")
+            _LOGGER.debug(f"[OK] Notification {notification_id} created")
             return True
 
         except Exception as e:
             _LOGGER.error(
-                f"[X] Error creating notification '{notification_id}': {e}", exc_info=True
+                f"[X] Error creating notification {notification_id}: {e}", exc_info=True
             )
             return False
 
@@ -149,11 +148,11 @@ class NotificationService:
                 },
                 blocking=True,
             )
-            _LOGGER.debug(f"[OK] Notification '{notification_id}' dismissed")
+            _LOGGER.debug(f"[OK] Notification {notification_id} dismissed")
             return True
 
         except Exception as e:
-            _LOGGER.warning(f"[!] Error dismissing notification '{notification_id}': {e}")
+            _LOGGER.warning(f"[!] Error dismissing notification {notification_id}: {e}")
             return False
 
     async def create_notification(
@@ -189,36 +188,34 @@ class NotificationService:
                 missing_list = f"\n\n**Missing Packages:**\n{missing_items}"
 
             if ml_mode:
-                engine = "LSTM + Ridge Regression + Physics"
-                if use_attention:
-                    engine = "AI (Attention) + Ridge Regression + Physics"
+                message = f"""The Hubble AI Stack — a custom-built ensemble of 4 proprietary AI models, a 20.5M-parameter Transformer (TFS), a local Machine Learning engine, and a full solar physics backbone — work in perfect synergy to deliver **3-day hourly forecasts with up to 97% accuracy** after calibration.
 
-                message = f"""Three proprietary AI models, a local Machine Learning engine, and a full solar physics engine work in perfect synergy to deliver **3-day hourly forecasts** with up to **97% accuracy** after calibration.
-
-🔒 **100% local AI (3 + 1)** — no cloud, no subscriptions, no data leaves your network. No external AI (ChatGPT, Grok, Gemini) needed. Everything runs on your hardware.
+🔒 **100% local AI** — no cloud, no subscriptions, no data leaves your network. No external AI (ChatGPT, Grok, Gemini) needed. Everything runs on your hardware.
 
 | | |
 |---|---|
-| 🧠 **Mode** | Hybrid AI (Physics + Machine Learning) |
-| ⚡ **Engine** | {engine} |
-| 📊 **Features** | Multi-Panel · Weather · Self-Learning · Briefings |
+| 🧠 **AI Stack** | Hubble AI 3.0 |
+| ⚡ **Engine** | AI (Attention) + Ridge + Physics Backbone |
+| 🤖 **Ensemble** | Hybrid-AI · Miss Ridge · Frau Holle · Kalman Tracker |
+| 🔬 **Transformer** | Toorox ForeSight — Adaptive Blend (10–55%) |
+| 📊 **Features** | Multi-Panel · Weather · Self-Learning · Shadow Detection |
 | ✅ **Status** | All systems operational |
 {installed_list}
 > *"Logic is the beginning of wisdom, not the end."* — Spock
 
 🖖 by **Zara-Toorox** — Live long and prosper!"""
             else:
-                message = f"""A full solar physics engine delivers reliable forecasts — even without ML dependencies. Install the missing packages to unlock three proprietary AI models and up to **97% accuracy**.
+                message = f"""The solar physics backbone delivers reliable forecasts — even without ML dependencies. Install the missing packages to unlock the full **Hubble AI Stack** with 4 proprietary models, Transformer AI, and up to **97% accuracy**.
 
 🔒 **100% local** — no cloud, no subscriptions, no data leaves your network.
 
 | | |
 |---|---|
-| 📐 **Mode** | Rule-Based (Limited Features) |
+| 📐 **Mode** | Rule-Based (Physics Only) |
 | 📊 **Features** | Solar Forecasting · Production Statistics |
 | ✅ **Status** | Operational |
 {missing_list}{installed_list}
-⚠️ Install missing Python packages to enable ML features.
+⚠️ Install missing Python packages to enable the Hubble AI Stack.
 
 > *"Logic is the beginning of wisdom, not the end."* — Spock
 
@@ -226,7 +223,7 @@ class NotificationService:
 
             await self._safe_create_notification(
                 message=message,
-                title="☀️ Solar Forecast ML — Sarpeidion AI & DB-Version",
+                title="☀️ Solar Forecast ML V20 \"Transformer\" — Hubble AI Stack",
                 notification_id=NOTIFICATION_ID_STARTUP,
             )
 
@@ -569,10 +566,9 @@ No worries! The integration adapts automatically."""
             return False
 
         try:
-            estimated_depth = precipitation_mm * 8  # Conservative estimate
+            estimated_depth = precipitation_mm * 8
 
             if message:
-                # Custom message provided (e.g., overnight snow) @zara V16.1
                 notification_message = f"""❄️ **Schnee auf Solarmodulen erkannt**
 
 **Zeit:** {hour:02d}:00 Uhr
@@ -662,7 +658,6 @@ No worries! The integration adapts automatically."""
     ) -> bool:
         """Show notification when adaptive forecast correction was applied. @zara"""
         try:
-            # Calculate change percentage
             if original_kwh > 0.1:
                 change_percent = ((corrected_kwh - original_kwh) / original_kwh) * 100
                 change_direction = "+" if change_percent > 0 else ""
@@ -670,7 +665,6 @@ No worries! The integration adapts automatically."""
             else:
                 change_text = "N/A"
 
-            # Calculate morning deviation
             if am_predicted > 0.1:
                 am_deviation = ((am_actual - am_predicted) / am_predicted) * 100
                 am_deviation_text = f"{am_deviation:+.0f}%"

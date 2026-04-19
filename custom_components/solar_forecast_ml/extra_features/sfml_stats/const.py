@@ -15,7 +15,12 @@ from typing import Final
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "16.0.0"
+VERSION: Final = "20.0.0"
+
+from datetime import timedelta
+from homeassistant.const import Platform
+
+PLATFORMS: Final = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 SOLAR_FORECAST_ML_BASE: Final = Path("solar_forecast_ml")
 SOLAR_FORECAST_ML_STATS: Final = SOLAR_FORECAST_ML_BASE / "stats"
@@ -113,9 +118,6 @@ COLORS: Final = {
 
 LOGGER_NAME: Final = "sfml_stats"
 
-CONF_GENERATE_WEEKLY: Final = "generate_weekly"
-CONF_GENERATE_MONTHLY: Final = "generate_monthly"
-CONF_AUTO_GENERATE: Final = "auto_generate"
 CONF_THEME: Final = "theme"
 CONF_DASHBOARD_STYLE: Final = "dashboard_style"
 
@@ -125,9 +127,6 @@ THEME_LIGHT: Final = "light"
 DASHBOARD_STYLE_3D: Final = "3d"
 DASHBOARD_STYLE_2D: Final = "2d"
 
-DEFAULT_GENERATE_WEEKLY: Final = True
-DEFAULT_GENERATE_MONTHLY: Final = True
-DEFAULT_AUTO_GENERATE: Final = True
 DEFAULT_THEME: Final = THEME_DARK
 DEFAULT_DASHBOARD_STYLE: Final = DASHBOARD_STYLE_3D
 
@@ -159,6 +158,8 @@ CONF_SENSOR_SOLAR_YIELD_TOTAL_KWH: Final = "sensor_solar_yield_total_kwh"
 CONF_SENSOR_SMARTMETER_IMPORT: Final = "sensor_smartmeter_import"
 CONF_SENSOR_SMARTMETER_EXPORT: Final = "sensor_smartmeter_export"
 
+CONF_SENSOR_GRID_IMPORT_EXTRA: Final = "sensor_grid_import_extra"
+
 CONF_WEATHER_ENTITY: Final = "weather_entity"
 
 CONF_SENSOR_PANEL1_POWER: Final = "sensor_panel1_power"
@@ -183,7 +184,10 @@ DEFAULT_PANEL4_NAME: Final = "Panel 4"
 CONF_BILLING_START_DAY: Final = "billing_start_day"
 CONF_BILLING_START_MONTH: Final = "billing_start_month"
 CONF_BILLING_PRICE_MODE: Final = "billing_price_mode"
-CONF_BILLING_FIXED_PRICE: Final = "billing_fixed_price"
+CONF_BILLING_FIXED_PRICE: Final = "billing_fixed_price"  # legacy, backwards compat
+CONF_BILLING_WORK_PRICE: Final = "billing_work_price"
+CONF_BILLING_GRID_FEES: Final = "billing_grid_fees"
+CONF_BILLING_BASE_FEE: Final = "billing_base_fee"
 CONF_FEED_IN_TARIFF: Final = "feed_in_tariff"
 
 CONF_PANEL_GROUP_NAMES: Final = "panel_group_names"
@@ -197,6 +201,9 @@ DEFAULT_BILLING_START_DAY: Final = 1
 DEFAULT_BILLING_START_MONTH: Final = 1
 DEFAULT_BILLING_PRICE_MODE: Final = PRICE_MODE_DYNAMIC
 DEFAULT_BILLING_FIXED_PRICE: Final = 35.0
+DEFAULT_BILLING_WORK_PRICE: Final = 28.0
+DEFAULT_BILLING_GRID_FEES: Final = 7.0
+DEFAULT_BILLING_BASE_FEE: Final = 0.0
 DEFAULT_FEED_IN_TARIFF: Final = 8.1
 
 SENSOR_W_TO_DAILY_KWH_MAP: Final = {
@@ -247,12 +254,28 @@ CONF_SENSOR_HEATPUMP_POWER: Final = "sensor_heatpump_power"
 CONF_SENSOR_HEATPUMP_DAILY: Final = "sensor_heatpump_daily"
 CONF_SENSOR_HEATPUMP_COP: Final = "sensor_heatpump_cop"
 
+# Heat Pump Detail Sensors
+CONF_SENSOR_HP_HEATING_MODE: Final = "sensor_hp_heating_mode"
+CONF_SENSOR_HP_DHW_MODE: Final = "sensor_hp_dhw_mode"
+CONF_SENSOR_HP_DHW_CHARGING: Final = "sensor_hp_dhw_charging"
+CONF_SENSOR_HP_PV_ACTIVE: Final = "sensor_hp_pv_active"
+CONF_SENSOR_HP_ELECTRIC_POWER: Final = "sensor_hp_electric_power"
+CONF_SENSOR_HP_THERMAL_POWER: Final = "sensor_hp_thermal_power"
+CONF_SENSOR_HP_GRID_ENERGY_DAILY: Final = "sensor_hp_grid_daily"
+CONF_SENSOR_HP_PV_ENERGY_DAILY: Final = "sensor_hp_pv_daily"
+CONF_SENSOR_HP_JAZ: Final = "sensor_hp_jaz"
+CONF_SENSOR_HP_COMPRESSOR_STARTS: Final = "sensor_hp_comp_starts"
+CONF_SENSOR_HP_STORAGE_TEMP: Final = "sensor_hp_storage_temp"
+
 CONF_SENSOR_HEATINGROD_POWER: Final = "sensor_heatingrod_power"
 CONF_SENSOR_HEATINGROD_DAILY: Final = "sensor_heatingrod_daily"
 
 CONF_SENSOR_WALLBOX_POWER: Final = "sensor_wallbox_power"
 CONF_SENSOR_WALLBOX_DAILY: Final = "sensor_wallbox_daily"
 CONF_SENSOR_WALLBOX_STATE: Final = "sensor_wallbox_state"
+# Wallbox Detail Sensors
+CONF_SENSOR_WB_CHARGE_MODE: Final = "sensor_wb_charge_mode"
+CONF_SENSOR_WB_ENERGY_SESSION: Final = "sensor_wb_energy_session"
 
 CONSUMER_SENSORS: Final = [
     CONF_SENSOR_HEATPUMP_POWER,
@@ -263,6 +286,25 @@ CONSUMER_SENSORS: Final = [
     CONF_SENSOR_WALLBOX_POWER,
     CONF_SENSOR_WALLBOX_DAILY,
     CONF_SENSOR_WALLBOX_STATE,
+]
+
+HP_DETAIL_SENSORS: Final = [
+    CONF_SENSOR_HP_HEATING_MODE,
+    CONF_SENSOR_HP_DHW_MODE,
+    CONF_SENSOR_HP_DHW_CHARGING,
+    CONF_SENSOR_HP_PV_ACTIVE,
+    CONF_SENSOR_HP_ELECTRIC_POWER,
+    CONF_SENSOR_HP_THERMAL_POWER,
+    CONF_SENSOR_HP_GRID_ENERGY_DAILY,
+    CONF_SENSOR_HP_PV_ENERGY_DAILY,
+    CONF_SENSOR_HP_JAZ,
+    CONF_SENSOR_HP_COMPRESSOR_STARTS,
+    CONF_SENSOR_HP_STORAGE_TEMP,
+]
+
+WB_DETAIL_SENSORS: Final = [
+    CONF_SENSOR_WB_CHARGE_MODE,
+    CONF_SENSOR_WB_ENERGY_SESSION,
 ]
 
 DEFAULT_HEATPUMP_COP: Final = 3.5
@@ -279,6 +321,10 @@ MAX_HISTORY_HOURS: Final = 168
 
 WEATHER_HISTORY_DAYS: Final = 365
 SUN_HOURS_RADIATION_THRESHOLD: Final = 100
+
+AWATTAR_API_URL_DE: Final = "https://api.awattar.de/v1/marketdata"
+AWATTAR_API_URL_AT: Final = "https://api.awattar.at/v1/marketdata"
+API_TIMEOUT: Final = 30  # seconds
 
 FILE_RETRY_COUNT: Final = 3
 FILE_RETRY_DELAY_SECONDS: Final = 0.1
@@ -328,3 +374,48 @@ FORECAST_EVENING_MINUTE: Final = 50
 
 FORECAST_CHART_HOUR: Final = 0
 FORECAST_CHART_MINUTE: Final = 5
+
+# ---------------------------------------------------------------------------
+# GPM (Grid Price Monitor) — integrated into SFML Stats V17+
+# ---------------------------------------------------------------------------
+
+# aWATTar API
+AWATTAR_API_URL_DE: Final = "https://api.awattar.de/v1/marketdata"
+AWATTAR_API_URL_AT: Final = "https://api.awattar.at/v1/marketdata"
+API_TIMEOUT: Final = 30
+
+# GPM Configuration Keys
+CONF_COUNTRY: Final = "country"
+CONF_VAT_RATE: Final = "vat_rate"
+CONF_GPM_GRID_FEE: Final = "gpm_grid_fee"
+CONF_TAXES_FEES: Final = "taxes_fees"
+CONF_PROVIDER_MARKUP: Final = "provider_markup"
+CONF_MAX_PRICE: Final = "max_price"
+CONF_SMART_CHARGING_ENABLED: Final = "smart_charging_enabled"
+CONF_BATTERY_CAPACITY: Final = "battery_capacity"
+CONF_BATTERY_SOC_SENSOR: Final = "battery_soc_sensor"
+CONF_GPM_BATTERY_POWER_SENSOR: Final = "gpm_battery_power_sensor"
+CONF_MAX_SOC: Final = "max_soc"
+CONF_MIN_SOC: Final = "min_soc"
+
+# GPM Defaults
+DEFAULT_COUNTRY: Final = "DE"
+DEFAULT_VAT_RATE_DE: Final = 19
+DEFAULT_VAT_RATE_AT: Final = 20
+DEFAULT_VAT_RATE_REDUCED_DE: Final = 7
+DEFAULT_GPM_GRID_FEE: Final = 8.0
+DEFAULT_TAXES_FEES: Final = 5.0
+DEFAULT_PROVIDER_MARKUP: Final = 1.0
+DEFAULT_MAX_PRICE: Final = 30.0
+DEFAULT_MAX_SOC: Final = 100
+DEFAULT_MIN_SOC: Final = 10
+DEFAULT_BATTERY_CAPACITY: Final = 10.0
+
+# GPM Update Intervals
+GPM_UPDATE_INTERVAL: Final = timedelta(minutes=5)
+GPM_PRICE_FETCH_INTERVAL: Final = timedelta(hours=1)
+
+# GPM Price Cache
+GPM_CACHE_VALIDITY_HOURS: Final = 48
+GPM_HISTORY_RETENTION_DAYS: Final = 730
+GPM_MAX_HISTORY_ENTRIES: Final = 18000

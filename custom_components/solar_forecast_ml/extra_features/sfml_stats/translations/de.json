@@ -2,439 +2,221 @@
   "config": {
     "step": {
       "user": {
-        "title": "Solar Forecast STATS - Willkommen",
-        "description": "Willkommen bei Solar Forecast STATS!\n\nDiese Integration erfasst deine Solarproduktion, Batterie, Netzbezug und berechnet Kosten.\n\nKlicke WEITER um deine Sensoren zu konfigurieren.",
-        "data": {},
-        "data_description": {}
-      },
-      "sensors_setup": {
-        "title": "Haupt-Sensoren",
-        "description": "Konfiguriere die wichtigsten Sensor-Zuordnungen.\n\n**🏠 Hausverbrauch (W)** und **☀️ Solar → Haus (W)** sind die wichtigsten Sensoren.\nLasse leer wenn nicht verfügbar.\n\nSolar-Leistung kommt automatisch von SFML.\n\n**Benötigte Einheiten:**\n- Leistung: Watt (W)\n- Energie: kWh (mit täglichem Reset)\n- Preis: ct/kWh",
+        "title": "Solar Forecast Stats — Setup",
+        "description": "Grundkonfiguration",
         "data": {
-          "sensor_home_consumption": "🏠 Hausverbrauch (W)",
-          "sensor_home_consumption_daily": "🏠 Hausverbrauch heute (kWh)",
-          "sensor_solar_to_house": "☀️ Solar → Haus (W)",
-          "sensor_price_total": "💰 Strompreis aktuell (ct/kWh)",
-          "weather_entity": "🌤️ Wetter-Entity"
-        },
-        "data_description": {
-          "sensor_home_consumption": "Einheit: Watt. Gesamter aktueller Stromverbrauch des Haushalts inkl. aller Verbraucher. Wird für das Echtzeit-Energieflussdiagramm benötigt. (Pflicht)",
-          "sensor_home_consumption_daily": "Einheit: kWh. Gesamtverbrauch des Haushalts seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_solar_to_house": "Einheit: Watt. Anteil der Solarleistung, der direkt ins Haus fließt. Nicht die Gesamtproduktion – nur der Eigenverbrauchsanteil! (Pflicht)",
-          "sensor_price_total": "Einheit: ct/kWh (Brutto). Dynamischer Sensor z.B. von Tibber, aWATTar oder EPEX Spot. Nicht benötigt bei Festpreis-Tarif. (Optional)",
-          "weather_entity": "Format: weather.xxx. Home Assistant Wetter-Integration für Wettervorhersage in den Charts. Keine Sensor-Entity, sondern eine Wetter-Entity! (Optional)"
+          "country": "Land",
+          "sensor_home_consumption": "Hausverbrauch (W)",
+          "sensor_home_consumption_daily": "Hausverbrauch (kWh/Tag)",
+          "sensor_solar_to_house": "Solar → Haus (W)",
+          "weather_entity": "Wetter"
         }
       },
-      "battery_setup": {
-        "title": "Batterie-Sensoren (Optional)",
-        "description": "Batterie-Sensoren konfigurieren. Überspringe diesen Schritt wenn kein Batteriespeicher vorhanden.\n\nW-Sensoren werden für das Echtzeit-Flussdiagramm benötigt.\nkWh-Sensoren sind optional für genauere Tagesstatistiken.",
+      "optional": {
+        "title": "Optionale Sensoren",
+        "description": "Batterie, Smartmeter, Extra-Sensoren",
         "data": {
-          "sensor_solar_to_battery": "☀️ Solar → Batterie (W)",
-          "sensor_battery_charge_solar_daily": "☀️ Solar → Batterie heute (kWh)",
-          "sensor_battery_to_house": "🔋 Batterie → Haus (W)",
-          "sensor_battery_discharge_daily": "🔋 Batterie → Haus heute (kWh)",
-          "sensor_grid_to_battery": "⚡ Netz → Batterie (W)",
-          "sensor_battery_charge_grid_daily": "⚡ Netz → Batterie heute (kWh)",
-          "sensor_battery_soc": "📊 Batterie-Ladestand (%)",
-          "sensor_battery_to_grid": "🔋 Batterie → Netz (W)",
-          "sensor_battery_power": "🔋 Batterie-Gesamtleistung (W)"
-        },
-        "data_description": {
-          "sensor_solar_to_battery": "Einheit: Watt. Solarleistung die direkt in die Batterie fließt. Nur der Solar-Ladeanteil, nicht die Gesamtladung! (Optional)",
-          "sensor_battery_charge_solar_daily": "Einheit: kWh. Solarenergie die heute in die Batterie geladen wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_battery_to_house": "Einheit: Watt. Leistung die von der Batterie ins Haus entladen wird. Nur der Entlade-Anteil ins Haus, nicht die Gesamtentladung! (Optional)",
-          "sensor_battery_discharge_daily": "Einheit: kWh. Energie die heute aus der Batterie ins Haus entladen wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_grid_to_battery": "Einheit: Watt. Netzstrom der zum Laden der Batterie verwendet wird. Nur der Netz-Ladeanteil, nicht Solar-Ladung! (Optional)",
-          "sensor_battery_charge_grid_daily": "Einheit: kWh. Netzstrom der heute zum Laden der Batterie verwendet wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_battery_soc": "Einheit: Prozent (0–100). Aktueller Ladestand (SOC) der Batterie. Wert muss zwischen 0 und 100 liegen, keine Dezimalwerte wie 0.0–1.0! (Optional)",
-          "sensor_battery_to_grid": "Einheit: Watt. Batterieleistung die ins Stromnetz eingespeist wird. Nur relevant bei Batterie-Einspeisung, z.B. bei negativen Strompreisen. (Optional)",
-          "sensor_battery_power": "Einheit: Watt. Gesamte Batterieleistung als einzelner Sensor. Positiv = Laden, Negativ = Entladen. Nur verwenden wenn keine getrennten Lade-/Entlade-Sensoren vorhanden! (Optional)"
+          "sensor_battery_soc": "Batterie SoC (%)",
+          "sensor_battery_power": "Batterie Leistung (W)",
+          "sensor_grid_import_daily": "Netzbezug (kWh/Tag)",
+          "sensor_grid_export_daily": "Netzeinspeisung (kWh/Tag)",
+          "sensor_grid_import_extra": "Zusätzlicher Netzbezug (kWh/Tag)"
         }
       },
-      "smartmeter_setup": {
-        "title": "Smartmeter-Sensoren (Optional)",
-        "description": "Smartmeter-Sensoren für genaue Netzwerte konfigurieren.\nÜberspringe wenn kein Smartmeter vorhanden - Werte werden geschätzt.\n\nW-Sensoren werden für das Echtzeit-Flussdiagramm benötigt.\nkWh-Sensoren sind optional für genauere Tagesstatistiken.",
+      "pricing": {
+        "title": "Tarifmodus",
+        "description": "Wähle deinen Strom-Tarifmodus.",
         "data": {
-          "sensor_smartmeter_import": "📥 Smartmeter Bezug (W)",
-          "sensor_grid_import_daily": "📥 Netzbezug heute (kWh)",
-          "sensor_grid_to_house": "⚡ Netz → Haus (W)",
-          "sensor_smartmeter_export": "📤 Smartmeter Einspeisung (W)",
-          "sensor_grid_export_daily": "📤 Einspeisung heute (kWh)",
-          "sensor_house_to_grid": "📤 Einspeisung ins Netz (W)",
-          "sensor_grid_import_yearly": "📊 Netzbezug Jahr (kWh)"
+          "billing_price_mode": "Tarifmodus"
         },
         "data_description": {
-          "sensor_smartmeter_import": "Einheit: Watt. Gesamter Netzbezug am Zählerpunkt. Enthält ALLEN Strom aus dem Netz – auch Batterie-Ladung vom Netz! (Optional)",
-          "sensor_grid_import_daily": "Einheit: kWh. Gesamter Netzbezug seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_grid_to_house": "Einheit: Watt. Netzstrom der direkt ins Haus fließt. Ohne Batterie-Ladung vom Netz! Unterschied zu Smartmeter Bezug: Nur der Hausverbrauchs-Anteil. (Optional)",
-          "sensor_smartmeter_export": "Einheit: Watt. Gesamte Einspeisung am Zählerpunkt. Enthält ALLE Einspeisung – auch Batterie-Einspeisung ins Netz! (Optional)",
-          "sensor_grid_export_daily": "Einheit: kWh. Gesamte Netzeinspeisung seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_house_to_grid": "Einheit: Watt. Überschüssige Leistung die ins Netz eingespeist wird. Nur der Solar-Überschuss, nicht Batterie-Einspeisung! Unterschied zu Smartmeter Export: Nur der Überschuss-Anteil. (Optional)",
-          "sensor_grid_import_yearly": "Einheit: kWh. Gesamter Netzbezug im laufenden Kalenderjahr. Wird für die Jahresabrechnung und Kostenprognose verwendet. (Optional)"
+          "billing_price_mode": "Dynamisch: Stundenpreise aus GPM. Fest: ein Preis. Keiner: deaktiviert Kosten-Anzeigen."
         }
       },
-      "sensors": {
-        "title": "Sensor-Konfiguration",
-        "description": "Konfiguriere alle Sensor-Zuordnungen. Lasse leer wenn nicht verfügbar.\n\n**W-Sensoren** werden für das Echtzeit-Flussdiagramm benötigt.\n**kWh-Sensoren** sind optional - wenn vorhanden, werden sie für genauere Tagesstatistiken verwendet.\n\n**Benötigte Einheiten:**\n- Leistung: Watt (W)\n- Energie: kWh (mit täglichem Reset)\n- SOC: Prozent (0-100)\n- Preis: ct/kWh",
+      "pricing_fixed": {
+        "title": "Fester Tarif",
+        "description": "Arbeitspreis und Netzentgelte separat eingeben — die Summe ergibt den Gesamtpreis pro kWh.",
         "data": {
-          "sensor_home_consumption": "🏠 Hausverbrauch (W)",
-          "sensor_home_consumption_daily": "🏠 Hausverbrauch heute (kWh)",
-          "sensor_solar_to_house": "☀️ Solar → Haus (W)",
-          "sensor_solar_to_battery": "☀️ Solar → Batterie (W)",
-          "sensor_battery_charge_solar_daily": "☀️ Solar → Batterie heute (kWh)",
-          "sensor_battery_to_house": "🔋 Batterie → Haus (W)",
-          "sensor_battery_discharge_daily": "🔋 Batterie → Haus heute (kWh)",
-          "sensor_grid_to_battery": "⚡ Netz → Batterie (W)",
-          "sensor_battery_charge_grid_daily": "⚡ Netz → Batterie heute (kWh)",
-          "sensor_battery_soc": "📊 Batterie-Ladestand (%)",
-          "sensor_battery_to_grid": "🔋 Batterie → Netz (W)",
-          "sensor_battery_power": "🔋 Batterie-Gesamtleistung (W)",
-          "sensor_smartmeter_import": "📥 Smartmeter Bezug (W)",
-          "sensor_grid_import_daily": "📥 Netzbezug heute (kWh)",
-          "sensor_grid_to_house": "⚡ Netz → Haus (W)",
-          "sensor_smartmeter_export": "📤 Smartmeter Einspeisung (W)",
-          "sensor_grid_export_daily": "📤 Einspeisung heute (kWh)",
-          "sensor_house_to_grid": "📤 Einspeisung ins Netz (W)",
-          "sensor_grid_import_yearly": "📊 Netzbezug Jahr (kWh)",
-          "sensor_price_total": "💰 Strompreis aktuell (ct/kWh)",
-          "weather_entity": "🌤️ Wetter-Entity"
-        },
-        "data_description": {
-          "sensor_home_consumption": "Einheit: Watt. Gesamter aktueller Stromverbrauch des Haushalts inkl. aller Verbraucher. Wird für das Echtzeit-Energieflussdiagramm benötigt. (Pflicht)",
-          "sensor_home_consumption_daily": "Einheit: kWh. Gesamtverbrauch des Haushalts seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_solar_to_house": "Einheit: Watt. Anteil der Solarleistung, der direkt ins Haus fließt. Nicht die Gesamtproduktion – nur der Eigenverbrauchsanteil! (Pflicht)",
-          "sensor_solar_to_battery": "Einheit: Watt. Solarleistung die direkt in die Batterie fließt. Nur der Solar-Ladeanteil, nicht die Gesamtladung! (Optional)",
-          "sensor_battery_charge_solar_daily": "Einheit: kWh. Solarenergie die heute in die Batterie geladen wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_battery_to_house": "Einheit: Watt. Leistung die von der Batterie ins Haus entladen wird. Nur der Entlade-Anteil ins Haus, nicht die Gesamtentladung! (Optional)",
-          "sensor_battery_discharge_daily": "Einheit: kWh. Energie die heute aus der Batterie ins Haus entladen wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_grid_to_battery": "Einheit: Watt. Netzstrom der zum Laden der Batterie verwendet wird. Nur der Netz-Ladeanteil, nicht Solar-Ladung! (Optional)",
-          "sensor_battery_charge_grid_daily": "Einheit: kWh. Netzstrom der heute zum Laden der Batterie verwendet wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_battery_soc": "Einheit: Prozent (0–100). Aktueller Ladestand (SOC) der Batterie. Wert muss zwischen 0 und 100 liegen, keine Dezimalwerte wie 0.0–1.0! (Optional)",
-          "sensor_battery_to_grid": "Einheit: Watt. Batterieleistung die ins Stromnetz eingespeist wird. Nur relevant bei Batterie-Einspeisung, z.B. bei negativen Strompreisen. (Optional)",
-          "sensor_battery_power": "Einheit: Watt. Gesamte Batterieleistung als einzelner Sensor. Positiv = Laden, Negativ = Entladen. Nur verwenden wenn keine getrennten Lade-/Entlade-Sensoren vorhanden! (Optional)",
-          "sensor_smartmeter_import": "Einheit: Watt. Gesamter Netzbezug am Zählerpunkt. Enthält ALLEN Strom aus dem Netz – auch Batterie-Ladung vom Netz! (Optional)",
-          "sensor_grid_import_daily": "Einheit: kWh. Gesamter Netzbezug seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_grid_to_house": "Einheit: Watt. Netzstrom der direkt ins Haus fließt. Ohne Batterie-Ladung vom Netz! Unterschied zu Smartmeter Bezug: Nur der Hausverbrauchs-Anteil. (Optional)",
-          "sensor_smartmeter_export": "Einheit: Watt. Gesamte Einspeisung am Zählerpunkt. Enthält ALLE Einspeisung – auch Batterie-Einspeisung ins Netz! (Optional)",
-          "sensor_grid_export_daily": "Einheit: kWh. Gesamte Netzeinspeisung seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_house_to_grid": "Einheit: Watt. Überschüssige Leistung die ins Netz eingespeist wird. Nur der Solar-Überschuss, nicht Batterie-Einspeisung! Unterschied zu Smartmeter Export: Nur der Überschuss-Anteil. (Optional)",
-          "sensor_grid_import_yearly": "Einheit: kWh. Gesamter Netzbezug im laufenden Kalenderjahr. Wird für die Jahresabrechnung und Kostenprognose verwendet. (Optional)",
-          "sensor_price_total": "Einheit: ct/kWh (Brutto). Dynamischer Sensor z.B. von Tibber, aWATTar oder EPEX Spot. Nicht benötigt bei Festpreis-Tarif. (Optional)",
-          "weather_entity": "Format: weather.xxx. Home Assistant Wetter-Integration für Wettervorhersage in den Charts. Keine Sensor-Entity, sondern eine Wetter-Entity! (Optional)"
-        }
-      },
-      "helpers": {
-        "title": "Fehlende kWh-Sensoren",
-        "description": "**{missing_count}** tägliche kWh-Sensor(en) fehlen:\n\n**{missing_sensors}**\n\nDiese können aus deinen Watt-Sensoren erstellt werden.\n\n**So geht's:**\n1. Gehe zu Einstellungen → Geräte & Dienste → Helfer\n2. Erstelle einen \"Riemann-Summen-Integral\" Sensor (W → kWh)\n3. Erstelle einen \"Verbrauchszähler\" mit täglichem Reset\n\nOder füge folgendes zu configuration.yaml hinzu:\n\n```yaml\n{yaml_config}\n```",
-        "data": {
-          "show_yaml": "Ich habe die YAML-Konfiguration kopiert"
-        },
-        "data_description": {
-          "show_yaml": "Bestätige um fortzufahren. Du kannst die Sensoren auch später erstellen."
-        }
-      },
-      "settings": {
-        "title": "Einstellungen",
-        "description": "Automatische Reports und Abrechnung konfigurieren.",
-        "data": {
-          "auto_generate": "Automatische Report-Generierung",
-          "generate_weekly": "Wöchentliche Reports",
-          "generate_monthly": "Monatliche Reports",
-          "theme": "Farbschema",
-          "dashboard_style": "Energiefluss-Stil",
-          "billing_start_month": "Abrechnungs-Startmonat",
-          "billing_start_day": "Abrechnungs-Starttag",
-          "billing_price_mode": "Tarif-Modus",
-          "billing_fixed_price": "Fallback-Strompreis (ct/kWh)",
+          "billing_work_price": "Arbeitspreis (ct/kWh)",
+          "billing_grid_fees": "Netzentgelte (ct/kWh)",
+          "billing_base_fee": "Grundgebühr (EUR/Monat)",
           "feed_in_tariff": "Einspeisevergütung (ct/kWh)"
         },
         "data_description": {
-          "auto_generate": "Wöchentliche und monatliche Reports automatisch erstellen",
-          "generate_weekly": "Jeden Sonntag einen Wochenbericht erstellen",
-          "generate_monthly": "Am 1. jeden Monats einen Monatsbericht erstellen",
-          "theme": "Dark oder Light Theme für Charts",
-          "dashboard_style": "3D-isometrisch oder klassisches 2D-Flussdiagramm",
-          "billing_start_month": "Monat in dem dein Abrechnungsjahr beginnt",
-          "billing_start_day": "Tag an dem dein Abrechnungsjahr beginnt",
-          "billing_price_mode": "Dynamisch: Stundenpreise vom Grid Price Monitor. Festpreis: einheitlicher Preis. Kein Tarif: deaktiviert Finanzanzeigen.",
-          "billing_fixed_price": "Wird verwendet wenn Grid Price Monitor keinen Preis liefert",
-          "feed_in_tariff": "EEG-Vergütung in Cent pro kWh"
+          "billing_work_price": "Reiner Energie-Arbeitspreis pro kWh (ohne Netzentgelte).",
+          "billing_grid_fees": "Netzentgelte, Messung, Konzession und Steuern pro kWh.",
+          "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
+          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
+        }
+      },
+      "pricing_dynamic": {
+        "title": "Dynamischer Tarif",
+        "description": "GPM (Grid Price Monitor) liefert die kWh-Preise stündlich — nur Grundgebühr und Einspeisevergütung nötig.",
+        "data": {
+          "billing_base_fee": "Grundgebühr (EUR/Monat)",
+          "feed_in_tariff": "Einspeisevergütung (ct/kWh)"
+        },
+        "data_description": {
+          "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
+          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
         }
       }
-    },
-    "abort": {
-      "single_instance_allowed": "Solar Forecast STATS ist bereits konfiguriert.",
-      "raspberry_pi_not_supported": "Installation auf Raspberry Pi wird nicht unterstützt. Die Integration verwendet matplotlib für Chart-Generierung, was auf Raspberry Pi zu Performance-Problemen führt. Bitte verwende ein leistungsstärkeres System.",
-      "proxmox_not_recommended": "Installation auf Proxmox VE Host erkannt. Home Assistant sollte in einer VM oder LXC-Container laufen, nicht direkt auf dem Proxmox-Host."
-    },
-    "error": {
-      "cannot_connect": "Verbindung fehlgeschlagen",
-      "unknown": "Unbekannter Fehler"
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Solar Forecast STATS Optionen",
-        "description": "Wähle eine Kategorie zum Konfigurieren.",
+        "title": "Optionen",
+        "description": "Was möchtest du bearbeiten?",
         "data": {
           "menu_choice": "Kategorie"
         },
         "menu_options": {
-          "sensors_main": "⚡ Haupt-Sensoren (Pflicht)",
-          "sensors_battery": "🔋 Batterie-Sensoren (Optional)",
-          "sensors_smartmeter": "📊 Smartmeter (Optional)",
-          "consumers": "🏠 Verbraucher (WP, Heizstab, Wallbox)",
-          "settings": "⚙️ Einstellungen",
-          "advanced": "🔧 Erweitert"
-        }
-      },
-      "sensors_main": {
-        "title": "Haupt-Sensoren (Pflicht)",
-        "description": "**🏠 Hausverbrauch ist der wichtigste Sensor!**\n\nDer W-Sensor wird für das Echtzeit-Flussdiagramm benötigt.\nOptional: kWh-Sensor zusätzlich für genauere Tagesstatistik.\nSolar-Leistung kommt automatisch von SFML.",
-        "data": {
-          "sensor_home_consumption": "🏠 Hausverbrauch (W)",
-          "sensor_home_consumption_daily": "🏠 Hausverbrauch heute (kWh)",
-          "sensor_solar_to_house": "☀️ Solar → Haus (W)",
-          "sensor_price_total": "💰 Strompreis aktuell (ct/kWh)",
-          "weather_entity": "🌤️ Wetter-Entity"
-        },
-        "data_description": {
-          "sensor_home_consumption": "Einheit: Watt. Gesamter aktueller Stromverbrauch des Haushalts inkl. aller Verbraucher. Wird für das Echtzeit-Energieflussdiagramm benötigt. (Pflicht)",
-          "sensor_home_consumption_daily": "Einheit: kWh. Gesamtverbrauch des Haushalts seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_solar_to_house": "Einheit: Watt. Anteil der Solarleistung, der direkt ins Haus fließt. Nicht die Gesamtproduktion – nur der Eigenverbrauchsanteil! (Pflicht)",
-          "sensor_price_total": "Einheit: ct/kWh (Brutto). Dynamischer Sensor z.B. von Tibber, aWATTar oder EPEX Spot. Nicht benötigt bei Festpreis-Tarif. (Optional)",
-          "weather_entity": "Format: weather.xxx. Home Assistant Wetter-Integration für Wettervorhersage in den Charts. Keine Sensor-Entity, sondern eine Wetter-Entity! (Optional)"
-        }
-      },
-      "sensors_battery": {
-        "title": "Batterie-Sensoren (Optional)",
-        "description": "Nur konfigurieren wenn du einen Batteriespeicher hast.\n\nW-Sensoren werden für das Echtzeit-Flussdiagramm benötigt.\nkWh-Sensoren sind optional - wenn vorhanden, werden sie für genauere Tagesstatistiken verwendet.\n\n**☀️ Solar→Haus und ⚡ Netz→Haus werden automatisch berechnet!**",
-        "data": {
-          "sensor_solar_to_battery": "☀️ Solar → Batterie (W)",
-          "sensor_battery_charge_solar_daily": "☀️ Solar → Batterie heute (kWh)",
-          "sensor_battery_to_house": "🔋 Batterie → Haus (W)",
-          "sensor_battery_discharge_daily": "🔋 Batterie → Haus heute (kWh)",
-          "sensor_grid_to_battery": "⚡ Netz → Batterie (W)",
-          "sensor_battery_charge_grid_daily": "⚡ Netz → Batterie heute (kWh)",
-          "sensor_battery_soc": "📊 Batterie-Ladestand (%)",
-          "sensor_battery_to_grid": "🔋 Batterie → Netz (W)",
-          "sensor_battery_power": "🔋 Batterie-Gesamtleistung (W)"
-        },
-        "data_description": {
-          "sensor_solar_to_battery": "Einheit: Watt. Solarleistung die direkt in die Batterie fließt. Nur der Solar-Ladeanteil, nicht die Gesamtladung! (Optional)",
-          "sensor_battery_charge_solar_daily": "Einheit: kWh. Solarenergie die heute in die Batterie geladen wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_battery_to_house": "Einheit: Watt. Leistung die von der Batterie ins Haus entladen wird. Nur der Entlade-Anteil ins Haus, nicht die Gesamtentladung! (Optional)",
-          "sensor_battery_discharge_daily": "Einheit: kWh. Energie die heute aus der Batterie ins Haus entladen wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_grid_to_battery": "Einheit: Watt. Netzstrom der zum Laden der Batterie verwendet wird. Nur der Netz-Ladeanteil, nicht Solar-Ladung! (Optional)",
-          "sensor_battery_charge_grid_daily": "Einheit: kWh. Netzstrom der heute zum Laden der Batterie verwendet wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_battery_soc": "Einheit: Prozent (0–100). Aktueller Ladestand (SOC) der Batterie. Wert muss zwischen 0 und 100 liegen, keine Dezimalwerte wie 0.0–1.0! (Optional)",
-          "sensor_battery_to_grid": "Einheit: Watt. Batterieleistung die ins Stromnetz eingespeist wird. Nur relevant bei Batterie-Einspeisung, z.B. bei negativen Strompreisen. (Optional)",
-          "sensor_battery_power": "Einheit: Watt. Gesamte Batterieleistung als einzelner Sensor. Positiv = Laden, Negativ = Entladen. Nur verwenden wenn keine getrennten Lade-/Entlade-Sensoren vorhanden! (Optional)"
-        }
-      },
-      "sensors_smartmeter": {
-        "title": "Smartmeter-Sensoren (Optional)",
-        "description": "Für genaue Netzwerte.\n\nW-Sensoren werden für das Echtzeit-Flussdiagramm benötigt.\nkWh-Sensoren sind optional - wenn vorhanden, werden sie für genauere Tagesstatistiken verwendet.\n\n**Ohne Smartmeter werden Einspeisung und Netzbezug geschätzt.**",
-        "data": {
-          "sensor_smartmeter_import": "📥 Smartmeter Bezug (W)",
-          "sensor_grid_import_daily": "📥 Netzbezug heute (kWh)",
-          "sensor_grid_to_house": "⚡ Netz → Haus (W)",
-          "sensor_smartmeter_export": "📤 Smartmeter Einspeisung (W)",
-          "sensor_grid_export_daily": "📤 Einspeisung heute (kWh)",
-          "sensor_house_to_grid": "📤 Einspeisung ins Netz (W)",
-          "sensor_grid_import_yearly": "📊 Netzbezug Jahr (kWh)"
-        },
-        "data_description": {
-          "sensor_smartmeter_import": "Einheit: Watt. Gesamter Netzbezug am Zählerpunkt. Enthält ALLEN Strom aus dem Netz – auch Batterie-Ladung vom Netz! (Optional)",
-          "sensor_grid_import_daily": "Einheit: kWh. Gesamter Netzbezug seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_grid_to_house": "Einheit: Watt. Netzstrom der direkt ins Haus fließt. Ohne Batterie-Ladung vom Netz! Unterschied zu Smartmeter Bezug: Nur der Hausverbrauchs-Anteil. (Optional)",
-          "sensor_smartmeter_export": "Einheit: Watt. Gesamte Einspeisung am Zählerpunkt. Enthält ALLE Einspeisung – auch Batterie-Einspeisung ins Netz! (Optional)",
-          "sensor_grid_export_daily": "Einheit: kWh. Gesamte Netzeinspeisung seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_house_to_grid": "Einheit: Watt. Überschüssige Leistung die ins Netz eingespeist wird. Nur der Solar-Überschuss, nicht Batterie-Einspeisung! Unterschied zu Smartmeter Export: Nur der Überschuss-Anteil. (Optional)",
-          "sensor_grid_import_yearly": "Einheit: kWh. Gesamter Netzbezug im laufenden Kalenderjahr. Wird für die Jahresabrechnung und Kostenprognose verwendet. (Optional)"
+          "sensors": "Sensoren",
+          "consumers": "Verbraucher-Details (WP/Wallbox)",
+          "pricing": "Strompreis",
+          "smart_charging": "Smart Charging",
+          "advanced": "Erweitert"
         }
       },
       "sensors": {
-        "title": "Alle Sensoren",
-        "description": "Alle Sensor-Zuordnungen konfigurieren.\n\n**W-Sensoren** werden für das Echtzeit-Flussdiagramm benötigt.\n**kWh-Sensoren** sind optional für genauere Tagesstatistiken.\n\n**Benötigte Einheiten:**\n- Leistung: Watt (W)\n- Energie: kWh (mit täglichem Reset)\n- SOC: Prozent (0-100)\n- Preis: ct/kWh",
+        "title": "Sensoren",
+        "description": "Alle Sensoren verwalten",
         "data": {
-          "sensor_home_consumption": "🏠 Hausverbrauch (W)",
-          "sensor_home_consumption_daily": "🏠 Hausverbrauch heute (kWh)",
-          "sensor_solar_to_house": "☀️ Solar → Haus (W)",
-          "sensor_solar_to_battery": "☀️ Solar → Batterie (W)",
-          "sensor_battery_charge_solar_daily": "☀️ Solar → Batterie heute (kWh)",
-          "sensor_battery_to_house": "🔋 Batterie → Haus (W)",
-          "sensor_battery_discharge_daily": "🔋 Batterie → Haus heute (kWh)",
-          "sensor_grid_to_battery": "⚡ Netz → Batterie (W)",
-          "sensor_battery_charge_grid_daily": "⚡ Netz → Batterie heute (kWh)",
-          "sensor_battery_soc": "📊 Batterie-Ladestand (%)",
-          "sensor_battery_to_grid": "🔋 Batterie → Netz (W)",
-          "sensor_battery_power": "🔋 Batterie-Gesamtleistung (W)",
-          "sensor_smartmeter_import": "📥 Smartmeter Bezug (W)",
-          "sensor_grid_import_daily": "📥 Netzbezug heute (kWh)",
-          "sensor_grid_to_house": "⚡ Netz → Haus (W)",
-          "sensor_smartmeter_export": "📤 Smartmeter Einspeisung (W)",
-          "sensor_grid_export_daily": "📤 Einspeisung heute (kWh)",
-          "sensor_house_to_grid": "📤 Einspeisung ins Netz (W)",
-          "sensor_grid_import_yearly": "📊 Netzbezug Jahr (kWh)",
-          "sensor_price_total": "💰 Strompreis aktuell (ct/kWh)",
-          "weather_entity": "🌤️ Wetter-Entity"
-        },
-        "data_description": {
-          "sensor_home_consumption": "Einheit: Watt. Gesamter aktueller Stromverbrauch des Haushalts inkl. aller Verbraucher. Wird für das Echtzeit-Energieflussdiagramm benötigt. (Pflicht)",
-          "sensor_home_consumption_daily": "Einheit: kWh. Gesamtverbrauch des Haushalts seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_solar_to_house": "Einheit: Watt. Anteil der Solarleistung, der direkt ins Haus fließt. Nicht die Gesamtproduktion – nur der Eigenverbrauchsanteil! (Pflicht)",
-          "sensor_solar_to_battery": "Einheit: Watt. Solarleistung die direkt in die Batterie fließt. Nur der Solar-Ladeanteil, nicht die Gesamtladung! (Optional)",
-          "sensor_battery_charge_solar_daily": "Einheit: kWh. Solarenergie die heute in die Batterie geladen wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_battery_to_house": "Einheit: Watt. Leistung die von der Batterie ins Haus entladen wird. Nur der Entlade-Anteil ins Haus, nicht die Gesamtentladung! (Optional)",
-          "sensor_battery_discharge_daily": "Einheit: kWh. Energie die heute aus der Batterie ins Haus entladen wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_grid_to_battery": "Einheit: Watt. Netzstrom der zum Laden der Batterie verwendet wird. Nur der Netz-Ladeanteil, nicht Solar-Ladung! (Optional)",
-          "sensor_battery_charge_grid_daily": "Einheit: kWh. Netzstrom der heute zum Laden der Batterie verwendet wurde. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_battery_soc": "Einheit: Prozent (0–100). Aktueller Ladestand (SOC) der Batterie. Wert muss zwischen 0 und 100 liegen, keine Dezimalwerte wie 0.0–1.0! (Optional)",
-          "sensor_battery_to_grid": "Einheit: Watt. Batterieleistung die ins Stromnetz eingespeist wird. Nur relevant bei Batterie-Einspeisung, z.B. bei negativen Strompreisen. (Optional)",
-          "sensor_battery_power": "Einheit: Watt. Gesamte Batterieleistung als einzelner Sensor. Positiv = Laden, Negativ = Entladen. Nur verwenden wenn keine getrennten Lade-/Entlade-Sensoren vorhanden! (Optional)",
-          "sensor_smartmeter_import": "Einheit: Watt. Gesamter Netzbezug am Zählerpunkt. Enthält ALLEN Strom aus dem Netz – auch Batterie-Ladung vom Netz! (Optional)",
-          "sensor_grid_import_daily": "Einheit: kWh. Gesamter Netzbezug seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_grid_to_house": "Einheit: Watt. Netzstrom der direkt ins Haus fließt. Ohne Batterie-Ladung vom Netz! Unterschied zu Smartmeter Bezug: Nur der Hausverbrauchs-Anteil. (Optional)",
-          "sensor_smartmeter_export": "Einheit: Watt. Gesamte Einspeisung am Zählerpunkt. Enthält ALLE Einspeisung – auch Batterie-Einspeisung ins Netz! (Optional)",
-          "sensor_grid_export_daily": "Einheit: kWh. Gesamte Netzeinspeisung seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. Falls nicht vorhanden, wird der Wert aus dem W-Sensor berechnet. (Optional)",
-          "sensor_house_to_grid": "Einheit: Watt. Überschüssige Leistung die ins Netz eingespeist wird. Nur der Solar-Überschuss, nicht Batterie-Einspeisung! Unterschied zu Smartmeter Export: Nur der Überschuss-Anteil. (Optional)",
-          "sensor_grid_import_yearly": "Einheit: kWh. Gesamter Netzbezug im laufenden Kalenderjahr. Wird für die Jahresabrechnung und Kostenprognose verwendet. (Optional)",
-          "sensor_price_total": "Einheit: ct/kWh (Brutto). Dynamischer Sensor z.B. von Tibber, aWATTar oder EPEX Spot. Nicht benötigt bei Festpreis-Tarif. (Optional)",
-          "weather_entity": "Format: weather.xxx. Home Assistant Wetter-Integration für Wettervorhersage in den Charts. Keine Sensor-Entity, sondern eine Wetter-Entity! (Optional)"
+          "country": "Land",
+          "sensor_home_consumption": "Hausverbrauch (W)",
+          "sensor_home_consumption_daily": "Hausverbrauch (kWh/Tag)",
+          "sensor_solar_to_house": "Solar → Haus (W)",
+          "weather_entity": "Wetter",
+          "sensor_battery_soc": "Batterie SoC (%)",
+          "sensor_battery_power": "Batterie Leistung (W)",
+          "sensor_solar_to_battery": "Solar → Batterie (W)",
+          "sensor_battery_to_house": "Batterie → Haus (W)",
+          "sensor_battery_to_grid": "Battery to Grid (W)",
+          "sensor_battery_charge_solar_daily": "Batterie von Solar (kWh/Tag)",
+          "sensor_battery_charge_grid_daily": "Batterie von Netz (kWh/Tag)",
+          "sensor_battery_discharge_daily": "Batterie entladen (kWh/Tag)",
+          "sensor_grid_to_house": "Netz → Haus (W)",
+          "sensor_grid_to_battery": "Netz → Batterie (W)",
+          "sensor_house_to_grid": "Haus → Netz (W)",
+          "sensor_smartmeter_import": "Smartmeter Bezug (W)",
+          "sensor_smartmeter_export": "Smartmeter Einspeisung (W)",
+          "sensor_grid_import_daily": "Netzbezug (kWh/Tag)",
+          "sensor_grid_export_daily": "Netzeinspeisung (kWh/Tag)",
+          "sensor_grid_import_extra": "Zusätzlicher Netzbezug (kWh/Tag)",
+          "sensor_grid_import_yearly": "Netzbezug (kWh/Jahr)",
+          "sensor_price_total": "Strompreis Gesamt (ct/kWh)",
+          "sensor_heatpump_power": "Wärmepumpe Leistung (W)",
+          "sensor_heatpump_daily": "Wärmepumpe (kWh/Tag)",
+          "sensor_heatingrod_power": "Heizstab Leistung (W)",
+          "sensor_heatingrod_daily": "Heizstab (kWh/Tag)",
+          "sensor_wallbox_power": "Wallbox Leistung (W)",
+          "sensor_wallbox_daily": "Wallbox (kWh/Tag)",
+          "sensor_wallbox_state": "Wallbox Status"
         }
       },
-      "consumers": {
-        "title": "Verbraucher-Sensoren (Optional)",
-        "description": "Konfiguriere Sensoren für zusätzliche Verbraucher.\n\nDiese sind OPTIONAL - nur konfigurieren wenn du diese Geräte hast.\n\n**Benötigte Einheiten:**\n- Leistung: Watt (W)\n- Energie: kWh (mit täglichem Reset)\n- COP: Dezimalzahl (z.B. 3.5)\n- Status: Text (charging/idle)",
+      "pricing": {
+        "title": "Tarifmodus",
+        "description": "Wähle deinen Strom-Tarifmodus.",
         "data": {
-          "sensor_heatpump_power": "🌡️ Wärmepumpe Leistung (W)",
-          "sensor_heatpump_daily": "🌡️ Wärmepumpe heute (kWh)",
-          "sensor_heatpump_cop": "🌡️ Wärmepumpe COP",
-          "sensor_heatingrod_power": "🔥 Heizstab Leistung (W)",
-          "sensor_heatingrod_daily": "🔥 Heizstab heute (kWh)",
-          "sensor_wallbox_power": "🚗 Wallbox Leistung (W)",
-          "sensor_wallbox_daily": "🚗 Wallbox heute (kWh)",
-          "sensor_wallbox_state": "🚗 Wallbox Status"
+          "billing_price_mode": "Tarifmodus"
         },
         "data_description": {
-          "sensor_heatpump_power": "Einheit: Watt. Aktuelle elektrische Aufnahme der Wärmepumpe. Nur der Kompressor-Verbrauch, nicht die erzeugte Wärme! (Optional)",
-          "sensor_heatpump_daily": "Einheit: kWh. Elektrischer Verbrauch der Wärmepumpe seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen (z.B. per Utility Meter). (Optional)",
-          "sensor_heatpump_cop": "Einheit: Dezimalzahl (z.B. 3.5). Leistungszahl – Verhältnis erzeugte Wärme zu verbrauchtem Strom. Fallback: 3.5 wenn kein Sensor vorhanden. (Optional)",
-          "sensor_heatingrod_power": "Einheit: Watt. Aktuelle elektrische Aufnahme des Heizstabs. Wird im Energiefluss als separater Verbraucher dargestellt. (Optional)",
-          "sensor_heatingrod_daily": "Einheit: kWh. Verbrauch des Heizstabs seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen (z.B. per Utility Meter). (Optional)",
-          "sensor_wallbox_power": "Einheit: Watt. Aktuelle Ladeleistung der Wallbox/Ladestation. Nur die tatsächliche Ladeleistung, nicht die Standby-Leistung! (Optional)",
-          "sensor_wallbox_daily": "Einheit: kWh. Ladeverbrauch der Wallbox seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen (z.B. per Utility Meter). (Optional)",
-          "sensor_wallbox_state": "Format: Text. Mögliche Werte: 'charging' = Fahrzeug lädt aktiv, 'idle' = bereit/kein Ladevorgang. Andere Werte werden ignoriert. (Optional)"
+          "billing_price_mode": "Dynamisch: Stundenpreise aus GPM. Fest: ein Preis. Keiner: deaktiviert Kosten-Anzeigen."
         }
       },
-      "settings": {
-        "title": "Einstellungen",
-        "description": "Reports, Theme und Abrechnung konfigurieren.",
+      "pricing_fixed": {
+        "title": "Fester Tarif",
+        "description": "Arbeitspreis und Netzentgelte separat eingeben — die Summe ergibt den Gesamtpreis pro kWh.",
         "data": {
-          "auto_generate": "Automatische Generierung",
-          "generate_weekly": "Wöchentliche Reports",
-          "generate_monthly": "Monatliche Reports",
-          "theme": "Farbschema",
-          "dashboard_style": "Energiefluss-Stil",
-          "billing_start_month": "Abrechnungs-Startmonat",
-          "billing_start_day": "Abrechnungs-Starttag",
-          "billing_price_mode": "Tarif-Modus",
-          "billing_fixed_price": "Fallback-Strompreis (ct/kWh)",
+          "billing_work_price": "Arbeitspreis (ct/kWh)",
+          "billing_grid_fees": "Netzentgelte (ct/kWh)",
+          "billing_base_fee": "Grundgebühr (EUR/Monat)",
           "feed_in_tariff": "Einspeisevergütung (ct/kWh)"
         },
         "data_description": {
-          "auto_generate": "Reports automatisch nach Zeitplan generieren",
-          "generate_weekly": "Jeden Sonntag einen Wochenbericht erstellen",
-          "generate_monthly": "Am 1. jeden Monats einen Monatsbericht erstellen",
-          "theme": "Dark oder Light Theme für die Charts",
-          "dashboard_style": "3D-isometrisch oder klassisches 2D-Flussdiagramm",
-          "billing_start_month": "Monat in dem dein Abrechnungsjahr beginnt",
-          "billing_start_day": "Tag an dem dein Abrechnungsjahr beginnt",
-          "billing_price_mode": "Dynamisch: Stundenpreise vom Grid Price Monitor. Festpreis: einheitlicher Preis. Kein Tarif: deaktiviert Finanzanzeigen.",
-          "billing_fixed_price": "Wird verwendet wenn Grid Price Monitor keinen Preis liefert",
-          "feed_in_tariff": "EEG-Vergütung in Cent pro kWh"
+          "billing_work_price": "Reiner Energie-Arbeitspreis pro kWh (ohne Netzentgelte).",
+          "billing_grid_fees": "Netzentgelte, Messung, Konzession und Steuern pro kWh.",
+          "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
+          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
+        }
+      },
+      "pricing_dynamic": {
+        "title": "Dynamischer Tarif",
+        "description": "GPM (Grid Price Monitor) liefert die kWh-Preise stündlich — nur Grundgebühr und Einspeisevergütung nötig.",
+        "data": {
+          "billing_base_fee": "Grundgebühr (EUR/Monat)",
+          "feed_in_tariff": "Einspeisevergütung (ct/kWh)"
+        },
+        "data_description": {
+          "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
+          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
         }
       },
       "advanced": {
-        "title": "Erweiterte Optionen",
-        "description": "Zusätzliche Konfigurationsoptionen.",
+        "title": "Erweitert",
+        "description": "Smart Charging, Panels, Prognose-Vergleich, Einstellungen",
         "data": {
-          "menu_choice": "Option"
-        },
-        "menu_options": {
-          "panels": "PV-Panels",
-          "panel_group_names": "Panel-Gruppen Namen",
-          "forecast_comparison": "Prognose-Vergleich",
-          "debug_mode": "Full-KI Transparency Mode"
-        }
-      },
-      "panels": {
-        "title": "PV-Panel Sensoren",
-        "description": "Konfiguriere bis zu 4 individuelle PV-Panels/Strings.\n\n**Benötigte Einheit:** Watt (W)",
-        "data": {
+          "smart_charging_enabled": "Smart Charging aktivieren",
+          "theme": "Theme",
+          "dashboard_style": "Dashboard-Stil",
+          "billing_start_month": "Abrechnungs-Startmonat",
+          "billing_start_day": "Abrechnungs-Starttag",
+          "show_panel_groups": "Panel-Gruppen anzeigen",
           "panel1_name": "Panel 1 Name",
-          "sensor_panel1_power": "☀️ Panel 1 Leistung (W)",
+          "sensor_panel1_power": "Panel 1 Leistung (W)",
           "panel2_name": "Panel 2 Name",
-          "sensor_panel2_power": "☀️ Panel 2 Leistung (W)",
+          "sensor_panel2_power": "Panel 2 Leistung (W)",
           "panel3_name": "Panel 3 Name",
-          "sensor_panel3_power": "☀️ Panel 3 Leistung (W)",
+          "sensor_panel3_power": "Panel 3 Leistung (W)",
           "panel4_name": "Panel 4 Name",
-          "sensor_panel4_power": "☀️ Panel 4 Leistung (W)"
-        },
-        "data_description": {
-          "panel1_name": "Anzeigename für Panel/String 1 (z.B. 'Süd', 'Ost', 'Gaube'). Wird in Charts und Reports verwendet. (Optional)",
-          "sensor_panel1_power": "Einheit: Watt. Aktuelle Leistung des PV-Strings/Panels. Wert direkt vom Wechselrichter, nicht aus einem berechneten Sensor! (Optional)",
-          "panel2_name": "Anzeigename für Panel/String 2 (z.B. 'Süd', 'Ost', 'Gaube'). Wird in Charts und Reports verwendet. (Optional)",
-          "sensor_panel2_power": "Einheit: Watt. Aktuelle Leistung des PV-Strings/Panels. Wert direkt vom Wechselrichter, nicht aus einem berechneten Sensor! (Optional)",
-          "panel3_name": "Anzeigename für Panel/String 3 (z.B. 'Süd', 'Ost', 'Gaube'). Wird in Charts und Reports verwendet. (Optional)",
-          "sensor_panel3_power": "Einheit: Watt. Aktuelle Leistung des PV-Strings/Panels. Wert direkt vom Wechselrichter, nicht aus einem berechneten Sensor! (Optional)",
-          "panel4_name": "Anzeigename für Panel/String 4 (z.B. 'Süd', 'Ost', 'Gaube'). Wird in Charts und Reports verwendet. (Optional)",
-          "sensor_panel4_power": "Einheit: Watt. Aktuelle Leistung des PV-Strings/Panels. Wert direkt vom Wechselrichter, nicht aus einem berechneten Sensor! (Optional)"
+          "sensor_panel4_power": "Panel 4 Leistung (W)",
+          "panel_group_names_input": "Panel-Gruppen Zuordnung",
+          "forecast_entity_1": "Vergleichs-Prognose 1",
+          "forecast_entity_1_name": "Name Prognose 1",
+          "forecast_entity_2": "Vergleichs-Prognose 2",
+          "forecast_entity_2_name": "Name Prognose 2"
         }
       },
-      "panel_group_names": {
-        "title": "Panel-Gruppen Namen",
-        "description": "Format: OriginalName=NeuerName (kommagetrennt)\n\nBeispiel: {example}",
+      "smart_charging": {
+        "title": "Smart Charging",
+        "description": "Automatisches Netzladen der Batterie in guenstigen Stunden, beruecksichtigt den Solar-Forecast. Ziel-SOC = Max-SOC minus erwartete Solar-kWh, begrenzt auf Min/Max.",
         "data": {
-          "panel_group_names_input": "Namens-Mapping"
+          "smart_charging_enabled": "Smart Charging aktivieren",
+          "battery_capacity": "Batterie-Kapazitaet (kWh)",
+          "min_soc": "Minimum SOC (%)",
+          "max_soc": "Maximum SOC (%)",
+          "max_price": "Preis-Schwelle guenstig (ct/kWh)",
+          "battery_soc_sensor": "Batterie-SOC Sensor"
         },
         "data_description": {
-          "panel_group_names_input": "Umbenennung von Panel-Gruppen. Format: Alt=Neu,Alt2=Neu2"
+          "smart_charging_enabled": "Master-Schalter. Deaktiviert laeuft keine Ladelogik.",
+          "battery_capacity": "Nutzbare Batteriekapazitaet. Wird benoetigt, um Solar-kWh in SOC-Prozent umzurechnen.",
+          "min_soc": "Ziel-SOC faellt nie unter diesen Wert.",
+          "max_soc": "Ziel-SOC uebersteigt nie diesen Wert. Typisch 95-100.",
+          "max_price": "Aktueller Preis unterhalb dieser Schwelle gilt als guenstig. Nur dann wird Netzladen zugelassen.",
+          "battery_soc_sensor": "Batterie-Ladezustand-Sensor (0-100%). Ohne Sensor arbeitet die Logik im Preis-Fallback."
         }
       },
-      "forecast_comparison": {
-        "title": "Prognose-Vergleich",
-        "description": "Konfiguriere bis zu 2 externe Prognose-Entitäten für den 7-Tage-Vergleichsgraph.\n\n**Benötigte Einheit:** kWh (Tagesprognose)",
+      "consumers": {
+        "title": "Verbraucher-Detailsensoren",
+        "description": "Zusätzliche Sensoren für Wärmepumpe, Heizstab und Wallbox Detailansicht. Alle Felder sind optional.",
         "data": {
-          "forecast_entity_1": "📈 Prognose 1 (Entity ID)",
-          "forecast_entity_1_name": "Name für Prognose 1",
-          "forecast_entity_2": "📈 Prognose 2 (Entity ID)",
-          "forecast_entity_2_name": "Name für Prognose 2"
-        },
-        "data_description": {
-          "forecast_entity_1": "Format: sensor.xxx. Sensor mit täglicher Ertragsprognose in kWh (z.B. sensor.solcast_forecast_today). Muss den erwarteten Tagesertrag als Zahl enthalten. (Optional)",
-          "forecast_entity_1_name": "Anzeigename im Vergleichs-Chart (z.B. 'Solcast'). Wird in der Legende des 7-Tage-Vergleichs angezeigt. (Optional)",
-          "forecast_entity_2": "Format: sensor.xxx. Sensor mit täglicher Ertragsprognose in kWh (z.B. sensor.forecast_solar_energy_today). Muss den erwarteten Tagesertrag als Zahl enthalten. (Optional)",
-          "forecast_entity_2_name": "Anzeigename im Vergleichs-Chart (z.B. 'Forecast.Solar'). Wird in der Legende des 7-Tage-Vergleichs angezeigt. (Optional)"
-        }
-      },
-      "debug_mode": {
-        "title": "Full-KI Transparency Mode (nur für Entwickler!)",
-        "description": "Erweiterte KI-Statistiken und Charts ein-/ausblenden.\nZugangscode erforderlich.",
-        "data": {
-          "debug_code": "Zugangscode",
-          "show_panel_groups": "Full-KI Transparency Mode aktivieren"
-        },
-        "data_description": {
-          "debug_code": "Gib den Entwickler-Zugangscode ein",
-          "show_panel_groups": "Zeigt erweiterte Charts wie Tages-Energieertrag, Abrechnung, KI-Status und Panel-Gruppen"
+          "sensor_hp_heating_mode": "WP: Heizmodus (Select-Entity, z.B. off/auto/eco/comfort)",
+          "sensor_hp_dhw_mode": "WP: Warmwasser-Modus (Select-Entity, z.B. off/auto/eco)",
+          "sensor_hp_dhw_charging": "WP: Warmwasserbereitung aktiv (Binär-Sensor)",
+          "sensor_hp_pv_active": "WP: PV-Modus aktiv (Binär-Sensor)",
+          "sensor_hp_electric_power": "WP: Elektrische Aufnahme (W oder kW)",
+          "sensor_hp_thermal_power": "WP: Thermische Leistung (W oder kW)",
+          "sensor_hp_grid_daily": "WP: Netz-Energie heute (kWh, kumuliert pro Tag)",
+          "sensor_hp_pv_daily": "WP: PV-Energie heute (kWh, kumuliert pro Tag)",
+          "sensor_hp_jaz": "WP: Jahresarbeitszahl (JAZ/COP)",
+          "sensor_hp_comp_starts": "WP: Kompressorstarts (kumuliert)",
+          "sensor_hp_storage_temp": "WP: Warmwasser-Speichertemperatur (°C)",
+          "sensor_wb_charge_mode": "Wallbox: Lademodus (Select-Entity)",
+          "sensor_wb_energy_session": "Wallbox: Energie aktuelle Ladesitzung (kWh)"
         }
       }
-    },
-    "error": {
-      "invalid_code": "Ungültiger Zugangscode!"
     }
   }
 }

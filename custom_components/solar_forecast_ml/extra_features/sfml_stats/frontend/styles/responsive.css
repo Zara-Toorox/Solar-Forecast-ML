@@ -1,0 +1,35 @@
+/* Solar Command Center — Responsive Breakpoints */
+
+@media (max-width: 1024px) {
+    .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .chart-container { height: 280px; }
+    .chart-container.tall { height: 350px; }
+    .header-title { display: none; }
+}
+
+@media (max-width: 768px) {
+    .app.mobile .header {
+        flex-wrap: wrap;
+        padding: var(--space-xs) var(--space-md);
+    }
+
+    .app.mobile .nav-tabs { display: none; }
+    .app.mobile .mobile-nav { display: flex; }
+    .app.mobile .main-content {
+        padding: var(--space-md);
+        padding-bottom: 72px; /* Space for bottom nav */
+    }
+
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .chart-container { height: 240px; }
+    .chart-container.tall { height: 300px; }
+
+    .header-indicators { gap: var(--space-sm); }
+    .indicator { font-size: 0.8rem; }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid { grid-template-columns: 1fr; }
+    .kpi-value { font-size: 1.6rem; }
+    .header-brand { display: none; }
+}
