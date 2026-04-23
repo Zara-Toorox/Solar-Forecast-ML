@@ -165,6 +165,14 @@ const SettingsPage = {
                                     <span class="settings-item-label">Module</span>
                                     <span class="settings-item-value">{{ pg.module_count || '--' }}</span>
                                 </div>
+                                <div class="settings-item" v-if="pg.factor != null">
+                                    <span class="settings-item-label">Physics-Faktor</span>
+                                    <span class="settings-item-value">{{ pg.factor.toFixed(3) }}</span>
+                                </div>
+                                <div class="settings-item" v-if="pg.confidence != null">
+                                    <span class="settings-item-label">Confidence</span>
+                                    <span class="settings-item-value">{{ (pg.confidence * 100).toFixed(0) }}%</span>
+                                </div>
                             </div>
                         </div>
                         <div v-if="panelGroups.length === 0" class="empty-state">Keine Panel-Gruppen konfiguriert</div>

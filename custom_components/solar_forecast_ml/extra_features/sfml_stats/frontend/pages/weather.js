@@ -309,14 +309,14 @@ const _WeatherPage = {
         });
         const moonIcon = computed(() => {
             const phase = (astronomy.moon_phase || '').toLowerCase();
-            if (phase.includes('new')) return '\u{1F311}';
-            if (phase.includes('waxing') && phase.includes('crescent')) return '\u{1F312}';
-            if (phase.includes('first') || phase === 'first_quarter') return '\u{1F313}';
-            if (phase.includes('waxing') && phase.includes('gibbous')) return '\u{1F314}';
-            if (phase.includes('full')) return '\u{1F315}';
-            if (phase.includes('waning') && phase.includes('gibbous')) return '\u{1F316}';
-            if (phase.includes('last') || phase === 'last_quarter') return '\u{1F317}';
-            if (phase.includes('waning') && phase.includes('crescent')) return '\u{1F318}';
+            if (phase.includes('neumond') || phase.includes('new')) return '\u{1F311}';
+            if (phase.includes('zunehmende sichel') || (phase.includes('waxing') && phase.includes('crescent'))) return '\u{1F312}';
+            if (phase.includes('erstes viertel') || phase.includes('first')) return '\u{1F313}';
+            if (phase.includes('zunehmender mond') || (phase.includes('waxing') && phase.includes('gibbous'))) return '\u{1F314}';
+            if (phase.includes('vollmond') || phase.includes('full')) return '\u{1F315}';
+            if (phase.includes('abnehmender mond') || (phase.includes('waning') && phase.includes('gibbous'))) return '\u{1F316}';
+            if (phase.includes('letztes viertel') || phase.includes('last')) return '\u{1F317}';
+            if (phase.includes('abnehmende sichel') || (phase.includes('waning') && phase.includes('crescent'))) return '\u{1F318}';
             return '\u{1F319}';
         });
         const radiationKpis = computed(() => {

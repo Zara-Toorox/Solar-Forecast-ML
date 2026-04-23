@@ -35,6 +35,7 @@ import atexit
 import asyncio
 import logging
 import queue
+from dataclasses import dataclass, field
 from datetime import timedelta
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 from pathlib import Path
@@ -45,6 +46,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
+    CONF_PANEL_GROUP_AZIMUTH,
+    CONF_PANEL_GROUP_ENERGY_SENSOR,
+    CONF_PANEL_GROUP_NAME,
+    CONF_PANEL_GROUP_POWER,
+    CONF_PANEL_GROUP_TILT,
+    CONF_PANEL_GROUPS,
     DOMAIN,
     PLATFORMS,
     VERSION,
@@ -115,6 +122,578 @@ async def _migrate_db_remove_default_panel_group(data_manager: "DataManager") ->
         _LOGGER.warning(f"V16 Migration failed (non-critical): {e}")
 
     return changes_made
+
+
+# ---------------------------------------------------------------------------
+# Panel Group Migration System — Fingerprint-based Matching @zara
+# ---------------------------------------------------------------------------
+
+_ALL_GROUP_TABLES = [
+    ("physics_calibration_groups", "group_name"),
+    ("physics_calibration_hourly", "group_name"),
+    ("physics_calibration_buckets", "group_name"),
+    ("physics_calibration_bucket_hourly", "group_name"),
+    ("physics_calibration_history", "group_name"),
+    ("ensemble_group_weights", "group_name"),
+    ("group_method_performance", "group_name"),
+    ("shadow_pattern_hourly", "group_name"),
+    ("shadow_pattern_seasonal", "group_name"),
+    ("shadow_learning_history", "group_name"),
+    ("shadow_detection_groups", "group_name"),
+    ("prediction_panel_groups", "group_name"),
+    ("panel_group_daily_cache", "group_name"),
+    ("panel_group_daily_hourly", "group_name"),
+    ("panel_group_sensor_state", "group_name"),
+    ("snow_tracking_groups", "group_name"),
+    ("astronomy_cache_panel_groups", "group_name"),
+    ("hourly_panel_group_accuracy", "group_name"),
+    ("multi_day_hourly_forecast_panels", "group_name"),
+    ("drift_metrics_rolling", "scope"),
+    ("drift_metrics_bucket", "scope"),
+    ("drift_events", "scope"),
+    ("drift_cusum_state", "scope"),
+]
+
+
+@dataclass
+class _GroupRename:
+    old_name: str
+    new_name: str
+
+
+@dataclass
+class _GroupDonor:
+    donor_name: str
+    new_name: str
+    capacity_ratio: float
+
+
+@dataclass
+class _MigrationPlan:
+    renames: list[_GroupRename] = field(default_factory=list)
+    donors: list[_GroupDonor] = field(default_factory=list)
+    new_groups: list[str] = field(default_factory=list)
+    removed_groups: list[str] = field(default_factory=list)
+    ai_invalidation_required: bool = False
+
+    @property
+    def has_changes(self) -> bool:
+        return bool(
+            any(r.old_name != r.new_name for r in self.renames)
+            or self.donors or self.new_groups or self.removed_groups
+        )
+
+    @property
+    def needs_ai_invalidation(self) -> bool:
+        return self.ai_invalidation_required
+
+
+def _orientation_match(a: dict, b: dict, tol: float = 0.5) -> bool:
+    az_a = float(a.get("azimuth", a.get(CONF_PANEL_GROUP_AZIMUTH, 180.0)) or 180.0)
+    az_b = float(b.get("azimuth", b.get(CONF_PANEL_GROUP_AZIMUTH, 180.0)) or 180.0)
+    tl_a = float(a.get("tilt", a.get(CONF_PANEL_GROUP_TILT, 30.0)) or 30.0)
+    tl_b = float(b.get("tilt", b.get(CONF_PANEL_GROUP_TILT, 30.0)) or 30.0)
+
+    az_diff = abs(((az_a - az_b + 180.0) % 360.0) - 180.0)
+    tilt_diff = abs(tl_a - tl_b)
+
+    az_tol = max(tol, max(abs(az_a), abs(az_b), 1.0) * 0.05)
+    tilt_tol = max(tol, max(abs(tl_a), abs(tl_b), 1.0) * 0.05)
+
+    return az_diff <= az_tol and tilt_diff <= tilt_tol
+
+
+def _get_power(g: dict) -> float:
+    if "power_wp" in g:
+        return g["power_wp"]
+    if CONF_PANEL_GROUP_POWER in g:
+        return g[CONF_PANEL_GROUP_POWER]
+    return 0.0
+
+
+def _get_name(g: dict) -> str:
+    return g.get("name", g.get(CONF_PANEL_GROUP_NAME, ""))
+
+
+def _get_sensor(g: dict) -> str:
+    return g.get("energy_sensor", g.get(CONF_PANEL_GROUP_ENERGY_SENSOR, ""))
+
+
+def _power_ratio(a: dict, b: dict) -> float | None:
+    a_pw = _get_power(a)
+    b_pw = _get_power(b)
+    if a_pw <= 0 or b_pw <= 0:
+        return None
+    hi = max(a_pw, b_pw)
+    lo = min(a_pw, b_pw)
+    return lo / hi if hi > 0 else None
+
+
+def _scaled_count(value: float | int | None, ratio: float) -> int:
+    if value is None:
+        return 0
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return 0
+    scaled = numeric * min(max(ratio, 0.0), 1.0)
+    return max(1, int(round(scaled))) if numeric > 0 and ratio > 0 else 0
+
+
+def _scaled_confidence(value: float | None, ratio: float) -> float:
+    if value is None:
+        return 0.0
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return max(0.0, min(1.0, numeric * min(max(ratio, 0.0), 1.0)))
+
+
+def _match_score(old_group: dict, new_group: dict) -> tuple[float, float, float, int]:
+    old_az = float(old_group.get("azimuth", old_group.get(CONF_PANEL_GROUP_AZIMUTH, 180.0)) or 180.0)
+    new_az = float(new_group.get("azimuth", new_group.get(CONF_PANEL_GROUP_AZIMUTH, 180.0)) or 180.0)
+    old_tilt = float(old_group.get("tilt", old_group.get(CONF_PANEL_GROUP_TILT, 30.0)) or 30.0)
+    new_tilt = float(new_group.get("tilt", new_group.get(CONF_PANEL_GROUP_TILT, 30.0)) or 30.0)
+
+    az_diff = abs(((old_az - new_az + 180.0) % 360.0) - 180.0)
+    tilt_diff = abs(old_tilt - new_tilt)
+    ratio = _power_ratio(old_group, new_group)
+    power_penalty = 1.0 - ratio if ratio is not None else 0.5
+    sensor_match = int(bool(_get_sensor(old_group)) and _get_sensor(old_group) == _get_sensor(new_group))
+    return (az_diff + tilt_diff, power_penalty, abs(_get_power(old_group) - _get_power(new_group)), -sensor_match)
+
+
+def _requires_ai_invalidation(old_groups: list[dict], new_groups: list[dict]) -> bool:
+    if len(old_groups) != len(new_groups):
+        return True
+
+    for old_group, new_group in zip(old_groups, new_groups):
+        if not _orientation_match(old_group, new_group):
+            return True
+        ratio = _power_ratio(old_group, new_group)
+        if ratio is not None and ratio < 0.95:
+            return True
+
+    return False
+
+
+async def _load_old_config_from_db(db) -> list[dict]:
+    try:
+        rows = await db.fetchall(
+            "SELECT group_name, power_wp, azimuth, tilt, energy_sensor "
+            "FROM panel_group_config_snapshot ORDER BY group_name"
+        )
+        if rows:
+            return [
+                {"name": r[0], "power_wp": r[1], "azimuth": r[2],
+                 "tilt": r[3], "energy_sensor": r[4] or ""}
+                for r in rows
+            ]
+    except Exception:
+        pass
+
+    rows = await db.fetchall(
+        "SELECT group_name, power_kwp, azimuth_deg, tilt_deg "
+        "FROM astronomy_cache_panel_groups "
+        "WHERE cache_date = (SELECT MAX(cache_date) FROM astronomy_cache_panel_groups) "
+        "GROUP BY group_name ORDER BY group_name"
+    )
+    if rows:
+        return [
+            {"name": r[0], "power_wp": r[1] * 1000.0, "azimuth": r[2],
+             "tilt": r[3], "energy_sensor": ""}
+            for r in rows
+        ]
+
+    rows = await db.fetchall(
+        "SELECT group_name FROM physics_calibration_groups ORDER BY group_name"
+    )
+    if rows:
+        return [
+            {"name": r[0], "power_wp": 0.0, "azimuth": 0.0,
+             "tilt": 0.0, "energy_sensor": ""}
+            for r in rows
+        ]
+
+    return []
+
+
+def _match_groups(old_groups: list[dict], new_groups: list[dict]) -> _MigrationPlan:
+    plan = _MigrationPlan()
+    plan.ai_invalidation_required = _requires_ai_invalidation(old_groups, new_groups)
+    unmatched_old = set(range(len(old_groups)))
+    unmatched_new = set(range(len(new_groups)))
+
+    # Pass 1: Geometry-first 1:1 match. Power is a plausibility check,
+    # sensor is only a weak tie-breaker because inverters/sensor entities can change.
+    for ni in list(unmatched_new):
+        best_oi, best_score = None, None
+        for oi in unmatched_old:
+            if not _orientation_match(old_groups[oi], new_groups[ni]):
+                continue
+            score = _match_score(old_groups[oi], new_groups[ni])
+            if best_score is None or score < best_score:
+                best_oi, best_score = oi, score
+        if best_oi is not None:
+            plan.renames.append(_GroupRename(
+                old_name=_get_name(old_groups[best_oi]),
+                new_name=_get_name(new_groups[ni]),
+            ))
+            unmatched_old.discard(best_oi)
+            unmatched_new.discard(ni)
+
+    # Pass 2: Split detection (one old → multiple new, same orientation)
+    for oi in list(unmatched_old):
+        candidates = [
+            ni for ni in unmatched_new
+            if _orientation_match(old_groups[oi], new_groups[ni])
+        ]
+        if not candidates:
+            continue
+        old_pw = _get_power(old_groups[oi])
+        best_ni = min(
+            candidates,
+            key=lambda ni: abs(_get_power(new_groups[ni]) - old_pw),
+        )
+        plan.renames.append(_GroupRename(
+            old_name=_get_name(old_groups[oi]),
+            new_name=_get_name(new_groups[best_ni]),
+        ))
+        unmatched_old.discard(oi)
+        unmatched_new.discard(best_ni)
+        for ni in candidates:
+            if ni == best_ni or ni not in unmatched_new:
+                continue
+            new_pw = _get_power(new_groups[ni])
+            ratio = new_pw / old_pw if old_pw > 0 else 1.0
+            plan.donors.append(_GroupDonor(
+                donor_name=_get_name(old_groups[oi]),
+                new_name=_get_name(new_groups[ni]),
+                capacity_ratio=ratio,
+            ))
+            unmatched_new.discard(ni)
+
+    # Pass 3: Remaining new groups — find best donor by nearest compatible orientation
+    for ni in sorted(unmatched_new):
+        best_donor = None
+        best_score = None
+        ng = new_groups[ni]
+        for og in old_groups:
+            if not _orientation_match(og, ng, tol=5.0):
+                continue
+            score = _match_score(og, ng)
+            if best_score is None or score < best_score:
+                best_donor, best_score = og, score
+        if best_donor:
+            donor_pw = _get_power(best_donor)
+            new_pw = _get_power(ng)
+            ratio = new_pw / donor_pw if donor_pw > 0 else 1.0
+            plan.donors.append(_GroupDonor(
+                donor_name=_get_name(best_donor),
+                new_name=_get_name(ng),
+                capacity_ratio=ratio,
+            ))
+        else:
+            plan.new_groups.append(_get_name(ng))
+
+    for oi in sorted(unmatched_old):
+        plan.removed_groups.append(_get_name(old_groups[oi]))
+
+    return plan
+
+
+async def _copy_calibration_from_donor(
+    db, donor_name: str, target_name: str, capacity_ratio: float
+) -> None:
+    scaled_ratio = min(max(capacity_ratio, 0.0), 1.0)
+    donor_cal = await db.fetchone(
+        "SELECT global_factor, sample_count, confidence "
+        "FROM physics_calibration_groups WHERE group_name = ?",
+        (donor_name,),
+    )
+    if donor_cal:
+        await db.execute(
+            "INSERT OR IGNORE INTO physics_calibration_groups "
+            "(group_name, global_factor, sample_count, confidence) VALUES (?, ?, ?, ?)",
+            (
+                target_name,
+                donor_cal[0],
+                _scaled_count(donor_cal[1], scaled_ratio),
+                _scaled_confidence(donor_cal[2], scaled_ratio),
+            ),
+        )
+
+    await db.execute(
+        "INSERT OR IGNORE INTO physics_calibration_hourly (group_name, hour, factor) "
+        "SELECT ?, hour, factor FROM physics_calibration_hourly WHERE group_name = ?",
+        (target_name, donor_name),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO physics_calibration_buckets "
+        "(group_name, bucket_name, global_factor, sample_count, confidence) "
+        "SELECT ?, bucket_name, global_factor, "
+        "MAX(0, CAST(ROUND(sample_count * ?) AS INTEGER)), confidence * ? "
+        "FROM physics_calibration_buckets WHERE group_name = ?",
+        (target_name, scaled_ratio, scaled_ratio, donor_name),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO physics_calibration_bucket_hourly "
+        "(group_name, bucket_name, hour, factor) "
+        "SELECT ?, bucket_name, hour, factor "
+        "FROM physics_calibration_bucket_hourly WHERE group_name = ?",
+        (target_name, donor_name),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO ensemble_group_weights "
+        "(group_name, cloud_bucket, hour_bucket, lstm_weight, ridge_weight, "
+        "lstm_mae, ridge_mae, sample_count, last_updated, season) "
+        "SELECT ?, cloud_bucket, hour_bucket, lstm_weight, ridge_weight, "
+        "lstm_mae, ridge_mae, MAX(0, CAST(ROUND(sample_count * ?) AS INTEGER)), last_updated, season "
+        "FROM ensemble_group_weights WHERE group_name = ?",
+        (target_name, scaled_ratio, donor_name),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO shadow_pattern_hourly "
+        "(group_name, hour, shadow_occurrence_rate, avg_shadow_percent, "
+        "std_dev_shadow_percent, pct_weather_clouds, pct_building_tree, "
+        "pct_low_sun, pct_other, pattern_type, confidence, sample_count, "
+        "shadow_days, clear_days, first_learned, last_updated) "
+        "SELECT ?, hour, shadow_occurrence_rate, avg_shadow_percent, "
+        "std_dev_shadow_percent, pct_weather_clouds, pct_building_tree, "
+        "pct_low_sun, pct_other, pattern_type, confidence * ?, "
+        "MAX(0, CAST(ROUND(sample_count * ?) AS INTEGER)), "
+        "MAX(0, CAST(ROUND(shadow_days * ?) AS INTEGER)), "
+        "MAX(0, CAST(ROUND(clear_days * ?) AS INTEGER)), first_learned, last_updated "
+        "FROM shadow_pattern_hourly WHERE group_name = ?",
+        (target_name, scaled_ratio, scaled_ratio, scaled_ratio, scaled_ratio, donor_name),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO shadow_pattern_seasonal "
+        "(group_name, month, hour, shadow_occurrence_rate, avg_shadow_percent, "
+        "std_dev_shadow_percent, dominant_cause, sample_count, shadow_days, "
+        "confidence, last_updated) "
+        "SELECT ?, month, hour, shadow_occurrence_rate, avg_shadow_percent, "
+        "std_dev_shadow_percent, dominant_cause, "
+        "MAX(0, CAST(ROUND(sample_count * ?) AS INTEGER)), "
+        "MAX(0, CAST(ROUND(shadow_days * ?) AS INTEGER)), "
+        "confidence * ?, last_updated "
+        "FROM shadow_pattern_seasonal WHERE group_name = ?",
+        (target_name, scaled_ratio, scaled_ratio, scaled_ratio, donor_name),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO group_method_performance "
+        "(group_name, cloud_bucket, hour_bucket, season, physics_mae, ai_mae, "
+        "lstm_mae, ridge_mae, blend_mae, best_method, ai_advantage_factor, "
+        "sample_count, last_updated) "
+        "SELECT ?, cloud_bucket, hour_bucket, season, physics_mae, ai_mae, "
+        "lstm_mae, ridge_mae, blend_mae, best_method, ai_advantage_factor, "
+        "MAX(0, CAST(ROUND(sample_count * ?) AS INTEGER)), last_updated "
+        "FROM group_method_performance WHERE group_name = ?",
+        (target_name, scaled_ratio, donor_name),
+    )
+
+
+async def _initialize_group_defaults(db, group_name: str, tilt: float) -> None:
+    await db.execute(
+        "INSERT OR IGNORE INTO physics_calibration_groups "
+        "(group_name, global_factor, sample_count, confidence) VALUES (?, 1.0, 0, 0.0)",
+        (group_name,),
+    )
+    await db.execute(
+        "INSERT OR IGNORE INTO snow_tracking_groups (group_name, tilt_deg) VALUES (?, ?)",
+        (group_name, tilt),
+    )
+
+
+async def _invalidate_ai_models(db) -> None:
+    for table in ("ai_lstm_weights", "ai_lstm_meta",
+                  "ai_ridge_weights", "ai_ridge_meta", "ai_ridge_normalization",
+                  "ai_seasonal_archive_weights", "ai_seasonal_archive_meta"):
+        try:
+            await db.execute(f"DELETE FROM {table}")
+        except Exception:
+            pass
+    try:
+        await db.execute("UPDATE ai_learned_weights_meta SET active_model = 'none'")
+    except Exception:
+        pass
+    _LOGGER.info("Panel Group Migration: AI models invalidated — retraining at next cycle")
+
+
+async def _save_config_snapshot(db, groups: list[dict]) -> None:
+    await db.execute("DELETE FROM panel_group_config_snapshot")
+    for g in groups:
+        await db.execute(
+            "INSERT INTO panel_group_config_snapshot "
+            "(group_name, power_wp, azimuth, tilt, energy_sensor) VALUES (?, ?, ?, ?, ?)",
+            (g["name"], g.get("power_wp", 0.0), g.get("azimuth", 180.0),
+             g.get("tilt", 30.0), g.get("energy_sensor") or None),
+        )
+
+
+async def _ensure_snapshot_table(db) -> None:
+    await db.execute(
+        "CREATE TABLE IF NOT EXISTS panel_group_config_snapshot ("
+        "group_name TEXT PRIMARY KEY, "
+        "power_wp REAL NOT NULL, "
+        "azimuth REAL NOT NULL, "
+        "tilt REAL NOT NULL, "
+        "energy_sensor TEXT)"
+    )
+
+
+async def _execute_migration(db, plan: _MigrationPlan, new_groups_config: list[dict]) -> None:
+    await db.execute("PRAGMA foreign_keys = OFF")
+    try:
+        renames_needed = [r for r in plan.renames if r.old_name != r.new_name]
+        if renames_needed:
+            for idx, rename in enumerate(renames_needed):
+                temp_name = f"__pgm_temp_{idx}__"
+                for table, col in _ALL_GROUP_TABLES:
+                    try:
+                        await db.execute(
+                            f"UPDATE {table} SET {col} = ? WHERE {col} = ?",
+                            (temp_name, rename.old_name),
+                        )
+                    except Exception:
+                        pass
+            for idx, rename in enumerate(renames_needed):
+                temp_name = f"__pgm_temp_{idx}__"
+                for table, col in _ALL_GROUP_TABLES:
+                    try:
+                        await db.execute(
+                            f"UPDATE {table} SET {col} = ? WHERE {col} = ?",
+                            (rename.new_name, temp_name),
+                        )
+                    except Exception:
+                        pass
+                _LOGGER.info(
+                    "Panel Group Migration: renamed '%s' → '%s'",
+                    rename.old_name, rename.new_name,
+                )
+
+        for donor in plan.donors:
+            await _copy_calibration_from_donor(
+                db, donor.donor_name, donor.new_name, donor.capacity_ratio
+            )
+            cfg = next(
+                (g for g in new_groups_config if g.get("name") == donor.new_name), {}
+            )
+            tilt = cfg.get("tilt", cfg.get(CONF_PANEL_GROUP_TILT, 30.0))
+            await db.execute(
+                "INSERT OR IGNORE INTO snow_tracking_groups (group_name, tilt_deg) VALUES (?, ?)",
+                (donor.new_name, tilt),
+            )
+            _LOGGER.info(
+                "Panel Group Migration: '%s' from donor '%s' (ratio=%.2f)",
+                donor.new_name, donor.donor_name, donor.capacity_ratio,
+            )
+
+        for name in plan.new_groups:
+            cfg = next((g for g in new_groups_config if g.get("name") == name), {})
+            tilt = cfg.get("tilt", cfg.get(CONF_PANEL_GROUP_TILT, 30.0))
+            await _initialize_group_defaults(db, name, tilt)
+            _LOGGER.info("Panel Group Migration: '%s' created with defaults", name)
+
+        for name in plan.removed_groups:
+            for table, col in _ALL_GROUP_TABLES:
+                try:
+                    await db.execute(f"DELETE FROM {table} WHERE {col} = ?", (name,))
+                except Exception:
+                    pass
+            _LOGGER.info("Panel Group Migration: '%s' removed", name)
+
+        await db.commit()
+    finally:
+        await db.execute("PRAGMA foreign_keys = ON")
+
+
+async def _migrate_panel_groups(
+    data_manager: "DataManager", panel_groups: list[dict]
+) -> dict:
+    result = {"renamed": [], "donor": [], "new": [], "removed": [], "ai_reset": False}
+
+    try:
+        db = data_manager._db_manager
+        await _ensure_snapshot_table(db)
+
+        new_config = []
+        for g in panel_groups:
+            new_config.append({
+                "name": g.get(CONF_PANEL_GROUP_NAME, ""),
+                "power_wp": g.get(CONF_PANEL_GROUP_POWER, 0.0),
+                "azimuth": g.get(CONF_PANEL_GROUP_AZIMUTH, 180.0),
+                "tilt": g.get(CONF_PANEL_GROUP_TILT, 30.0),
+                "energy_sensor": g.get(CONF_PANEL_GROUP_ENERGY_SENSOR, ""),
+            })
+
+        old_config = await _load_old_config_from_db(db)
+
+        if not old_config:
+            _LOGGER.info(
+                "Panel Group Migration: first setup — initializing %d groups",
+                len(new_config),
+            )
+            for g in new_config:
+                await _initialize_group_defaults(db, g["name"], g["tilt"])
+                result["new"].append(g["name"])
+            await _save_config_snapshot(db, new_config)
+            return result
+
+        plan = _match_groups(old_config, new_config)
+
+        if not plan.has_changes:
+            _LOGGER.debug("Panel Group Migration: no changes detected")
+            await _save_config_snapshot(db, new_config)
+            return result
+
+        for r in plan.renames:
+            if r.old_name != r.new_name:
+                _LOGGER.info(
+                    "Panel Group Migration Plan: RENAME '%s' → '%s'",
+                    r.old_name, r.new_name,
+                )
+        for d in plan.donors:
+            _LOGGER.info(
+                "Panel Group Migration Plan: DONOR '%s' → '%s' (ratio=%.2f)",
+                d.donor_name, d.new_name, d.capacity_ratio,
+            )
+        for n in plan.new_groups:
+            _LOGGER.info("Panel Group Migration Plan: NEW '%s'", n)
+        for r in plan.removed_groups:
+            _LOGGER.info("Panel Group Migration Plan: REMOVE '%s'", r)
+
+        await _execute_migration(db, plan, new_config)
+
+        if plan.needs_ai_invalidation:
+            await _invalidate_ai_models(db)
+            result["ai_reset"] = True
+
+        await db.execute("DELETE FROM astronomy_cache_panel_groups")
+
+        await _save_config_snapshot(db, new_config)
+
+        result["renamed"] = [
+            f"{r.old_name}→{r.new_name}"
+            for r in plan.renames if r.old_name != r.new_name
+        ]
+        result["donor"] = [
+            f"{d.donor_name}→{d.new_name}" for d in plan.donors
+        ]
+        result["new"] = plan.new_groups
+        result["removed"] = plan.removed_groups
+
+        _LOGGER.info(
+            "Panel Group Migration completed: %d renamed, %d donor, %d new, %d removed",
+            len(result["renamed"]), len(result["donor"]),
+            len(result["new"]), len(result["removed"]),
+        )
+
+    except Exception as e:
+        _LOGGER.warning("Panel Group Migration failed (non-critical): %s", e, exc_info=True)
+
+    return result
 
 
 async def setup_file_logging(hass: HomeAssistant) -> None:
@@ -279,11 +858,42 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as e:
             _LOGGER.warning(f"V16 Migration failed (non-critical): {e}")
 
+    async def _delayed_panel_group_migration():
+        if not coordinator.data_manager:
+            return
+        try:
+            await asyncio.sleep(4)
+            config_groups = entry.data.get(CONF_PANEL_GROUPS, [])
+            if config_groups:
+                await _migrate_panel_groups(coordinator.data_manager, config_groups)
+        except Exception as e:
+            _LOGGER.warning("Panel Group Migration failed (non-critical): %s", e)
+        finally:
+            domain_data = hass.data.get(DOMAIN, {})
+            migration_tasks = domain_data.get("_panel_group_migration_tasks", {})
+            current_task = asyncio.current_task()
+            if migration_tasks.get(entry.entry_id) is current_task:
+                migration_tasks.pop(entry.entry_id, None)
+
     if coordinator.data_manager:
         hass.async_create_task(
             _delayed_v16_migration(),
             name="solar_forecast_ml_v16_migration"
         )
+        domain_data = hass.data.setdefault(DOMAIN, {})
+        migration_tasks = domain_data.setdefault("_panel_group_migration_tasks", {})
+        existing_task = migration_tasks.get(entry.entry_id)
+        if existing_task and not existing_task.done():
+            _LOGGER.debug(
+                "Panel Group Migration task already active for entry %s - skipping duplicate schedule",
+                entry.entry_id,
+            )
+        else:
+            task = hass.async_create_task(
+                _delayed_panel_group_migration(),
+                name="solar_forecast_ml_panel_group_migration"
+            )
+            migration_tasks[entry.entry_id] = task
 
     # JSON Migration runs in background after startup to not block HA bootstrap @zara
     async def _delayed_json_migration():

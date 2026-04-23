@@ -452,6 +452,23 @@ const _HomePage = {
             <div ref="forecastChartEl" class="chart-container" style="height: 35vh; min-height: 280px;"></div>
         </div>
 
+        <!-- ========== SECTION 2b: MEHRTAGESPROGNOSE ========== -->
+        <div class="multi-day-forecast" v-if="dailyForecasts.length > 0" style="margin-top: var(--space-lg);">
+            <div class="chart-header" style="margin-bottom: var(--space-sm);">
+                <span class="chart-title">Prognose naechste Tage</span>
+            </div>
+            <div style="display:flex; gap:var(--space-md); flex-wrap:wrap;">
+                <div v-for="fc in dailyForecasts" :key="fc.type"
+                     class="chart-card" style="flex:1; min-width:140px; padding:var(--space-md); text-align:center;">
+                    <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">{{ fc.label }}</div>
+                    <div style="font-size:1.5rem; font-weight:700; color:var(--solar); font-family:var(--font-mono);">
+                        {{ fc.kwh }} kWh
+                    </div>
+                    <div style="font-size:0.75rem; color:var(--text-muted);">{{ fc.date }}</div>
+                </div>
+            </div>
+        </div>
+
         <!-- ========== SECTION 3: PANEL-GRUPPEN (IST vs Prognose pro Gruppe) ========== -->
         <div class="panel-groups-section" style="margin-top: var(--space-lg);" v-if="panelGroupsData.available">
             <div class="chart-header" style="margin-bottom: var(--space-md);">
@@ -466,7 +483,7 @@ const _HomePage = {
                                 IST: {{ (group.actual_total_kwh || 0).toFixed(3) }} kWh
                             </span>
                             <span style="color: #a855f7; font-family:var(--font-mono); font-size:0.8rem">
-                                Prognose: {{ (group.prediction_total_kwh || 0).toFixed(3) }} kWh
+                                Prognose: {{ ((group.prediction_day_kwh ?? group.prediction_total_kwh) || 0).toFixed(3) }} kWh
                             </span>
                             <span :style="{color: (group.accuracy_percent || 0) >= 80 ? '#22c55e' : (group.accuracy_percent || 0) >= 50 ? '#eab308' : '#ef4444', fontFamily:'var(--font-mono)', fontSize:'0.8rem', fontWeight:700}">
                                 {{ group.accuracy_percent ? group.accuracy_percent.toFixed(0) + '%' : '—' }}
@@ -544,8 +561,9 @@ const _HomePage = {
         const panelGroupsData = reactive({ available: false, groups: {} });
         const pgChartRefs = reactive({});
         const pgChartInstances = {};
-        const forecastData = reactive({ hours: [], forecast: [], actual: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [] });
+        const forecastData = reactive({ hours: [], forecast: [], actual: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
         const powerData = ref([]);
+        const dailyForecasts = ref([]);
         const currentTime = ref('');
         const lastPowerUpdate = ref('');
 
@@ -556,6 +574,8 @@ const _HomePage = {
             peakTodayTime: null,
             peakAlltimeW: null,
             peakAlltimeDate: null,
+            sunrise: null,
+            sunset: null,
         });
 
         // Computed
@@ -612,6 +632,36 @@ const _HomePage = {
             if (w == null) return '--';
             if (Math.abs(w) >= 1000) return (w / 1000).toFixed(1) + ' kW';
             return Math.round(w) + ' W';
+        }
+
+        function parseTimeToMinutes(value) {
+            if (!value || typeof value !== 'string' || !value.includes(':')) return null;
+            const [hh, mm] = value.split(':').map(v => Number(v));
+            if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+            return (hh * 60) + mm;
+        }
+
+        function getTimestampMinutes(entry) {
+            const ts = entry?.timestamp || entry?.time;
+            if (!ts) return null;
+            const dt = new Date(ts);
+            if (Number.isNaN(dt.getTime())) return null;
+            return (dt.getHours() * 60) + dt.getMinutes();
+        }
+
+        function getSolarWindowedPowerData(data) {
+            const sunriseMins = parseTimeToMinutes(infoData.sunrise);
+            const sunsetMins = parseTimeToMinutes(infoData.sunset);
+            if (sunriseMins == null || sunsetMins == null) return data;
+
+            const rangeStart = Math.max(0, sunriseMins - 60);
+            const rangeEnd = Math.min((24 * 60) - 1, sunsetMins + 60);
+            const filtered = data.filter((entry) => {
+                const mins = getTimestampMinutes(entry);
+                return mins != null && mins >= rangeStart && mins <= rangeEnd;
+            });
+
+            return filtered.length >= 2 ? filtered : data;
         }
 
         // Sparklines
@@ -694,8 +744,11 @@ const _HomePage = {
 
                 // Produktionszeit
                 if (data.sun_times) {
+                    infoData.sunrise = data.sun_times.sunrise || null;
+                    infoData.sunset = data.sun_times.sunset || null;
                     const dh = data.production_time?.duration_seconds;
                     infoData.productionHours = dh ? (dh / 3600).toFixed(1) : null;
+                    updatePowerChart();
                 }
 
                 // Peak heute
@@ -711,9 +764,54 @@ const _HomePage = {
                     infoData.peakAlltimeW = ap.watts;
                     infoData.peakAlltimeDate = ap.date;
                 }
+
+                // Multi-day forecasts
+                const dfc = data.daily_forecasts;
+                if (dfc) {
+                    const DAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+                    const items = [];
+                    for (const [type, val] of Object.entries(dfc)) {
+                        if (type === 'today') continue;
+                        const d = new Date(val.date + 'T12:00:00');
+                        const label = type === 'tomorrow' ? 'Morgen' : DAY_NAMES[d.getDay()] + ' ' + d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+                        items.push({ type, kwh: val.kwh, date: val.date, label, sortDate: val.date });
+                    }
+                    items.sort((a, b) => a.sortDate.localeCompare(b.sortDate));
+                    dailyForecasts.value = items;
+                }
             } catch (err) {
                 console.error('[Home] Info panel error:', err);
             }
+        }
+
+        function trimSolarWindow(actualArr, forecastArr) {
+            let start = -1, end = -1;
+            for (let i = 0; i < actualArr.length; i++) {
+                if ((actualArr[i] ?? 0) > 0.01) { if (start < 0) start = i; end = i; }
+            }
+            for (let i = 0; i < forecastArr.length; i++) {
+                if ((forecastArr[i] ?? 0) > 0.01) {
+                    if (start < 0 || i < start) start = i;
+                    if (i > end) end = i;
+                }
+            }
+            if (start < 0) return { actual: actualArr, forecast: forecastArr };
+            const aS = Math.max(0, start - 1);
+            const aE = Math.min(forecastArr.length - 1, end + 1);
+            return {
+                actual: actualArr.map((v, i) => {
+                    if (i < aS || i > aE) return null;
+                    if (i === aS || i === aE) return 0;
+                    return v;
+                }),
+                forecast: forecastArr.map((v, i) => {
+                    if (i < aS || i > aE) return null;
+                    if (i === aS || i === aE) return 0;
+                    return v;
+                }),
+                startIdx: aS,
+                endIdx: aE,
+            };
         }
 
         async function loadPanelGroups() {
@@ -739,11 +837,15 @@ const _HomePage = {
                     const chart = pgChartInstances[groupName];
                     const hourly = groupData.hourly || [];
                     const hours = hourly.map(h => h.hour);
-                    const actualData = hourly.map(h => {
-                        if (h.hour > nowHour) return null;
-                        return h.actual_kwh ?? null;
+                    const rawActual = hourly.map(h => h.actual_kwh ?? 0);
+                    const rawForecast = hourly.map(h => h.prediction_kwh ?? 0);
+                    const trimmed = trimSolarWindow(rawActual, rawForecast);
+
+                    const actualData = trimmed.actual.map((v, i) => {
+                        if (hourly[i].hour > nowHour) return null;
+                        return v;
                     });
-                    const forecastD = hourly.map(h => h.prediction_kwh ?? 0);
+                    const forecastD = trimmed.forecast;
 
                     chart.setOption({
                         backgroundColor: 'transparent',
@@ -757,7 +859,7 @@ const _HomePage = {
                         legend: { data: ['IST', 'Prognose'], textStyle: { color: '#8b949e', fontSize: 10 }, top: 0, right: 5 },
                         xAxis: {
                             type: 'category',
-                            data: hours.map(h => h + ':00'),
+                            data: hours.map(h => String(h).padStart(2, '0') + ':00'),
                             axisLabel: { color: '#8b949e', fontSize: 10, interval: 3 },
                             axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
                         },
@@ -785,7 +887,7 @@ const _HomePage = {
                             },
                             {
                                 name: 'Prognose', type: 'line', data: forecastD,
-                                smooth: true,
+                                smooth: true, connectNulls: false,
                                 lineStyle: { color: '#a855f7', width: 2, type: 'dashed' },
                                 itemStyle: { color: '#a855f7' },
                                 symbol: 'none',
@@ -813,14 +915,23 @@ const _HomePage = {
                 if (!todayData.length) return;
 
                 forecastData.hours = todayData.map(h => h.target_hour);
-                forecastData.forecast = todayData.map(h => h.prediction_kwh || 0);
-                forecastData.actual = todayData.map(h => h.actual_kwh || 0);
+                const rawFc = todayData.map(h => h.prediction_kwh || 0);
+                const rawAc = todayData.map(h => h.actual_kwh || 0);
+                const trimmed = trimSolarWindow(rawAc, rawFc);
+                forecastData.forecast = trimmed.forecast;
+                forecastData.actual = trimmed.actual;
                 forecastData.confidence = todayData.map(h => h.confidence || 50);
                 forecastData.ml_pct = todayData.map(h => h.ml_contribution_percent || 0);
                 forecastData.method = todayData.map(h => h.prediction_method || '');
                 forecastData.temperature = todayData.map(h => h.temperature || null);
                 forecastData.radiation = todayData.map(h => h.solar_radiation || null);
                 forecastData.clouds = todayData.map(h => h.clouds || null);
+                forecastData.tfs = todayData.map(h => h.tfs_kwh || null);
+                forecastData.tfs_weight = todayData.map(h => h.tfs_weight || null);
+                forecastData.ai = todayData.map(h => h.ai_kwh || null);
+                forecastData.physics = todayData.map(h => h.physics_kwh || null);
+                forecastData.lstm = todayData.map(h => h.lstm_kwh || null);
+                forecastData.ridge = todayData.map(h => h.ridge_kwh || null);
 
                 updateForecastChart();
             } catch (err) {
@@ -830,12 +941,15 @@ const _HomePage = {
 
         async function loadPowerHistory() {
             try {
-                // Load today's full production history (up to 18h from midnight)
                 const hoursToday = new Date().getHours() + 1;
                 const res = await SFMLApi.fetch('/api/sfml_stats/power_sources_history?hours=' + Math.max(hoursToday, 1));
                 if (!res || !res.data) return;
 
-                powerData.value = res.data;
+                const todayStr = new Date().toISOString().slice(0, 10);
+                powerData.value = res.data.filter(d => {
+                    const ts = d.timestamp || d.time || '';
+                    return ts.startsWith(todayStr);
+                });
                 lastPowerUpdate.value = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
                 updatePowerChart();
             } catch (err) {
@@ -849,12 +963,14 @@ const _HomePage = {
             if (!forecastChartInstance || !forecastData.hours.length) return;
             const nowHour = new Date().getHours();
 
-            // Calculate P90 / P10 bands
+            // Calculate P90 / P10 bands (respect null from trimming)
             const p90 = forecastData.forecast.map((v, i) => {
+                if (v == null) return null;
                 const conf = forecastData.confidence[i] || 50;
                 return v * (1 + (100 - conf) / 150);
             });
             const p10 = forecastData.forecast.map((v, i) => {
+                if (v == null) return null;
                 const conf = forecastData.confidence[i] || 50;
                 return Math.max(0, v * (1 - (100 - conf) / 150));
             });
@@ -893,6 +1009,21 @@ const _HomePage = {
                         s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>ML Anteil:</span><span>' + mlPct.toFixed(0) + '%</span></div>';
                         s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Confidence:</span><span>' + conf.toFixed(0) + '%</span></div>';
                         s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Methode:</span><span>' + method + '</span></div>';
+                        const tfs = forecastData.tfs[idx];
+                        const tfsW = forecastData.tfs_weight[idx];
+                        const ai = forecastData.ai[idx];
+                        const physics = forecastData.physics[idx];
+                        const lstm = forecastData.lstm[idx];
+                        const ridge = forecastData.ridge[idx];
+                        if (tfs != null || ai != null || physics != null) {
+                            s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
+                            s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">Modelle:</div>';
+                            if (tfs != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#a78bfa">TFS:</span><span>' + tfs.toFixed(3) + ' kWh' + (tfsW != null ? ' (' + (tfsW * 100).toFixed(0) + '%)' : '') + '</span></div>';
+                            if (ai != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>AI:</span><span>' + ai.toFixed(3) + ' kWh</span></div>';
+                            if (physics != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Physik:</span><span>' + physics.toFixed(3) + ' kWh</span></div>';
+                            if (lstm != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>LSTM:</span><span>' + lstm.toFixed(3) + ' kWh</span></div>';
+                            if (ridge != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Ridge:</span><span>' + ridge.toFixed(3) + ' kWh</span></div>';
+                        }
                         if (temp != null || rad != null || clouds != null) {
                             s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
                             s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">Wetter:</div>';
@@ -927,25 +1058,23 @@ const _HomePage = {
                         lineStyle: { opacity: 0 },
                         itemStyle: { opacity: 0 },
                         symbol: 'none',
-                        smooth: true,
+                        smooth: true, connectNulls: false,
                         stack: 'band',
                         areaStyle: { color: 'transparent' },
                         z: 1,
                     },
-                    // Band between P10 and P90 (stacked delta)
                     {
                         name: 'Unsicherheit',
                         type: 'line',
-                        data: p90.map((v, i) => Math.max(0, v - p10[i])),
+                        data: p90.map((v, i) => (v == null || p10[i] == null) ? null : Math.max(0, v - p10[i])),
                         lineStyle: { opacity: 0 },
                         itemStyle: { opacity: 0 },
                         symbol: 'none',
-                        smooth: true,
+                        smooth: true, connectNulls: false,
                         stack: 'band',
                         areaStyle: { color: 'rgba(251,191,36,0.1)' },
                         z: 1,
                     },
-                    // Forecast line (P50)
                     {
                         name: 'Prognose',
                         type: 'line',
@@ -953,7 +1082,7 @@ const _HomePage = {
                         lineStyle: { color: '#fbbf24', width: 2.5 },
                         itemStyle: { color: '#fbbf24' },
                         symbol: 'none',
-                        smooth: true,
+                        smooth: true, connectNulls: false,
                         z: 5,
                     },
                     // IST line — only show up to current hour, null for future
@@ -961,12 +1090,9 @@ const _HomePage = {
                         name: 'IST',
                         type: 'line',
                         data: forecastData.actual.map((v, i) => {
+                            if (v == null) return null;
                             const h = forecastData.hours[i];
-                            // Only show IST for hours that have passed AND have actual production
                             if (h > nowHour) return null;
-                            // Don't show zeros before sunrise (no production expected)
-                            const hasAnyProduction = forecastData.actual.some(a => a > 0.001);
-                            if (!hasAnyProduction) return null;
                             return v;
                         }),
                         lineStyle: { color: '#22c55e', width: 2.5 },
@@ -984,6 +1110,18 @@ const _HomePage = {
                             }
                         },
                         z: 6,
+                    },
+                    // TFS prediction line (toggleable via legend)
+                    {
+                        name: 'TFS',
+                        type: 'line',
+                        data: forecastData.tfs,
+                        lineStyle: { color: '#a78bfa', width: 2, type: 'dashed' },
+                        itemStyle: { color: '#a78bfa' },
+                        symbol: 'none',
+                        smooth: true,
+                        connectNulls: false,
+                        z: 4,
                     },
                     // Now marker
                     ...(forecastData.hours.includes(nowHour) ? [{
@@ -1003,8 +1141,8 @@ const _HomePage = {
                     top: 0,
                     right: 10,
                     textStyle: { color: '#8b949e', fontSize: 11 },
-                    data: ['Prognose', 'IST', 'Unsicherheit'],
-                    selected: { 'Unsicherheit': true },
+                    data: ['Prognose', 'IST', 'TFS', 'Unsicherheit'],
+                    selected: { 'Unsicherheit': true, 'TFS': false },
                 },
             });
         }
@@ -1014,7 +1152,7 @@ const _HomePage = {
         function updatePowerChart() {
             if (!powerChartInstance || !powerData.value.length) return;
 
-            const data = powerData.value;
+            const data = getSolarWindowedPowerData(powerData.value);
             const times = data.map(d => {
                 const dt = new Date(d.timestamp || d.time);
                 return dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -1145,7 +1283,7 @@ const _HomePage = {
         return {
             forecastChartEl, powerChartEl, sparklineRefs,
             flow, panels, panelHistory, infoData, panelGroupsData, pgChartRefs,
-            forecastData, powerData,
+            forecastData, powerData, dailyForecasts,
             currentTime, lastPowerUpdate,
             isNightTime, forecastTotal, actualTotal, deviationPercent,
             getGridPower, getGridLabel, fmtKw, fmtW,

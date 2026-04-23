@@ -383,7 +383,8 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the panel groups configuration step. @zara
 
         Panel groups are required (min 1, max 4).
-        Format: power_wp/azimuth/tilt (e.g., "1200/180/30, 900/270/10")
+        Format: power_wp/azimuth/tilt[/energy_sensor]
+        e.g. "1200/180/30/sensor.pv_today, 900/270/10/sensor.pv_west_today"
         """
         errors = {}
 
@@ -441,8 +442,8 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=errors,
             description_placeholders={
-                "example": "1200/180/30, 900/270/10",
-                "format": "Power(Wp)/Azimuth(deg)/Tilt(deg)",
+                "example": "5000/180/30/sensor.pv_energy_today",
+                "format": "Power(Wp)/Azimuth(deg)/Tilt(deg)/Daily-kWh-Sensor",
             },
         )
 
@@ -667,8 +668,8 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             errors=errors,
             description_placeholders={
-                "example": "1200/180/30, 900/270/10",
-                "format": "Power(Wp)/Azimuth(deg)/Tilt(deg)",
+                "example": "5000/180/30/sensor.pv_energy_today",
+                "format": "Power(Wp)/Azimuth(deg)/Tilt(deg)/Daily-kWh-Sensor",
             },
         )
 

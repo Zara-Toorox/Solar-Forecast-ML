@@ -15,10 +15,10 @@ from homeassistant.const import Platform
 # Warp Core Identity @starfleet-engineering
 DOMAIN = "solar_forecast_ml"
 NAME = "Solar Forecast ML"
-VERSION = "20.0.2"
+VERSION = "20.2.0"
 SOFTWARE_VERSION = VERSION
-AI_VERSION = "3.0"
-INTEGRATION_MODEL = "Solar Forecast ML V18"
+AI_VERSION = "6.0 TFS"
+INTEGRATION_MODEL = "Solar Forecast ML V20"
 
 PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
 

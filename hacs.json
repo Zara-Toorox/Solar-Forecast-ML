@@ -3,5 +3,5 @@
   "content_in_root": false,
   "render_readme": true,
   "domains": ["sensor", "button"],
-  "homeassistant": "2024.1.0"
+  "homeassistant": "2026.3.0"
 }

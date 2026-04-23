@@ -89,6 +89,7 @@ const App = {
 
         const tabs = [
             { id: 'home', label: 'Home', icon: '🏠' },
+            { id: 'flow', label: 'Flow', icon: '🔀' },
             { id: 'solar', label: 'Solar', icon: '☀' },
             { id: 'weather', label: 'Wetter', icon: '🌤' },
             { id: 'energy', label: 'Energie', icon: '⚡' },
@@ -98,6 +99,7 @@ const App = {
         // Pages (lazy loaded)
         const pages = {
             home: window.HomePage || { template: '<div class="page page-home"><h2>Loading...</h2></div>' },
+            flow: window.FlowPage || { template: '<div class="page page-flow"><h2>Loading...</h2></div>' },
             solar: window.SolarPage || { template: '<div class="page page-solar"><h2>Loading...</h2></div>' },
             weather: window.WeatherPage || { template: '<div class="page page-weather"><h2>Loading...</h2></div>' },
             energy: window.EnergyPage || { template: '<div class="page page-energy"><h2>⚡ Energie & Finanzen</h2><p>Loading...</p></div>' },

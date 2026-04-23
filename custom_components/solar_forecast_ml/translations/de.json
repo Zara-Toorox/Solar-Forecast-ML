@@ -35,7 +35,7 @@
       },
       "panel_groups": {
         "title": "Panel-Gruppen konfigurieren (Pflicht)",
-        "description": "⚠️ PFLICHTFELD: Mindestens 1 Panel-Gruppe erforderlich (max. 4)\n\nFormat: Leistung(Wp)/Azimut(°)/Neigung(°)/Tages-kWh-Sensor\n\nBeispiel Süd-Anlage:\n5000/180/30/sensor.pv_energy_today\n\nBeispiel Ost-West:\n2500/90/15/sensor.pv_ost_today, 2500/270/15/sensor.pv_west_today\n\nAzimut: 0°=Nord, 90°=Ost, 180°=Süd, 270°=West\nNeigung: 0°=horizontal, 90°=vertikal\n\nTages-kWh-Sensor: Pflicht für korrektes Gruppen-Learning (muss um Mitternacht zurückgesetzt werden)",
+        "description": "⚠️ PFLICHTFELD: Mindestens 1 Panel-Gruppe erforderlich (max. 4)\n\nFormat: Leistung(Wp)/Azimut(°)/Neigung(°)/Tages-kWh-Sensor\n\nBeispiel Süd-Anlage:\n5000/180/30/sensor.pv_energy_today\n\nBeispiel Ost-West:\n2500/90/15/sensor.pv_ost_today, 2500/270/15/sensor.pv_west_today\n\nAzimut: 0°=Nord, 90°=Ost, 180°=Süd, 270°=West\nNeigung: 0°=horizontal, 90°=vertikal\n\nTages-kWh-Sensor: Home-Assistant-Entity-ID eines täglichen Energie-Sensors für diese Gruppe. Der Sensor sollte sich um Mitternacht zurücksetzen. Der Sensor-Teil im Format ist optional, für korrektes gruppenspezifisches Lernen aber dringend empfohlen.",
         "data": {
           "panel_groups_input": "Panel-Gruppen"
         },
@@ -45,7 +45,7 @@
       },
       "reconfigure_panel_groups": {
         "title": "Panel-Gruppen neu konfigurieren (Pflicht)",
-        "description": "⚠️ PFLICHTFELD: Mindestens 1 Panel-Gruppe erforderlich (max. 4)\n\nFormat: Leistung(Wp)/Azimut(°)/Neigung(°)/Tages-kWh-Sensor\n\nBeispiel: 5000/180/30/sensor.pv_energy_today\nOder: 2500/90/15/sensor.pv_ost, 2500/270/15/sensor.pv_west\n\nTages-kWh-Sensor: Pflicht für korrektes Gruppen-Learning",
+        "description": "⚠️ PFLICHTFELD: Mindestens 1 Panel-Gruppe erforderlich (max. 4)\n\nFormat: Leistung(Wp)/Azimut(°)/Neigung(°)/Tages-kWh-Sensor\n\nBeispiel: 5000/180/30/sensor.pv_energy_today\nOder: 2500/90/15/sensor.pv_ost, 2500/270/15/sensor.pv_west\n\nTages-kWh-Sensor: Home-Assistant-Entity-ID eines täglichen Energie-Sensors für diese Gruppe. Der Sensor sollte sich um Mitternacht zurücksetzen. Der Sensor-Teil im Format ist optional, für korrektes gruppenspezifisches Lernen aber dringend empfohlen.",
         "data": {
           "panel_groups_input": "Panel-Gruppen"
         },
@@ -96,7 +96,7 @@
       "already_configured": "Wetter-Entität bereits in Verwendung",
       "sensor_not_found": "Sensor-Entität nicht gefunden",
       "invalid_sensor_state": "Sensor-Status ungültig oder nicht verfügbar",
-      "invalid_panel_format": "Ungültiges Format. Bitte verwenden Sie: Leistung/Azimut/Neigung (z.B. 1200/180/30)",
+      "invalid_panel_format": "Ungültiges Format. Bitte verwenden Sie: Leistung/Azimut/Neigung oder Leistung/Azimut/Neigung/Sensor (z.B. 1200/180/30 oder 1200/180/30/sensor.pv_today)",
       "panel_groups_required": "Mindestens 1 Panel-Gruppe erforderlich. Format: Leistung/Azimut/Neigung/Sensor (z.B. 5000/180/30/sensor.pv_today)",
       "too_many_panel_groups": "Maximal 4 Panel-Gruppen erlaubt",
       "energy_sensor_not_found": "Energie-Sensor nicht in Home Assistant gefunden. Bitte Entity-ID prüfen.",

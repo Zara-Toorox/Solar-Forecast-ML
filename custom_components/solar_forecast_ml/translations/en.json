@@ -35,7 +35,7 @@
       },
       "panel_groups": {
         "title": "Configure Panel Groups (Required)",
-        "description": "⚠️ REQUIRED: At least 1 panel group needed (max. 4)\n\nFormat: Power(Wp)/Azimuth(°)/Tilt(°)/Daily-kWh-Sensor\n\nExample south-facing:\n5000/180/30/sensor.pv_energy_today\n\nExample east-west:\n2500/90/15/sensor.pv_east_today, 2500/270/15/sensor.pv_west_today\n\nAzimuth: 0°=North, 90°=East, 180°=South, 270°=West\nTilt: 0°=horizontal, 90°=vertical\n\nDaily-kWh-Sensor: Required for correct group learning (must reset at midnight)",
+        "description": "⚠️ REQUIRED: At least 1 panel group needed (max. 4)\n\nFormat: Power(Wp)/Azimuth(°)/Tilt(°)/Daily-kWh-Sensor\n\nExample south-facing:\n5000/180/30/sensor.pv_energy_today\n\nExample east-west:\n2500/90/15/sensor.pv_east_today, 2500/270/15/sensor.pv_west_today\n\nAzimuth: 0°=North, 90°=East, 180°=South, 270°=West\nTilt: 0°=horizontal, 90°=vertical\n\nDaily-kWh-Sensor: Home Assistant entity_id of a daily energy sensor for this group. The sensor should reset at midnight. The sensor part is optional in the input format, but strongly recommended for correct per-group learning.",
         "data": {
           "panel_groups_input": "Panel Groups"
         },
@@ -45,7 +45,7 @@
       },
       "reconfigure_panel_groups": {
         "title": "Reconfigure Panel Groups (Required)",
-        "description": "⚠️ REQUIRED: At least 1 panel group needed (max. 4)\n\nFormat: Power(Wp)/Azimuth(°)/Tilt(°)/Daily-kWh-Sensor\n\nExample: 5000/180/30/sensor.pv_energy_today\nOr: 2500/90/15/sensor.pv_east, 2500/270/15/sensor.pv_west\n\nDaily-kWh-Sensor: Required for correct group learning",
+        "description": "⚠️ REQUIRED: At least 1 panel group needed (max. 4)\n\nFormat: Power(Wp)/Azimuth(°)/Tilt(°)/Daily-kWh-Sensor\n\nExample: 5000/180/30/sensor.pv_energy_today\nOr: 2500/90/15/sensor.pv_east, 2500/270/15/sensor.pv_west\n\nDaily-kWh-Sensor: Home Assistant entity_id of a daily energy sensor for this group. The sensor should reset at midnight. The sensor part is optional in the input format, but strongly recommended for correct per-group learning.",
         "data": {
           "panel_groups_input": "Panel Groups"
         },
@@ -96,7 +96,7 @@
       "already_configured": "Weather entity already in use",
       "sensor_not_found": "Sensor entity not found",
       "invalid_sensor_state": "Sensor state invalid or unavailable",
-      "invalid_panel_format": "Invalid format. Please use: Power/Azimuth/Tilt (e.g., 1200/180/30)",
+      "invalid_panel_format": "Invalid format. Please use: Power/Azimuth/Tilt or Power/Azimuth/Tilt/Sensor (e.g., 1200/180/30 or 1200/180/30/sensor.pv_today)",
       "panel_groups_required": "At least 1 panel group required. Format: Power/Azimuth/Tilt/Sensor (e.g., 5000/180/30/sensor.pv_today)",
       "too_many_panel_groups": "Maximum 4 panel groups allowed",
       "energy_sensor_not_found": "Energy sensor not found in Home Assistant. Check the entity ID.",

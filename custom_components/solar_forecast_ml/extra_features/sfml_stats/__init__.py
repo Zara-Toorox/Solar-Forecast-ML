@@ -23,7 +23,6 @@ try:
     import pyarmor_runtime_009810  # noqa: F401
 except ImportError:
     pass  # Runtime not present (development mode)
-
 import logging
 from datetime import datetime
 from pathlib import Path

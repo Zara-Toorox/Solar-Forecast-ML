@@ -5,6 +5,7 @@
     .chart-container { height: 280px; }
     .chart-container.tall { height: 350px; }
     .header-title { display: none; }
+    .annual-kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -17,7 +18,7 @@
     .app.mobile .mobile-nav { display: flex; }
     .app.mobile .main-content {
         padding: var(--space-md);
-        padding-bottom: 72px; /* Space for bottom nav */
+        padding-bottom: 72px;
     }
 
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -26,10 +27,118 @@
 
     .header-indicators { gap: var(--space-sm); }
     .indicator { font-size: 0.8rem; }
+
+    .panel-groups-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .panel-group-chart-card {
+        min-width: 0 !important;
+    }
+
+    .weather-hero-main {
+        flex-direction: column !important;
+        align-items: center !important;
+        text-align: center;
+    }
+    .weather-hero-badge {
+        margin-top: var(--space-sm);
+    }
+    .weather-hero-details {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .astro-grid {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+
+    .settings-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .panel-group-card {
+        margin-bottom: var(--space-sm);
+    }
+
+    .isometric-energy-flow {
+        max-height: 35vh !important;
+    }
+    .energy-flow-container {
+        min-height: 35vh !important;
+    }
+
+    .panel-live-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .chart-header {
+        flex-wrap: wrap;
+        gap: var(--space-xs);
+    }
+    .pg-stats {
+        flex-wrap: wrap;
+        gap: var(--space-xs) !important;
+    }
+
+    .multi-day-forecast > div:last-child {
+        flex-direction: column;
+    }
+
+    .annual-kpi-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+
+    .section-title {
+        font-size: 1.2rem !important;
+    }
 }
 
 @media (max-width: 480px) {
     .kpi-grid { grid-template-columns: 1fr; }
     .kpi-value { font-size: 1.6rem; }
     .header-brand { display: none; }
+
+    .weather-hero-details {
+        grid-template-columns: 1fr !important;
+    }
+
+    .astro-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+    }
+    .astro-item {
+        padding: var(--space-sm) !important;
+    }
+
+    .settings-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .panel-live-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .chart-container {
+        height: 200px !important;
+    }
+
+    .isometric-energy-flow {
+        max-height: 28vh !important;
+    }
+    .energy-flow-container {
+        min-height: 28vh !important;
+    }
+
+    .chart-title {
+        font-size: 0.9rem !important;
+    }
+    .pg-stats span {
+        font-size: 0.75rem !important;
+    }
+
+    .annual-kpi-grid {
+        grid-template-columns: 1fr !important;
+    }
+
+    .accordion-header {
+        min-height: 48px;
+        padding: var(--space-md) !important;
+    }
 }

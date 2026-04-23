@@ -1802,3 +1802,12 @@ CREATE TABLE IF NOT EXISTS sensor_monthly_stats (
 
 CREATE INDEX IF NOT EXISTS idx_sensor_monthly_stats_year_month
     ON sensor_monthly_stats(year, month);
+
+-- Panel Group Config Snapshot for fingerprint-based migration @zara
+CREATE TABLE IF NOT EXISTS panel_group_config_snapshot (
+    group_name TEXT PRIMARY KEY,
+    power_wp REAL NOT NULL,
+    azimuth REAL NOT NULL,
+    tilt REAL NOT NULL,
+    energy_sensor TEXT
+);
