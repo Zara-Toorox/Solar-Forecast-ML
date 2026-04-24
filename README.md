@@ -288,6 +288,9 @@ actually represents kilo-Cochrane-Field (kCF) measurements.
 ## 🚀 Installation
 
 ### HACS (Recommended)
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Zara-Toorox&repository=ha-solar-forecast-ml&category=Integration)
+
 1. HACS > Integrations > Custom repositories
 2. Add `https://github.com/Zara-Toorox/ha-solar-forecast-ml` (Integration category)
 3. Install **Solar Forecast ML**
