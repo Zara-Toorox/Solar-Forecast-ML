@@ -204,6 +204,7 @@ const _WeatherPage = {
                     Historiendaten werden geladen...
                 </div>
                 <div v-else>
+                    <div v-if="historyAvailabilityText" class="history-note">{{ historyAvailabilityText }}</div>
                     <div class="history-kpis">
                         <div class="history-kpi">
                             <div class="history-kpi-value">{{ fmt(history.stats.avgTemp, 1) }}°C</div>
@@ -249,6 +250,7 @@ const _WeatherPage = {
         const clothing = reactive({ available: false });
         const astronomy = reactive({ sunrise: null, sunset: null, day_length_min: null, day_length_delta_min: null, max_elevation_deg: null, moon_phase: null, moon_illumination: null });
         const history = reactive({ data: [], stats: {} });
+        const historyMeta = reactive({ availableDays: 0, requestedDays: 7, returnedDays: 0 });
         const historyTab = ref('week');
         const historyTabs = [
             { id: 'week', label: 'Woche' },
@@ -261,7 +263,15 @@ const _WeatherPage = {
         const radiationChartEl = ref(null);
         const historyChartEl = ref(null);
         let forecastChart = null, radiationChart = null, historyChart = null;
-
+        const historyRequestedDays = computed(() => (
+            historyTab.value === 'week' ? 7 : historyTab.value === 'month' ? 30 : 365
+        ));
+        const historyAvailabilityText = computed(() => {
+            if (!historyMeta.availableDays || historyMeta.availableDays >= historyRequestedDays.value) {
+                return '';
+            }
+            return `Derzeit sind ${historyMeta.availableDays} Tage Wetterhistorie verfuegbar.`;
+        });
         // Helpers ------------------------------------------------------
         function fmt(v, digits = 1) {
             if (v == null || v === '' || Number.isNaN(Number(v))) return '--';
@@ -511,13 +521,15 @@ const _WeatherPage = {
 
         async function loadHistory() {
             try {
-                const res = await SFMLApi.fetch('/api/sfml_stats/weather_history', { forceRefresh: true });
+                const days = historyRequestedDays.value;
+                const res = await SFMLApi.getWeatherHistory(days, true);
                 if (!res || !res.success) return;
                 const all = (res.data || []).slice().sort((a, b) => a.date.localeCompare(b.date));
-                const days = historyTab.value === 'week' ? 7 : historyTab.value === 'month' ? 30 : 365;
-                const slice = all.slice(-days);
-                history.data = slice;
-                history.stats = computeHistoryStats(slice);
+                historyMeta.availableDays = res.available_days || all.length;
+                historyMeta.requestedDays = res.requested_days || days;
+                historyMeta.returnedDays = res.returned_days || all.length;
+                history.data = all;
+                history.stats = computeHistoryStats(all);
 
                 await nextTick();
                 renderHistoryChart();
@@ -577,6 +589,7 @@ const _WeatherPage = {
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,
             dayLengthText, moonIcon, radiationKpis,
             fmt, formatTime,
+            historyAvailabilityText,
             setHistoryTab,
         };
     },
@@ -740,6 +753,11 @@ const _WeatherPage = {
             background: rgba(0,212,255,0.12);
             color: var(--accent);
             border-color: var(--accent);
+        }
+        .history-note {
+            margin-bottom: var(--space-md);
+            color: var(--text-muted);
+            font-size: 0.78rem;
         }
         .history-kpis {
             display: grid;

@@ -272,7 +272,7 @@ class ServiceRegistry:
                 predictor = self.coordinator.ai_predictor
 
                 _LOGGER.info("Loading training data...")
-                X_sequences, y_targets, _ = await predictor._prepare_training_data()
+                X_sequences, y_targets, _, _ = await predictor._prepare_training_data()
 
                 if len(X_sequences) < 50:
                     _LOGGER.error(f"Not enough training data: {len(X_sequences)} samples (need 50+)")
@@ -288,7 +288,7 @@ class ServiceRegistry:
                 async def progress_callback(current, total, params, accuracy):
                     _LOGGER.info(
                         f"Grid-Search progress: {current}/{total} - "
-                        f"hidden={params.get('hidden_size')}, R2={accuracy:.4f}"
+                        f"hidden={params.get('hidden_sizes', params.get('hidden_size'))}, R2={accuracy:.4f}"
                     )
 
                 from ..ai.ai_predictor import calculate_feature_count
@@ -316,12 +316,17 @@ class ServiceRegistry:
 
                 if retrain_after and result.best_params:
                     _LOGGER.info("Retraining model with optimal parameters...")
+                    hidden_sizes = result.best_params.get("hidden_sizes")
+                    if hidden_sizes is None:
+                        hidden_size = result.best_params.get("hidden_size", 48)
+                        hidden_sizes = (hidden_size, max(1, hidden_size // 2))
                     predictor.lstm = TinyLSTM(
                         input_size=feature_count,
-                        hidden_size=result.best_params.get("hidden_size", 32),
+                        hidden_sizes=hidden_sizes,
                         sequence_length=24,
                         num_outputs=num_outputs,
                         learning_rate=result.best_params.get("learning_rate", 0.005),
+                        num_heads=result.best_params.get("num_heads", 4),
                     )
                     train_result = await predictor.train_model()
                     if train_result.success:

@@ -926,7 +926,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             await asyncio.sleep(5)
             async with asyncio.timeout(60):
-                await coordinator.async_config_entry_first_refresh()
+                await coordinator.async_refresh()
             _LOGGER.info("First data refresh completed successfully")
         except asyncio.TimeoutError:
             _LOGGER.debug(

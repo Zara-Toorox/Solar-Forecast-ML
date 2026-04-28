@@ -4,6 +4,38 @@
 const HomePage = ((Vue) => {
 const { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
 
+const WEATHER_SYMBOLS = {
+    'clear-night': '🌙',
+    'cloudy': '☁',
+    'exceptional': '❕',
+    'fog': '🌫',
+    'hail': '🧊',
+    'lightning': '⚡',
+    'lightning-rainy': '⛈',
+    'partlycloudy': '⛅',
+    'pouring': '🌧',
+    'rainy': '🌦',
+    'snowy': '❄',
+    'snowy-rainy': '🌨',
+    'sunny': '☀',
+    'windy': '💨',
+    'windy-variant': '🌬',
+};
+
+function forecastBandColor(errorPercent) {
+    if (errorPercent == null || Number.isNaN(errorPercent)) return '#8b949e';
+    const error = Math.abs(errorPercent);
+    if (error <= 15) return '#22c55e';
+    if (error <= 25) return '#eab308';
+    if (error <= 35) return '#f97316';
+    return '#ef4444';
+}
+
+function forecastBandColorFromAccuracy(accuracyPercent) {
+    if (accuracyPercent == null || Number.isNaN(accuracyPercent)) return '#8b949e';
+    return forecastBandColor(100 - accuracyPercent);
+}
+
 const _HomePage = {
     props: {
         liveData: { type: Object, required: true },
@@ -17,7 +49,12 @@ const _HomePage = {
         <!-- ========== SECTION 1: 3D ISOMETRIC ENERGY FLOW + INFO PANEL ========== -->
         <div class="energy-flow-container" style="min-height: 45vh">
             <div class="chart-header">
-                <span class="chart-title">Energiefluss</span>
+                <div style="display:flex; align-items:baseline; gap:0; flex-wrap:wrap;">
+                    <span class="chart-title" style="margin-right:24px;">Energiefluss</span>
+                    <span v-if="infoData.outdoorTemperatureLabel" style="font-size:0.95rem; color:var(--text-muted); font-family:var(--font-mono); letter-spacing:0.01em;">
+                        {{ infoData.outdoorTemperatureLabel }}
+                    </span>
+                </div>
                 <span class="flow-time" style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono)">
                     {{ currentTime }}
                 </span>
@@ -444,10 +481,18 @@ const _HomePage = {
                     <span style="color:#fbbf24; font-family:var(--font-mono); font-size:0.85rem">
                         Prognose: {{ forecastTotal }} kWh
                     </span>
-                    <span :style="{color: Math.abs(deviationPercent) <= 20 ? '#22c55e' : Math.abs(deviationPercent) <= 50 ? '#eab308' : '#ef4444', fontFamily:'var(--font-mono)', fontSize:'0.85rem', fontWeight:700}">
+                    <span :style="{color: forecastBandColor(deviationPercent), fontFamily:'var(--font-mono)', fontSize:'0.85rem', fontWeight:700}">
                         {{ deviationPercent >= 0 ? '+' : '' }}{{ deviationPercent.toFixed(0) }}%
                     </span>
                 </div>
+            </div>
+            <div v-if="cleanEvalStats.today.accuracy != null || todayCoverageLabel" style="display:flex; gap:var(--space-md); flex-wrap:wrap; margin-top:6px; color:var(--text-muted); font-size:0.8rem; font-family:var(--font-mono)">
+                <span v-if="cleanEvalStats.today.accuracy != null">
+                    Heute Prognosegüte: <span :style="{ color: forecastBandColorFromAccuracy(cleanEvalStats.today.accuracy) }">{{ cleanEvalStats.today.accuracy.toFixed(1) }}%</span>
+                </span>
+                <span v-if="todayCoverageLabel">
+                    Heute bewertet: <span style="color:#fbbf24">{{ todayCoverageLabel }}</span>
+                </span>
             </div>
             <div ref="forecastChartEl" class="chart-container" style="height: 35vh; min-height: 280px;"></div>
         </div>
@@ -485,7 +530,7 @@ const _HomePage = {
                             <span style="color: #a855f7; font-family:var(--font-mono); font-size:0.8rem">
                                 Prognose: {{ ((group.prediction_day_kwh ?? group.prediction_total_kwh) || 0).toFixed(3) }} kWh
                             </span>
-                            <span :style="{color: (group.accuracy_percent || 0) >= 80 ? '#22c55e' : (group.accuracy_percent || 0) >= 50 ? '#eab308' : '#ef4444', fontFamily:'var(--font-mono)', fontSize:'0.8rem', fontWeight:700}">
+                            <span :style="{color: group.accuracy_percent != null ? forecastBandColorFromAccuracy(group.accuracy_percent) : '#8b949e', fontFamily:'var(--font-mono)', fontSize:'0.8rem', fontWeight:700}">
                                 {{ group.accuracy_percent ? group.accuracy_percent.toFixed(0) + '%' : '—' }}
                             </span>
                         </div>
@@ -566,6 +611,21 @@ const _HomePage = {
         const dailyForecasts = ref([]);
         const currentTime = ref('');
         const lastPowerUpdate = ref('');
+        const cleanEvalStats = reactive({
+            today: {
+                accuracy: null,
+                coverage: null,
+                excludedMppt: null,
+                excludedHours: null,
+                evaluationHours: null,
+                productionCandidates: null,
+                missingActualHours: null,
+                excludedWeatherAlertHours: null,
+                excludedInverterClippedHours: null,
+            },
+            last7: { accuracy: null, coverage: null, excludedMppt: null },
+            last30: { accuracy: null, coverage: null, excludedMppt: null },
+        });
 
         // Info Panel Data
         const infoData = reactive({
@@ -576,6 +636,7 @@ const _HomePage = {
             peakAlltimeDate: null,
             sunrise: null,
             sunset: null,
+            outdoorTemperatureLabel: null,
         });
 
         // Computed
@@ -599,6 +660,41 @@ const _HomePage = {
             const pred = parseFloat(forecastTotal.value);
             if (pred === 0) return 0;
             return ((act - pred) / pred) * 100;
+        });
+
+        const todayCoverageLabel = computed(() => {
+            const coverage = cleanEvalStats.today.coverage;
+            if (coverage == null) return null;
+            const evaluated = cleanEvalStats.today.evaluationHours;
+            const candidates = cleanEvalStats.today.productionCandidates;
+            if (evaluated != null && candidates != null && candidates > 0) {
+                return `${coverage.toFixed(1)}% (${evaluated}/${candidates} h)`;
+            }
+            return `${coverage.toFixed(1)}%`;
+        });
+
+        const todayCoverageExplanation = computed(() => {
+            const coverage = cleanEvalStats.today.coverage;
+            if (coverage == null) return null;
+
+            const evaluated = cleanEvalStats.today.evaluationHours;
+            const candidates = cleanEvalStats.today.productionCandidates;
+            const missingActual = cleanEvalStats.today.missingActualHours || 0;
+            const excludedMppt = cleanEvalStats.today.excludedMppt || 0;
+            const excludedClipped = cleanEvalStats.today.excludedInverterClippedHours || 0;
+            const parts = [];
+            if (missingActual > 0) parts.push(`${missingActual} h noch ohne IST`);
+            if (excludedMppt > 0) parts.push(`${excludedMppt} h wegen MPPT`);
+            if (excludedClipped > 0) parts.push(`${excludedClipped} h wegen Clipping`);
+
+            if (evaluated != null && candidates != null && candidates > 0) {
+                if (parts.length > 0) {
+                    return `Bewertet wurden ${evaluated} von ${candidates} relevanten Produktionsstunden. Nicht bewertet: ${parts.join(', ')}.`;
+                }
+                return `Bewertet wurden ${evaluated} von ${candidates} relevanten Produktionsstunden.`;
+            }
+
+            return 'Bewertet wurden nur Stunden mit IST-Wert und ohne technische Ausschlussgruende.';
         });
 
         // Helpers
@@ -751,6 +847,43 @@ const _HomePage = {
                     updatePowerChart();
                 }
 
+                const today = data.today;
+                cleanEvalStats.today.accuracy = today?.accuracy ?? null;
+                cleanEvalStats.today.coverage = today?.evaluation_coverage_percent ?? null;
+                cleanEvalStats.today.excludedMppt = today?.excluded_mppt_hours_count ?? null;
+                cleanEvalStats.today.excludedHours = today?.excluded_hours_count ?? null;
+                cleanEvalStats.today.evaluationHours = today?.evaluation_hours_count ?? null;
+                cleanEvalStats.today.productionCandidates = today?.production_candidate_hours_count ?? null;
+                cleanEvalStats.today.missingActualHours = today?.missing_actual_hours_count ?? null;
+                cleanEvalStats.today.excludedWeatherAlertHours = today?.excluded_weather_alert_hours_count ?? null;
+                cleanEvalStats.today.excludedInverterClippedHours = today?.excluded_inverter_clipped_hours_count ?? null;
+
+                const outdoor = data.outdoor_temperature || {};
+                const outdoorTemperature = outdoor.temperature_c;
+                const cloudCover = outdoor.cloud_cover_percent;
+                const condition = outdoor.condition || null;
+                const symbol = WEATHER_SYMBOLS[condition] || (cloudCover != null
+                    ? (cloudCover >= 80 ? '☁' : cloudCover >= 35 ? '⛅' : '☀')
+                    : null);
+                const weatherBits = [];
+                if (outdoorTemperature != null) {
+                    weatherBits.push(`${outdoorTemperature.toFixed(1)}°C`);
+                }
+                if (symbol) {
+                    weatherBits.push(symbol);
+                }
+                if (cloudCover != null) {
+                    weatherBits.push(`${Math.round(cloudCover)}%`);
+                }
+
+                if (weatherBits.length > 0) {
+                    infoData.outdoorTemperatureLabel = outdoor.source === 'forecast'
+                        ? `${weatherBits.join(' ')} Prognose`
+                        : `${weatherBits.join(' ')}`;
+                } else {
+                    infoData.outdoorTemperatureLabel = null;
+                }
+
                 // Peak heute
                 const ds = data.daily_stats;
                 if (ds) {
@@ -817,6 +950,15 @@ const _HomePage = {
         async function loadPanelGroups() {
             try {
                 const res = await SFMLApi.fetch('/api/sfml_stats/statistics');
+                const stats = res?.statistics || {};
+                const last7 = stats.last_7_days || {};
+                const last30 = stats.last_30_days || {};
+                cleanEvalStats.last7.accuracy = last7.avg_accuracy ?? null;
+                cleanEvalStats.last7.coverage = last7.avg_evaluation_coverage_percent ?? null;
+                cleanEvalStats.last7.excludedMppt = last7.avg_excluded_mppt_hours ?? null;
+                cleanEvalStats.last30.accuracy = last30.avg_accuracy ?? null;
+                cleanEvalStats.last30.coverage = last30.avg_evaluation_coverage_percent ?? null;
+                cleanEvalStats.last30.excludedMppt = last30.avg_excluded_mppt_hours ?? null;
                 const pg = res?.data?.panel_groups || res?.panel_groups;
                 if (!pg || !pg.available) return;
 
@@ -1003,7 +1145,7 @@ const _HomePage = {
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:4px 0 6px"></div>';
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">Prognose:</span><span>' + pred.toFixed(2) + ' kWh</span></div>';
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">IST:</span><span>' + act.toFixed(2) + ' kWh</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">&Delta;:</span><span style="color:' + (parseFloat(delta) >= 0 ? '#22c55e' : '#ef4444') + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">&Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
                         s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">AI Stack:</div>';
                         s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>ML Anteil:</span><span>' + mlPct.toFixed(0) + '%</span></div>';
@@ -1285,8 +1427,10 @@ const _HomePage = {
             flow, panels, panelHistory, infoData, panelGroupsData, pgChartRefs,
             forecastData, powerData, dailyForecasts,
             currentTime, lastPowerUpdate,
-            isNightTime, forecastTotal, actualTotal, deviationPercent,
+            isNightTime, forecastTotal, actualTotal, deviationPercent, cleanEvalStats,
+            todayCoverageLabel, todayCoverageExplanation,
             getGridPower, getGridLabel, fmtKw, fmtW,
+            forecastBandColor, forecastBandColorFromAccuracy,
             getSparklinePath, getSparklineAreaPath,
         };
     }

@@ -56,6 +56,43 @@ class PanelGroupSensorReader(DataManagerIO):
             len(panel_groups),
         )
 
+    @staticmethod
+    def _safe_float(value: Any, default: Optional[float] = None) -> Optional[float]:
+        """Safely convert value to float with fallback. @zara"""
+        try:
+            return float(value) if value is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    def _get_group_capacity_kwp(self, group_name: str) -> Optional[float]:
+        """Get configured group capacity in kWp by name. @zara"""
+        group = next(
+            (g for g in self.panel_groups if g.get("name") == group_name),
+            None,
+        )
+        if group is None:
+            return None
+
+        for key in ("capacity_kwp", "kwp", "power_kwp"):
+            capacity = self._safe_float(group.get(key))
+            if capacity and capacity > 0:
+                return capacity
+
+        for key in ("power_wp", "capacity_wp", "peak_power_wp"):
+            capacity_wp = self._safe_float(group.get(key))
+            if capacity_wp and capacity_wp > 0:
+                return capacity_wp / 1000.0
+
+        return None
+
+    def _max_hourly_kwh(self, group_name: str) -> float:
+        """Plausible max hourly production for a group in kWh. @zara"""
+        capacity_kwp = self._get_group_capacity_kwp(group_name)
+        if capacity_kwp is None:
+            return 10.0
+
+        return max(capacity_kwp * 1.3, 0.5)
+
     async def initialize(self) -> None:
         """Load last known sensor values from database. @zara"""
         try:
@@ -228,12 +265,15 @@ class PanelGroupSensorReader(DataManagerIO):
         self._last_values[group_name] = current_value
         await self._save_state(group_name, current_value)
 
-        # Sanity check: delta should be reasonable (< 10 kWh per hour is plausible)
-        if delta > 10.0:
+        # Sanity check: delta should be reasonable relative to group capacity @zara
+        max_hourly = self._max_hourly_kwh(group_name)
+        if delta > max_hourly:
             _LOGGER.warning(
-                "Unusually high hourly production for group '%s': %.4f kWh",
+                "Unusually high hourly production for group '%s': %.4f kWh "
+                "(threshold: %.1f kWh)",
                 group_name,
                 delta,
+                max_hourly,
             )
 
         return round(delta, 4)

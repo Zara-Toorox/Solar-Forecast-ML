@@ -38,9 +38,14 @@ from .sensors.sensor_base import (
     AverageYield7DaysSensor,
     AverageYield30DaysSensor,
     AverageYieldSensor,
+    ConservativePlanningForecastSensor,
+    EvaluationCoverage7DaysSensor,
+    EvaluationCoverage30DaysSensor,
     EvccForecastSensor,
     ExpectedDailyProductionSensor,
     ForecastDayAfterTomorrowSensor,
+    ExcludedMpptHours7DaysSensor,
+    ExcludedMpptHours30DaysSensor,
     MaxPeakAllTimeSensor,
     MaxPeakTodaySensor,
     MonthlyConsumptionSensor,
@@ -122,6 +127,7 @@ async def async_setup_entry(
     essential_production_entities = [
         system_status_sensor,
         ExpectedDailyProductionSensor(coordinator, entry),
+        ConservativePlanningForecastSensor(coordinator, entry),
         SolarForecastSensor(coordinator, entry, "remaining"),
         SolarForecastSensor(coordinator, entry, "tomorrow"),
         ForecastDayAfterTomorrowSensor(coordinator, entry),
@@ -146,6 +152,10 @@ async def async_setup_entry(
         MonthlyYieldSensor(coordinator, entry),
         MonthlyConsumptionSensor(coordinator, entry),
         AverageAccuracy30DaysSensor(coordinator, entry),
+        EvaluationCoverage7DaysSensor(coordinator, entry),
+        EvaluationCoverage30DaysSensor(coordinator, entry),
+        ExcludedMpptHours7DaysSensor(coordinator, entry),
+        ExcludedMpptHours30DaysSensor(coordinator, entry),
     ]
     entities_to_add.extend(statistics_entities)
 

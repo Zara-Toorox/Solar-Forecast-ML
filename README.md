@@ -18,7 +18,7 @@ technology based on the theoretical framework of Dr. Zefram Cochrane.
 </p>
 
 <p align="center">
-  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-20.2.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-20.4.0-blue.svg" alt="Version"></a>
   <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Transformer-purple.svg" alt="Codename"></a>
   <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Proprietary%20Non--Commercial-green.svg" alt="License"></a>
@@ -53,6 +53,14 @@ Your roof. Your data. Your AI. Solar Forecast ML builds a digital twin of your s
 <a href='https://ko-fi.com/Q5Q41NMZZY' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://ko-fi.com/img/githubbutton_sm.svg' border='0' alt='Buy Me a Coffee' /></a>
 
 [Website & Documentation](https://zara-toorox.github.io/index.html)
+
+[German Customer Overview / Portfolio](SFML_PORTFOLIO_DE.md)
+
+[German Flow Diagram / So funktioniert SFML](SFML_FLOW_DE.md)
+
+[German AI Stack Flow Diagram / So funktioniert der AI-Stack](SFML_AI_STACK_FLOW_DE.md)
+
+[German Full Integration Diagram / Komplette SFML-Integration](SFML_INTEGRATION_OVERVIEW_DE.md)
 
 ---
 
@@ -162,23 +170,26 @@ Solar Forecast ML is the only solar forecast integration that understands the me
 - Dynamic scheduling tied to actual sunrise.
 - Adaptive midday re-forecasts when conditions shift significantly.
 - Per-panel-group predictions with confidence scores.
+- Clean forecast evaluation separates real physical production from curtailed or excluded hours, so MPPT throttling, clipping, and weather-alert exclusions do not distort forecast-quality metrics.
 
 ### 🧠 AI & Machine Learning
 - Hubble ensemble with Attention mechanisms for temporal reasoning.
 - Automatic daily training and hyperparameter tuning.
 - Feature importance analysis to reveal what drives your predictions.
 - 28 engineered features: time, weather, astronomy, history, panel geometry.
-- Data filtering for anomalies (inverter clipping, zero-export limits, snow days).
+- Data filtering for anomalies (MPPT throttling, inverter clipping, zero-export limits, weather alerts, outliers, snow days).
+- Temporal lag features use clean historical production context, reducing contamination from technically curtailed or excluded bad-weather hours.
 
 ### 🌦️ Weather Intelligence
 - Blends 5 sources (Open-Meteo, Bright Sky, Pirate Weather, wttr.in, ECMWF) with expert weighting.
 - Multi-stage corrections: rolling biases, hourly adjustments, condition-specific tweaks.
-- Fog/haze detection and cloud trend/volatility tracking.
+- Learned cloud correction applies local weather-precision factors back into corrected forecasts.
+- Fog/haze detection, cloud trend/volatility tracking, and daily forecast-vs-actual weather diagnostics.
 
 ### 🕵️ Detection & Protection
 - Shadow mapping and pattern learning for fixed and moving obstacles.
 - Frost/fog warnings via dew point and visibility analysis.
-- Full zero-export & battery-full curtailment support.
+- Full zero-export & battery-full curtailment support with weather/radiation plausibility checks before MPPT exclusions are applied.
 - Self-healing transactional SQLite database with crash recovery and 30-day backup retention.
 
 ### ❄️ Seasonal Intelligence
@@ -221,6 +232,31 @@ Solar Forecast ML is the only solar forecast integration that understands the me
 | `solar_forecast_ml_max_peak_today` | Peak power today (W) |
 | `solar_forecast_ml_max_peak_all_time` | All-time peak power (W) |
 | `solar_forecast_ml_expected_daily_production` | Daily production target |
+| `solar_forecast_ml_conservative_planning_forecast` | Conservative planning forecast for safe energy scheduling |
+
+### Planning Sensor Note
+
+`Planungsprognose (P10-Blend)` is a planning-only helper sensor for users who
+prefer a more conservative daily value for battery charging, EV charging, and
+other energy-management automations.
+
+Core idea:
+
+- SFML remains the primary operational forecast truth
+- the planning sensor blends SFML hourly panel-group values with TFS hourly
+  `p10` values to shift the result toward the safer side
+- the current weighting is `65% SFML / 35% TFS p10`
+- the sensor is intentionally separated from `expected_daily_production`,
+  learning, and forecast-truth ownership
+
+Operational behavior:
+
+- the planning value is created only once the official `today` forecast is
+  locked by Morning Routine
+- after that it is persisted and does not roll continuously with normal
+  coordinator refreshes
+- this makes it suitable as a stable day-planning value instead of a rolling
+  intraday truth signal
 
 ### Statistics
 | Sensor | Description |

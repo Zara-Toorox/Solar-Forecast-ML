@@ -1119,6 +1119,11 @@ CREATE TABLE IF NOT EXISTS daily_forecast_tracking (
     finalized_excluded_hours_total INTEGER,
     finalized_excluded_hours_ratio REAL,
     finalized_excluded_hours_reasons TEXT,
+    conservative_planning_forecast_kwh REAL,
+    conservative_planning_forecast_updated_at TIMESTAMP,
+    conservative_planning_forecast_hours_json TEXT,
+    conservative_planning_forecast_panel_groups_json TEXT,
+    conservative_planning_forecast_group_totals_json TEXT,
     finalized_at TIMESTAMP,
 
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP

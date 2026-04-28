@@ -44,6 +44,13 @@ function particleDuration(power) {
     return '2.2s';
 }
 
+function textScaleClass(text, mediumThreshold = 10, smallThreshold = 14) {
+    const len = String(text || '').trim().length;
+    if (len >= smallThreshold) return 'is-small';
+    if (len >= mediumThreshold) return 'is-medium';
+    return '';
+}
+
 const _FlowPage = {
     props: ['liveData', 'config'],
     template: `
@@ -145,35 +152,36 @@ const _FlowPage = {
                         </g>
 
                         <g class="flow-node house-node" transform="translate(492 224)">
-                            <rect x="0" y="0" width="300" height="180" rx="36" filter="url(#flowCardShadow)"></rect>
+                            <rect x="0" y="0" width="312" height="184" rx="38" filter="url(#flowCardShadow)"></rect>
                             <text x="42" y="46" class="node-icon">⌂</text>
-                            <text x="150" y="48" text-anchor="middle" class="node-title">Haus</text>
-                            <text x="150" y="94" text-anchor="middle" class="node-value house">{{ fmtW(flowData.home.consumption) }}</text>
-                            <text x="150" y="126" text-anchor="middle" class="node-sub node-sub-strong">Aktueller Verbrauch</text>
-                            <text x="150" y="154" text-anchor="middle" class="node-sub">Solar {{ fmtW(flowData.flows.solar_to_house) }} · Netz {{ fmtW(flowData.flows.grid_to_house) }}</text>
+                            <text x="156" y="48" text-anchor="middle" class="node-title">Haus</text>
+                            <text x="156" y="96" text-anchor="middle" class="node-value house">{{ fmtW(flowData.home.consumption) }}</text>
+                            <text x="156" y="128" text-anchor="middle" class="node-sub node-sub-strong">Aktueller Verbrauch</text>
+                            <text x="156" y="156" text-anchor="middle" class="node-sub node-sub-small" :class="houseMixTextClass">{{ houseMixText }}</text>
                         </g>
 
                         <g v-if="hasBattery" class="flow-node battery-node" transform="translate(270 474)">
-                            <rect x="0" y="0" width="246" height="138" rx="30" filter="url(#flowCardShadow)"></rect>
+                            <rect x="0" y="0" width="272" height="156" rx="32" filter="url(#flowCardShadow)"></rect>
                             <text x="40" y="42" class="node-icon">🔋</text>
-                            <text x="122" y="40" class="node-title">Akku</text>
-                            <text x="122" y="82" class="node-value battery node-value-compact">{{ batteryStatusText }}</text>
-                            <text x="122" y="110" class="node-sub">SOC {{ flowData.battery.soc != null ? flowData.battery.soc.toFixed(0) + '%' : '--' }}</text>
+                            <text x="136" y="42" text-anchor="middle" class="node-title">Akku</text>
+                            <text x="136" y="88" text-anchor="middle" class="node-value battery" :class="batteryPowerTextClass">{{ batteryPowerText }}</text>
+                            <text x="136" y="116" text-anchor="middle" class="node-status battery" :class="batteryStateTextClass">{{ batteryStateText }}</text>
+                            <text x="136" y="140" text-anchor="middle" class="node-sub">SOC {{ flowData.battery.soc != null ? flowData.battery.soc.toFixed(0) + '%' : '--' }}</text>
                         </g>
 
                         <g class="flow-node grid-node" transform="translate(1016 86)">
-                            <rect x="0" y="0" width="236" height="156" rx="30" filter="url(#flowCardShadow)"></rect>
+                            <rect x="0" y="0" width="248" height="168" rx="32" filter="url(#flowCardShadow)"></rect>
                             <text x="38" y="44" class="node-icon">⚡</text>
-                            <text x="118" y="42" class="node-title">Netz</text>
-                            <text x="118" y="82" class="node-value grid node-value-wide">{{ gridStatusTextPrimary }}</text>
-                            <text x="118" y="112" class="node-sub node-sub-strong">{{ gridStatusTextSecondary }}</text>
-                            <text x="118" y="134" class="node-sub">{{ gridModeText }}</text>
+                            <text x="124" y="42" text-anchor="middle" class="node-title">Netz</text>
+                            <text x="124" y="82" text-anchor="middle" class="node-value grid" :class="gridStatusTextPrimaryClass">{{ gridStatusTextPrimary }}</text>
+                            <text x="124" y="114" text-anchor="middle" class="node-metric grid">{{ gridStatusTextSecondary }}</text>
+                            <text x="124" y="140" text-anchor="middle" class="node-sub node-sub-strong" :class="gridModeTextClass">{{ gridModeText }}</text>
                         </g>
 
                         <g v-for="consumer in activeConsumers" :key="consumer.id" class="flow-node consumer-node" :transform="'translate(' + (consumer.x - 112) + ' ' + (consumer.y - 48) + ')'">
                             <rect x="0" y="0" width="220" height="96" rx="24" filter="url(#flowCardShadow)"></rect>
                             <text x="34" y="36" class="node-icon" :style="{ fill: consumer.color }">{{ consumer.icon }}</text>
-                            <text x="116" y="34" text-anchor="middle" class="node-title">{{ consumer.label }}</text>
+                            <text x="116" y="34" text-anchor="middle" class="node-title consumer-title" :class="consumer.titleClass">{{ consumer.label }}</text>
                             <text x="116" y="66" text-anchor="middle" class="node-value" :style="{ fill: consumer.color }">{{ fmtW(consumer.power) }}</text>
                         </g>
                     </svg>
@@ -243,19 +251,33 @@ const _FlowPage = {
 
         const hasBattery = computed(() => flowData.battery.soc != null);
 
-        const batteryStatusText = computed(() => {
+        const batteryPowerText = computed(() => {
             const p = Number(flowData.battery.power) || 0;
-            if (p > 0) return `Laedt ${fmtW(p)}`;
-            if (p < 0) return `Entlaedt ${fmtW(Math.abs(p))}`;
+            if (p === 0) return '0 W';
+            return fmtW(Math.abs(p));
+        });
+
+        const batteryStateText = computed(() => {
+            const p = Number(flowData.battery.power) || 0;
+            if (p > 0) return 'Laedt';
+            if (p < 0) return 'Entlaedt';
             return 'Standby';
         });
+
+        const batteryPowerTextClass = computed(() => textScaleClass(batteryPowerText.value, 8, 12));
+        const batteryStateTextClass = computed(() => textScaleClass(batteryStateText.value, 8, 12));
+
+        const houseMixText = computed(() => (
+            `Solar ${fmtW(flowData.flows.solar_to_house)} | Netz ${fmtW(flowData.flows.grid_to_house)}`
+        ));
+        const houseMixTextClass = computed(() => textScaleClass(houseMixText.value, 24, 34));
 
         const gridModeText = computed(() => {
             const importW = Number(flowData.flows.grid_to_house || 0) + Number(flowData.flows.grid_to_battery || 0);
             const exportW = Number(flowData.flows.house_to_grid || 0);
-            if (exportW > 0) return 'Rueckspeisung aktiv';
-            if (importW > 0) return 'Netzbezug aktiv';
-            return 'Nahe Nullpunkt';
+            if (exportW > 0) return 'Rueckspeisung';
+            if (importW > 0) return 'Netzbezug';
+            return 'Nahe Null';
         });
 
         const gridStatusText = computed(() => {
@@ -282,6 +304,9 @@ const _FlowPage = {
             return '0 W';
         });
 
+        const gridStatusTextPrimaryClass = computed(() => textScaleClass(gridStatusTextPrimary.value, 7, 9));
+        const gridModeTextClass = computed(() => textScaleClass(gridModeText.value, 11, 14));
+
         const activeConsumers = computed(() => {
             return Object.entries(CONSUMER_META)
                 .map(([id, meta]) => {
@@ -291,6 +316,7 @@ const _FlowPage = {
                         id,
                         ...meta,
                         power: Math.max(0, Number(raw.power) || 0),
+                        titleClass: textScaleClass(meta.label, 10, 14),
                     };
                 })
                 .filter(Boolean);
@@ -395,11 +421,18 @@ const _FlowPage = {
             connected,
             flowData,
             hasBattery,
-            batteryStatusText,
+            batteryPowerText,
+            batteryStateText,
+            batteryPowerTextClass,
+            batteryStateTextClass,
+            houseMixText,
+            houseMixTextClass,
             gridStatusText,
             gridStatusTextPrimary,
             gridStatusTextSecondary,
+            gridStatusTextPrimaryClass,
             gridModeText,
+            gridModeTextClass,
             activeConsumers,
             routes,
             currentClock,
@@ -472,9 +505,11 @@ const _FlowPage = {
             border-radius: 28px;
             overflow: hidden;
             background:
-                linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
-                rgba(8,12,20,0.65);
-            border: 1px solid rgba(255,255,255,0.06);
+                radial-gradient(circle at top, rgba(34,211,238,0.10), transparent 34%),
+                linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)),
+                rgba(8,12,20,0.72);
+            border: 1px solid rgba(255,255,255,0.07);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
         }
         .flow-scene {
             display: block;
@@ -516,41 +551,76 @@ const _FlowPage = {
             font-weight: 700;
         }
         .flow-node rect {
-            fill: rgba(19,25,37,0.92);
-            stroke: rgba(255,255,255,0.08);
+            fill: rgba(15,23,42,0.88);
+            stroke: rgba(148,163,184,0.16);
+            stroke-width: 1.2;
         }
+        .solar-node rect { fill: rgba(24,24,43,0.90); }
+        .house-node rect { fill: rgba(22,24,44,0.92); }
+        .battery-node rect { fill: rgba(24,24,43,0.92); }
+        .grid-node rect { fill: rgba(24,24,43,0.90); }
         .node-icon {
-            font-size: 26px;
+            font-size: 24px;
             fill: var(--text-primary);
             font-weight: 700;
         }
         .node-title {
             fill: var(--text-primary);
-            font-size: 26px;
+            font-size: 22px;
             font-weight: 700;
         }
+        .consumer-title {
+            font-size: 18px;
+        }
         .node-value {
-            font-size: 30px;
+            font-size: 32px;
             font-weight: 800;
             font-family: var(--font-mono);
         }
-        .node-value-compact {
-            font-size: 26px;
+        .node-value.is-medium,
+        .node-title.is-medium,
+        .node-status.is-medium,
+        .node-metric.is-medium,
+        .node-sub.is-medium {
+            font-size: 0.9em;
         }
-        .node-value-wide {
-            font-size: 24px;
+        .node-value.is-small,
+        .node-title.is-small,
+        .node-status.is-small,
+        .node-metric.is-small,
+        .node-sub.is-small {
+            font-size: 0.8em;
         }
         .node-value.solar { fill: #facc15; }
         .node-value.house { fill: #22d3ee; }
         .node-value.battery { fill: #4ade80; }
         .node-value.grid { fill: #c084fc; }
+        .node-status {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0;
+        }
+        .node-status.battery {
+            fill: rgba(134,239,172,0.94);
+        }
+        .node-metric {
+            font-size: 20px;
+            font-weight: 800;
+            font-family: var(--font-mono);
+        }
+        .node-metric.grid {
+            fill: rgba(233,213,255,0.98);
+        }
         .node-sub {
             fill: var(--text-secondary);
-            font-size: 14px;
+            font-size: 13px;
         }
         .node-sub-tight {
             font-size: 12px;
             letter-spacing: 0.01em;
+        }
+        .node-sub-small {
+            font-size: 12px;
         }
         .node-sub-strong {
             fill: rgba(226,232,240,0.92);
@@ -604,6 +674,16 @@ const _FlowPage = {
             }
             .flow-scene {
                 min-height: 520px;
+            }
+            .node-title {
+                font-size: 20px;
+            }
+            .node-value {
+                font-size: 28px;
+            }
+            .node-status,
+            .node-metric {
+                font-size: 17px;
             }
             .flow-bottom-stats {
                 grid-template-columns: 1fr;

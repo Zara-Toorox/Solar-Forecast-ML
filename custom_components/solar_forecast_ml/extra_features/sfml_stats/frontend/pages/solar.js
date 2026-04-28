@@ -6,6 +6,34 @@ const { ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
+function forecastBandColor(errorPercent) {
+    if (errorPercent == null || Number.isNaN(errorPercent)) return '#8b949e';
+    const error = Math.abs(errorPercent);
+    if (error <= 15) return '#22c55e';
+    if (error <= 25) return '#eab308';
+    if (error <= 35) return '#f97316';
+    return '#ef4444';
+}
+
+function forecastBandBackground(errorPercent) {
+    if (errorPercent == null || Number.isNaN(errorPercent)) return 'rgba(139,148,158,0.15)';
+    const error = Math.abs(errorPercent);
+    if (error <= 15) return 'rgba(34,197,94,0.2)';
+    if (error <= 25) return 'rgba(234,179,8,0.2)';
+    if (error <= 35) return 'rgba(249,115,22,0.2)';
+    return 'rgba(239,68,68,0.2)';
+}
+
+function forecastBandColorFromAccuracy(accuracyPercent) {
+    if (accuracyPercent == null || Number.isNaN(accuracyPercent)) return '#8b949e';
+    return forecastBandColor(100 - accuracyPercent);
+}
+
+function forecastBandBackgroundFromAccuracy(accuracyPercent) {
+    if (accuracyPercent == null || Number.isNaN(accuracyPercent)) return 'rgba(139,148,158,0.15)';
+    return forecastBandBackground(100 - accuracyPercent);
+}
+
 function panelGroupSortKey(name) {
     const label = String(name || '').trim();
     const match = label.match(/^gruppe\s+(\d+)$/i);
@@ -272,7 +300,7 @@ const _SolarPage = {
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Tag</th><th>Ertrag</th><th>Prognose</th><th>Δ</th><th>Genauigkeit</th><th>Peak</th>
+                            <th>Tag</th><th>Ertrag</th><th>Prognose</th><th>Δ</th><th>Genauigkeit</th><th>Abdeckung</th><th>MPPT</th><th>Peak</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -280,10 +308,12 @@ const _SolarPage = {
                             <td style="font-weight: 600;">{{ row.day }}</td>
                             <td style="font-family: var(--font-mono);">{{ row.actual }} kWh</td>
                             <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.forecast }} kWh</td>
-                            <td :style="{ fontFamily: 'var(--font-mono)', color: row.delta >= 0 ? '#22c55e' : '#ef4444' }">
+                            <td :style="{ fontFamily: 'var(--font-mono)', color: row.deltaColor }">
                                 {{ row.delta > 0 ? '+' : '' }}{{ row.delta }}%
                             </td>
-                            <td><span class="accuracy-badge" :style="{ background: row.accuracy >= 90 ? 'rgba(34,197,94,0.2)' : row.accuracy >= 80 ? 'rgba(234,179,8,0.2)' : 'rgba(239,68,68,0.2)', color: row.accuracy >= 90 ? '#22c55e' : row.accuracy >= 80 ? '#eab308' : '#ef4444' }">{{ row.accuracy }}%</span></td>
+                            <td><span class="accuracy-badge" :style="{ background: row.accuracyBg, color: row.accuracyColor }">{{ row.accuracy }}</span></td>
+                            <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.coverage }}</td>
+                            <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.excludedMpptHours }}</td>
                             <td style="font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.85rem;">{{ row.peak }}</td>
                         </tr>
                     </tbody>
@@ -914,12 +944,22 @@ const _SolarPage = {
                 const actual = o.actual_total_kwh || 0;
                 const forecast = o.predicted_total_kwh || 0;
                 const delta = forecast > 0 ? (((actual - forecast) / forecast) * 100) : 0;
+                const accuracyValue = o.accuracy_percent != null ? parseFloat(o.accuracy_percent.toFixed(1)) : null;
+                const coverageValue = o.evaluation_coverage_percent != null
+                    ? parseFloat(o.evaluation_coverage_percent.toFixed(1))
+                    : null;
                 return {
                     day: formatDay(d.date),
                     actual: actual.toFixed(2),
                     forecast: forecast.toFixed(2),
                     delta: parseFloat(delta.toFixed(1)),
-                    accuracy: o.accuracy_percent != null ? parseFloat(o.accuracy_percent.toFixed(1)) : '--',
+                    deltaColor: forecastBandColor(delta),
+                    accuracyValue,
+                    accuracyColor: forecastBandColorFromAccuracy(accuracyValue),
+                    accuracyBg: forecastBandBackgroundFromAccuracy(accuracyValue),
+                    accuracy: accuracyValue != null ? accuracyValue.toFixed(1) + '%' : '--',
+                    coverage: coverageValue != null ? coverageValue.toFixed(1) + '%' : '--',
+                    excludedMpptHours: `${o.excluded_mppt_hours_count || 0} h`,
                     peak: o.peak_kwh != null ? o.peak_kwh.toFixed(2) + ' kWh' : '--',
                 };
             });

@@ -190,7 +190,11 @@ class CoordinatorUpdateHelpers:
 
             # Load 7-day statistics @zara
             stats_7d = await self.db.fetchone(
-                """SELECT AVG(actual_total_kwh), AVG(accuracy_percent), SUM(actual_total_kwh)
+                """SELECT AVG(actual_total_kwh),
+                          AVG(accuracy_percent),
+                          SUM(actual_total_kwh),
+                          AVG(evaluation_coverage_percent),
+                          AVG(excluded_mppt_hours_count)
                    FROM daily_summaries
                    WHERE date >= DATE('now', '-7 days') AND actual_total_kwh IS NOT NULL"""
             )
@@ -199,11 +203,18 @@ class CoordinatorUpdateHelpers:
                     STATS_AVG_YIELD_KWH: float(stats_7d[0]) if stats_7d[0] else None,
                     STATS_AVG_ACCURACY: float(stats_7d[1]) if stats_7d[1] else None,
                     STATS_YIELD_KWH: float(stats_7d[2]) if stats_7d[2] else None,
+                    "total_yield_kwh": float(stats_7d[2]) if stats_7d[2] else None,
+                    "avg_evaluation_coverage_percent": float(stats_7d[3]) if stats_7d[3] is not None else None,
+                    "avg_excluded_mppt_hours": float(stats_7d[4]) if stats_7d[4] is not None else None,
                 }
 
             # Load 30-day statistics @zara
             stats_30d = await self.db.fetchone(
-                """SELECT AVG(actual_total_kwh), AVG(accuracy_percent), SUM(actual_total_kwh)
+                """SELECT AVG(actual_total_kwh),
+                          AVG(accuracy_percent),
+                          SUM(actual_total_kwh),
+                          AVG(evaluation_coverage_percent),
+                          AVG(excluded_mppt_hours_count)
                    FROM daily_summaries
                    WHERE date >= DATE('now', '-30 days') AND actual_total_kwh IS NOT NULL"""
             )
@@ -212,6 +223,9 @@ class CoordinatorUpdateHelpers:
                     STATS_AVG_YIELD_KWH: float(stats_30d[0]) if stats_30d[0] else None,
                     STATS_AVG_ACCURACY: float(stats_30d[1]) if stats_30d[1] else None,
                     STATS_YIELD_KWH: float(stats_30d[2]) if stats_30d[2] else None,
+                    "total_yield_kwh": float(stats_30d[2]) if stats_30d[2] else None,
+                    "avg_evaluation_coverage_percent": float(stats_30d[3]) if stats_30d[3] is not None else None,
+                    "avg_excluded_mppt_hours": float(stats_30d[4]) if stats_30d[4] is not None else None,
                 }
 
             # Load current month statistics @zara

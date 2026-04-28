@@ -291,6 +291,18 @@
       "avg_yield_30d": {
         "name": "Average Yield 30 Day"
       },
+      "evaluation_coverage_7d": {
+        "name": "Evaluation Coverage 7 Day"
+      },
+      "evaluation_coverage_30d": {
+        "name": "Evaluation Coverage 30 Day"
+      },
+      "excluded_mppt_hours_7d": {
+        "name": "Excluded MPPT Hours 7 Day"
+      },
+      "excluded_mppt_hours_30d": {
+        "name": "Excluded MPPT Hours 30 Day"
+      },
       "weekly_yield": {
         "name": "Weekly Yield"
       },
@@ -323,6 +335,9 @@
       },
       "expected_daily_production": {
         "name": "Expected Daily Production"
+      },
+      "conservative_planning_forecast": {
+        "name": "Planning Forecast (P10 Blend)"
       },
       "production_time": {
         "name": "Production Time Today"
