@@ -52,16 +52,6 @@ Your roof. Your data. Your AI. Solar Forecast ML builds a digital twin of your s
 
 <a href='https://ko-fi.com/Q5Q41NMZZY' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://ko-fi.com/img/githubbutton_sm.svg' border='0' alt='Buy Me a Coffee' /></a>
 
-[Website & Documentation](https://zara-toorox.github.io/index.html)
-
-[German Customer Overview / Portfolio](SFML_PORTFOLIO_DE.md)
-
-[German Flow Diagram / So funktioniert SFML](SFML_FLOW_DE.md)
-
-[German AI Stack Flow Diagram / So funktioniert der AI-Stack](SFML_AI_STACK_FLOW_DE.md)
-
-[German Full Integration Diagram / Komplette SFML-Integration](SFML_INTEGRATION_OVERVIEW_DE.md)
-
 ---
 
 ## ☀️ Stop Guessing. Start Knowing.
