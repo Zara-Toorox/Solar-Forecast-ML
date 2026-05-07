@@ -76,6 +76,56 @@ run_adaptive_forecast:
   description: "Developer only or on advice."
   fields: {}
 
+run_operational_reforecast:
+  name: "🔄 Run Operational Intraday Reforecast"
+  description: "Developer only or on advice."
+  fields:
+    cutoff_hour:
+      name: "Cutoff Hour"
+      description: "Optional override for the current local hour; only hours strictly after this value are rewritten in the operational track."
+      required: false
+      example: 18
+      selector:
+        number:
+          min: 0
+          max: 23
+          mode: box
+
+set_operational_reforecast_mode:
+  name: Activate SFML Hybrid Mode
+  description: "Mit diesen Einstellungen bestimmen Sie, ob und in welcher Form Sie den Hybrid-Modus von SFML aktivieren möchten. Bitte beachten Sie: Die Standardeinstellung ist für die meisten Nutzer ausreichend und hardwareoptimiert. Jeder zusätzliche Forecast triggert die KI erneut und benötigt weitere Hardware-Ressourcen."
+  fields:
+    mode:
+      name: "Hybrid-Modus"
+      description: "Wählen Sie, ob zusätzliche operative Reforecasts geplant werden."
+      required: true
+      example: "standard_midday"
+      selector:
+        select:
+          options:
+            - label: "1 = Standard (45 Min vor Sonnenaufgang)"
+              value: "standard"
+            - label: "2 = Standard + Mittag (12:00)"
+              value: "standard_midday"
+            - label: "3 = Standard + Mittag (12:00) + Nachmittag (16:00)"
+              value: "standard_midday_afternoon"
+            - label: "4 = Standard + Uhrzeit"
+              value: "custom_time"
+    custom_time:
+      name: "Zusätzliche Uhrzeit"
+      description: "Nur für Modus 4. Format HH:MM, zum Beispiel 13:30."
+      required: false
+      example: "13:30"
+      selector:
+        text:
+    enabled:
+      name: "Aktiviert"
+      description: "Aktiviert oder deaktiviert den geplanten Hybrid-Modus."
+      required: false
+      default: true
+      selector:
+        boolean:
+
 # ============================================================================
 # Stellar Cartography Services
 # ============================================================================

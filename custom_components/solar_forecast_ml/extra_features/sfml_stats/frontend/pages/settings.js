@@ -184,13 +184,13 @@ const SettingsPage = {
                     <button class="accordion-header" @click="toggle('ai')">
                         <span class="accordion-icon">{{ openSection === 'ai' ? '\u25BE' : '\u25B8' }}</span>
                         <span class="accordion-title">Hubble AI</span>
-                        <span class="accordion-badge" :class="aiInfo.active_model ? 'ok' : 'neutral'">{{ aiInfo.active_model || '--' }}</span>
+                        <span class="accordion-badge" :class="aiInfo.active_model ? 'ok' : 'neutral'">{{ aiInfo.active_model_display || '--' }}</span>
                     </button>
                     <div class="accordion-body" v-show="openSection === 'ai'">
                         <div class="settings-grid">
                             <div class="settings-item">
                                 <span class="settings-item-label">Aktives Modell</span>
-                                <span class="settings-item-value">{{ aiInfo.active_model || '--' }}</span>
+                                <span class="settings-item-value">{{ aiInfo.active_model_display || '--' }}</span>
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">Stack-Version</span>
@@ -225,8 +225,8 @@ const SettingsPage = {
                                 <span class="settings-item-value">{{ aiInfo.coordinator.expected_kwh_today != null ? aiInfo.coordinator.expected_kwh_today.toFixed(2) + ' kWh' : '--' }}</span>
                             </div>
                             <div v-if="aiInfo.drift" class="settings-item">
-                                <span class="settings-item-label">Drift-Events</span>
-                                <span class="settings-item-value" :class="aiInfo.drift.critical_count > 0 ? 'val-warn' : ''">{{ aiInfo.drift.total_events }} gesamt &middot; {{ aiInfo.drift.critical_count }} kritisch</span>
+                                <span class="settings-item-label">Drift-Status</span>
+                                <span class="settings-item-value" :class="driftStatusClass">{{ driftStatusText }}</span>
                             </div>
                         </div>
                         <div v-if="aiInfo.physics_groups && aiInfo.physics_groups.length" class="ai-physics">
@@ -330,7 +330,7 @@ const SettingsPage = {
         });
         const panelGroups = vRef([]);
         const systemInfo = reactive({ stats_version: '', ml_version: '', db_status: '', db_size: '', db_ok: true, healthy: true, last_aggregation: '', data_points: null });
-        const aiInfo = reactive({ active_model: null, version: null, accuracy_percent: null, rmse: null, training_samples: null, last_trained: null, lstm: null, ridge: null, physics_groups: [], drift: null, coordinator: null });
+        const aiInfo = reactive({ active_model: null, active_model_display: null, version: null, accuracy_percent: null, rmse: null, training_samples: null, last_trained: null, lstm: null, ridge: null, physics_groups: [], drift: null, coordinator: null });
 
         function formatDate(ts) {
             if (!ts) return '--';
@@ -369,6 +369,31 @@ const SettingsPage = {
             return ok + '/' + sensors.value.length;
         });
 
+        const driftStatusClass = computed(() => {
+            const state = aiInfo.drift?.state;
+            if (state === 'critical') return 'val-critical';
+            if (state === 'warning' || state === 'recovering') return 'val-warn';
+            return '';
+        });
+
+        const driftStatusText = computed(() => {
+            const drift = aiInfo.drift;
+            if (!drift) return '--';
+            const labels = {
+                stable: 'Stabil',
+                warning: 'Warnung',
+                critical: 'Kritisch',
+                recovering: 'Erholung',
+                unknown: 'Unbekannt',
+            };
+            const state = labels[drift.state] || drift.state || 'Unbekannt';
+            const warningCount = drift.warning_count || 0;
+            const criticalCount = drift.critical_count || 0;
+            if (criticalCount > 0) return `${state} · ${criticalCount} kritisch`;
+            if (warningCount > 0) return `${state} · ${warningCount} Warnungen`;
+            return state;
+        });
+
         function toggle(section) {
             openSection.value = openSection.value === section ? null : section;
         }
@@ -392,6 +417,7 @@ const SettingsPage = {
                     // AI block
                     const ai = dashboard.ai || {};
                     aiInfo.active_model = ai.active_model || null;
+                    aiInfo.active_model_display = ai.active_model_display || (ai.active_model ? 'Hubble AI Stack' : null);
                     aiInfo.version = ai.version || null;
                     aiInfo.accuracy_percent = ai.accuracy_percent ?? null;
                     aiInfo.rmse = ai.rmse ?? null;
@@ -481,7 +507,7 @@ const SettingsPage = {
         return {
             openSection, exporting,
             sensors, priceInfo, chargingInfo, panelGroups, systemInfo, aiInfo,
-            haConfigUrl, sensorStatusClass, sensorStatusText,
+            haConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
             toggle, exportCsv, formatDate, openIntegration,
         };
@@ -644,6 +670,9 @@ const SettingsPage = {
         }
         .settings-item-value.val-warn {
             color: var(--warning);
+        }
+        .settings-item-value.val-critical {
+            color: var(--error);
         }
         .panel-group-card {
             background: rgba(255,255,255,0.03);

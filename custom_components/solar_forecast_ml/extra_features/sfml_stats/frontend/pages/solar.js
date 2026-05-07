@@ -300,7 +300,7 @@ const _SolarPage = {
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Tag</th><th>Ertrag</th><th>Prognose</th><th>Δ</th><th>Genauigkeit</th><th>Abdeckung</th><th>MPPT</th><th>Peak</th>
+                            <th>Tag</th><th>Ertrag</th><th>Prognose</th><th>Δ</th><th>Prognosegüte</th><th>Lernbasis</th><th>Verworfen</th><th>Peak</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -312,8 +312,8 @@ const _SolarPage = {
                                 {{ row.delta > 0 ? '+' : '' }}{{ row.delta }}%
                             </td>
                             <td><span class="accuracy-badge" :style="{ background: row.accuracyBg, color: row.accuracyColor }">{{ row.accuracy }}</span></td>
-                            <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.coverage }}</td>
-                            <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.excludedMpptHours }}</td>
+                            <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.learningBasis }}</td>
+                            <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.discardedLearning }}</td>
                             <td style="font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.85rem;">{{ row.peak }}</td>
                         </tr>
                     </tbody>
@@ -936,6 +936,25 @@ const _SolarPage = {
             }
         }
 
+        function formatDiscardedLearning(o) {
+            const discarded = o.discarded_learning_hours_count || 0;
+            if (discarded <= 0) return '0 h';
+
+            const reasonLabels = {
+                mppt_throttled: 'MPPT',
+                inverter_clipped: 'Clipping',
+                missing_data: 'fehlende Daten',
+                manual_pause: 'Pause',
+                excluded: 'Ausreißer',
+            };
+            const breakdown = o.discarded_learning_reason_breakdown || {};
+            const parts = Object.entries(breakdown)
+                .filter(([, hours]) => hours > 0)
+                .map(([reason, hours]) => `${hours} h ${reasonLabels[reason] || reason}`);
+
+            return parts.length > 0 ? parts.join(', ') : `${discarded} h`;
+        }
+
         function processData() {
             // Weekly rows
             const daily = solarDailyData.value?.data?.daily || [];
@@ -945,9 +964,8 @@ const _SolarPage = {
                 const forecast = o.predicted_total_kwh || 0;
                 const delta = forecast > 0 ? (((actual - forecast) / forecast) * 100) : 0;
                 const accuracyValue = o.accuracy_percent != null ? parseFloat(o.accuracy_percent.toFixed(1)) : null;
-                const coverageValue = o.evaluation_coverage_percent != null
-                    ? parseFloat(o.evaluation_coverage_percent.toFixed(1))
-                    : null;
+                const learningHours = o.learning_hours_count ?? o.evaluation_hours_count ?? null;
+                const learningCandidates = o.learning_candidate_hours_count ?? o.production_candidate_hours_count ?? null;
                 return {
                     day: formatDay(d.date),
                     actual: actual.toFixed(2),
@@ -958,8 +976,10 @@ const _SolarPage = {
                     accuracyColor: forecastBandColorFromAccuracy(accuracyValue),
                     accuracyBg: forecastBandBackgroundFromAccuracy(accuracyValue),
                     accuracy: accuracyValue != null ? accuracyValue.toFixed(1) + '%' : '--',
-                    coverage: coverageValue != null ? coverageValue.toFixed(1) + '%' : '--',
-                    excludedMpptHours: `${o.excluded_mppt_hours_count || 0} h`,
+                    learningBasis: learningHours != null && learningCandidates != null
+                        ? `${learningHours}/${learningCandidates} h`
+                        : '--',
+                    discardedLearning: formatDiscardedLearning(o),
                     peak: o.peak_kwh != null ? o.peak_kwh.toFixed(2) + ' kWh' : '--',
                 };
             });

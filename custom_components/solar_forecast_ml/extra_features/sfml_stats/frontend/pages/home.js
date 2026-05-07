@@ -472,27 +472,75 @@ const _HomePage = {
 
         <!-- ========== SECTION 2: PROGNOSE-CHART ========== -->
         <div class="chart-card" style="margin-top: var(--space-lg)">
-            <div class="chart-header" style="flex-wrap:wrap; gap:6px;">
+            <div class="chart-header" style="flex-wrap:wrap; gap:10px; align-items:flex-start;">
                 <span class="chart-title">Tagesprognose vs. IST</span>
-                <div class="pg-stats">
-                    <span style="color:#22c55e; font-family:var(--font-mono); font-size:0.85rem">
-                        Ertrag: {{ actualTotal }} kWh
-                    </span>
-                    <span style="color:#fbbf24; font-family:var(--font-mono); font-size:0.85rem">
-                        Prognose: {{ forecastTotal }} kWh
-                    </span>
-                    <span :style="{color: forecastBandColor(deviationPercent), fontFamily:'var(--font-mono)', fontSize:'0.85rem', fontWeight:700}">
-                        {{ deviationPercent >= 0 ? '+' : '' }}{{ deviationPercent.toFixed(0) }}%
-                    </span>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex:1; min-width:280px;">
+                    <div class="pg-stats">
+                        <span style="color:#22c55e; font-family:var(--font-mono); font-size:0.85rem">
+                            Ertrag: {{ actualTotal }} kWh
+                        </span>
+                        <span style="color:#fbbf24; font-family:var(--font-mono); font-size:0.85rem">
+                            Prognose: {{ forecastTotal }} kWh
+                        </span>
+                        <span :style="{color: forecastBandColor(deviationPercent), fontFamily:'var(--font-mono)', fontSize:'0.85rem', fontWeight:700}">
+                            {{ deviationLabel }}
+                        </span>
+                    </div>
+                    <div v-if="hasHybridForecast" class="pg-stats">
+                        <span style="color:#38bdf8; font-family:var(--font-mono); font-size:0.85rem">
+                            Hybrid: {{ hybridForecastTotal }} kWh
+                        </span>
+                        <span :style="{color: forecastBandColor(hybridDeviationPercent), fontFamily:'var(--font-mono)', fontSize:'0.85rem', fontWeight:700}">
+                            {{ hybridDeviationLabel }}
+                        </span>
+                    </div>
                 </div>
             </div>
-            <div v-if="cleanEvalStats.today.accuracy != null || todayCoverageLabel" style="display:flex; gap:var(--space-md); flex-wrap:wrap; margin-top:6px; color:var(--text-muted); font-size:0.8rem; font-family:var(--font-mono)">
+            <div v-if="cleanEvalStats.today.accuracy != null || todayLearningBasisLabel" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin-top:6px; color:var(--text-muted); font-size:0.8rem; font-family:var(--font-mono)">
                 <span v-if="cleanEvalStats.today.accuracy != null">
                     Heute Prognosegüte: <span :style="{ color: forecastBandColorFromAccuracy(cleanEvalStats.today.accuracy) }">{{ cleanEvalStats.today.accuracy.toFixed(1) }}%</span>
                 </span>
-                <span v-if="todayCoverageLabel">
-                    Heute bewertet: <span style="color:#fbbf24">{{ todayCoverageLabel }}</span>
+                <span v-if="todayLearningBasisLabel">
+                    Heute Lernbasis: <span style="color:#fbbf24">{{ todayLearningBasisLabel }}</span>
                 </span>
+                <span v-if="todayDiscardedLearningLabel">
+                    Heute Verworfen: <span style="color:#f87171">{{ todayDiscardedLearningLabel }}</span>
+                </span>
+            </div>
+            <div v-if="hasWeatherTrace" class="weather-trace" aria-label="PV-relevanter Wettervergleich zwischen erwartet und gesehen">
+                <div class="weather-trace-labels">
+                    <span>Erwartet</span>
+                    <span>Gesehen</span>
+                    <span title="PV-relevante Wetteraehnlichkeit, nicht identische Wettersymbole">Treffer</span>
+                </div>
+                <div class="weather-trace-grid">
+                    <template v-for="item in weatherTrace" :key="'weather-' + item.hour">
+                        <div class="weather-trace-cell weather-trace-hour">{{ item.hourLabel }}</div>
+                        <div class="weather-trace-cell weather-trace-icon" :title="item.expectedTitle">
+                            <div class="weather-trace-visual">{{ item.expectedIcon }}</div>
+                            <div class="weather-trace-indicators">
+                                <span
+                                    v-for="indicator in item.expectedIndicators"
+                                    :key="'expected-' + item.hour + '-' + indicator.key"
+                                    class="weather-trace-indicator"
+                                    :class="'level-' + indicator.level"
+                                >{{ indicator.label }}</span>
+                            </div>
+                        </div>
+                        <div class="weather-trace-cell weather-trace-icon" :class="{ muted: !item.actualAvailable }" :title="item.actualTitle">
+                            <div class="weather-trace-visual">{{ item.actualIcon }}</div>
+                            <div class="weather-trace-indicators">
+                                <span
+                                    v-for="indicator in item.actualIndicators"
+                                    :key="'actual-' + item.hour + '-' + indicator.key"
+                                    class="weather-trace-indicator"
+                                    :class="'level-' + indicator.level"
+                                >{{ indicator.label }}</span>
+                            </div>
+                        </div>
+                        <div class="weather-trace-cell weather-trace-match" :class="'match-' + item.matchState" :title="item.matchTitle">{{ item.matchIcon }}</div>
+                    </template>
+                </div>
             </div>
             <div ref="forecastChartEl" class="chart-container" style="height: 35vh; min-height: 280px;"></div>
         </div>
@@ -606,7 +654,8 @@ const _HomePage = {
         const panelGroupsData = reactive({ available: false, groups: {} });
         const pgChartRefs = reactive({});
         const pgChartInstances = {};
-        const forecastData = reactive({ hours: [], forecast: [], actual: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
+        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], actual: [], actualRaw: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
+        const weatherTrace = ref([]);
         const powerData = ref([]);
         const dailyForecasts = ref([]);
         const currentTime = ref('');
@@ -622,6 +671,12 @@ const _HomePage = {
                 missingActualHours: null,
                 excludedWeatherAlertHours: null,
                 excludedInverterClippedHours: null,
+                learningHours: null,
+                learningCandidates: null,
+                discardedLearningHours: null,
+                discardedLearningReasonBreakdown: null,
+                evaluationActual: null,
+                evaluationPredicted: null,
             },
             last7: { accuracy: null, coverage: null, excludedMppt: null },
             last30: { accuracy: null, coverage: null, excludedMppt: null },
@@ -638,6 +693,14 @@ const _HomePage = {
             sunset: null,
             outdoorTemperatureLabel: null,
         });
+        const FORECAST_LEGEND_STORAGE_KEY = 'sfml_stats_home_forecast_legend_selected';
+        const forecastLegendSelected = reactive({
+            Prognose: true,
+            Hybrid: false,
+            IST: true,
+            TFS: false,
+            Unsicherheit: true,
+        });
 
         // Computed
         const isNightTime = computed(() => {
@@ -646,31 +709,90 @@ const _HomePage = {
         });
 
         const forecastTotal = computed(() => {
-            const sum = forecastData.forecast.reduce((s, v) => s + (v || 0), 0);
+            const source = forecastData.forecastRaw.length ? forecastData.forecastRaw : forecastData.forecast;
+            const sum = source.reduce((s, v) => s + (v || 0), 0);
             return sum.toFixed(1);
         });
 
         const actualTotal = computed(() => {
-            const sum = forecastData.actual.reduce((s, v) => s + (v || 0), 0);
+            const source = forecastData.actualRaw.length ? forecastData.actualRaw : forecastData.actual;
+            const sum = source.reduce((s, v) => s + (v || 0), 0);
             return sum.toFixed(1);
         });
 
+        const hybridForecastTotal = computed(() => {
+            const sum = forecastData.hybrid.reduce((s, v) => s + (v || 0), 0);
+            return sum.toFixed(1);
+        });
+
+        const hasHybridForecast = computed(() => {
+            return forecastData.hybrid.some(v => v != null);
+        });
+
+        const hasWeatherTrace = computed(() => weatherTrace.value.length > 0);
+
         const deviationPercent = computed(() => {
-            const act = parseFloat(actualTotal.value);
-            const pred = parseFloat(forecastTotal.value);
+            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualTotal.value);
+            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastTotal.value);
             if (pred === 0) return 0;
             return ((act - pred) / pred) * 100;
         });
 
-        const todayCoverageLabel = computed(() => {
-            const coverage = cleanEvalStats.today.coverage;
-            if (coverage == null) return null;
+        const isTodayPartial = computed(() => {
             const evaluated = cleanEvalStats.today.evaluationHours;
             const candidates = cleanEvalStats.today.productionCandidates;
-            if (evaluated != null && candidates != null && candidates > 0) {
-                return `${coverage.toFixed(1)}% (${evaluated}/${candidates} h)`;
-            }
-            return `${coverage.toFixed(1)}%`;
+            return evaluated != null && candidates != null && candidates > 0 && evaluated < candidates;
+        });
+
+        const deviationLabel = computed(() => {
+            const prefix = isTodayPartial.value ? 'Live ' : '';
+            return `${prefix}${deviationPercent.value >= 0 ? '+' : ''}${deviationPercent.value.toFixed(0)}%`;
+        });
+
+        const hybridDeviationPercent = computed(() => {
+            const actualRows = forecastData.actualRaw || [];
+            const hybridRows = forecastData.hybrid || [];
+            const evaluated = actualRows
+                .map((actual, idx) => ({ actual, hybrid: hybridRows[idx] }))
+                .filter(row => row.actual != null && (row.actual > 0.01 || (row.hybrid || 0) > 0.01));
+            const act = evaluated.length
+                ? evaluated.reduce((sum, row) => sum + (row.actual || 0), 0)
+                : parseFloat(actualTotal.value);
+            const pred = evaluated.length
+                ? evaluated.reduce((sum, row) => sum + (row.hybrid || 0), 0)
+                : parseFloat(hybridForecastTotal.value);
+            if (pred === 0) return 0;
+            return ((act - pred) / pred) * 100;
+        });
+
+        const hybridDeviationLabel = computed(() => {
+            const prefix = isTodayPartial.value ? 'Live ' : '';
+            return `${prefix}${hybridDeviationPercent.value >= 0 ? '+' : ''}${hybridDeviationPercent.value.toFixed(0)}%`;
+        });
+
+        const todayLearningBasisLabel = computed(() => {
+            const learning = cleanEvalStats.today.learningHours ?? cleanEvalStats.today.evaluationHours;
+            const candidates = cleanEvalStats.today.learningCandidates ?? cleanEvalStats.today.productionCandidates;
+            if (learning == null || candidates == null || candidates <= 0) return null;
+            return `${learning}/${candidates} h`;
+        });
+
+        const todayDiscardedLearningLabel = computed(() => {
+            const discarded = cleanEvalStats.today.discardedLearningHours || 0;
+            if (discarded <= 0) return '0 h';
+
+            const labels = {
+                mppt_throttled: 'MPPT',
+                inverter_clipped: 'Clipping',
+                missing_data: 'fehlende Daten',
+                manual_pause: 'Pause',
+                excluded: 'Ausreißer',
+            };
+            const breakdown = cleanEvalStats.today.discardedLearningReasonBreakdown || {};
+            const parts = Object.entries(breakdown)
+                .filter(([, hours]) => hours > 0)
+                .map(([reason, hours]) => `${hours} h ${labels[reason] || reason}`);
+            return parts.length ? parts.join(', ') : `${discarded} h`;
         });
 
         const todayCoverageExplanation = computed(() => {
@@ -703,6 +825,33 @@ const _HomePage = {
             const abs = Math.abs(val);
             if (abs >= 1000) return (val / 1000).toFixed(1) + ' kW';
             return Math.round(val) + ' W';
+        }
+
+        function restoreForecastLegendSelected() {
+            try {
+                const raw = window.localStorage.getItem(FORECAST_LEGEND_STORAGE_KEY);
+                if (!raw) return;
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object') return;
+                Object.keys(forecastLegendSelected).forEach((key) => {
+                    if (typeof parsed[key] === 'boolean') {
+                        forecastLegendSelected[key] = parsed[key];
+                    }
+                });
+            } catch (err) {
+                console.warn('[Home] Failed to restore forecast legend state:', err);
+            }
+        }
+
+        function persistForecastLegendSelected() {
+            try {
+                window.localStorage.setItem(
+                    FORECAST_LEGEND_STORAGE_KEY,
+                    JSON.stringify({ ...forecastLegendSelected }),
+                );
+            } catch (err) {
+                console.warn('[Home] Failed to persist forecast legend state:', err);
+            }
         }
 
         function fmtKw(val) {
@@ -857,6 +1006,12 @@ const _HomePage = {
                 cleanEvalStats.today.missingActualHours = today?.missing_actual_hours_count ?? null;
                 cleanEvalStats.today.excludedWeatherAlertHours = today?.excluded_weather_alert_hours_count ?? null;
                 cleanEvalStats.today.excludedInverterClippedHours = today?.excluded_inverter_clipped_hours_count ?? null;
+                cleanEvalStats.today.learningHours = today?.learning_hours_count ?? null;
+                cleanEvalStats.today.learningCandidates = today?.learning_candidate_hours_count ?? null;
+                cleanEvalStats.today.discardedLearningHours = today?.discarded_learning_hours_count ?? null;
+                cleanEvalStats.today.discardedLearningReasonBreakdown = today?.discarded_learning_reason_breakdown ?? null;
+                cleanEvalStats.today.evaluationActual = today?.evaluation_actual_kwh ?? null;
+                cleanEvalStats.today.evaluationPredicted = today?.evaluation_predicted_kwh ?? null;
 
                 const outdoor = data.outdoor_temperature || {};
                 const outdoorTemperature = outdoor.temperature_c;
@@ -945,6 +1100,132 @@ const _HomePage = {
                 startIdx: aS,
                 endIdx: aE,
             };
+        }
+
+        function getWeatherIcon(weather) {
+            if (!weather) return '·';
+            const precipitation = Number(weather.precipitation ?? weather.precipitation_mm ?? 0);
+            const clouds = Number(weather.clouds ?? weather.cloud_cover_percent ?? weather.cloud_cover ?? NaN);
+            const radiation = Number(weather.solar_radiation_wm2 ?? weather.solar_radiation ?? NaN);
+
+            if (precipitation >= 1.5) return '☂';
+            if (precipitation >= 0.2) return '☁';
+            if (!Number.isNaN(clouds)) {
+                if (clouds <= 35) return '☀';
+                if (clouds <= 75) return '⛅';
+                return '☁';
+            }
+            if (!Number.isNaN(radiation)) {
+                if (radiation >= 550) return '☀';
+                if (radiation >= 160) return '⛅';
+                return '☁';
+            }
+            return '·';
+        }
+
+        function getWeatherIndicators(weather) {
+            if (!weather) {
+                return [
+                    { key: 'sun', label: '☀', level: 'none' },
+                    { key: 'cloud', label: '☁', level: 'none' },
+                    { key: 'rain', label: '☂', level: 'none' },
+                ];
+            }
+
+            const precipitation = Number(weather.precipitation ?? weather.precipitation_mm ?? 0);
+            const clouds = Number(weather.clouds ?? weather.cloud_cover_percent ?? weather.cloud_cover ?? NaN);
+            const radiation = Number(weather.solar_radiation_wm2 ?? weather.solar_radiation ?? NaN);
+
+            const sunLevel = !Number.isNaN(radiation)
+                ? (radiation >= 550 ? 'high' : radiation >= 180 ? 'medium' : 'low')
+                : (!Number.isNaN(clouds) ? (clouds <= 25 ? 'high' : clouds <= 60 ? 'medium' : 'low') : 'none');
+            const cloudLevel = Number.isNaN(clouds)
+                ? 'none'
+                : (clouds >= 75 ? 'high' : clouds >= 35 ? 'medium' : 'low');
+            const rainLevel = precipitation >= 1.5 ? 'high' : precipitation >= 0.2 ? 'medium' : 'low';
+
+            return [
+                { key: 'sun', label: '☀', level: sunLevel },
+                { key: 'cloud', label: '☁', level: cloudLevel },
+                { key: 'rain', label: '☂', level: rainLevel },
+            ];
+        }
+
+        function describeWeather(weather) {
+            if (!weather) return 'Keine Daten';
+            const parts = [];
+            const temp = weather.temperature ?? weather.temperature_c;
+            const clouds = weather.clouds ?? weather.cloud_cover_percent ?? weather.cloud_cover;
+            const precipitation = weather.precipitation ?? weather.precipitation_mm;
+            const radiation = weather.solar_radiation_wm2 ?? weather.solar_radiation;
+            if (temp != null) parts.push(`${Number(temp).toFixed(1)}°C`);
+            if (clouds != null) parts.push(`${Math.round(Number(clouds))}% Wolken`);
+            if (precipitation != null) parts.push(`${Number(precipitation).toFixed(1)} mm Regen`);
+            if (radiation != null) parts.push(`${Math.round(Number(radiation))} W/m²`);
+            return parts.length ? parts.join(' · ') : 'Keine Details';
+        }
+
+        function compareWeather(expected, actual) {
+            if (!expected || !actual) {
+                return { state: 'missing', icon: '·', title: 'Noch keine Ist-Wetterdaten fuer PV-relevanten Vergleich' };
+            }
+
+            const expectedClouds = Number(expected.clouds ?? expected.cloud_cover_percent ?? expected.cloud_cover ?? NaN);
+            const actualClouds = Number(actual.clouds ?? actual.cloud_cover_percent ?? actual.cloud_cover ?? NaN);
+            const expectedRain = Number(expected.precipitation ?? expected.precipitation_mm ?? 0);
+            const actualRain = Number(actual.precipitation ?? actual.precipitation_mm ?? 0);
+
+            let score = 0;
+            const details = [];
+            if (!Number.isNaN(expectedClouds) && !Number.isNaN(actualClouds)) {
+                const cloudDelta = Math.abs(expectedClouds - actualClouds);
+                details.push(`Wolken Δ ${cloudDelta.toFixed(0)}%`);
+                score += cloudDelta <= 20 ? 0 : cloudDelta <= 40 ? 1 : 2;
+            }
+
+            const rainDelta = Math.abs(expectedRain - actualRain);
+            if (expectedRain > 0 || actualRain > 0) {
+                details.push(`Regen Δ ${rainDelta.toFixed(1)} mm`);
+            }
+            score += rainDelta <= 0.3 ? 0 : rainDelta <= 1.5 ? 1 : 2;
+
+            if (score <= 0) return { state: 'good', icon: '✓', title: `PV-relevant sehr gut getroffen${details.length ? ' · ' + details.join(' · ') : ''}` };
+            if (score <= 2) return { state: 'mixed', icon: '~', title: `PV-relevant gut getroffen${details.length ? ' · ' + details.join(' · ') : ''}` };
+            return { state: 'bad', icon: '×', title: `PV-relevant schlecht getroffen${details.length ? ' · ' + details.join(' · ') : ''}` };
+        }
+
+        function buildWeatherTrace(hours, dateKey, expectedByDate, actualByDate, fallbackRows) {
+            const expectedDay = expectedByDate?.[dateKey] || {};
+            const actualDay = actualByDate?.[dateKey] || {};
+            return hours
+                .map((hour, idx) => {
+                    const key = String(hour);
+                    const fallback = fallbackRows[idx] || {};
+                    const expected = expectedDay[key] || {
+                        temperature: fallback.temperature,
+                        clouds: fallback.clouds,
+                        solar_radiation_wm2: fallback.solar_radiation,
+                    };
+                    const actual = actualDay[key] || null;
+                    const match = compareWeather(expected, actual);
+                    return {
+                        hour,
+                        hourLabel: String(hour).padStart(2, '0'),
+                        expectedIcon: getWeatherIcon(expected),
+                        expectedIndicators: getWeatherIndicators(expected),
+                        actualIcon: actual ? getWeatherIcon(actual) : '·',
+                        actualIndicators: getWeatherIndicators(actual),
+                        actualAvailable: Boolean(actual),
+                        matchIcon: match.icon,
+                        matchState: match.state,
+                        expectedTitle: `Erwartet ${String(hour).padStart(2, '0')}:00 · ${describeWeather(expected)}`,
+                        actualTitle: actual
+                            ? `Gesehen ${String(hour).padStart(2, '0')}:00 · ${describeWeather(actual)}`
+                            : `Gesehen ${String(hour).padStart(2, '0')}:00 · noch keine Daten`,
+                        matchTitle: match.title,
+                    };
+                })
+                .filter(item => item.expectedIcon !== '·' || item.actualAvailable);
         }
 
         async function loadPanelGroups() {
@@ -1045,7 +1326,7 @@ const _HomePage = {
 
         async function loadForecastData() {
             try {
-                const res = await SFMLApi.fetch('/api/sfml_stats/solar?days=1');
+                const res = await SFMLApi.fetch('/api/sfml_stats/solar?days=1', { forceRefresh: true });
                 if (!res || !res.data) return;
 
                 const hourly = res.data.hourly || [];
@@ -1060,8 +1341,20 @@ const _HomePage = {
                 const rawFc = todayData.map(h => h.prediction_kwh || 0);
                 const rawAc = todayData.map(h => h.actual_kwh || 0);
                 const trimmed = trimSolarWindow(rawAc, rawFc);
+                forecastData.forecastRaw = rawFc;
+                forecastData.actualRaw = todayData.map(h => h.actual_kwh ?? null);
                 forecastData.forecast = trimmed.forecast;
                 forecastData.actual = trimmed.actual;
+                const hybridPayload = res.data.hybrid || {};
+                const hybridHours = Array.isArray(hybridPayload.hourly) ? hybridPayload.hourly : [];
+                const hybridByHour = new Map(
+                    hybridHours.map(h => [Number(h.target_hour), h.prediction_kwh ?? null])
+                );
+                forecastData.hybrid = todayData.map(h => (
+                    hybridByHour.has(Number(h.target_hour))
+                        ? hybridByHour.get(Number(h.target_hour))
+                        : null
+                ));
                 forecastData.confidence = todayData.map(h => h.confidence || 50);
                 forecastData.ml_pct = todayData.map(h => h.ml_contribution_percent || 0);
                 forecastData.method = todayData.map(h => h.prediction_method || '');
@@ -1074,6 +1367,13 @@ const _HomePage = {
                 forecastData.physics = todayData.map(h => h.physics_kwh || null);
                 forecastData.lstm = todayData.map(h => h.lstm_kwh || null);
                 forecastData.ridge = todayData.map(h => h.ridge_kwh || null);
+                weatherTrace.value = buildWeatherTrace(
+                    forecastData.hours,
+                    today,
+                    res.data.weather_corrected || {},
+                    res.data.weather || {},
+                    todayData,
+                );
 
                 updateForecastChart();
             } catch (err) {
@@ -1131,6 +1431,7 @@ const _HomePage = {
                         if (idx == null) return '';
                         const hour = forecastData.hours[idx];
                         const pred = forecastData.forecast[idx] || 0;
+                        const hybrid = forecastData.hybrid[idx];
                         const act = forecastData.actual[idx] || 0;
                         const conf = forecastData.confidence[idx] || 0;
                         const mlPct = forecastData.ml_pct[idx] || 0;
@@ -1144,6 +1445,7 @@ const _HomePage = {
                         s += '<div style="font-weight:700;font-size:13px;margin-bottom:6px">' + String(hour).padStart(2,'0') + ':00 Uhr</div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:4px 0 6px"></div>';
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">Prognose:</span><span>' + pred.toFixed(2) + ' kWh</span></div>';
+                        if (hybrid != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#38bdf8">Hybrid:</span><span>' + hybrid.toFixed(2) + ' kWh</span></div>';
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">IST:</span><span>' + act.toFixed(2) + ' kWh</span></div>';
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">&Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
@@ -1227,6 +1529,17 @@ const _HomePage = {
                         smooth: true, connectNulls: false,
                         z: 5,
                     },
+                    ...(hasHybridForecast.value ? [{
+                        name: 'Hybrid',
+                        type: 'line',
+                        data: forecastData.hybrid,
+                        lineStyle: { color: '#38bdf8', width: 2.5, type: 'dashed' },
+                        itemStyle: { color: '#38bdf8' },
+                        symbol: 'none',
+                        smooth: true,
+                        connectNulls: false,
+                        z: 5,
+                    }] : []),
                     // IST line — only show up to current hour, null for future
                     {
                         name: 'IST',
@@ -1283,8 +1596,14 @@ const _HomePage = {
                     top: 0,
                     right: 10,
                     textStyle: { color: '#8b949e', fontSize: 11 },
-                    data: ['Prognose', 'IST', 'TFS', 'Unsicherheit'],
-                    selected: { 'Unsicherheit': true, 'TFS': false },
+                    data: ['Prognose', ...(hasHybridForecast.value ? ['Hybrid'] : []), 'IST', 'TFS', 'Unsicherheit'],
+                    selected: {
+                        Prognose: forecastLegendSelected.Prognose,
+                        Hybrid: forecastLegendSelected.Hybrid,
+                        IST: forecastLegendSelected.IST,
+                        TFS: forecastLegendSelected.TFS,
+                        Unsicherheit: forecastLegendSelected.Unsicherheit,
+                    },
                 },
             });
         }
@@ -1376,16 +1695,27 @@ const _HomePage = {
         let clockTimer = null;
         let flowTimer = null;
         let powerTimer = null;
+        let forecastTimer = null;
 
         onMounted(async () => {
             updateClock();
             clockTimer = setInterval(updateClock, 1000);
+            restoreForecastLegendSelected();
 
             await nextTick();
 
             // Init forecast chart
             if (forecastChartEl.value && typeof echarts !== 'undefined') {
                 forecastChartInstance = echarts.init(forecastChartEl.value, null, { renderer: 'canvas' });
+                forecastChartInstance.on('legendselectchanged', (event) => {
+                    if (!event?.selected) return;
+                    Object.keys(forecastLegendSelected).forEach((key) => {
+                        if (typeof event.selected[key] === 'boolean') {
+                            forecastLegendSelected[key] = event.selected[key];
+                        }
+                    });
+                    persistForecastLegendSelected();
+                });
             }
             // Init power chart
             if (powerChartEl.value && typeof echarts !== 'undefined') {
@@ -1410,6 +1740,7 @@ const _HomePage = {
             // Refresh intervals
             flowTimer = setInterval(loadEnergyFlow, 15000);
             powerTimer = setInterval(loadPowerHistory, 60000);
+            forecastTimer = setInterval(loadForecastData, 60000);
             setInterval(loadInfoPanel, 60000); // Info panel refresh every 60s
         });
 
@@ -1417,6 +1748,7 @@ const _HomePage = {
             if (clockTimer) clearInterval(clockTimer);
             if (flowTimer) clearInterval(flowTimer);
             if (powerTimer) clearInterval(powerTimer);
+            if (forecastTimer) clearInterval(forecastTimer);
             if (forecastChartInstance) { forecastChartInstance.dispose(); forecastChartInstance = null; }
             if (powerChartInstance) { powerChartInstance.dispose(); powerChartInstance = null; }
             if (resizeHandler) window.removeEventListener('resize', resizeHandler);
@@ -1426,9 +1758,12 @@ const _HomePage = {
             forecastChartEl, powerChartEl, sparklineRefs,
             flow, panels, panelHistory, infoData, panelGroupsData, pgChartRefs,
             forecastData, powerData, dailyForecasts,
+            weatherTrace, hasWeatherTrace,
             currentTime, lastPowerUpdate,
-            isNightTime, forecastTotal, actualTotal, deviationPercent, cleanEvalStats,
-            todayCoverageLabel, todayCoverageExplanation,
+            isNightTime, forecastTotal, hybridForecastTotal, hasHybridForecast,
+            actualTotal, deviationPercent, deviationLabel, hybridDeviationPercent,
+            hybridDeviationLabel, cleanEvalStats, todayLearningBasisLabel,
+            todayDiscardedLearningLabel, todayCoverageExplanation,
             getGridPower, getGridLabel, fmtKw, fmtW,
             forecastBandColor, forecastBandColorFromAccuracy,
             getSparklinePath, getSparklineAreaPath,
@@ -1585,6 +1920,145 @@ const _HomePage = {
             gap: var(--space-md);
             align-items: center;
             flex-wrap: wrap;
+        }
+
+        .weather-trace {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 6px 10px;
+            align-items: start;
+            margin-top: 12px;
+            margin-bottom: 6px;
+            padding: 10px 12px;
+            border: 1px solid rgba(148, 163, 184, 0.14);
+            border-radius: var(--radius-md);
+            background:
+                linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(251, 191, 36, 0.04)),
+                rgba(255, 255, 255, 0.018);
+        }
+
+        .weather-trace-labels {
+            display: grid;
+            grid-template-rows: 16px 28px 28px 24px;
+            gap: 6px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding-top: 1px;
+        }
+
+        .weather-trace-labels span {
+            display: flex;
+            align-items: center;
+        }
+
+        .weather-trace-labels span:first-child {
+            grid-row: 2;
+        }
+
+        .weather-trace-labels span:nth-child(2) {
+            grid-row: 3;
+        }
+
+        .weather-trace-labels span:nth-child(3) {
+            grid-row: 4;
+        }
+
+        .weather-trace-grid {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: minmax(28px, 1fr);
+            grid-template-rows: 16px 28px 28px 24px;
+            gap: 6px 4px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        .weather-trace-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+            font-family: var(--font-mono);
+        }
+
+        .weather-trace-hour {
+            color: var(--text-muted);
+            font-size: 0.62rem;
+        }
+
+        .weather-trace-icon {
+            flex-direction: column;
+            gap: 2px;
+            min-height: 30px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.025);
+        }
+
+        .weather-trace-visual {
+            font-size: 1.08rem;
+            line-height: 1;
+        }
+
+        .weather-trace-indicators {
+            display: flex;
+            gap: 3px;
+            font-size: 0.58rem;
+            line-height: 1;
+            letter-spacing: 0.02em;
+        }
+
+        .weather-trace-indicator {
+            opacity: 0.2;
+            transition: opacity 120ms ease, color 120ms ease;
+        }
+
+        .weather-trace-indicator.level-low {
+            opacity: 0.45;
+            color: rgba(226, 232, 240, 0.85);
+        }
+
+        .weather-trace-indicator.level-medium {
+            opacity: 0.8;
+            color: #f8fafc;
+        }
+
+        .weather-trace-indicator.level-high {
+            opacity: 1;
+            color: #fbbf24;
+        }
+
+        .weather-trace-icon.muted {
+            color: rgba(148, 163, 184, 0.45);
+        }
+
+        .weather-trace-match {
+            font-size: 0.86rem;
+            font-weight: 700;
+            border-radius: 999px;
+            min-height: 24px;
+        }
+
+        .weather-trace-match.match-good {
+            color: #22c55e;
+            background: rgba(34, 197, 94, 0.10);
+        }
+
+        .weather-trace-match.match-mixed {
+            color: #eab308;
+            background: rgba(234, 179, 8, 0.10);
+        }
+
+        .weather-trace-match.match-bad {
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.10);
+        }
+
+        .weather-trace-match.match-missing {
+            color: rgba(148, 163, 184, 0.45);
+            background: rgba(148, 163, 184, 0.06);
         }
 
         /* === Panel Live Cards (unter PV-Chart) === */

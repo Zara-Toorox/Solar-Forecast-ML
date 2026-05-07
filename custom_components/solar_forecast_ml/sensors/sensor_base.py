@@ -33,6 +33,7 @@ from homeassistant.const import PERCENTAGE, UnitOfEnergy
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -1060,6 +1061,221 @@ class ConservativePlanningForecastSensor(SensorEntity):
     async def _reload_and_update(self) -> None:
         """Reload value and update state. @zara"""
         await self._load_from_sources()
+        self.async_write_ha_state()
+
+
+class OperationalHybridForecastSensor(RestoreEntity, SensorEntity):
+    """Read-only operational hybrid forecast sensor backed by the OPS track. @zara"""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+
+    def __init__(self, coordinator: SolarForecastMLCoordinator, entry: ConfigEntry):
+        """Initialize the operational hybrid forecast sensor. @zara"""
+        self._coordinator = coordinator
+        self.entry = entry
+        self._cached_value: Optional[float] = None
+        self._hourly_values: Dict[str, float] = {}
+        self._hourly_group_values: Dict[str, Dict[str, float]] = {}
+        self._group_totals: Dict[str, float] = {}
+        self._active_snapshot_types: list[str] = []
+        self._active_source_tracks: list[str] = []
+        self._latest_snapshot_sequence: Optional[int] = None
+        self._latest_trigger_source: Optional[str] = None
+        self._latest_cutoff_hour: Optional[int] = None
+        self._ops_today_row_kwh: Optional[float] = None
+        self._ops_today_row_scope: Optional[str] = None
+
+        self._attr_unique_id = f"{entry.entry_id}_ml_operational_hybrid_forecast"
+        self._attr_name = "Hybrid Forecast"
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+        self._attr_state_class = SensorStateClass.TOTAL
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_icon = "mdi:solar-power-variant-outline"
+        self._attr_suggested_display_precision = 2
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+        )
+
+    @property
+    def available(self) -> bool:
+        """Sensor availability. @zara"""
+        return self._cached_value is not None
+
+    @property
+    def native_value(self) -> Optional[float]:
+        """Return the current operational hybrid forecast total. @zara"""
+        return self._cached_value
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return OPS-backed hourly and panel-group attributes. @zara"""
+        return {
+            "forecast_scope": "full_day_operational_sum",
+            "active_snapshot_types": self._active_snapshot_types,
+            "active_source_tracks": self._active_source_tracks,
+            "latest_snapshot_sequence": self._latest_snapshot_sequence,
+            "latest_trigger_source": self._latest_trigger_source,
+            "latest_reforecast_cutoff_hour": self._latest_cutoff_hour,
+            "ops_today_row_kwh": self._ops_today_row_kwh,
+            "ops_today_row_scope": self._ops_today_row_scope,
+            "hourly_forecast": self._hourly_values,
+            "hourly_panel_groups": self._hourly_group_values,
+            "panel_group_totals": self._group_totals,
+            "hours": self._hourly_values,
+        }
+
+    async def _load_from_ops(self) -> None:
+        """Load the operational hybrid forecast from active OPS rows. @zara"""
+        self._cached_value = None
+        self._hourly_values = {}
+        self._hourly_group_values = {}
+        self._group_totals = {}
+        self._active_snapshot_types = []
+        self._active_source_tracks = []
+        self._latest_snapshot_sequence = None
+        self._latest_trigger_source = None
+        self._latest_cutoff_hour = None
+        self._ops_today_row_kwh = None
+        self._ops_today_row_scope = None
+
+        try:
+            from homeassistant.util import dt as dt_util
+
+            db = getattr(getattr(self._coordinator, "data_manager", None), "_db_manager", None)
+            if db is None:
+                return
+
+            today_str = dt_util.now().date().isoformat()
+            hourly_rows = await db.fetchall(
+                """SELECT target_hour, prediction_kwh, snapshot_type, snapshot_sequence,
+                          trigger_source, source_track, reforecast_cutoff_hour
+                   FROM ops_hourly_forecasts
+                   WHERE target_date = ?
+                     AND is_active = TRUE
+                   ORDER BY target_hour""",
+                (today_str,),
+            )
+            if not hourly_rows:
+                return
+
+            total = 0.0
+            snapshot_types = set()
+            source_tracks = set()
+
+            for row in hourly_rows:
+                hour = int(row[0])
+                prediction_kwh = float(row[1] or 0.0)
+                snapshot_type = str(row[2]) if row[2] is not None else None
+                snapshot_sequence = int(row[3]) if row[3] is not None else None
+                trigger_source = str(row[4]) if row[4] is not None else None
+                source_track = str(row[5]) if row[5] is not None else None
+                reforecast_cutoff_hour = int(row[6]) if row[6] is not None else None
+
+                self._hourly_values[f"{hour:02d}:00"] = round(prediction_kwh, 3)
+                total += prediction_kwh
+
+                if snapshot_type:
+                    snapshot_types.add(snapshot_type)
+                if source_track:
+                    source_tracks.add(source_track)
+
+                if snapshot_sequence is not None and (
+                    self._latest_snapshot_sequence is None
+                    or snapshot_sequence > self._latest_snapshot_sequence
+                ):
+                    self._latest_snapshot_sequence = snapshot_sequence
+                    self._latest_trigger_source = trigger_source
+                    self._latest_cutoff_hour = reforecast_cutoff_hour
+
+            group_rows = await db.fetchall(
+                """SELECT target_hour, group_name, prediction_kwh
+                   FROM ops_prediction_panel_groups
+                   WHERE target_date = ?
+                     AND is_active = TRUE
+                   ORDER BY target_hour, group_name""",
+                (today_str,),
+            )
+            for row in group_rows:
+                hour = int(row[0])
+                group_name = str(row[1])
+                prediction_kwh = round(float(row[2] or 0.0), 4)
+                hour_label = f"{hour:02d}:00"
+
+                if hour_label not in self._hourly_group_values:
+                    self._hourly_group_values[hour_label] = {}
+                self._hourly_group_values[hour_label][group_name] = prediction_kwh
+                self._group_totals[group_name] = round(
+                    self._group_totals.get(group_name, 0.0) + prediction_kwh,
+                    4,
+                )
+
+            today_row = await db.fetchone(
+                """SELECT prediction_kwh, snapshot_type
+                   FROM ops_daily_forecasts
+                   WHERE forecast_type = 'today'
+                     AND forecast_date = ?
+                     AND is_active = TRUE
+                   ORDER BY snapshot_sequence DESC
+                   LIMIT 1""",
+                (today_str,),
+            )
+            if today_row:
+                self._ops_today_row_kwh = round(float(today_row[0] or 0.0), 2)
+                snapshot_type = str(today_row[1]) if today_row[1] is not None else ""
+                self._ops_today_row_scope = (
+                    "rest_of_day_total"
+                    if snapshot_type == "intraday_reforecast"
+                    else "full_day_snapshot"
+                )
+
+            self._active_snapshot_types = sorted(snapshot_types)
+            self._active_source_tracks = sorted(source_tracks)
+            self._cached_value = round(total, 2)
+        except Exception as e:
+            _LOGGER.warning("Failed to load OperationalHybridForecastSensor: %s", e)
+            self._cached_value = None
+
+    async def async_added_to_hass(self) -> None:
+        """Setup sensor with coordinator listener. @zara"""
+        await super().async_added_to_hass()
+        await self._load_from_ops()
+        if self._cached_value is None:
+            last_state = await self.async_get_last_state()
+            if last_state is not None:
+                try:
+                    if last_state.state not in (None, "", "unknown", "unavailable"):
+                        self._cached_value = round(float(last_state.state), 2)
+                    attributes = last_state.attributes or {}
+                    self._hourly_values = dict(attributes.get("hourly_forecast", {}))
+                    self._hourly_group_values = dict(attributes.get("hourly_panel_groups", {}))
+                    self._group_totals = dict(attributes.get("panel_group_totals", {}))
+                    self._active_snapshot_types = list(attributes.get("active_snapshot_types", []))
+                    self._active_source_tracks = list(attributes.get("active_source_tracks", []))
+                    self._latest_snapshot_sequence = attributes.get("latest_snapshot_sequence")
+                    self._latest_trigger_source = attributes.get("latest_trigger_source")
+                    self._latest_cutoff_hour = attributes.get("latest_reforecast_cutoff_hour")
+                    self._ops_today_row_kwh = attributes.get("ops_today_row_kwh")
+                    self._ops_today_row_scope = attributes.get("ops_today_row_scope")
+                    _LOGGER.info(
+                        "OperationalHybridForecastSensor restored previous state from HA storage"
+                    )
+                except Exception as e:
+                    _LOGGER.warning(
+                        "Failed to restore OperationalHybridForecastSensor state: %s",
+                        e,
+                    )
+        self.async_on_remove(self._coordinator.async_add_listener(self._handle_coordinator_update))
+        self.async_write_ha_state()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle coordinator updates. @zara"""
+        self.hass.async_create_task(self._reload_and_update())
+
+    async def _reload_and_update(self) -> None:
+        """Reload value and update state. @zara"""
+        await self._load_from_ops()
         self.async_write_ha_state()
 
 

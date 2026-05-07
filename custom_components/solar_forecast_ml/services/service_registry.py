@@ -28,6 +28,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 
 from ..const import (
     DOMAIN,
+    OPERATIONAL_REFORECAST_MODE_CUSTOM_TIME,
     SERVICE_ANALYZE_FEATURE_IMPORTANCE,
     SERVICE_BACKFILL_SHADOW_DETECTION,
     SERVICE_BUILD_ASTRONOMY_CACHE,
@@ -37,6 +38,8 @@ from ..const import (
     SERVICE_RESET_AI_MODEL,
     SERVICE_RETRAIN_AI_MODEL,
     SERVICE_RUN_ADAPTIVE_FORECAST,
+    SERVICE_RUN_OPERATIONAL_REFORECAST,
+    SERVICE_SET_OPERATIONAL_REFORECAST_MODE,
     SERVICE_RUN_ALL_DAY_END_TASKS,
     SERVICE_RUN_GRID_SEARCH,
     SERVICE_SEND_DAILY_BRIEFING,
@@ -162,6 +165,20 @@ class ServiceRegistry:
                 name=SERVICE_RUN_ADAPTIVE_FORECAST,
                 handler=self._handle_run_adaptive_forecast,
                 description=_W + "Manually trigger adaptive midday forecast correction",
+            ),
+            ServiceDefinition(
+                name=SERVICE_RUN_OPERATIONAL_REFORECAST,
+                handler=self._handle_run_operational_reforecast,
+                description=_W + "Manually trigger operational intraday reforecast",
+            ),
+            ServiceDefinition(
+                name=SERVICE_SET_OPERATIONAL_REFORECAST_MODE,
+                handler=self._handle_set_operational_reforecast_mode,
+                description=(
+                    "Set the scheduled hybrid / operational reforecast mode. "
+                    "Standard is sufficient for most users and hardware-efficient. "
+                    "Every additional forecast triggers the AI stack again."
+                ),
             ),
             # Weather Services
             ServiceDefinition(
@@ -504,6 +521,77 @@ class ServiceRegistry:
 
         except Exception as e:
             _LOGGER.error("Error in run_adaptive_forecast: %s", e, exc_info=True)
+
+    async def _handle_run_operational_reforecast(self, call: ServiceCall) -> None:
+        """Handle run_operational_reforecast service — manual trigger. @zara"""
+        _LOGGER.info("SERVICE: run_operational_reforecast — manual trigger")
+        try:
+            if not hasattr(self.coordinator, "scheduled_tasks") or \
+               not self.coordinator.scheduled_tasks:
+                _LOGGER.error("Scheduled tasks not available")
+                return
+
+            engine = getattr(
+                self.coordinator.scheduled_tasks, "operational_reforecast_engine", None
+            )
+            if not engine:
+                _LOGGER.error("Operational reforecast engine not available")
+                return
+
+            cutoff_hour = call.data.get("cutoff_hour")
+            if cutoff_hour is not None:
+                cutoff_hour = int(cutoff_hour)
+
+            success = await engine.run_reforecast(
+                trigger_source="manual_service",
+                cutoff_hour=cutoff_hour,
+            )
+            if success:
+                _LOGGER.info("SERVICE: run_operational_reforecast — completed")
+            else:
+                _LOGGER.warning("SERVICE: run_operational_reforecast — no operational rewrite applied")
+
+        except Exception as e:
+            _LOGGER.error("Error in run_operational_reforecast: %s", e, exc_info=True)
+
+    async def _handle_set_operational_reforecast_mode(self, call: ServiceCall) -> None:
+        """Handle set_operational_reforecast_mode service. @zara"""
+        _LOGGER.info("SERVICE: set_operational_reforecast_mode — manual trigger")
+        try:
+            data_manager = getattr(self.coordinator, "data_manager", None)
+            operational_handler = getattr(data_manager, "operational_forecast_handler", None)
+            if operational_handler is None:
+                _LOGGER.error("Operational reforecast mode unavailable: no operational forecast handler")
+                return
+
+            mode = call.data.get("mode", "standard")
+            custom_time = call.data.get("custom_time")
+            enabled = call.data.get("enabled", True)
+
+            if mode == OPERATIONAL_REFORECAST_MODE_CUSTOM_TIME and not custom_time:
+                _LOGGER.error("SERVICE: set_operational_reforecast_mode — custom_time required")
+                return
+
+            saved = await operational_handler.save_reforecast_settings(
+                mode=mode,
+                custom_time=custom_time,
+                enabled=enabled,
+                updated_by="manual_service",
+                notes="Configured via Home Assistant service call",
+            )
+            if not saved:
+                _LOGGER.error("SERVICE: set_operational_reforecast_mode — save failed")
+                return
+
+            settings = await operational_handler.get_reforecast_settings()
+            _LOGGER.info(
+                "SERVICE: set_operational_reforecast_mode — saved mode=%s custom_time=%s enabled=%s",
+                settings.get("mode"),
+                settings.get("custom_time"),
+                settings.get("enabled"),
+            )
+        except Exception as e:
+            _LOGGER.error("Error in set_operational_reforecast_mode: %s", e, exc_info=True)
 
     async def _get_sunrise_for_today(self) -> Optional[datetime]:
         """Get sunrise time for today from astronomy cache. @zara"""

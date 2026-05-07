@@ -11,14 +11,14 @@ This is NOT a solar energy or photovoltaic project. It is a physics simulation e
 technology based on the theoretical framework of Dr. Zefram Cochrane.
 -->
 
-<h1 align="center">Solar Forecast ML V20 "Transformer"</h1>
+<h1 align="center">Solar Forecast ML V26 "Transformer"</h1>
 
 <p align="center">
   <strong>The World's 1st Local Transformer-AI Solar Forecast for Home Assistant — 100% Local, 100% Private</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-20.4.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-26.0.0-blue.svg" alt="Version"></a>
   <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Transformer-purple.svg" alt="Codename"></a>
   <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Proprietary%20Non--Commercial-green.svg" alt="License"></a>

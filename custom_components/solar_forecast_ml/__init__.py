@@ -522,14 +522,16 @@ async def _invalidate_ai_models(db) -> None:
 
 
 async def _save_config_snapshot(db, groups: list[dict]) -> None:
-    await db.execute("DELETE FROM panel_group_config_snapshot")
-    for g in groups:
-        await db.execute(
-            "INSERT INTO panel_group_config_snapshot "
-            "(group_name, power_wp, azimuth, tilt, energy_sensor) VALUES (?, ?, ?, ?, ?)",
-            (g["name"], g.get("power_wp", 0.0), g.get("azimuth", 180.0),
-             g.get("tilt", 30.0), g.get("energy_sensor") or None),
-        )
+    async with db.transaction():
+        await db.execute("DELETE FROM panel_group_config_snapshot", auto_commit=False)
+        for g in groups:
+            await db.execute(
+                "INSERT INTO panel_group_config_snapshot "
+                "(group_name, power_wp, azimuth, tilt, energy_sensor) VALUES (?, ?, ?, ?, ?)",
+                (g["name"], g.get("power_wp", 0.0), g.get("azimuth", 180.0),
+                 g.get("tilt", 30.0), g.get("energy_sensor") or None),
+                auto_commit=False,
+            )
 
 
 async def _ensure_snapshot_table(db) -> None:
