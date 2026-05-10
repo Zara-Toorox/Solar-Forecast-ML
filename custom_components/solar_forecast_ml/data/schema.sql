@@ -511,6 +511,12 @@ CREATE TABLE IF NOT EXISTS prediction_panel_groups (
     tfs_kwh REAL,
     tfs_weight REAL,
     actual_kwh REAL,
+    config_epoch_id INTEGER,
+    group_uid TEXT,
+    group_lineage_uid TEXT,
+    power_wp_at_prediction REAL,
+    topology_compatible BOOLEAN DEFAULT TRUE,
+    topology_exclusion_reason TEXT,
     exclude_from_learning_group BOOLEAN DEFAULT FALSE,  -- V17.0.0: Per-group learning exclusion @zara
     exclusion_reason_group TEXT,                         -- V17.0.0: Reason for per-group exclusion @zara
     snow_covered_group BOOLEAN DEFAULT FALSE,            -- V17.0.0: Per-group snow status @zara
@@ -1816,3 +1822,37 @@ CREATE TABLE IF NOT EXISTS panel_group_config_snapshot (
     tilt REAL NOT NULL,
     energy_sensor TEXT
 );
+
+CREATE TABLE IF NOT EXISTS panel_group_config_epochs (
+    epoch_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    topology_hash TEXT NOT NULL,
+    valid_from TIMESTAMP NOT NULL,
+    valid_to TIMESTAMP,
+    reason TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS panel_group_config_epoch_groups (
+    epoch_group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    epoch_id INTEGER NOT NULL,
+    group_uid TEXT NOT NULL,
+    group_lineage_uid TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    power_wp REAL NOT NULL,
+    azimuth REAL NOT NULL,
+    tilt REAL NOT NULL,
+    energy_sensor TEXT,
+    group_signature TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    FOREIGN KEY (epoch_id) REFERENCES panel_group_config_epochs(epoch_id) ON DELETE CASCADE,
+    UNIQUE(epoch_id, display_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_panel_group_epochs_active
+ON panel_group_config_epochs(valid_to, valid_from);
+
+CREATE INDEX IF NOT EXISTS idx_panel_group_epoch_groups_lookup
+ON panel_group_config_epoch_groups(epoch_id, display_name);
+
+CREATE INDEX IF NOT EXISTS idx_prediction_panel_groups_topology
+ON prediction_panel_groups(config_epoch_id, group_uid, group_name);

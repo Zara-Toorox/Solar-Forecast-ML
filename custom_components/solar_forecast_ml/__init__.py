@@ -33,6 +33,8 @@ except ImportError:
 
 import atexit
 import asyncio
+import hashlib
+import json
 import logging
 import queue
 from dataclasses import dataclass, field
@@ -403,6 +405,205 @@ def _match_groups(old_groups: list[dict], new_groups: list[dict]) -> _MigrationP
     return plan
 
 
+def _normalised_group_config(g: dict) -> dict:
+    return {
+        "name": str(_get_name(g) or ""),
+        "power_wp": round(float(_get_power(g) or 0.0), 3),
+        "azimuth": round(float(g.get("azimuth", g.get(CONF_PANEL_GROUP_AZIMUTH, 180.0)) or 180.0), 3),
+        "tilt": round(float(g.get("tilt", g.get(CONF_PANEL_GROUP_TILT, 30.0)) or 30.0), 3),
+        "energy_sensor": str(_get_sensor(g) or ""),
+    }
+
+
+def _hash_payload(prefix: str, payload: Any) -> str:
+    raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return f"{prefix}_{hashlib.sha1(raw.encode('utf-8')).hexdigest()[:16]}"
+
+
+def _group_signature(g: dict) -> str:
+    return json.dumps(_normalised_group_config(g), sort_keys=True, separators=(",", ":"))
+
+
+def _topology_hash(groups: list[dict]) -> str:
+    payload = [_normalised_group_config(g) for g in sorted(groups, key=_get_name)]
+    return _hash_payload("pgt", payload)
+
+
+def _new_group_uid(g: dict) -> str:
+    return _hash_payload("pgg", _normalised_group_config(g))
+
+
+def _new_lineage_uid(g: dict) -> str:
+    cfg = _normalised_group_config(g)
+    payload = {
+        "name": cfg["name"],
+        "azimuth": cfg["azimuth"],
+        "tilt": cfg["tilt"],
+        "energy_sensor": cfg["energy_sensor"],
+    }
+    return _hash_payload("pgl", payload)
+
+
+async def _ensure_topology_epoch_tables(db) -> None:
+    await db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS panel_group_config_epochs (
+            epoch_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            topology_hash TEXT NOT NULL,
+            valid_from TIMESTAMP NOT NULL,
+            valid_to TIMESTAMP,
+            reason TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    await db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS panel_group_config_epoch_groups (
+            epoch_group_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            epoch_id INTEGER NOT NULL,
+            group_uid TEXT NOT NULL,
+            group_lineage_uid TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            power_wp REAL NOT NULL,
+            azimuth REAL NOT NULL,
+            tilt REAL NOT NULL,
+            energy_sensor TEXT,
+            group_signature TEXT NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            FOREIGN KEY (epoch_id) REFERENCES panel_group_config_epochs(epoch_id) ON DELETE CASCADE,
+            UNIQUE(epoch_id, display_name)
+        )
+        """
+    )
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_panel_group_epochs_active "
+        "ON panel_group_config_epochs(valid_to, valid_from)"
+    )
+    await db.execute(
+        "CREATE INDEX IF NOT EXISTS idx_panel_group_epoch_groups_lookup "
+        "ON panel_group_config_epoch_groups(epoch_id, display_name)"
+    )
+
+
+async def _load_active_topology_epoch(db) -> Optional[dict]:
+    row = await db.fetchone(
+        "SELECT epoch_id, topology_hash FROM panel_group_config_epochs "
+        "WHERE valid_to IS NULL ORDER BY valid_from DESC, epoch_id DESC LIMIT 1"
+    )
+    if not row:
+        return None
+    return {"epoch_id": row[0], "topology_hash": row[1]}
+
+
+async def _load_active_lineages(db) -> dict[str, str]:
+    active = await _load_active_topology_epoch(db)
+    if not active:
+        return {}
+    rows = await db.fetchall(
+        "SELECT display_name, group_lineage_uid "
+        "FROM panel_group_config_epoch_groups WHERE epoch_id = ?",
+        (active["epoch_id"],),
+    )
+    return {row[0]: row[1] for row in rows}
+
+
+def _lineage_map_for_new_epoch(
+    groups: list[dict],
+    plan: Optional[_MigrationPlan],
+    previous_lineages: dict[str, str],
+) -> dict[str, str]:
+    if not plan:
+        return {
+            _get_name(group): previous_lineages.get(_get_name(group), _new_lineage_uid(group))
+            for group in groups
+        }
+
+    donor_names = {donor.donor_name for donor in plan.donors}
+    removed_names = set(plan.removed_groups)
+    rename_source_by_target = {rename.new_name: rename.old_name for rename in plan.renames}
+    lineages: dict[str, str] = {}
+
+    for group in groups:
+        name = _get_name(group)
+        old_name = rename_source_by_target.get(name, name)
+        can_preserve = (
+            old_name not in donor_names
+            and old_name not in removed_names
+            and old_name in previous_lineages
+        )
+        lineages[name] = previous_lineages[old_name] if can_preserve else _new_lineage_uid(group)
+
+    return lineages
+
+
+async def _save_config_epoch(
+    db,
+    groups: list[dict],
+    plan: Optional[_MigrationPlan],
+    reason: str,
+) -> None:
+    await _ensure_topology_epoch_tables(db)
+    topology_hash = _topology_hash(groups)
+    active = await _load_active_topology_epoch(db)
+    if active and active["topology_hash"] == topology_hash:
+        return
+
+    previous_lineages = await _load_active_lineages(db)
+    lineage_by_name = _lineage_map_for_new_epoch(groups, plan, previous_lineages)
+    now = dt_util.now().isoformat()
+
+    async with db.transaction():
+        if active:
+            await db.execute(
+                "UPDATE panel_group_config_epochs SET valid_to = ? WHERE epoch_id = ?",
+                (now, active["epoch_id"]),
+                auto_commit=False,
+            )
+        await db.execute(
+            "INSERT INTO panel_group_config_epochs (topology_hash, valid_from, reason) "
+            "VALUES (?, ?, ?)",
+            (topology_hash, now, reason),
+            auto_commit=False,
+        )
+        epoch_row = await db.fetchone(
+            "SELECT epoch_id FROM panel_group_config_epochs WHERE topology_hash = ? "
+            "AND valid_from = ? ORDER BY epoch_id DESC LIMIT 1",
+            (topology_hash, now),
+        )
+        if not epoch_row:
+            raise RuntimeError("Failed to create panel group topology epoch")
+        epoch_id = epoch_row[0]
+        for group in groups:
+            name = _get_name(group)
+            cfg = _normalised_group_config(group)
+            await db.execute(
+                "INSERT INTO panel_group_config_epoch_groups "
+                "(epoch_id, group_uid, group_lineage_uid, display_name, power_wp, "
+                "azimuth, tilt, energy_sensor, group_signature, is_active) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE)",
+                (
+                    epoch_id,
+                    _new_group_uid(group),
+                    lineage_by_name.get(name, _new_lineage_uid(group)),
+                    name,
+                    cfg["power_wp"],
+                    cfg["azimuth"],
+                    cfg["tilt"],
+                    cfg["energy_sensor"] or None,
+                    _group_signature(group),
+                ),
+                auto_commit=False,
+            )
+
+    _LOGGER.info(
+        "Panel Group Topology: epoch %s active (%s, %d groups)",
+        topology_hash,
+        reason,
+        len(groups),
+    )
+
+
 async def _copy_calibration_from_donor(
     db, donor_name: str, target_name: str, capacity_ratio: float
 ) -> None:
@@ -619,6 +820,7 @@ async def _migrate_panel_groups(
     try:
         db = data_manager._db_manager
         await _ensure_snapshot_table(db)
+        await _ensure_topology_epoch_tables(db)
 
         new_config = []
         for g in panel_groups:
@@ -640,6 +842,7 @@ async def _migrate_panel_groups(
             for g in new_config:
                 await _initialize_group_defaults(db, g["name"], g["tilt"])
                 result["new"].append(g["name"])
+            await _save_config_epoch(db, new_config, None, "initial_setup")
             await _save_config_snapshot(db, new_config)
             return result
 
@@ -647,6 +850,7 @@ async def _migrate_panel_groups(
 
         if not plan.has_changes:
             _LOGGER.debug("Panel Group Migration: no changes detected")
+            await _save_config_epoch(db, new_config, None, "snapshot_bootstrap")
             await _save_config_snapshot(db, new_config)
             return result
 
@@ -674,6 +878,7 @@ async def _migrate_panel_groups(
 
         await db.execute("DELETE FROM astronomy_cache_panel_groups")
 
+        await _save_config_epoch(db, new_config, plan, "configuration_changed")
         await _save_config_snapshot(db, new_config)
 
         result["renamed"] = [

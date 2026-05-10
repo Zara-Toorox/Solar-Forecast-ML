@@ -281,7 +281,7 @@ class SystemStatusSensor(CoordinatorEntity, SensorEntity):
             result = []
             for hour_data in hourly_forecast:
                 try:
-                    hour_dt = hour_data.get("local_datetime")
+                    hour_dt = hour_data.get("local_datetime") or hour_data.get("datetime")
                     if not hour_dt:
                         continue
 

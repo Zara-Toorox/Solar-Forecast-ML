@@ -16,6 +16,7 @@ Uses database operations via panel_group_sensor_state table.
 """
 
 import logging
+import math
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -92,6 +93,46 @@ class PanelGroupSensorReader(DataManagerIO):
             return 10.0
 
         return max(capacity_kwp * 1.3, 0.5)
+
+    def _validate_hourly_delta(
+        self,
+        group_name: str,
+        delta: Any,
+        source: str,
+    ) -> Optional[float]:
+        """Validate one hourly group actual before it can enter persistence."""
+        value = self._safe_float(delta)
+        if value is None or not math.isfinite(value):
+            _LOGGER.warning(
+                "Rejected %s production for group '%s': invalid value %r",
+                source,
+                group_name,
+                delta,
+            )
+            return None
+
+        if value < -0.001:
+            _LOGGER.warning(
+                "Rejected %s production for group '%s': negative delta %.4f kWh",
+                source,
+                group_name,
+                value,
+            )
+            return None
+
+        value = max(0.0, value)
+        max_hourly = self._max_hourly_kwh(group_name)
+        if value > max_hourly:
+            _LOGGER.warning(
+                "Rejected %s production for group '%s': %.4f kWh exceeds %.1f kWh",
+                source,
+                group_name,
+                value,
+                max_hourly,
+            )
+            return None
+
+        return round(value, 4)
 
     async def initialize(self) -> None:
         """Load last known sensor values from database. @zara"""
@@ -265,18 +306,15 @@ class PanelGroupSensorReader(DataManagerIO):
         self._last_values[group_name] = current_value
         await self._save_state(group_name, current_value)
 
-        # Sanity check: delta should be reasonable relative to group capacity @zara
-        max_hourly = self._max_hourly_kwh(group_name)
-        if delta > max_hourly:
-            _LOGGER.warning(
-                "Unusually high hourly production for group '%s': %.4f kWh "
-                "(threshold: %.1f kWh)",
-                group_name,
-                delta,
-                max_hourly,
-            )
+        validated_delta = self._validate_hourly_delta(
+            group_name,
+            delta,
+            "live sensor",
+        )
+        if validated_delta is None:
+            return None
 
-        return round(delta, 4)
+        return validated_delta
 
     async def read_all_groups(self) -> Dict[str, float]:
         """Read current energy values for all groups with sensors. @zara
@@ -425,14 +463,12 @@ class PanelGroupSensorReader(DataManagerIO):
                     if val_before is None or val_at_end is None:
                         continue
 
-                    delta = val_at_end - val_before
-
-                    if delta < -0.001:
-                        continue
-
-                    delta = max(0.0, delta)
-
-                    if delta > 10.0:
+                    delta = self._validate_hourly_delta(
+                        group_name,
+                        val_at_end - val_before,
+                        "recorder backfill",
+                    )
+                    if delta is None:
                         continue
 
                     await self.execute_query(
