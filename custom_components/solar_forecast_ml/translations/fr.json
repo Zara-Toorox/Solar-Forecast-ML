@@ -276,6 +276,18 @@
       "avg_accuracy_30d": {
         "name": "Precision moyenne 30 jours"
       },
+      "evaluation_coverage_7d": {
+        "name": "Couverture d'evaluation 7 jours"
+      },
+      "evaluation_coverage_30d": {
+        "name": "Couverture d'evaluation 30 jours"
+      },
+      "excluded_mppt_hours_7d": {
+        "name": "Heures MPPT exclues 7 jours"
+      },
+      "excluded_mppt_hours_30d": {
+        "name": "Heures MPPT exclues 30 jours"
+      },
       "forecast_day_after_tomorrow": {
         "name": "Prevision apres-demain"
       },
@@ -323,6 +335,9 @@
       },
       "expected_daily_production": {
         "name": "Prevision (aujourd'hui)"
+      },
+      "conservative_planning_forecast": {
+        "name": "Prevision de planification (melange P10)"
       },
       "production_time": {
         "name": "Temps de production aujourd'hui"

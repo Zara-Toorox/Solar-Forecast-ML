@@ -10,6 +10,13 @@
           "sensor_home_consumption_daily": "Hausverbrauch (kWh/Tag)",
           "sensor_solar_to_house": "Solar → Haus (W)",
           "weather_entity": "Wetter"
+        },
+        "data_description": {
+          "country": "Select your country for VAT and electricity price defaults.",
+          "sensor_home_consumption": "Unit: Watt. Total current power consumption of the entire household. (Required)",
+          "sensor_home_consumption_daily": "Unit: kWh. Total household consumption since midnight. Must reset at 0:00. (Required)",
+          "sensor_solar_to_house": "Unit: Watt. Portion of solar power flowing directly to the house. (Required)",
+          "weather_entity": "Home Assistant weather integration for charts. (Optional)"
         }
       },
       "optional": {
@@ -21,6 +28,13 @@
           "sensor_grid_import_daily": "Netzbezug (kWh/Tag)",
           "sensor_grid_export_daily": "Netzeinspeisung (kWh/Tag)",
           "sensor_grid_import_extra": "Zusätzlicher Netzbezug (kWh/Tag)"
+        },
+        "data_description": {
+          "sensor_battery_soc": "Unit: Percent (0-100). Current state of charge. (Optional)",
+          "sensor_battery_power": "Unit: Watt. Positive = charging, Negative = discharging. (Optional)",
+          "sensor_grid_import_daily": "Unit: kWh. Grid import since midnight. Must reset at 0:00. (Optional)",
+          "sensor_grid_export_daily": "Unit: kWh. Grid export since midnight. Must reset at 0:00. (Optional)",
+          "sensor_grid_import_extra": "Additional grid consumption not captured by smartmeter (e.g. battery charging from grid). Daily kWh sensor. (Optional)"
         }
       },
       "pricing": {
@@ -61,6 +75,13 @@
           "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
         }
       }
+    },
+    "abort": {
+      "single_instance_allowed": "Solar Forecast STATS is already configured."
+    },
+    "error": {
+      "cannot_connect": "Connection failed",
+      "unknown": "Unknown error"
     }
   },
   "options": {
@@ -176,6 +197,30 @@
           "forecast_entity_1_name": "Name Prognose 1",
           "forecast_entity_2": "Vergleichs-Prognose 2",
           "forecast_entity_2_name": "Name Prognose 2"
+        },
+        "data_description": {
+          "smart_charging_enabled": "Enable smart battery charging based on electricity prices.",
+          "auto_generate": "Automatically generate reports on schedule.",
+          "generate_weekly": "Create a weekly report every Sunday.",
+          "generate_monthly": "Create a monthly report on the 1st of each month.",
+          "theme": "Dark or Light theme for charts.",
+          "dashboard_style": "3D isometric or classic 2D energy flow diagram.",
+          "billing_start_month": "Month when your billing year starts.",
+          "billing_start_day": "Day when your billing year starts.",
+          "show_panel_groups": "Display individual solar panel group charts and details on the Home page.",
+          "panel1_name": "Display name for panel/string 1. (Optional)",
+          "sensor_panel1_power": "Unit: Watt. Current power of PV string 1. (Optional)",
+          "panel2_name": "Display name for panel/string 2. (Optional)",
+          "sensor_panel2_power": "Unit: Watt. Current power of PV string 2. (Optional)",
+          "panel3_name": "Display name for panel/string 3. (Optional)",
+          "sensor_panel3_power": "Unit: Watt. Current power of PV string 3. (Optional)",
+          "panel4_name": "Display name for panel/string 4. (Optional)",
+          "sensor_panel4_power": "Unit: Watt. Current power of PV string 4. (Optional)",
+          "panel_group_names_input": "Rename panel groups. Format: Old=New, Old2=New2",
+          "forecast_entity_1": "Sensor with daily yield forecast in kWh (e.g. sensor.solcast_forecast_today). (Optional)",
+          "forecast_entity_1_name": "Display name in comparison chart (e.g. 'Solcast'). (Optional)",
+          "forecast_entity_2": "Sensor with daily yield forecast in kWh. (Optional)",
+          "forecast_entity_2_name": "Display name in comparison chart. (Optional)"
         }
       },
       "smart_charging": {
@@ -217,6 +262,9 @@
           "sensor_wb_energy_session": "Wallbox: Energie aktuelle Ladesitzung (kWh)"
         }
       }
+    },
+    "error": {
+      "invalid_code": "Invalid access code!"
     }
   }
 }

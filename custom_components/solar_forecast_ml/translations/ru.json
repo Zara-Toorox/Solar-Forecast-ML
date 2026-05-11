@@ -276,6 +276,18 @@
       "avg_accuracy_30d": {
         "name": "Ср. точность 30 дней"
       },
+      "evaluation_coverage_7d": {
+        "name": "Охват оценки 7 дней"
+      },
+      "evaluation_coverage_30d": {
+        "name": "Охват оценки 30 дней"
+      },
+      "excluded_mppt_hours_7d": {
+        "name": "Исключенные часы MPPT 7 дней"
+      },
+      "excluded_mppt_hours_30d": {
+        "name": "Исключенные часы MPPT 30 дней"
+      },
       "forecast_day_after_tomorrow": {
         "name": "Прогноз на послезавтра"
       },
@@ -323,6 +335,9 @@
       },
       "expected_daily_production": {
         "name": "Прогноз (сегодня)"
+      },
+      "conservative_planning_forecast": {
+        "name": "Плановый прогноз (смесь P10)"
       },
       "production_time": {
         "name": "Время выработки сегодня"

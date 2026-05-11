@@ -276,6 +276,18 @@
       "avg_accuracy_30d": {
         "name": "Prediction Accuracy 30 Day"
       },
+      "evaluation_coverage_7d": {
+        "name": "Evaluation Coverage 7 Day"
+      },
+      "evaluation_coverage_30d": {
+        "name": "Evaluation Coverage 30 Day"
+      },
+      "excluded_mppt_hours_7d": {
+        "name": "Excluded MPPT Hours 7 Day"
+      },
+      "excluded_mppt_hours_30d": {
+        "name": "Excluded MPPT Hours 30 Day"
+      },
       "forecast_day_after_tomorrow": {
         "name": "Forecast Day After Tomorrow"
       },

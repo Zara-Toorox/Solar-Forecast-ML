@@ -5,9 +5,9 @@ const FlowPage = ((Vue) => {
 const { ref, reactive, computed, onMounted, onUnmounted } = Vue;
 
 const CONSUMER_META = {
-    heatpump: { label: 'Waermepumpe', icon: 'HP', color: '#fb7185', x: 360, y: 614 },
-    heatingrod: { label: 'Heizstab', icon: 'HS', color: '#f97316', x: 660, y: 650 },
-    wallbox: { label: 'Auto', icon: 'EV', color: '#38bdf8', x: 960, y: 614 },
+    heatpump: { label: 'Waermepumpe', icon: 'HP', color: '#fb7185', x: 360, y: 574 },
+    heatingrod: { label: 'Heizstab', icon: 'HS', color: '#f97316', x: 660, y: 606 },
+    wallbox: { label: 'Auto', icon: 'EV', color: '#38bdf8', x: 960, y: 574 },
 };
 
 function fmtW(value) {
@@ -189,7 +189,7 @@ const _FlowPage = {
                         <g v-for="consumer in activeConsumers" :key="consumer.id" class="flow-node consumer-node" :transform="'translate(' + (consumer.x - 112) + ' ' + (consumer.y - 48) + ')'">
                             <rect x="0" y="0" width="220" height="96" rx="24" filter="url(#flowCardShadow)"></rect>
                             <text x="34" y="36" class="node-icon" :style="{ fill: consumer.color }">{{ consumer.icon }}</text>
-                            <text x="116" y="34" text-anchor="middle" class="node-title consumer-title" :class="consumer.titleClass">{{ consumer.label }}</text>
+                            <text x="56" y="34" text-anchor="start" class="node-title consumer-title" :class="consumer.titleClass">{{ consumer.label }}</text>
                             <text x="116" y="66" text-anchor="middle" class="node-value" :style="{ fill: consumer.color }">{{ fmtW(consumer.power) }}</text>
                         </g>
                     </svg>
@@ -680,14 +680,20 @@ const _FlowPage = {
             font-weight: 700;
         }
         .house-core-value {
-            fill: #f8fafc;
+            fill: rgba(15,23,42,0.92);
             font-size: 28px;
             font-weight: 800;
             font-family: var(--font-mono);
+            stroke: rgba(255,255,255,0.28);
+            stroke-width: 0.8px;
+            paint-order: stroke fill;
         }
         .house-core-sub {
-            fill: rgba(241,245,249,0.78);
+            fill: rgba(15,23,42,0.72);
             font-size: 13px;
+            stroke: rgba(255,255,255,0.22);
+            stroke-width: 0.5px;
+            paint-order: stroke fill;
         }
         .node-sub-tight {
             font-size: 12px;
