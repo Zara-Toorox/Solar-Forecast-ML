@@ -300,7 +300,7 @@ const _SolarPage = {
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Tag</th><th>Ertrag</th><th>Prognose</th><th>Δ</th><th>Prognosegüte</th><th>Lernbasis</th><th>Verworfen</th><th>Peak</th>
+                            <th>Tag</th><th>Ertrag</th><th>Prognose</th><th>Ertrag Δ</th><th>Forecast-Fehler</th><th>Prognosegüte</th><th>Lernbasis</th><th>Verworfen</th><th>Peak</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -310,6 +310,9 @@ const _SolarPage = {
                             <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.forecast }} kWh</td>
                             <td :style="{ fontFamily: 'var(--font-mono)', color: row.deltaColor }">
                                 {{ row.delta > 0 ? '+' : '' }}{{ row.delta }}%
+                            </td>
+                            <td :style="{ fontFamily: 'var(--font-mono)', color: row.forecastErrorColor }">
+                                {{ row.forecastErrorText }}
                             </td>
                             <td><span class="accuracy-badge" :style="{ background: row.accuracyBg, color: row.accuracyColor }">{{ row.accuracy }}</span></td>
                             <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.learningBasis }}</td>
@@ -963,7 +966,15 @@ const _SolarPage = {
                 const actual = o.actual_total_kwh || 0;
                 const forecast = o.predicted_total_kwh || 0;
                 const delta = forecast > 0 ? (((actual - forecast) / forecast) * 100) : 0;
-                const accuracyValue = o.accuracy_percent != null ? parseFloat(o.accuracy_percent.toFixed(1)) : null;
+                const forecastError = o.forecast_error_vs_actual_percent != null
+                    ? parseFloat(o.forecast_error_vs_actual_percent.toFixed(1))
+                    : (actual > 0 ? (((forecast - actual) / actual) * 100) : null);
+                const forecastAccuracy = o.forecast_accuracy_vs_actual_percent != null
+                    ? parseFloat(o.forecast_accuracy_vs_actual_percent.toFixed(1))
+                    : (forecastError != null ? Math.max(0, 100 - Math.abs(forecastError)) : null);
+                const accuracyValue = forecastAccuracy != null
+                    ? parseFloat(forecastAccuracy.toFixed(1))
+                    : (o.accuracy_percent != null ? parseFloat(o.accuracy_percent.toFixed(1)) : null);
                 const learningHours = o.learning_hours_count ?? o.evaluation_hours_count ?? null;
                 const learningCandidates = o.learning_candidate_hours_count ?? o.production_candidate_hours_count ?? null;
                 return {
@@ -972,6 +983,11 @@ const _SolarPage = {
                     forecast: forecast.toFixed(2),
                     delta: parseFloat(delta.toFixed(1)),
                     deltaColor: forecastBandColor(delta),
+                    forecastError: forecastError != null ? parseFloat(forecastError.toFixed(1)) : null,
+                    forecastErrorColor: forecastBandColor(forecastError),
+                    forecastErrorText: forecastError != null
+                        ? `${forecastError >= 0 ? '+' : ''}${forecastError.toFixed(1)}%`
+                        : '--',
                     accuracyValue,
                     accuracyColor: forecastBandColorFromAccuracy(accuracyValue),
                     accuracyBg: forecastBandBackgroundFromAccuracy(accuracyValue),

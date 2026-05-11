@@ -472,40 +472,42 @@ const _HomePage = {
 
         <!-- ========== SECTION 2: PROGNOSE-CHART ========== -->
         <div class="chart-card" style="margin-top: var(--space-lg)">
-            <div class="chart-header" style="flex-wrap:wrap; gap:10px; align-items:flex-start;">
+            <div class="chart-header forecast-card-title-row">
                 <span class="chart-title">Tagesprognose vs. IST</span>
-                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex:1; min-width:280px;">
-                    <div class="pg-stats">
-                        <span style="color:#22c55e; font-family:var(--font-mono); font-size:0.85rem">
-                            Ertrag: {{ actualTotal }} kWh
-                        </span>
-                        <span style="color:#fbbf24; font-family:var(--font-mono); font-size:0.85rem">
-                            Prognose: {{ forecastTotal }} kWh
-                        </span>
-                        <span :style="{color: forecastBandColor(deviationPercent), fontFamily:'var(--font-mono)', fontSize:'0.85rem', fontWeight:700}">
-                            {{ deviationLabel }}
-                        </span>
+            </div>
+            <div class="forecast-summary-grid">
+                <div v-if="todayForecastAccuracyPercent != null || todayForecastErrorLabel || todayLearningBasisLabel" class="forecast-eval-list">
+                    <span v-if="todayForecastAccuracyPercent != null">
+                        Heute Prognosegüte: <span :style="{ color: forecastBandColorFromAccuracy(todayForecastAccuracyPercent) }">{{ todayForecastAccuracyPercent.toFixed(1) }}%</span>
+                    </span>
+                    <span v-if="todayForecastErrorLabel">
+                        Heute Forecast-Fehler: <span :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ todayForecastErrorLabel }}</span>
+                    </span>
+                    <span v-if="todayLearningBasisLabel">
+                        Heute Lernbasis: <span style="color:#fbbf24">{{ todayLearningBasisLabel }}</span>
+                    </span>
+                    <span v-if="todayDiscardedLearningLabel">
+                        Heute Verworfen: <span style="color:#f87171">{{ todayDiscardedLearningLabel }}</span>
+                    </span>
+                </div>
+                <div class="forecast-kpi-list">
+                    <div class="forecast-kpi-row">
+                        <span class="forecast-kpi-label">Ertrag:</span>
+                        <span class="forecast-kpi-value" style="color:#22c55e">{{ actualTotal }} kWh</span>
                     </div>
-                    <div v-if="hasHybridForecast" class="pg-stats">
-                        <span style="color:#38bdf8; font-family:var(--font-mono); font-size:0.85rem">
-                            Hybrid: {{ hybridForecastTotal }} kWh
-                        </span>
-                        <span :style="{color: forecastBandColor(hybridDeviationPercent), fontFamily:'var(--font-mono)', fontSize:'0.85rem', fontWeight:700}">
-                            {{ hybridDeviationLabel }}
-                        </span>
+                    <div class="forecast-kpi-row">
+                        <span class="forecast-kpi-label">Prognose:</span>
+                        <span class="forecast-kpi-value" style="color:#fbbf24">{{ forecastTotal }} kWh</span>
+                    </div>
+                    <div v-if="hasHybridForecast" class="forecast-kpi-row">
+                        <span class="forecast-kpi-label">Hybrid:</span>
+                        <span class="forecast-kpi-value" style="color:#38bdf8">{{ hybridForecastTotal }} kWh</span>
+                    </div>
+                    <div class="forecast-kpi-row">
+                        <span class="forecast-kpi-label">Abweichung:</span>
+                        <span class="forecast-kpi-value" :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ forecastDeviationKwhLabel }}</span>
                     </div>
                 </div>
-            </div>
-            <div v-if="cleanEvalStats.today.accuracy != null || todayLearningBasisLabel" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin-top:6px; color:var(--text-muted); font-size:0.8rem; font-family:var(--font-mono)">
-                <span v-if="cleanEvalStats.today.accuracy != null">
-                    Heute Prognosegüte: <span :style="{ color: forecastBandColorFromAccuracy(cleanEvalStats.today.accuracy) }">{{ cleanEvalStats.today.accuracy.toFixed(1) }}%</span>
-                </span>
-                <span v-if="todayLearningBasisLabel">
-                    Heute Lernbasis: <span style="color:#fbbf24">{{ todayLearningBasisLabel }}</span>
-                </span>
-                <span v-if="todayDiscardedLearningLabel">
-                    Heute Verworfen: <span style="color:#f87171">{{ todayDiscardedLearningLabel }}</span>
-                </span>
             </div>
             <div v-if="hasWeatherTrace" class="weather-trace" aria-label="PV-relevanter Wettervergleich zwischen erwartet und gesehen">
                 <div class="weather-trace-labels">
@@ -677,6 +679,9 @@ const _HomePage = {
                 discardedLearningReasonBreakdown: null,
                 evaluationActual: null,
                 evaluationPredicted: null,
+                yieldDelta: null,
+                forecastError: null,
+                forecastAccuracy: null,
             },
             last7: { accuracy: null, coverage: null, excludedMppt: null },
             last30: { accuracy: null, coverage: null, excludedMppt: null },
@@ -747,6 +752,45 @@ const _HomePage = {
         const deviationLabel = computed(() => {
             const prefix = isTodayPartial.value ? 'Live ' : '';
             return `${prefix}${deviationPercent.value >= 0 ? '+' : ''}${deviationPercent.value.toFixed(0)}%`;
+        });
+
+        const todayForecastErrorPercent = computed(() => {
+            if (cleanEvalStats.today.forecastError != null) {
+                return cleanEvalStats.today.forecastError;
+            }
+            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualTotal.value);
+            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastTotal.value);
+            if (!act || act <= 0) return null;
+            return ((pred - act) / act) * 100;
+        });
+
+        const todayForecastAccuracyPercent = computed(() => {
+            if (cleanEvalStats.today.forecastAccuracy != null) {
+                return cleanEvalStats.today.forecastAccuracy;
+            }
+            if (todayForecastErrorPercent.value != null) {
+                return Math.max(0, 100 - Math.abs(todayForecastErrorPercent.value));
+            }
+            return cleanEvalStats.today.accuracy;
+        });
+
+        const todayForecastErrorLabel = computed(() => {
+            const value = todayForecastErrorPercent.value;
+            if (value == null || Number.isNaN(value)) return null;
+            return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+        });
+
+        const forecastDeviationKwh = computed(() => {
+            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualTotal.value);
+            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastTotal.value);
+            if (Number.isNaN(act) || Number.isNaN(pred)) return null;
+            return pred - act;
+        });
+
+        const forecastDeviationKwhLabel = computed(() => {
+            const value = forecastDeviationKwh.value;
+            if (value == null || Number.isNaN(value)) return '--';
+            return `${value >= 0 ? '+' : ''}${value.toFixed(1)} kWh`;
         });
 
         const hybridDeviationPercent = computed(() => {
@@ -1012,6 +1056,9 @@ const _HomePage = {
                 cleanEvalStats.today.discardedLearningReasonBreakdown = today?.discarded_learning_reason_breakdown ?? null;
                 cleanEvalStats.today.evaluationActual = today?.evaluation_actual_kwh ?? null;
                 cleanEvalStats.today.evaluationPredicted = today?.evaluation_predicted_kwh ?? null;
+                cleanEvalStats.today.yieldDelta = today?.yield_delta_vs_forecast_percent ?? null;
+                cleanEvalStats.today.forecastError = today?.forecast_error_vs_actual_percent ?? null;
+                cleanEvalStats.today.forecastAccuracy = today?.forecast_accuracy_vs_actual_percent ?? null;
 
                 const outdoor = data.outdoor_temperature || {};
                 const outdoorTemperature = outdoor.temperature_c;
@@ -1440,6 +1487,7 @@ const _HomePage = {
                         const rad = forecastData.radiation[idx];
                         const clouds = forecastData.clouds[idx];
                         const delta = pred > 0 ? (((act - pred) / pred) * 100).toFixed(1) : '0.0';
+                        const forecastError = act > 0 ? (((pred - act) / act) * 100).toFixed(1) : null;
 
                         let s = '<div style="min-width:180px">';
                         s += '<div style="font-weight:700;font-size:13px;margin-bottom:6px">' + String(hour).padStart(2,'0') + ':00 Uhr</div>';
@@ -1447,7 +1495,8 @@ const _HomePage = {
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">Prognose:</span><span>' + pred.toFixed(2) + ' kWh</span></div>';
                         if (hybrid != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#38bdf8">Hybrid:</span><span>' + hybrid.toFixed(2) + ' kWh</span></div>';
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">IST:</span><span>' + act.toFixed(2) + ' kWh</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">&Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">Ertrag &Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
+                        if (forecastError != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">Forecast-Fehler:</span><span style="color:' + forecastBandColor(parseFloat(forecastError)) + '">' + (parseFloat(forecastError) >= 0 ? '+' : '') + forecastError + '%</span></div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
                         s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">AI Stack:</div>';
                         s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>ML Anteil:</span><span>' + mlPct.toFixed(0) + '%</span></div>';
@@ -1764,6 +1813,8 @@ const _HomePage = {
             actualTotal, deviationPercent, deviationLabel, hybridDeviationPercent,
             hybridDeviationLabel, cleanEvalStats, todayLearningBasisLabel,
             todayDiscardedLearningLabel, todayCoverageExplanation,
+            todayForecastErrorPercent, todayForecastAccuracyPercent, todayForecastErrorLabel,
+            forecastDeviationKwh, forecastDeviationKwhLabel,
             getGridPower, getGridLabel, fmtKw, fmtW,
             forecastBandColor, forecastBandColorFromAccuracy,
             getSparklinePath, getSparklineAreaPath,
@@ -1912,14 +1963,84 @@ const _HomePage = {
             .panel-groups-grid {
                 grid-template-columns: 1fr;
             }
+
+            .forecast-summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .forecast-kpi-list {
+                justify-self: stretch;
+                min-width: 0;
+            }
+
+            .forecast-kpi-row {
+                grid-template-columns: minmax(98px, auto) 1fr;
+            }
+
+            .forecast-kpi-value {
+                justify-self: start;
+            }
         }
 
-        /* === Stats row (IST / Prognose / %) === */
         .pg-stats {
             display: flex;
             gap: var(--space-md);
             align-items: center;
             flex-wrap: wrap;
+        }
+
+        .forecast-card-title-row {
+            margin-bottom: 6px;
+        }
+
+        .forecast-summary-grid {
+            display: grid;
+            grid-template-columns: minmax(260px, 1fr) minmax(280px, auto);
+            gap: 14px 24px;
+            align-items: start;
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+
+        .forecast-eval-list,
+        .forecast-kpi-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+        }
+
+        .forecast-eval-list {
+            color: var(--text-muted);
+        }
+
+        .forecast-kpi-list {
+            justify-self: end;
+            min-width: 280px;
+        }
+
+        .forecast-kpi-row {
+            display: grid;
+            grid-template-columns: 110px minmax(140px, auto);
+            gap: 10px;
+            align-items: baseline;
+        }
+
+        .forecast-kpi-label {
+            color: var(--text-muted);
+        }
+
+        .forecast-kpi-value {
+            justify-self: end;
+            font-size: 0.85rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .forecast-kpi-percent {
+            font-weight: 600;
+            color: inherit;
         }
 
         .weather-trace {
