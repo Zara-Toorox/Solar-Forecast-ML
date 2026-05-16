@@ -781,10 +781,10 @@ const _HomePage = {
         });
 
         const forecastDeviationKwh = computed(() => {
-            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualTotal.value);
-            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastTotal.value);
+            const act = parseFloat(actualTotal.value);
+            const pred = parseFloat(forecastTotal.value);
             if (Number.isNaN(act) || Number.isNaN(pred)) return null;
-            return pred - act;
+            return act - pred;
         });
 
         const forecastDeviationKwhLabel = computed(() => {

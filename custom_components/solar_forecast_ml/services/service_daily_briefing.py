@@ -21,7 +21,7 @@ Uses TelemetryManager for all containment data operations.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, date as date_type
+from datetime import datetime, time, timedelta, date as date_type
 from typing import Any, Dict, List, Optional
 
 from homeassistant.core import HomeAssistant
@@ -30,6 +30,9 @@ from ..core.core_helpers import SafeDateTimeUtil as dt_util
 from ..data.db_manager import DatabaseManager
 
 _LOGGER = logging.getLogger(__name__)
+
+_MINIMUM_FINAL_FORECAST_TIME = time(5, 0)
+_FINAL_MORNING_FORECAST_OFFSET = timedelta(minutes=30)
 
 
 class DailyBriefingService:
@@ -76,11 +79,12 @@ class DailyBriefingService:
                     _LOGGER.error(error_msg)
                     return {"success": False, "error": error_msg}
 
-            # Get forecast data from DB
+            # Get final morning forecast data from DB
             forecast_data = await self._get_today_forecast_data()
             if not forecast_data:
-                _LOGGER.error("Failed to retrieve today's forecast data for briefing")
-                return {"success": False, "error": "No forecast data available"}
+                error_msg = "Final morning forecast not ready for daily briefing"
+                _LOGGER.error(error_msg)
+                return {"success": False, "error": error_msg}
 
             # Get yesterday's actual data from DB
             yesterday_data = await self._get_yesterday_actual_data()
@@ -173,40 +177,118 @@ class DailyBriefingService:
 
             today = dt_util.now().date().isoformat()
 
-            # Get today's forecast from daily_forecasts table
+            final_due_at = await self._get_final_morning_forecast_due_at(today)
+
+            # Get today's final forecast from daily_forecasts table
             row = await db.fetchone(
-                """SELECT prediction_kwh, source, locked
+                """SELECT prediction_kwh, source, locked, locked_at
                    FROM daily_forecasts
                    WHERE forecast_date = ? AND forecast_type = 'today'""",
                 (today,),
             )
 
             if row:
-                return {
+                forecast_data = {
                     "date": today,
                     "prediction_kwh": row[0] or 0.0,
                     "source": row[1] or "unknown",
                     "locked": bool(row[2]) if row[2] is not None else False,
+                    "locked_at": row[3],
+                    "final_due_at": final_due_at.isoformat(),
                 }
 
-            # Fallback: calculate from hourly predictions
-            sum_row = await db.fetchone(
-                """SELECT SUM(prediction_kwh)
-                   FROM hourly_predictions
-                   WHERE target_date = ?""",
-                (today,),
-            )
+                if self._is_final_morning_forecast_ready(forecast_data, final_due_at):
+                    return forecast_data
 
-            return {
-                "date": today,
-                "prediction_kwh": sum_row[0] if sum_row and sum_row[0] else 0.0,
-                "source": "hourly_sum",
-                "locked": False,
-            }
+                _LOGGER.warning(
+                    "Daily briefing blocked: today's forecast is not the final morning forecast "
+                    "(source=%s, locked=%s, locked_at=%s, final_due_at=%s)",
+                    forecast_data["source"],
+                    forecast_data["locked"],
+                    forecast_data["locked_at"],
+                    final_due_at.isoformat(),
+                )
+                return None
+
+            _LOGGER.warning(
+                "Daily briefing blocked: no daily_forecasts.today row for %s "
+                "(final_due_at=%s)",
+                today,
+                final_due_at.isoformat(),
+            )
+            return None
 
         except Exception as err:
             _LOGGER.error(f"Error loading today forecast from DB: {err}")
             return None
+
+    async def _get_final_morning_forecast_due_at(self, today: str) -> datetime:
+        """Return the earliest time when the final morning forecast is valid."""
+        now = dt_util.now()
+        fallback_sunrise = datetime.combine(now.date(), time(8, 0))
+        if now.tzinfo:
+            fallback_sunrise = fallback_sunrise.replace(tzinfo=now.tzinfo)
+
+        sunrise = fallback_sunrise
+        db = self.db_manager
+        if db:
+            row = await db.fetchone(
+                """SELECT sunrise FROM astronomy_cache
+                   WHERE cache_date = ? AND hour = 12 LIMIT 1""",
+                (today,),
+            )
+            if row and row[0]:
+                parsed_sunrise = self._parse_datetime(row[0])
+                if parsed_sunrise:
+                    sunrise = parsed_sunrise
+
+        minimum_due_at = datetime.combine(sunrise.date(), _MINIMUM_FINAL_FORECAST_TIME)
+        if sunrise.tzinfo:
+            minimum_due_at = minimum_due_at.replace(tzinfo=sunrise.tzinfo)
+
+        return max(sunrise - _FINAL_MORNING_FORECAST_OFFSET, minimum_due_at)
+
+    def _is_final_morning_forecast_ready(
+        self,
+        forecast_data: Dict[str, Any],
+        final_due_at: datetime,
+    ) -> bool:
+        """Validate that the briefing uses the finalized morning forecast."""
+        if not forecast_data.get("locked"):
+            return False
+
+        locked_at = self._parse_datetime(forecast_data.get("locked_at"))
+        if locked_at is None:
+            return False
+
+        if locked_at.tzinfo is None and final_due_at.tzinfo is not None:
+            locked_at = locked_at.replace(tzinfo=final_due_at.tzinfo)
+        elif locked_at.tzinfo is not None and final_due_at.tzinfo is not None:
+            locked_at = locked_at.astimezone(final_due_at.tzinfo)
+
+        return locked_at >= final_due_at
+
+    def _parse_datetime(self, value: Any) -> Optional[datetime]:
+        """Parse database datetime values into local-aware datetimes when possible."""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            raw = str(value).strip()
+            if not raw:
+                return None
+            try:
+                parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+
+        local_tz = dt_util.now().tzinfo
+        if parsed.tzinfo is None and local_tz is not None:
+            parsed = parsed.replace(tzinfo=local_tz)
+        elif parsed.tzinfo is not None and local_tz is not None:
+            parsed = parsed.astimezone(local_tz)
+        return parsed
 
     async def _get_yesterday_actual_data(self) -> Optional[Dict[str, Any]]:
         """Get yesterday's actual production from database. @zara"""

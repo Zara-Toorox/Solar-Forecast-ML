@@ -100,7 +100,10 @@
       "panel_groups_required": "Необходима минимум 1 группа панелей. Формат: Мощность/Азимут/Наклон/Датчик (напр. 5000/180/30/sensor.pv_today)",
       "too_many_panel_groups": "Максимум 4 группы панелей",
       "energy_sensor_not_found": "Датчик энергии не найден в Home Assistant. Проверьте ID объекта.",
-      "energy_sensor_not_numeric": "Значение датчика энергии не является числовым. Проверьте состояние датчика."
+      "energy_sensor_not_numeric": "Значение датчика энергии не является числовым. Проверьте состояние датчика.",
+      "energy_sensor_not_kwh": "Датчик группы панелей не принят. Используйте накопительный DC-датчик энергии с единицей kWh.",
+      "energy_sensor_not_dc_energy": "Датчик группы панелей не принят. Ожидается device_class=energy.",
+      "energy_sensor_not_cumulative": "Датчик группы панелей не принят. Ожидается state_class=total или total_increasing."
     },
     "abort": {
       "already_configured": "Интеграция уже настроена",
@@ -166,7 +169,10 @@
       "invalid_interval": "Интервал должен быть от 300 до 86400 секунд",
       "invalid_input": "Неверный формат ввода",
       "energy_sensor_not_found": "Датчик энергии не найден",
-      "energy_sensor_not_numeric": "Датчик энергии не числовой"
+      "energy_sensor_not_numeric": "Датчик энергии не числовой",
+      "energy_sensor_not_kwh": "Датчик группы должен быть датчиком kWh",
+      "energy_sensor_not_dc_energy": "Датчик группы должен быть датчиком энергии",
+      "energy_sensor_not_cumulative": "Датчик группы должен быть накопительным"
     }
   },
   "services": {

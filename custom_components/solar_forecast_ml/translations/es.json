@@ -100,7 +100,10 @@
       "panel_groups_required": "Se requiere al menos 1 grupo de paneles. Formato: Potencia/Azimut/Inclinacion/Sensor (ej. 5000/180/30/sensor.pv_today)",
       "too_many_panel_groups": "Maximo 4 grupos de paneles permitidos",
       "energy_sensor_not_found": "Sensor de energia no encontrado en Home Assistant. Verifique el ID de la entidad.",
-      "energy_sensor_not_numeric": "El valor del sensor de energia no es numerico. Verifique el estado del sensor."
+      "energy_sensor_not_numeric": "El valor del sensor de energia no es numerico. Verifique el estado del sensor.",
+      "energy_sensor_not_kwh": "El sensor del grupo de paneles no se acepta. Use un sensor acumulativo de energia DC con unidad kWh.",
+      "energy_sensor_not_dc_energy": "El sensor del grupo de paneles no se acepta. Se espera device_class=energy.",
+      "energy_sensor_not_cumulative": "El sensor del grupo de paneles no se acepta. Se espera state_class=total o total_increasing."
     },
     "abort": {
       "already_configured": "Integracion ya configurada",
@@ -166,7 +169,10 @@
       "invalid_interval": "El intervalo debe estar entre 300 y 86400 segundos",
       "invalid_input": "Formato de entrada invalido",
       "energy_sensor_not_found": "Sensor de energia no encontrado",
-      "energy_sensor_not_numeric": "El sensor de energia no es numerico"
+      "energy_sensor_not_numeric": "El sensor de energia no es numerico",
+      "energy_sensor_not_kwh": "El sensor del grupo debe ser un sensor kWh",
+      "energy_sensor_not_dc_energy": "El sensor del grupo debe ser un sensor de energia",
+      "energy_sensor_not_cumulative": "El sensor del grupo debe ser acumulativo"
     }
   },
   "services": {

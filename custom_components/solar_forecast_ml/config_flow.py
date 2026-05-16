@@ -268,6 +268,15 @@ def _calculate_total_capacity_from_groups(panel_groups: list[dict]) -> float:
     return round(total_wp / 1000.0, 2)
 
 
+def _attr_value(value: Any) -> str:
+    if value is None:
+        return ""
+    enum_value = getattr(value, "value", None)
+    if enum_value is not None:
+        value = enum_value
+    return str(value).strip()
+
+
 @config_entries.HANDLERS.register(DOMAIN)
 class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handles the configuration flow for Solar Forecast ML. @zara"""
@@ -480,13 +489,30 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning("Energy sensor not numeric: %s (state=%s)", entity_id, state.state)
                 return "energy_sensor_not_numeric"
 
-            unit = state.attributes.get("unit_of_measurement", "")
-            if unit and unit.lower() not in ["kwh", "wh"]:
+            unit = _attr_value(state.attributes.get("unit_of_measurement"))
+            device_class = _attr_value(state.attributes.get("device_class")).lower()
+            state_class = _attr_value(state.attributes.get("state_class")).lower()
+
+            if unit.lower() != "kwh":
                 _LOGGER.warning(
-                    "Energy sensor %s has unexpected unit: %s (expected kWh or Wh)",
+                    "Panel group sensor %s is not accepted: expected a cumulative DC energy sensor with unit kWh",
                     entity_id,
-                    unit,
                 )
+                return "energy_sensor_not_kwh"
+
+            if device_class != "energy":
+                _LOGGER.warning(
+                    "Panel group sensor %s is not accepted: expected device_class=energy",
+                    entity_id,
+                )
+                return "energy_sensor_not_dc_energy"
+
+            if state_class not in {"total", "total_increasing"}:
+                _LOGGER.warning(
+                    "Panel group sensor %s is not accepted: expected state_class=total or total_increasing",
+                    entity_id,
+                )
+                return "energy_sensor_not_cumulative"
 
         return None
 

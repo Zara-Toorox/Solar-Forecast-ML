@@ -100,7 +100,10 @@
       "panel_groups_required": "Au moins 1 groupe de panneaux requis. Format : Puissance/Azimut/Inclinaison/Capteur (ex. 5000/180/30/sensor.pv_today)",
       "too_many_panel_groups": "Maximum 4 groupes de panneaux autorises",
       "energy_sensor_not_found": "Capteur d'energie introuvable dans Home Assistant. Verifiez l'ID de l'entite.",
-      "energy_sensor_not_numeric": "La valeur du capteur d'energie n'est pas numerique. Verifiez l'etat du capteur."
+      "energy_sensor_not_numeric": "La valeur du capteur d'energie n'est pas numerique. Verifiez l'etat du capteur.",
+      "energy_sensor_not_kwh": "Le capteur du groupe de panneaux n'est pas accepte. Utilisez un capteur cumulatif d'energie DC avec l'unite kWh.",
+      "energy_sensor_not_dc_energy": "Le capteur du groupe de panneaux n'est pas accepte. device_class=energy attendu.",
+      "energy_sensor_not_cumulative": "Le capteur du groupe de panneaux n'est pas accepte. state_class=total ou total_increasing attendu."
     },
     "abort": {
       "already_configured": "Integration deja configuree",
@@ -166,7 +169,10 @@
       "invalid_interval": "L'intervalle doit etre entre 300 et 86400 secondes",
       "invalid_input": "Format de saisie invalide",
       "energy_sensor_not_found": "Capteur d'energie introuvable",
-      "energy_sensor_not_numeric": "Le capteur d'energie n'est pas numerique"
+      "energy_sensor_not_numeric": "Le capteur d'energie n'est pas numerique",
+      "energy_sensor_not_kwh": "Le capteur du groupe doit etre un capteur kWh",
+      "energy_sensor_not_dc_energy": "Le capteur du groupe doit etre un capteur d'energie",
+      "energy_sensor_not_cumulative": "Le capteur du groupe doit etre cumulatif"
     }
   },
   "services": {
