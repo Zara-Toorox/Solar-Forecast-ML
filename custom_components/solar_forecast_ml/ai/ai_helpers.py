@@ -14,13 +14,15 @@ Helper utilities for AI modules.
 from datetime import datetime
 from typing import Optional
 
+from ..core.core_helpers import SafeDateTimeUtil
+
 
 def format_time_ago(dt: Optional[datetime]) -> str:
     """Format datetime as relative time string @zara"""
     if not dt:
         return "Never"
 
-    now = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
+    now = datetime.now(dt.tzinfo) if dt.tzinfo else SafeDateTimeUtil.now()
     diff = now - dt
 
     seconds = int(diff.total_seconds())

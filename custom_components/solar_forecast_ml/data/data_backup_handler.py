@@ -62,6 +62,24 @@ class DataBackupHandler(DataManagerIO):
         """Get backup directory for a given type. @zara"""
         return self.backup_base / backup_type
 
+    async def _reconnect_and_validate(self, context: str) -> bool:
+        """Reconnect database and verify that SQL access works. @zara"""
+        try:
+            await self.db.connect()
+            row = await self.db.fetchone("SELECT 1")
+            if row is None:
+                raise RuntimeError("validation query returned no row")
+            _LOGGER.info("Database reconnect validated after %s", context)
+            return True
+        except Exception as e:
+            _LOGGER.error(
+                "Database reconnect validation failed after %s: %s",
+                context,
+                e,
+                exc_info=True,
+            )
+            return False
+
     async def create_backup(
         self,
         backup_name: Optional[str] = None,
@@ -286,21 +304,30 @@ class DataBackupHandler(DataManagerIO):
         Returns:
             True if restore was successful
         """
+        pre_restore_name: Optional[str] = None
         try:
             backup_dir = self._get_backup_dir(backup_type) / backup_name
 
-            def check_exists():
-                return backup_dir.exists()
+            def check_exists() -> bool:
+                backup_db = backup_dir / "solar_forecast.db"
+                return backup_dir.exists() and backup_db.exists()
 
             if not await self.hass.async_add_executor_job(check_exists):
-                _LOGGER.error("Backup not found: %s", backup_name)
+                _LOGGER.error("Backup database file not found: %s (%s)", backup_name, backup_type)
                 return False
 
             # Create pre-restore backup @zara
-            await self.create_backup(
-                backup_name=f"pre_restore_{dt_util.now().strftime('%Y%m%d_%H%M%S')}",
+            pre_restore_name = f"pre_restore_{dt_util.now().strftime('%Y%m%d_%H%M%S')}"
+            pre_restore_ok = await self.create_backup(
+                backup_name=pre_restore_name,
                 backup_type="auto",
             )
+            if not pre_restore_ok:
+                _LOGGER.error(
+                    "Restore aborted: failed to create pre-restore backup before restoring %s",
+                    backup_name,
+                )
+                return False
 
             # Close database connection @zara
             await self.db.close()
@@ -310,30 +337,83 @@ class DataBackupHandler(DataManagerIO):
                 db_path = Path(self.db.db_path)
                 backup_db = backup_dir / "solar_forecast.db"
 
-                if backup_db.exists():
-                    shutil.copy2(backup_db, db_path)
-                    return True
-                return False
+                shutil.copy2(backup_db, db_path)
+                return True
 
             success = await self.hass.async_add_executor_job(do_restore)
+            if not success:
+                _LOGGER.error("Restore copy failed for backup: %s", backup_name)
+                await self._reconnect_and_validate("failed restore copy")
+                return False
 
             # Reconnect to database @zara
-            await self.db.connect()
+            reconnect_ok = await self._reconnect_and_validate(
+                f"restore of {backup_type}/{backup_name}"
+            )
+            if not reconnect_ok:
+                raise RuntimeError("database reconnect failed after restore")
 
-            if success:
-                _LOGGER.info("Backup restored: %s", backup_name)
-            else:
-                _LOGGER.error("Backup database file not found: %s", backup_name)
+            _LOGGER.info(
+                "Backup restored: %s (type: %s, pre-restore backup: %s)",
+                backup_name,
+                backup_type,
+                pre_restore_name,
+            )
 
-            return success
+            return True
 
         except Exception as e:
-            _LOGGER.error("Failed to restore backup: %s", e)
+            _LOGGER.error("Failed to restore backup %s: %s", backup_name, e, exc_info=True)
+            # Try to rollback to the pre-restore copy first @zara
+            if pre_restore_name:
+                rollback_dir = self._get_backup_dir("auto") / pre_restore_name
+
+                def do_rollback() -> bool:
+                    rollback_db = rollback_dir / "solar_forecast.db"
+                    if not rollback_db.exists():
+                        return False
+                    shutil.copy2(rollback_db, Path(self.db.db_path))
+                    return True
+
+                try:
+                    rolled_back = await self.hass.async_add_executor_job(do_rollback)
+                    if rolled_back:
+                        _LOGGER.error(
+                            "Restore rollback applied from auto/%s after restore failure",
+                            pre_restore_name,
+                        )
+                    else:
+                        _LOGGER.critical(
+                            "Restore rollback unavailable: auto/%s does not contain solar_forecast.db",
+                            pre_restore_name,
+                        )
+                except Exception as rollback_error:
+                    _LOGGER.critical(
+                        "Restore rollback failed for auto/%s: %s",
+                        pre_restore_name,
+                        rollback_error,
+                        exc_info=True,
+                    )
+
             # Try to reconnect @zara
             try:
-                await self.db.connect()
-            except Exception:
-                pass
+                reconnected = await self._reconnect_and_validate(
+                    f"restore failure handling for {backup_type}/{backup_name}"
+                )
+                if not reconnected:
+                    _LOGGER.critical(
+                        "Database remains unavailable after failed restore handling for %s (%s)",
+                        backup_name,
+                        backup_type,
+                    )
+            except Exception as reconnect_error:
+                _LOGGER.critical(
+                    "Unexpected reconnect failure after restore failure for %s (%s): %s",
+                    backup_name,
+                    backup_type,
+                    reconnect_error,
+                    exc_info=True,
+                )
             return False
 
     async def delete_backup(

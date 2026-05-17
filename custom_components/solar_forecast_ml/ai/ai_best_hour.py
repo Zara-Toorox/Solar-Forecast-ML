@@ -20,6 +20,8 @@ import logging
 from datetime import datetime
 from typing import Any, Optional, Tuple
 
+from ..core.core_helpers import SafeDateTimeUtil
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -34,7 +36,7 @@ class BestHourCalculator:
     async def calculate_best_hour_today(self) -> Tuple[Optional[int], Optional[float]]:
         """Find hour with highest predicted production @zara"""
         try:
-            today = datetime.now().date().isoformat()
+            today = SafeDateTimeUtil.now().date().isoformat()
 
             rows = await self.db_manager.fetchall(
                 """SELECT target_hour, prediction_kwh

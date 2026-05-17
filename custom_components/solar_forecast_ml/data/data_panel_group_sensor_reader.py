@@ -17,15 +17,18 @@ Uses database operations via panel_group_sensor_state table.
 
 import logging
 import math
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Set
 
 from homeassistant.core import HomeAssistant
 
 from .db_manager import DatabaseManager
 from .data_io import DataManagerIO
+from ..core.core_helpers import SafeDateTimeUtil
 
 _LOGGER = logging.getLogger(__name__)
+
+MAX_LIVE_SENSOR_DELTA_AGE = timedelta(minutes=90)
 
 
 class PanelGroupSensorReader(DataManagerIO):
@@ -51,6 +54,9 @@ class PanelGroupSensorReader(DataManagerIO):
         super().__init__(hass, db_manager)
         self.panel_groups = panel_groups
         self._last_values: Dict[str, float] = {}  # group_name -> last kWh value
+        self._last_updated_by_group: Dict[str, datetime] = {}
+        self._sensor_rejection_warnings: Set[str] = set()
+        self._group_learning_disabled_warning: Optional[str] = None
 
         _LOGGER.debug(
             "PanelGroupSensorReader initialized with %d groups",
@@ -64,6 +70,91 @@ class PanelGroupSensorReader(DataManagerIO):
             return float(value) if value is not None else default
         except (TypeError, ValueError):
             return default
+
+    @staticmethod
+    def _attr_value(value: Any) -> str:
+        if value is None:
+            return ""
+        enum_value = getattr(value, "value", None)
+        if enum_value is not None:
+            value = enum_value
+        return str(value).strip()
+
+    @staticmethod
+    def _parse_datetime(value: Any, reference: Optional[datetime] = None) -> Optional[datetime]:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            try:
+                parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            except (TypeError, ValueError):
+                return None
+
+        if reference is not None:
+            if parsed.tzinfo is None and reference.tzinfo is not None:
+                parsed = parsed.replace(tzinfo=reference.tzinfo)
+            elif parsed.tzinfo is not None and reference.tzinfo is None:
+                parsed = parsed.replace(tzinfo=None)
+            elif parsed.tzinfo is not None and reference.tzinfo is not None:
+                parsed = parsed.astimezone(reference.tzinfo)
+
+        return parsed
+
+    def _sensor_rejection_reason(self, state: Any) -> Optional[str]:
+        attrs = getattr(state, "attributes", {}) or {}
+        unit = self._attr_value(attrs.get("unit_of_measurement"))
+        device_class = self._attr_value(attrs.get("device_class")).lower()
+        state_class = self._attr_value(attrs.get("state_class")).lower()
+
+        if unit.lower() != "kwh":
+            return f"unit={unit or 'missing'}"
+        if device_class != "energy":
+            return f"device_class={device_class or 'missing'}"
+        if state_class not in {"total", "total_increasing"}:
+            return f"state_class={state_class or 'missing'}"
+        return None
+
+    def _warn_sensor_not_accepted(
+        self,
+        group_name: str,
+        entity_id: str,
+        state: Any,
+        reason: str,
+    ) -> None:
+        warning_key = f"{group_name}:{entity_id}:{reason}"
+        if warning_key in self._sensor_rejection_warnings:
+            return
+
+        attrs = getattr(state, "attributes", {}) or {}
+        _LOGGER.warning(
+            "Panel group sensor '%s' for group '%s' is not accepted for group learning: "
+            "expected a cumulative DC energy sensor with unit kWh, device_class=energy "
+            "and state_class=total or total_increasing (%s).",
+            entity_id,
+            group_name,
+            reason,
+        )
+        _LOGGER.debug(
+            "Rejected panel group sensor metadata: entity=%s, unit=%s, device_class=%s, state_class=%s",
+            entity_id,
+            self._attr_value(attrs.get("unit_of_measurement")) or "missing",
+            self._attr_value(attrs.get("device_class")) or "missing",
+            self._attr_value(attrs.get("state_class")) or "missing",
+        )
+        self._sensor_rejection_warnings.add(warning_key)
+
+    def _warn_group_learning_disabled(self, reason: str) -> None:
+        if self._group_learning_disabled_warning == reason:
+            return
+
+        _LOGGER.warning(
+            "Panel group learning disabled: %s. Every panel group must provide a valid "
+            "cumulative DC energy sensor in kWh.",
+            reason,
+        )
+        self._group_learning_disabled_warning = reason
 
     def _get_group_capacity_kwp(self, group_name: str) -> Optional[float]:
         """Get configured group capacity in kWp by name. @zara"""
@@ -141,18 +232,28 @@ class PanelGroupSensorReader(DataManagerIO):
 
             # Load from panel_group_sensor_state table
             rows = await self.fetch_all(
-                "SELECT group_name, last_value FROM panel_group_sensor_state"
+                "SELECT group_name, last_value, last_updated FROM panel_group_sensor_state"
             )
 
             self._last_values = {row[0]: row[1] for row in rows if row[1] is not None}
+            now = SafeDateTimeUtil.now()
+            self._last_updated_by_group = {
+                row[0]: parsed
+                for row in rows
+                if row[1] is not None
+                for parsed in [self._parse_datetime(row[2], now)]
+                if parsed is not None
+            }
 
             _LOGGER.debug(
-                "Loaded panel group sensor state: %d groups",
+                "Loaded panel group sensor state: %d groups (%d timestamps)",
                 len(self._last_values),
+                len(self._last_updated_by_group),
             )
         except Exception as e:
             _LOGGER.warning("Failed to load panel group sensor state: %s", e)
             self._last_values = {}
+            self._last_updated_by_group = {}
 
     async def _save_state(self, group_name: str, value: float) -> None:
         """Save sensor value for a group to database. @zara
@@ -161,6 +262,8 @@ class PanelGroupSensorReader(DataManagerIO):
             group_name: Name of the panel group
             value: Current kWh value
         """
+        now = SafeDateTimeUtil.now()
+        self._last_updated_by_group[group_name] = now
         try:
             await self.execute_query(
                 """INSERT INTO panel_group_sensor_state (group_name, last_value, last_updated)
@@ -168,16 +271,20 @@ class PanelGroupSensorReader(DataManagerIO):
                    ON CONFLICT(group_name) DO UPDATE SET
                        last_value = excluded.last_value,
                        last_updated = excluded.last_updated""",
-                (group_name, value, datetime.now()),
+                (group_name, value, now),
             )
         except Exception as e:
             _LOGGER.warning("Failed to save panel group sensor state: %s", e)
+
+    async def _store_baseline(self, group_name: str, value: float) -> None:
+        self._last_values[group_name] = value
+        await self._save_state(group_name, value)
 
     async def _save_all_states(self) -> None:
         """Save all current sensor values to database. @zara"""
         try:
             state_data = {
-                "last_updated": datetime.now().isoformat(),
+                "last_updated": SafeDateTimeUtil.now().isoformat(),
                 "last_values": self._last_values,
             }
             await self.db.save_panel_group_sensor_state(state_data)
@@ -241,12 +348,17 @@ class PanelGroupSensorReader(DataManagerIO):
                 _LOGGER.debug("Energy sensor '%s' is %s", entity_id, state.state)
                 return None
 
-            value = float(state.state)
+            rejection_reason = self._sensor_rejection_reason(state)
+            if rejection_reason:
+                self._warn_sensor_not_accepted(
+                    group_name,
+                    entity_id,
+                    state,
+                    rejection_reason,
+                )
+                return None
 
-            # Convert Wh to kWh if needed
-            unit = state.attributes.get("unit_of_measurement", "")
-            if unit.lower() == "wh":
-                value = value / 1000.0
+            value = float(state.state)
 
             return round(value, 4)
 
@@ -277,34 +389,64 @@ class PanelGroupSensorReader(DataManagerIO):
             return None
 
         last_value = self._last_values.get(group_name)
+        now = SafeDateTimeUtil.now()
+        last_updated = self._last_updated_by_group.get(group_name)
 
-        if last_value is None:
-            # First reading - store and return None
-            self._last_values[group_name] = current_value
-            await self._save_state(group_name, current_value)
+        if last_value is None or last_updated is None:
+            await self._store_baseline(group_name, current_value)
             _LOGGER.debug(
-                "First reading for group '%s': %.4f kWh (no delta yet)",
+                "Baseline reading for group '%s': %.4f kWh (no delta yet)",
                 group_name,
                 current_value,
             )
             return None
 
-        # Handle counter reset (e.g., midnight reset for daily sensors)
+        last_updated = self._parse_datetime(last_updated, now)
+        if last_updated is None:
+            await self._store_baseline(group_name, current_value)
+            _LOGGER.info(
+                "Panel group baseline timestamp missing for group '%s'; stored %.4f kWh as new baseline",
+                group_name,
+                current_value,
+            )
+            return None
+
+        if last_updated.date() != now.date():
+            await self._store_baseline(group_name, current_value)
+            _LOGGER.info(
+                "Panel group daily sensor baseline reset for group '%s': previous baseline "
+                "from %s, current %.4f kWh stored as new baseline; no hourly delta learned",
+                group_name,
+                last_updated.date().isoformat(),
+                current_value,
+            )
+            return None
+
+        baseline_age = now - last_updated
+        if baseline_age < timedelta(0) or baseline_age > MAX_LIVE_SENSOR_DELTA_AGE:
+            await self._store_baseline(group_name, current_value)
+            _LOGGER.warning(
+                "Skipping panel group training target '%s': baseline is %.1f minutes old; "
+                "stored %.4f kWh as new baseline to avoid learning a multi-hour delta",
+                group_name,
+                baseline_age.total_seconds() / 60.0,
+                current_value,
+            )
+            return None
+
         if current_value < last_value:
             _LOGGER.info(
-                "Energy counter reset detected for group '%s': %.4f -> %.4f kWh",
+                "Energy counter reset or discontinuity detected for group '%s': %.4f -> %.4f kWh; "
+                "stored current value as new baseline, no hourly delta learned",
                 group_name,
                 last_value,
                 current_value,
             )
-            # Assume current_value is the production since reset
-            delta = current_value
-        else:
-            delta = current_value - last_value
+            await self._store_baseline(group_name, current_value)
+            return None
 
-        # Update stored value
-        self._last_values[group_name] = current_value
-        await self._save_state(group_name, current_value)
+        delta = current_value - last_value
+        await self._store_baseline(group_name, current_value)
 
         validated_delta = self._validate_hourly_delta(
             group_name,
@@ -340,13 +482,27 @@ class PanelGroupSensorReader(DataManagerIO):
             Dict mapping group_name to hourly production in kWh
         """
         results: Dict[str, float] = {}
+        expected_groups = [g for g in self.panel_groups if g.get("name")]
+        groups_with_sensors = self.get_groups_with_sensors()
 
-        for group in self.get_groups_with_sensors():
+        if len(groups_with_sensors) != len(expected_groups):
+            self._warn_group_learning_disabled(
+                f"{len(groups_with_sensors)}/{len(expected_groups)} panel groups have a configured sensor"
+            )
+            return results
+
+        for group in groups_with_sensors:
             group_name = group.get("name", "Unknown")
             production = await self.get_hourly_production(group_name)
 
             if production is not None:
                 results[group_name] = production
+
+        if len(results) != len(expected_groups):
+            self._warn_group_learning_disabled(
+                f"{len(results)}/{len(expected_groups)} panel groups produced a valid hourly kWh delta"
+            )
+            return {}
 
         return results
 
@@ -369,7 +525,7 @@ class PanelGroupSensorReader(DataManagerIO):
 
         from datetime import timedelta
 
-        cutoff = (datetime.now() - timedelta(days=days)).date().isoformat()
+        cutoff = (SafeDateTimeUtil.now() - timedelta(days=days)).date().isoformat()
         filled = 0
 
         for group in self.get_groups_with_sensors():
@@ -396,8 +552,8 @@ class PanelGroupSensorReader(DataManagerIO):
                     continue
 
                 first_date = missing[0][1]
-                start_time = datetime.fromisoformat(f"{first_date}T00:00:00")
-                end_time = datetime.now()
+                start_time = SafeDateTimeUtil.ensure_local(datetime.fromisoformat(f"{first_date}T00:00:00"))
+                end_time = SafeDateTimeUtil.now()
 
                 instance = get_instance(self.hass)
                 states = await instance.async_add_executor_job(
@@ -420,18 +576,21 @@ class PanelGroupSensorReader(DataManagerIO):
                     continue
 
                 readings = []
-                unit_wh = False
                 for s in entity_states:
                     if s.state in ("unavailable", "unknown", ""):
                         continue
                     try:
+                        rejection_reason = self._sensor_rejection_reason(s)
+                        if rejection_reason:
+                            self._warn_sensor_not_accepted(
+                                group_name,
+                                entity_id,
+                                s,
+                                rejection_reason,
+                            )
+                            readings = []
+                            break
                         val = float(s.state)
-                        if not unit_wh and hasattr(s, "attributes"):
-                            unit = s.attributes.get("unit_of_measurement", "")
-                            if unit.lower() == "wh":
-                                unit_wh = True
-                        if unit_wh:
-                            val = val / 1000.0
                         readings.append((s.last_changed, val))
                     except (ValueError, TypeError):
                         continue
@@ -491,28 +650,6 @@ class PanelGroupSensorReader(DataManagerIO):
                 _LOGGER.warning("Backfill failed for group %s: %s", group_name, e)
 
         if filled > 0:
-            try:
-                await self.execute_query(
-                    """UPDATE hourly_predictions SET actual_kwh = (
-                           SELECT ROUND(SUM(ppg.actual_kwh), 4)
-                           FROM prediction_panel_groups ppg
-                           WHERE ppg.prediction_id = hourly_predictions.prediction_id
-                             AND ppg.actual_kwh IS NOT NULL
-                       )
-                       WHERE actual_kwh IS NULL
-                         AND target_date >= ?
-                         AND target_date < date('now')
-                         AND EXISTS (
-                             SELECT 1 FROM prediction_panel_groups ppg
-                             WHERE ppg.prediction_id = hourly_predictions.prediction_id
-                               AND ppg.actual_kwh IS NOT NULL
-                         )""",
-                    (cutoff,),
-                )
-                await self.db.commit()
-            except Exception as e:
-                _LOGGER.warning("Backfill hourly_predictions update failed: %s", e)
-
             _LOGGER.info("Backfill: %d per-group actuals recovered from recorder", filled)
 
         return filled
@@ -541,7 +678,7 @@ class PanelGroupSensorReader(DataManagerIO):
         Checks:
         1. Entity exists
         2. Entity is numeric
-        3. Unit is kWh or Wh
+        3. Entity is a cumulative DC energy sensor in kWh
         """
         if not entity_id:
             return {"valid": False, "error": "No entity_id configured"}
@@ -567,16 +704,20 @@ class PanelGroupSensorReader(DataManagerIO):
                 "error": f"Entity {entity_id} is not numeric: {state.state}",
             }
 
-        unit = state.attributes.get("unit_of_measurement", "")
-        if unit.lower() not in ["kwh", "wh"]:
+        rejection_reason = self._sensor_rejection_reason(state)
+        if rejection_reason:
             return {
                 "valid": False,
-                "error": f"Entity {entity_id} has wrong unit: {unit} (expected kWh or Wh)",
+                "error": (
+                    f"Entity {entity_id} is not accepted for group learning: expected "
+                    f"a cumulative DC energy sensor with unit kWh, device_class=energy "
+                    f"and state_class=total or total_increasing ({rejection_reason})"
+                ),
             }
 
         return {
             "valid": True,
-            "unit": unit,
+            "unit": self._attr_value(state.attributes.get("unit_of_measurement")),
             "current_value": float(state.state),
             "state_class": state.attributes.get("state_class", "unknown"),
         }
@@ -641,22 +782,30 @@ class PanelGroupSensorReader(DataManagerIO):
         Returns:
             Dict with consistency check results
         """
-        if not group_actuals or total_actual <= 0:
+        if not group_actuals:
             return {
                 "consistent": True,
                 "reason": "No data to compare",
             }
 
         group_sum = sum(group_actuals.values())
-        deviation = abs(group_sum - total_actual) / total_actual * 100
+        allowed_diff = max(0.05, total_actual * tolerance_percent / 100.0)
+        absolute_diff = abs(group_sum - total_actual)
+        deviation = (
+            absolute_diff / total_actual * 100
+            if total_actual > 0
+            else None
+        )
 
-        consistent = deviation <= tolerance_percent
+        consistent = absolute_diff <= allowed_diff
 
         if not consistent:
             _LOGGER.warning(
-                "Panel group sum (%.3f kWh) deviates %.1f%% from total (%.3f kWh)",
+                "Panel group learning disabled for this hour: group sum %.3f kWh does not match "
+                "DC yield %.3f kWh. Please verify that all panel group sensors and the yield "
+                "sensor measure the same DC energy basis in kWh, use the same time window, "
+                "and do not overlap.",
                 group_sum,
-                deviation,
                 total_actual,
             )
 
@@ -664,18 +813,20 @@ class PanelGroupSensorReader(DataManagerIO):
             "consistent": consistent,
             "group_sum": round(group_sum, 4),
             "total_actual": round(total_actual, 4),
-            "deviation_percent": round(deviation, 1),
+            "deviation_percent": round(deviation, 1) if deviation is not None else None,
             "tolerance_percent": tolerance_percent,
+            "allowed_diff_kwh": round(allowed_diff, 4),
         }
 
     async def reset_last_values(self) -> None:
         """Reset all stored last values (e.g., at midnight). @zara"""
         self._last_values = {}
+        self._last_updated_by_group = {}
 
         # Clear database entries
         try:
             await self.execute_query(
-                "UPDATE panel_group_sensor_state SET last_value = NULL"
+                "UPDATE panel_group_sensor_state SET last_value = NULL, last_updated = NULL"
             )
             _LOGGER.info("Panel group sensor last values reset")
         except Exception as e:

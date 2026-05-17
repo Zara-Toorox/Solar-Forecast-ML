@@ -205,13 +205,8 @@ class TaskExecutor:
             return
 
         try:
-            _LOGGER.debug(
-                "Task result: %s %s (%.2fs)%s",
-                task_id,
-                "OK" if success else "FAIL",
-                duration,
-                f" - {error}" if error else "",
-            )
+            pass
+
         except Exception as e:
             _LOGGER.debug("Could not store task result: %s", e)
 

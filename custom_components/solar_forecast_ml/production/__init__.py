@@ -23,6 +23,7 @@ from .production_external_helpers import (
 )
 from .production_history import ProductionCalculator
 from .production_morning_routine import MorningRoutineHandler
+from .production_operational_reforecast import OperationalReforecastEngine
 from .production_rule_based_strategy import RuleBasedForecastStrategy
 from .production_scheduled_tasks import ScheduledTasksManager
 from .production_task_executor import TaskExecutor, TaskQueue
@@ -36,6 +37,7 @@ __all__ = [
     "format_time_ago",
     "ProductionCalculator",
     "MorningRoutineHandler",
+    "OperationalReforecastEngine",
     "RuleBasedForecastStrategy",
     "ScheduledTasksManager",
     "TaskExecutor",

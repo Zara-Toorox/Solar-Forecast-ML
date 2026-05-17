@@ -274,14 +274,8 @@ class ScheduledTaskTracker:
         duration_seconds: float = 0,
         error_message: Optional[str] = None
     ) -> None:
-        """Record task execution in memory. @zara"""
-        _LOGGER.debug(
-            "Task %s: %s (%.2fs)%s",
-            task_id,
-            "success" if success else "failed",
-            duration_seconds,
-            f" - {error_message}" if error_message else "",
-        )
+        """Record task execution in database. @zara"""
+        pass
 
     async def get_execution_history(
         self,

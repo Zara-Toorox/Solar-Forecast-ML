@@ -23,6 +23,7 @@ from homeassistant.core import HomeAssistant
 
 from .db_manager import DatabaseManager
 from .data_io import DataManagerIO
+from ..core.core_helpers import SafeDateTimeUtil
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -77,7 +78,7 @@ class DataCache(DataManagerIO):
         if not cache_time:
             return None
 
-        age = datetime.now() - cache_time
+        age = SafeDateTimeUtil.now() - cache_time
         if age.total_seconds() > max_age_hours * 3600:
             _LOGGER.debug("Cache expired for key: %s", key)
             return None
@@ -97,7 +98,7 @@ class DataCache(DataManagerIO):
             data: Data to cache
         """
         self._cache[key] = data
-        self._cache_timestamps[key] = datetime.now()
+        self._cache_timestamps[key] = SafeDateTimeUtil.now()
         _LOGGER.debug("Cached data for key: %s", key)
 
     async def clear_cache(self, key: Optional[str] = None) -> None:
@@ -154,7 +155,7 @@ class DataCache(DataManagerIO):
         """
         try:
             if timestamp is None:
-                timestamp = datetime.now()
+                timestamp = SafeDateTimeUtil.now()
             if date_str is None:
                 date_str = timestamp.date().isoformat()
 
@@ -265,7 +266,7 @@ class DataCache(DataManagerIO):
                     weather_data.get("rain"),
                     weather_data.get("clouds"),
                     weather_data.get("pressure"),
-                    datetime.now(),
+                    SafeDateTimeUtil.now(),
                 ),
             )
             return True
@@ -503,7 +504,7 @@ class DataCache(DataManagerIO):
             Number of entries deleted
         """
         try:
-            cutoff_date = (datetime.now() - timedelta(days=days_to_keep)).date()
+            cutoff_date = (SafeDateTimeUtil.now() - timedelta(days=days_to_keep)).date()
 
             # Clean weather forecasts
             weather_result = await self.fetch_one(

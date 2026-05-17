@@ -433,6 +433,7 @@ CREATE TABLE IF NOT EXISTS hourly_predictions (
     tfs_kwh REAL,
     tfs_weight REAL,
     exclude_from_learning BOOLEAN DEFAULT FALSE,
+    exclude_from_clean_evaluation BOOLEAN DEFAULT FALSE,
     mppt_throttled BOOLEAN DEFAULT FALSE,
     mppt_throttle_reason TEXT,
     has_panel_group_actuals BOOLEAN DEFAULT FALSE,
@@ -550,6 +551,157 @@ CREATE TABLE IF NOT EXISTS daily_forecast_updates (
     updated_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS ops_forecast_snapshots (
+    snapshot_sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot_date DATE NOT NULL,
+    snapshot_type TEXT NOT NULL,
+    trigger_source TEXT NOT NULL,
+    triggered_at TIMESTAMP NOT NULL,
+    cutoff_hour INTEGER,
+    weather_refresh_started_at TIMESTAMP,
+    weather_refresh_finished_at TIMESTAMP,
+    forecast_generation_started_at TIMESTAMP,
+    forecast_generation_finished_at TIMESTAMP,
+    status TEXT NOT NULL,
+    source_method TEXT,
+    notes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ops_forecast_snapshots_date
+    ON ops_forecast_snapshots(snapshot_date, snapshot_sequence);
+
+CREATE TABLE IF NOT EXISTS ops_hourly_forecasts (
+    forecast_row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ops_track_date DATE NOT NULL,
+    target_date DATE NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour >= 0 AND target_hour <= 23),
+    prediction_id TEXT NOT NULL,
+    snapshot_type TEXT NOT NULL,
+    snapshot_sequence INTEGER NOT NULL,
+    snapshot_created_at TIMESTAMP NOT NULL,
+    trigger_source TEXT NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    prediction_kwh REAL NOT NULL,
+    prediction_kwh_uncapped REAL,
+    prediction_method TEXT,
+    physics_kwh REAL,
+    ai_kwh REAL,
+    ai_confidence REAL,
+    ml_contribution_percent REAL,
+    lstm_kwh REAL,
+    ridge_kwh REAL,
+    tfs_kwh REAL,
+    tfs_weight REAL,
+    is_production_hour BOOLEAN,
+    actual_kwh REAL,
+    source_track TEXT NOT NULL,
+    reforecast_cutoff_hour INTEGER,
+    superseded_at TIMESTAMP,
+    FOREIGN KEY (snapshot_sequence) REFERENCES ops_forecast_snapshots(snapshot_sequence) ON DELETE CASCADE,
+    UNIQUE(target_date, target_hour, snapshot_sequence)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ops_hourly_forecasts_active
+    ON ops_hourly_forecasts(target_date, target_hour, is_active);
+CREATE INDEX IF NOT EXISTS idx_ops_hourly_forecasts_snapshot
+    ON ops_hourly_forecasts(ops_track_date, snapshot_sequence);
+CREATE INDEX IF NOT EXISTS idx_ops_hourly_forecasts_prediction
+    ON ops_hourly_forecasts(prediction_id, is_active);
+
+CREATE TABLE IF NOT EXISTS ops_prediction_weather (
+    ops_weather_row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    forecast_row_id INTEGER NOT NULL,
+    target_date DATE NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour >= 0 AND target_hour <= 23),
+    prediction_id TEXT NOT NULL,
+    snapshot_sequence INTEGER NOT NULL,
+    temperature REAL,
+    solar_radiation_wm2 REAL,
+    wind REAL,
+    humidity REAL,
+    rain REAL,
+    clouds REAL,
+    pressure REAL,
+    source TEXT,
+    lux REAL,
+    frost_detected TEXT,
+    frost_score REAL,
+    frost_confidence REAL,
+    diffuse_radiation REAL,
+    direct_radiation REAL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    superseded_at TIMESTAMP,
+    FOREIGN KEY (forecast_row_id) REFERENCES ops_hourly_forecasts(forecast_row_id) ON DELETE CASCADE,
+    FOREIGN KEY (snapshot_sequence) REFERENCES ops_forecast_snapshots(snapshot_sequence) ON DELETE CASCADE,
+    UNIQUE(forecast_row_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ops_prediction_weather_active
+    ON ops_prediction_weather(target_date, target_hour, is_active);
+CREATE INDEX IF NOT EXISTS idx_ops_prediction_weather_prediction
+    ON ops_prediction_weather(prediction_id, is_active);
+
+CREATE TABLE IF NOT EXISTS ops_prediction_panel_groups (
+    ops_group_row_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    forecast_row_id INTEGER NOT NULL,
+    target_date DATE NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour >= 0 AND target_hour <= 23),
+    prediction_id TEXT NOT NULL,
+    snapshot_sequence INTEGER NOT NULL,
+    group_name TEXT NOT NULL,
+    prediction_kwh REAL NOT NULL,
+    physics_kwh REAL,
+    ai_kwh REAL,
+    lstm_kwh REAL,
+    ridge_kwh REAL,
+    tfs_kwh REAL,
+    actual_kwh REAL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    superseded_at TIMESTAMP,
+    FOREIGN KEY (forecast_row_id) REFERENCES ops_hourly_forecasts(forecast_row_id) ON DELETE CASCADE,
+    FOREIGN KEY (snapshot_sequence) REFERENCES ops_forecast_snapshots(snapshot_sequence) ON DELETE CASCADE,
+    UNIQUE(prediction_id, snapshot_sequence, group_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ops_prediction_panel_groups_active
+    ON ops_prediction_panel_groups(target_date, target_hour, is_active);
+CREATE INDEX IF NOT EXISTS idx_ops_prediction_panel_groups_forecast_row
+    ON ops_prediction_panel_groups(forecast_row_id);
+
+CREATE TABLE IF NOT EXISTS ops_daily_forecasts (
+    ops_daily_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    forecast_type TEXT NOT NULL CHECK(forecast_type IN ('today', 'tomorrow', 'day_after_tomorrow')),
+    forecast_date DATE NOT NULL,
+    snapshot_type TEXT NOT NULL,
+    snapshot_sequence INTEGER NOT NULL,
+    snapshot_created_at TIMESTAMP NOT NULL,
+    trigger_source TEXT NOT NULL,
+    prediction_kwh REAL NOT NULL,
+    prediction_kwh_raw REAL,
+    source_method TEXT,
+    actual_kwh REAL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    superseded_at TIMESTAMP,
+    FOREIGN KEY (snapshot_sequence) REFERENCES ops_forecast_snapshots(snapshot_sequence) ON DELETE CASCADE,
+    UNIQUE(forecast_type, forecast_date, snapshot_sequence)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ops_daily_forecasts_active
+    ON ops_daily_forecasts(forecast_type, forecast_date, is_active);
+
+CREATE TABLE IF NOT EXISTS ops_reforecast_settings (
+    settings_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mode TEXT NOT NULL CHECK(mode IN ('standard', 'standard_midday', 'standard_midday_afternoon', 'custom_time')),
+    custom_time TEXT,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    updated_at TIMESTAMP NOT NULL,
+    updated_by TEXT,
+    notes TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ops_reforecast_settings_updated
+    ON ops_reforecast_settings(updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS daily_summaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date DATE NOT NULL UNIQUE,
@@ -561,6 +713,17 @@ CREATE TABLE IF NOT EXISTS daily_summaries (
     predicted_total_kwh REAL,
     actual_total_kwh REAL,
     accuracy_percent REAL,
+    evaluation_predicted_kwh REAL,
+    evaluation_actual_kwh REAL,
+    evaluation_coverage_percent REAL,
+    excluded_hours_count INTEGER DEFAULT 0,
+    excluded_mppt_hours_count INTEGER DEFAULT 0,
+    evaluation_hours_count INTEGER DEFAULT 0,
+    production_candidate_hours_count INTEGER DEFAULT 0,
+    missing_actual_hours_count INTEGER DEFAULT 0,
+    excluded_weather_alert_hours_count INTEGER DEFAULT 0,
+    excluded_inverter_clipped_hours_count INTEGER DEFAULT 0,
+    excluded_reason_breakdown_json TEXT,
     error_kwh REAL,
     error_percent REAL,
     production_hours INTEGER,
@@ -1163,12 +1326,16 @@ CREATE TABLE IF NOT EXISTS daily_statistics (
     -- Last 7 Days
     last_7_days_avg_yield_kwh REAL,
     last_7_days_avg_accuracy REAL,
+    last_7_days_avg_evaluation_coverage_percent REAL,
+    last_7_days_avg_excluded_mppt_hours REAL,
     last_7_days_total_yield_kwh REAL,
     last_7_days_calculated_at TIMESTAMP,
 
     -- Last 30 Days
     last_30_days_avg_yield_kwh REAL,
     last_30_days_avg_accuracy REAL,
+    last_30_days_avg_evaluation_coverage_percent REAL,
+    last_30_days_avg_excluded_mppt_hours REAL,
     last_30_days_total_yield_kwh REAL,
     last_30_days_calculated_at TIMESTAMP,
 
@@ -1813,15 +1980,6 @@ CREATE TABLE IF NOT EXISTS sensor_monthly_stats (
 
 CREATE INDEX IF NOT EXISTS idx_sensor_monthly_stats_year_month
     ON sensor_monthly_stats(year, month);
-
--- Panel Group Config Snapshot for fingerprint-based migration @zara
-CREATE TABLE IF NOT EXISTS panel_group_config_snapshot (
-    group_name TEXT PRIMARY KEY,
-    power_wp REAL NOT NULL,
-    azimuth REAL NOT NULL,
-    tilt REAL NOT NULL,
-    energy_sensor TEXT
-);
 
 CREATE TABLE IF NOT EXISTS panel_group_config_epochs (
     epoch_id INTEGER PRIMARY KEY AUTOINCREMENT,
