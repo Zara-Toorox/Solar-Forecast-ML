@@ -22,9 +22,9 @@ const SettingsPage = {
                         <div class="sensor-list">
                             <div v-for="s in sensors" :key="s.entity_id" class="sensor-row">
                                 <span class="sensor-status-dot" :class="s.available ? 'ok' : 'warn'"></span>
-                                <span class="sensor-name">{{ s.friendly_name || s.entity_id }}</span>
+                                <span class="sensor-name">{{ translateSensorLabel(s.friendly_name) || s.entity_id }}</span>
                                 <span class="sensor-entity">{{ s.entity_id }}</span>
-                                <span class="sensor-state">{{ s.state ?? '--' }}</span>
+                                <span class="sensor-state">{{ translateSensorState(s) }}</span>
                             </div>
                             <div v-if="sensors.length === 0" class="empty-state">{{ $t('settings.noSensors') }}</div>
                         </div>
@@ -293,6 +293,66 @@ const SettingsPage = {
             : { t: (k) => k, locale: { value: 'de' } };
         const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'de-DE');
 
+        // Sensor friendly_name values arrive in German from the backend
+        // (extra_features/sfml_stats/api/views.py, PyArmor-obfuscated, so we
+        // can't translate at source). Map the known role labels here; unknown
+        // labels fall through unchanged.
+        const SENSOR_LABEL_KEYS = {
+            'Hausverbrauch (W)': 'settings.sensorLabel.houseConsumptionW',
+            'Hausverbrauch (kWh/Tag)': 'settings.sensorLabel.houseConsumptionDaily',
+            'Solar → Haus (W)': 'settings.sensorLabel.solarToHouseW',
+            'Solar Produktion (W)': 'settings.sensorLabel.solarProductionW',
+            'Solar-Tagesertrag (kWh)': 'settings.sensorLabel.solarYieldDaily',
+            'Batterie → Haus (W)': 'settings.sensorLabel.batteryToHouseW',
+            'Batterie SoC (%)': 'settings.sensorLabel.batterySoc',
+            'Batterie Leistung (W)': 'settings.sensorLabel.batteryPowerW',
+            'Smartmeter Bezug (W)': 'settings.sensorLabel.smartmeterImportW',
+            'Smartmeter Einspeisung (W)': 'settings.sensorLabel.smartmeterExportW',
+            'Netzbezug (kWh/Tag)': 'settings.sensorLabel.gridImportDaily',
+            'Netzeinspeisung (kWh/Tag)': 'settings.sensorLabel.gridExportDaily',
+            'Strompreis Gesamt (ct/kWh)': 'settings.sensorLabel.totalPrice',
+            'Strompreis (ct/kWh)': 'settings.sensorLabel.electricityPrice',
+            'Wetter': 'settings.sensorLabel.weather',
+            'Außentemperatur (°C)': 'settings.sensorLabel.outdoorTemp',
+            'Wärmepumpe Verbrauch (W)': 'settings.sensorLabel.heatpumpW',
+            'Heizstab Verbrauch (W)': 'settings.sensorLabel.heatingrodW',
+            'Wallbox Verbrauch (W)': 'settings.sensorLabel.wallboxW',
+        };
+        const translateSensorLabel = (label) => {
+            if (!label) return label;
+            const key = SENSOR_LABEL_KEYS[label];
+            return key ? t(key) : label;
+        };
+        // Weather entities return HA condition codes like "sunny"/"cloudy" as
+        // their state. Map them via the existing weather.condition.* keys.
+        const HA_CONDITION_KEYS = {
+            'clear-night': 'weather.condition.clearNight',
+            'cloudy': 'weather.condition.cloudy',
+            'exceptional': 'weather.condition.exceptional',
+            'fog': 'weather.condition.fog',
+            'hail': 'weather.condition.hail',
+            'lightning': 'weather.condition.lightning',
+            'lightning-rainy': 'weather.condition.lightningRainy',
+            'partlycloudy': 'weather.condition.partlyCloudy',
+            'pouring': 'weather.condition.pouring',
+            'rainy': 'weather.condition.rainy',
+            'snowy': 'weather.condition.snowy',
+            'snowy-rainy': 'weather.condition.snowyRainy',
+            'sunny': 'weather.condition.sunny',
+            'clear': 'weather.condition.clear',
+            'windy': 'weather.condition.windy',
+            'windy-variant': 'weather.condition.windyVariant',
+        };
+        const translateSensorState = (s) => {
+            if (s == null || s.state == null) return '--';
+            const eid = String(s.entity_id || '');
+            if (eid.startsWith('weather.')) {
+                const key = HA_CONDITION_KEYS[String(s.state).toLowerCase()];
+                if (key) return t(key);
+            }
+            return s.state;
+        };
+
         const openSection = vRef('sensors');
         const exporting = vRef(false);
 
@@ -514,6 +574,7 @@ const SettingsPage = {
             haConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
             toggle, exportCsv, formatDate, openIntegration,
+            translateSensorLabel, translateSensorState,
         };
     },
 };
