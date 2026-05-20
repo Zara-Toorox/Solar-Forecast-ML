@@ -25,6 +25,11 @@ const App = {
                         <span class="indicator-icon">☀</span>
                         <span class="indicator-value">{{ formatPower(liveData.solar_power) }}</span>
                     </div>
+                    <select class="language-picker" :value="currentLocale"
+                            @change="changeLocale($event.target.value)"
+                            :title="$t('common.language')">
+                        <option v-for="code in supportedLocales" :key="code" :value="code">{{ localeName(code) }}</option>
+                    </select>
                 </div>
                 <nav class="nav-tabs">
                     <button v-for="tab in tabs" :key="tab.id"
@@ -61,6 +66,18 @@ const App = {
     `,
 
     setup() {
+        // vue-i18n: translation helper for the script side.
+        // Templates already get $t() via globalInjection.
+        const { t } = (typeof VueI18n !== 'undefined' && VueI18n.useI18n)
+            ? VueI18n.useI18n()
+            : { t: (k) => k };
+
+        // Language picker state
+        const currentLocale = ref((window.SFMLI18n && window.SFMLI18n.current) || 'de');
+        const supportedLocales = (window.SFMLI18n && window.SFMLI18n.supported) || ['de'];
+        const localeName = (code) => (window.SFMLI18n ? window.SFMLI18n.nameOf(code) : code);
+        const changeLocale = (code) => { if (window.SFMLI18n) window.SFMLI18n.setLocale(code); };
+
         const currentPage = ref('home');
         const wsConnected = ref(false);
         const isMobile = ref(window.innerWidth < 768);
@@ -83,23 +100,26 @@ const App = {
             country: 'DE',
         });
 
-        const tabs = [
-            { id: 'home', label: 'Home', icon: '🏠' },
-            { id: 'flow', label: 'Flow', icon: '🔀' },
-            { id: 'solar', label: 'Solar', icon: '☀' },
-            { id: 'weather', label: 'Wetter', icon: '🌤' },
-            { id: 'energy', label: 'Energie', icon: '⚡' },
-            { id: 'settings', label: 'Settings', icon: '⚙' },
-        ];
+        // Tabs are reactive on locale change because `t()` is bound to the
+        // current vue-i18n locale; computed re-evaluates when locale switches.
+        const tabs = computed(() => [
+            { id: 'home',     label: t('nav.home'),     icon: '🏠' },
+            { id: 'flow',     label: t('nav.flow'),     icon: '🔀' },
+            { id: 'solar',    label: t('nav.solar'),    icon: '☀' },
+            { id: 'weather',  label: t('nav.weather'),  icon: '🌤' },
+            { id: 'energy',   label: t('nav.energy'),   icon: '⚡' },
+            { id: 'settings', label: t('nav.settings'), icon: '⚙' },
+        ]);
 
-        // Pages (lazy loaded)
+        // Pages (lazy loaded). Loading placeholders are intentionally minimal —
+        // page components own their own headings once mounted.
         const pages = {
             home: window.HomePage || { template: '<div class="page page-home"><h2>Loading...</h2></div>' },
             flow: window.FlowPage || { template: '<div class="page page-flow"><h2>Loading...</h2></div>' },
             solar: window.SolarPage || { template: '<div class="page page-solar"><h2>Loading...</h2></div>' },
             weather: window.WeatherPage || { template: '<div class="page page-weather"><h2>Loading...</h2></div>' },
-            energy: window.EnergyPage || { template: '<div class="page page-energy"><h2>⚡ Energie & Finanzen</h2><p>Loading...</p></div>' },
-            settings: window.SettingsPage || { template: '<div class="page page-settings"><h2>⚙ Einstellungen</h2><p>Loading...</p></div>' },
+            energy: window.EnergyPage || { template: '<div class="page page-energy"><h2>⚡ ' + t('nav.energyAndFinances') + '</h2><p>Loading...</p></div>' },
+            settings: window.SettingsPage || { template: '<div class="page page-settings"><h2>⚙ ' + t('nav.settings') + '</h2><p>Loading...</p></div>' },
         };
 
         const currentPageComponent = computed(() => pages[currentPage.value] || pages.home);
@@ -194,8 +214,11 @@ const App = {
             currentPage, currentPageComponent, wsConnected, isMobile,
             liveData, appConfig, tabs,
             navigate, formatPrice, formatPower, priceClass,
+            currentLocale, supportedLocales, localeName, changeLocale,
         };
     }
 };
 
-createApp(App).mount('#app');
+createApp(App)
+    .use(window.SFMLI18n && window.SFMLI18n.instance ? window.SFMLI18n.instance : { install() {} })
+    .mount('#app');

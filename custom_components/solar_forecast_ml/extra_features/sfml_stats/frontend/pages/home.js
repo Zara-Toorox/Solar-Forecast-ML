@@ -50,7 +50,7 @@ const _HomePage = {
         <div class="energy-flow-container" style="min-height: 45vh">
             <div class="chart-header">
                 <div style="display:flex; align-items:baseline; gap:0; flex-wrap:wrap;">
-                    <span class="chart-title" style="margin-right:24px;">Energiefluss</span>
+                    <span class="chart-title" style="margin-right:24px;">{{ $t('home.energyFlow') }}</span>
                     <span v-if="infoData.outdoorTemperatureLabel" style="font-size:0.95rem; color:var(--text-muted); font-family:var(--font-mono); letter-spacing:0.01em;">
                         {{ infoData.outdoorTemperatureLabel }}
                     </span>
@@ -473,47 +473,47 @@ const _HomePage = {
         <!-- ========== SECTION 2: PROGNOSE-CHART ========== -->
         <div class="chart-card" style="margin-top: var(--space-lg)">
             <div class="chart-header forecast-card-title-row">
-                <span class="chart-title">Tagesprognose vs. IST</span>
+                <span class="chart-title">{{ $t('home.dayForecastVsActual') }}</span>
             </div>
             <div class="forecast-summary-grid">
                 <div v-if="todayForecastAccuracyPercent != null || todayForecastErrorLabel || todayLearningBasisLabel" class="forecast-eval-list">
                     <span v-if="todayForecastAccuracyPercent != null">
-                        Heute Prognosegüte: <span :style="{ color: forecastBandColorFromAccuracy(todayForecastAccuracyPercent) }">{{ todayForecastAccuracyPercent.toFixed(1) }}%</span>
+                        {{ $t('home.todayQuality') }}: <span :style="{ color: forecastBandColorFromAccuracy(todayForecastAccuracyPercent) }">{{ todayForecastAccuracyPercent.toFixed(1) }}%</span>
                     </span>
                     <span v-if="todayForecastErrorLabel">
-                        Heute Forecast-Fehler: <span :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ todayForecastErrorLabel }}</span>
+                        {{ $t('home.todayError') }}: <span :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ todayForecastErrorLabel }}</span>
                     </span>
                     <span v-if="todayLearningBasisLabel">
-                        Heute Lernbasis: <span style="color:#fbbf24">{{ todayLearningBasisLabel }}</span>
+                        {{ $t('home.todayLearningBasis') }}: <span style="color:#fbbf24">{{ todayLearningBasisLabel }}</span>
                     </span>
                     <span v-if="todayDiscardedLearningLabel">
-                        Heute Verworfen: <span style="color:#f87171">{{ todayDiscardedLearningLabel }}</span>
+                        {{ $t('home.todayDiscarded') }}: <span style="color:#f87171">{{ todayDiscardedLearningLabel }}</span>
                     </span>
                 </div>
                 <div class="forecast-kpi-list">
                     <div class="forecast-kpi-row">
-                        <span class="forecast-kpi-label">Ertrag:</span>
+                        <span class="forecast-kpi-label">{{ $t('common.yield') }}:</span>
                         <span class="forecast-kpi-value" style="color:#22c55e">{{ actualTotal }} kWh</span>
                     </div>
                     <div class="forecast-kpi-row">
-                        <span class="forecast-kpi-label">Prognose:</span>
+                        <span class="forecast-kpi-label">{{ $t('common.forecast') }}:</span>
                         <span class="forecast-kpi-value" style="color:#fbbf24">{{ forecastTotal }} kWh</span>
                     </div>
                     <div v-if="hasHybridForecast" class="forecast-kpi-row">
-                        <span class="forecast-kpi-label">Hybrid:</span>
+                        <span class="forecast-kpi-label">{{ $t('home.hybrid') }}:</span>
                         <span class="forecast-kpi-value" style="color:#38bdf8">{{ hybridForecastTotal }} kWh</span>
                     </div>
                     <div class="forecast-kpi-row">
-                        <span class="forecast-kpi-label">Abweichung:</span>
+                        <span class="forecast-kpi-label">{{ $t('home.deviation') }}:</span>
                         <span class="forecast-kpi-value" :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ forecastDeviationKwhLabel }}</span>
                     </div>
                 </div>
             </div>
-            <div v-if="hasWeatherTrace" class="weather-trace" aria-label="PV-relevanter Wettervergleich zwischen erwartet und gesehen">
+            <div v-if="hasWeatherTrace" class="weather-trace" :aria-label="$t('home.weatherTraceAria')">
                 <div class="weather-trace-labels">
-                    <span>Erwartet</span>
-                    <span>Gesehen</span>
-                    <span title="PV-relevante Wetteraehnlichkeit, nicht identische Wettersymbole">Treffer</span>
+                    <span>{{ $t('home.expected') }}</span>
+                    <span>{{ $t('home.seen') }}</span>
+                    <span :title="$t('home.matchTitle')">{{ $t('home.match') }}</span>
                 </div>
                 <div class="weather-trace-grid">
                     <template v-for="item in weatherTrace" :key="'weather-' + item.hour">
@@ -550,7 +550,7 @@ const _HomePage = {
         <!-- ========== SECTION 2b: MEHRTAGESPROGNOSE ========== -->
         <div class="multi-day-forecast" v-if="dailyForecasts.length > 0" style="margin-top: var(--space-lg);">
             <div class="chart-header" style="margin-bottom: var(--space-sm);">
-                <span class="chart-title">Prognose naechste Tage</span>
+                <span class="chart-title">{{ $t('home.forecastNextDays') }}</span>
             </div>
             <div style="display:flex; gap:var(--space-md); flex-wrap:wrap;">
                 <div v-for="fc in dailyForecasts" :key="fc.type"
@@ -567,7 +567,7 @@ const _HomePage = {
         <!-- ========== SECTION 3: PANEL-GRUPPEN (IST vs Prognose pro Gruppe) ========== -->
         <div class="panel-groups-section" style="margin-top: var(--space-lg);" v-if="panelGroupsData.available">
             <div class="chart-header" style="margin-bottom: var(--space-md);">
-                <span class="chart-title">☀ Panel-Gruppen</span>
+                <span class="chart-title">☀ {{ $t('settings.panelGroups') }}</span>
             </div>
             <div class="panel-groups-grid">
                 <div class="chart-card panel-group-chart-card" v-for="(group, groupName) in panelGroupsData.groups" :key="groupName">
@@ -575,10 +575,10 @@ const _HomePage = {
                         <span class="chart-title" style="font-size:0.95rem">☀ {{ groupName }}</span>
                         <div class="pg-stats">
                             <span style="color: #22c55e; font-family:var(--font-mono); font-size:0.8rem">
-                                IST: {{ (group.actual_total_kwh || 0).toFixed(3) }} kWh
+                                {{ $t('common.actual') }}: {{ (group.actual_total_kwh || 0).toFixed(3) }} kWh
                             </span>
                             <span style="color: #a855f7; font-family:var(--font-mono); font-size:0.8rem">
-                                Prognose: {{ ((group.prediction_day_kwh ?? group.prediction_total_kwh) || 0).toFixed(3) }} kWh
+                                {{ $t('common.forecast') }}: {{ ((group.prediction_day_kwh ?? group.prediction_total_kwh) || 0).toFixed(3) }} kWh
                             </span>
                             <span :style="{color: group.accuracy_percent != null ? forecastBandColorFromAccuracy(group.accuracy_percent) : '#8b949e', fontFamily:'var(--font-mono)', fontSize:'0.8rem', fontWeight:700}">
                                 {{ group.accuracy_percent ? group.accuracy_percent.toFixed(0) + '%' : '—' }}
@@ -594,14 +594,14 @@ const _HomePage = {
         <div class="chart-card" style="margin-top: var(--space-lg)">
             <div class="chart-header" style="flex-wrap:wrap; gap:6px;">
                 <div style="display:flex; align-items:center; gap:var(--space-md)">
-                    <span class="chart-title">☀ PV-Leistung</span>
+                    <span class="chart-title">☀ {{ $t('home.pvPower') }}</span>
                     <span style="color:var(--solar); font-size:1.3rem; font-weight:700; font-family:var(--font-mono)">
                         {{ fmtW(flow.solar_power) }}
                     </span>
                 </div>
                 <div class="pg-stats">
                     <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono)">
-                        Peak: <span style="color:var(--solar)">{{ infoData.peakTodayW || '--' }} W</span>
+                        {{ $t('common.peak') }}: <span style="color:var(--solar)">{{ infoData.peakTodayW || '--' }} W</span>
                         <span v-if="infoData.peakTodayTime" style="color:var(--text-muted)"> ({{ infoData.peakTodayTime }})</span>
                     </span>
                     <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono)">
@@ -627,6 +627,12 @@ const _HomePage = {
     `,
 
     setup(props) {
+        // vue-i18n
+        const { t, locale } = (typeof VueI18n !== 'undefined' && VueI18n.useI18n)
+            ? VueI18n.useI18n()
+            : { t: (k) => k, locale: { value: 'de' } };
+        const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'de-DE');
+
         // Refs
         const forecastChartEl = ref(null);
         const powerChartEl = ref(null);
@@ -750,7 +756,7 @@ const _HomePage = {
         });
 
         const deviationLabel = computed(() => {
-            const prefix = isTodayPartial.value ? 'Live ' : '';
+            const prefix = isTodayPartial.value ? (t('common.live') + ' ') : '';
             return `${prefix}${deviationPercent.value >= 0 ? '+' : ''}${deviationPercent.value.toFixed(0)}%`;
         });
 
@@ -810,7 +816,7 @@ const _HomePage = {
         });
 
         const hybridDeviationLabel = computed(() => {
-            const prefix = isTodayPartial.value ? 'Live ' : '';
+            const prefix = isTodayPartial.value ? (t('common.live') + ' ') : '';
             return `${prefix}${hybridDeviationPercent.value >= 0 ? '+' : ''}${hybridDeviationPercent.value.toFixed(0)}%`;
         });
 
@@ -828,9 +834,9 @@ const _HomePage = {
             const labels = {
                 mppt_throttled: 'MPPT',
                 inverter_clipped: 'Clipping',
-                missing_data: 'fehlende Daten',
-                manual_pause: 'Pause',
-                excluded: 'Ausreißer',
+                missing_data: t('solar.discarded.missingData'),
+                manual_pause: t('solar.discarded.manualPause'),
+                excluded: t('solar.discarded.excluded'),
             };
             const breakdown = cleanEvalStats.today.discardedLearningReasonBreakdown || {};
             const parts = Object.entries(breakdown)
@@ -983,7 +989,7 @@ const _HomePage = {
         // Clock
         function updateClock() {
             const d = new Date();
-            currentTime.value = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            currentTime.value = d.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         }
 
         // ========== DATA LOADING ==========
@@ -1103,12 +1109,13 @@ const _HomePage = {
                 // Multi-day forecasts
                 const dfc = data.daily_forecasts;
                 if (dfc) {
-                    const DAY_NAMES = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
                     const items = [];
                     for (const [type, val] of Object.entries(dfc)) {
                         if (type === 'today') continue;
                         const d = new Date(val.date + 'T12:00:00');
-                        const label = type === 'tomorrow' ? 'Morgen' : DAY_NAMES[d.getDay()] + ' ' + d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+                        const label = type === 'tomorrow'
+                            ? t('common.tomorrow')
+                            : d.toLocaleDateString(bcp(locale.value), { weekday: 'short', day: '2-digit', month: '2-digit' });
                         items.push({ type, kwh: val.kwh, date: val.date, label, sortDate: val.date });
                     }
                     items.sort((a, b) => a.sortDate.localeCompare(b.sortDate));
@@ -1214,7 +1221,7 @@ const _HomePage = {
 
         function compareWeather(expected, actual) {
             if (!expected || !actual) {
-                return { state: 'missing', icon: '·', title: 'Noch keine Ist-Wetterdaten fuer PV-relevanten Vergleich' };
+                return { state: 'missing', icon: '·', title: t('home.noActualWeather') };
             }
 
             const expectedClouds = Number(expected.clouds ?? expected.cloud_cover_percent ?? expected.cloud_cover ?? NaN);
@@ -1326,7 +1333,7 @@ const _HomePage = {
                             borderColor: 'rgba(255,255,255,0.1)',
                             textStyle: { color: '#f0f6fc', fontSize: 11 },
                         },
-                        legend: { data: ['IST', 'Prognose'], textStyle: { color: '#8b949e', fontSize: 10 }, top: 0, right: 5 },
+                        legend: { data: [t('common.actual'), t('common.forecast')], textStyle: { color: '#8b949e', fontSize: 10 }, top: 0, right: 5 },
                         xAxis: {
                             type: 'category',
                             data: hours.map(h => String(h).padStart(2, '0') + ':00'),
@@ -1341,7 +1348,7 @@ const _HomePage = {
                         },
                         series: [
                             {
-                                name: 'IST', type: 'line', data: actualData,
+                                name: t('common.actual'), type: 'line', data: actualData,
                                 smooth: true, connectNulls: false,
                                 lineStyle: { color: '#22c55e', width: 2.5 },
                                 itemStyle: { color: '#22c55e' },
@@ -1356,7 +1363,7 @@ const _HomePage = {
                                 },
                             },
                             {
-                                name: 'Prognose', type: 'line', data: forecastD,
+                                name: t('common.forecast'), type: 'line', data: forecastD,
                                 smooth: true, connectNulls: false,
                                 lineStyle: { color: '#a855f7', width: 2, type: 'dashed' },
                                 itemStyle: { color: '#a855f7' },
@@ -1439,7 +1446,7 @@ const _HomePage = {
                     const ts = d.timestamp || d.time || '';
                     return ts.startsWith(todayStr);
                 });
-                lastPowerUpdate.value = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                lastPowerUpdate.value = new Date().toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
                 updatePowerChart();
             } catch (err) {
                 console.error('[Home] Power history error:', err);
@@ -1490,18 +1497,18 @@ const _HomePage = {
                         const forecastError = act > 0 ? (((pred - act) / act) * 100).toFixed(1) : null;
 
                         let s = '<div style="min-width:180px">';
-                        s += '<div style="font-weight:700;font-size:13px;margin-bottom:6px">' + String(hour).padStart(2,'0') + ':00 Uhr</div>';
+                        s += '<div style="font-weight:700;font-size:13px;margin-bottom:6px">' + String(hour).padStart(2,'0') + ':00 ' + t('home.oClock') + '</div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:4px 0 6px"></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">Prognose:</span><span>' + pred.toFixed(2) + ' kWh</span></div>';
-                        if (hybrid != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#38bdf8">Hybrid:</span><span>' + hybrid.toFixed(2) + ' kWh</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">IST:</span><span>' + act.toFixed(2) + ' kWh</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">Ertrag &Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
-                        if (forecastError != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">Forecast-Fehler:</span><span style="color:' + forecastBandColor(parseFloat(forecastError)) + '">' + (parseFloat(forecastError) >= 0 ? '+' : '') + forecastError + '%</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">' + t('common.forecast') + ':</span><span>' + pred.toFixed(2) + ' kWh</span></div>';
+                        if (hybrid != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#38bdf8">' + t('home.hybrid') + ':</span><span>' + hybrid.toFixed(2) + ' kWh</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">' + t('common.actual') + ':</span><span>' + act.toFixed(2) + ' kWh</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('common.yield') + ' &Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
+                        if (forecastError != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('solar.weeklyTable.forecastError') + ':</span><span style="color:' + forecastBandColor(parseFloat(forecastError)) + '">' + (parseFloat(forecastError) >= 0 ? '+' : '') + forecastError + '%</span></div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
                         s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">AI Stack:</div>';
-                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>ML Anteil:</span><span>' + mlPct.toFixed(0) + '%</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Confidence:</span><span>' + conf.toFixed(0) + '%</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Methode:</span><span>' + method + '</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.mlShare') + ':</span><span>' + mlPct.toFixed(0) + '%</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('settings.confidence') + ':</span><span>' + conf.toFixed(0) + '%</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.method') + ':</span><span>' + method + '</span></div>';
                         const tfs = forecastData.tfs[idx];
                         const tfsW = forecastData.tfs_weight[idx];
                         const ai = forecastData.ai[idx];
@@ -1510,19 +1517,19 @@ const _HomePage = {
                         const ridge = forecastData.ridge[idx];
                         if (tfs != null || ai != null || physics != null) {
                             s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
-                            s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">Modelle:</div>';
+                            s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">' + t('home.models') + ':</div>';
                             if (tfs != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#a78bfa">TFS:</span><span>' + tfs.toFixed(3) + ' kWh' + (tfsW != null ? ' (' + (tfsW * 100).toFixed(0) + '%)' : '') + '</span></div>';
                             if (ai != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>AI:</span><span>' + ai.toFixed(3) + ' kWh</span></div>';
-                            if (physics != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Physik:</span><span>' + physics.toFixed(3) + ' kWh</span></div>';
+                            if (physics != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.physics') + ':</span><span>' + physics.toFixed(3) + ' kWh</span></div>';
                             if (lstm != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>LSTM:</span><span>' + lstm.toFixed(3) + ' kWh</span></div>';
                             if (ridge != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Ridge:</span><span>' + ridge.toFixed(3) + ' kWh</span></div>';
                         }
                         if (temp != null || rad != null || clouds != null) {
                             s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
-                            s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">Wetter:</div>';
-                            if (temp != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Temp:</span><span>' + temp.toFixed(1) + '\u00B0C</span></div>';
-                            if (clouds != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Wolken:</span><span>' + clouds.toFixed(0) + '%</span></div>';
-                            if (rad != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Strahl.:</span><span>' + rad.toFixed(0) + ' W/m\u00B2</span></div>';
+                            s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">' + t('nav.weather') + ':</div>';
+                            if (temp != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.tempShort') + ':</span><span>' + temp.toFixed(1) + '\u00B0C</span></div>';
+                            if (clouds != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.cloudsShort') + ':</span><span>' + clouds.toFixed(0) + '%</span></div>';
+                            if (rad != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.irradianceShort') + ':</span><span>' + rad.toFixed(0) + ' W/m\u00B2</span></div>';
                         }
                         s += '</div>';
                         return s;
@@ -1634,7 +1641,7 @@ const _HomePage = {
                             silent: true,
                             symbol: 'none',
                             lineStyle: { color: 'rgba(255,255,255,0.5)', width: 1.5, type: 'dashed' },
-                            label: { show: true, formatter: 'Jetzt', color: '#f0f6fc', fontSize: 11, position: 'start' },
+                            label: { show: true, formatter: t('home.now'), color: '#f0f6fc', fontSize: 11, position: 'start' },
                             data: [{ xAxis: String(nowHour).padStart(2, '0') }],
                         },
                         data: [],
@@ -1645,7 +1652,17 @@ const _HomePage = {
                     top: 0,
                     right: 10,
                     textStyle: { color: '#8b949e', fontSize: 11 },
+                    // Series names are stable internal identifiers ("Prognose"/"IST"/…)
+                    // so legend selection state survives across locale changes;
+                    // formatter renders the localized label.
                     data: ['Prognose', ...(hasHybridForecast.value ? ['Hybrid'] : []), 'IST', 'TFS', 'Unsicherheit'],
+                    formatter: (name) => ({
+                        Prognose: t('common.forecast'),
+                        Hybrid: t('home.hybrid'),
+                        IST: t('common.actual'),
+                        TFS: 'TFS',
+                        Unsicherheit: t('home.uncertainty'),
+                    }[name] || name),
                     selected: {
                         Prognose: forecastLegendSelected.Prognose,
                         Hybrid: forecastLegendSelected.Hybrid,
@@ -1665,7 +1682,7 @@ const _HomePage = {
             const data = getSolarWindowedPowerData(powerData.value);
             const times = data.map(d => {
                 const dt = new Date(d.timestamp || d.time);
-                return dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                return dt.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
             });
 
             const solarPower = data.map(d => d.solar_power || 0);
@@ -1681,7 +1698,7 @@ const _HomePage = {
                     formatter: function(params) {
                         const val = params[0]?.value || 0;
                         return '<b>' + params[0].axisValue + '</b><br/>'
-                             + '<span style="color:#fbbf24">\u25CF PV-Leistung:</span> '
+                             + '<span style="color:#fbbf24">\u25CF ' + t('home.pvPower') + ':</span> '
                              + (val >= 1000 ? (val/1000).toFixed(1) + ' kW' : Math.round(val) + ' W');
                     }
                 },
@@ -1722,7 +1739,12 @@ const _HomePage = {
                         },
                     },
                 ],
-                legend: { show: true, data: ['PV-Leistung'], top: 0, right: 10, textStyle: { color: '#8b949e', fontSize: 11 } },
+                legend: {
+                    show: true,
+                    data: ['PV-Leistung'],
+                    formatter: (name) => name === 'PV-Leistung' ? t('home.pvPower') : name,
+                    top: 0, right: 10, textStyle: { color: '#8b949e', fontSize: 11 },
+                },
             });
         }
 
