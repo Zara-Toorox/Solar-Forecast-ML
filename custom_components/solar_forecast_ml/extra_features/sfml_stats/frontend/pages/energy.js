@@ -171,6 +171,7 @@ const _EnergyPage = {
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
                     <span class="chart-title">📅 {{ $t('energy.monthlyCosts') }}</span>
                 </div>
+                <div class="data-table-scroll">
                 <table class="data-table">
                     <thead>
                         <tr>
@@ -226,6 +227,7 @@ const _EnergyPage = {
                         </tr>
                     </tfoot>
                 </table>
+                </div>
             </div>
 
             <!-- ========== KARTE 2: STROMPREISE HEUTE vs MORGEN ========== -->

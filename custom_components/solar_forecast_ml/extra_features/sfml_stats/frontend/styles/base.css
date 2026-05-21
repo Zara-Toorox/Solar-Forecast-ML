@@ -332,15 +332,28 @@ html, body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--border-default);
+    white-space: nowrap;
 }
 
 .data-table td {
     padding: var(--space-sm) var(--space-md);
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    white-space: nowrap;
 }
 
 .data-table tr:hover td {
     background: rgba(255, 255, 255, 0.03);
+}
+
+.data-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 calc(-1 * var(--space-md));
+    padding: 0 var(--space-md);
+}
+
+.data-table-scroll .data-table {
+    min-width: max-content;
 }
 
 /* === SECTION HEADERS === */

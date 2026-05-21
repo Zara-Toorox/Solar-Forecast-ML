@@ -303,6 +303,7 @@ const _SolarPage = {
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
                     <span class="chart-title">📅 {{ $t('solar.weeklyTable.title') }}</span>
                 </div>
+                <div class="data-table-scroll">
                 <table class="data-table">
                     <thead>
                         <tr>
@@ -335,6 +336,7 @@ const _SolarPage = {
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </div>
 
             <!-- ========== KARTE 5: JAHRESÜBERSICHT ========== -->
@@ -579,7 +581,6 @@ const _SolarPage = {
         let smTimeline = null;
         let smAutoPlayTimer = null;
 
-        const SM_DAYS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
         const shadowMovement = reactive({
             loaded: false,
             selectedDate: null,
@@ -711,10 +712,11 @@ const _SolarPage = {
                     shadowMovement.allDates = movement.dates || {};
                     shadowMovement.groupNames = movement.groups || [];
                     const avail = movement.available_dates || [];
+                    const weekdayFmt = new Intl.DateTimeFormat(bcp(locale.value), { weekday: 'short' });
                     shadowMovement.availableDates = avail.map(d => {
                         const dt = new Date(d + 'T00:00:00');
                         const today = new Date().toISOString().slice(0, 10);
-                        const label = d === today ? 'Heute' : SM_DAYS[dt.getDay()] + ' ' + dt.getDate() + '.' + (dt.getMonth() + 1);
+                        const label = d === today ? t('common.today') : weekdayFmt.format(dt) + ' ' + dt.getDate() + '.' + (dt.getMonth() + 1);
                         return { key: d, label };
                     });
                     shadowMovement.selectedDate = movement.selected_date || avail[avail.length - 1] || null;

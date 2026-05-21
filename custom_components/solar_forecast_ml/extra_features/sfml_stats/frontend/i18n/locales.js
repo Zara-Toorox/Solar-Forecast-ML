@@ -114,6 +114,15 @@ window.SFMLLocales = {
         },
         home: {
             energyFlow: "Energiefluss",
+            panel: {
+                solar: "Solar",
+                demand: "Bedarf",
+                battery: "Akku",
+                grid: "Grid",
+                production: "Produktion",
+                peakToday: "Peak heute",
+                alltime: "Alltime",
+            },
             dayForecastVsActual: "Tagesprognose vs. IST",
             todayQuality: "Heute Prognosegüte",
             todayError: "Heute Forecast-Fehler",
@@ -539,6 +548,15 @@ window.SFMLLocales = {
         },
         home: {
             energyFlow: "Energy flow",
+            panel: {
+                solar: "Solar",
+                demand: "Demand",
+                battery: "Battery",
+                grid: "Grid",
+                production: "Production",
+                peakToday: "Peak today",
+                alltime: "All-time",
+            },
             dayForecastVsActual: "Today: forecast vs. actual",
             todayQuality: "Today forecast quality",
             todayError: "Today forecast error",
@@ -964,6 +982,15 @@ window.SFMLLocales = {
         },
         home: {
             energyFlow: "Przepływ energii",
+            panel: {
+                solar: "Solar",
+                demand: "Zapotrzebowanie",
+                battery: "Akumulator",
+                grid: "Sieć",
+                production: "Produkcja",
+                peakToday: "Szczyt dziś",
+                alltime: "Rekord",
+            },
             dayForecastVsActual: "Dzisiaj: prognoza vs. rzeczywistość",
             todayQuality: "Dzisiejsza jakość prognozy",
             todayError: "Dzisiejszy błąd prognozy",
@@ -1263,8 +1290,8 @@ window.SFMLLocales = {
                 battery: "Akumulator",
             },
             stat: {
-                pvToHouse: "PV do Domu",
-                pvToBattery: "PV do Akumulatora",
+                solarToHouse: "PV do Domu",
+                solarToBattery: "PV do Akumulatora",
                 gridToHouse: "Sieć do Domu",
                 batteryToHouse: "Akumulator do Domu",
                 feedIn: "Eksport do sieci",

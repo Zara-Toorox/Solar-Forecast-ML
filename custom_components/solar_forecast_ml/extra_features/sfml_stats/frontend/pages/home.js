@@ -425,21 +425,21 @@ const _HomePage = {
             <!-- INFO PANEL (rechts neben SVG) -->
             <div class="flow-info-panel">
                 <div class="info-item">
-                    <span class="info-label">☀ Solar</span>
+                    <span class="info-label">☀ {{ $t('home.panel.solar') }}</span>
                     <span class="info-value" style="color: var(--solar)">{{ fmtW(flow.solar_power) }}</span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">🏠 Bedarf</span>
+                    <span class="info-label">🏠 {{ $t('home.panel.demand') }}</span>
                     <span class="info-value">{{ fmtW(flow.home_consumption) }}</span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">🔋 Akku</span>
+                    <span class="info-label">🔋 {{ $t('home.panel.battery') }}</span>
                     <span class="info-value" :style="{color: flow.battery_power > 0 ? 'var(--price-cheap)' : flow.battery_power < 0 ? '#f97316' : 'var(--text-secondary)'}">
                         {{ flow.battery_power > 0 ? '+' : '' }}{{ fmtW(flow.battery_power) }}
                     </span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">⚡ Grid</span>
+                    <span class="info-label">⚡ {{ $t('home.panel.grid') }}</span>
                     <span class="info-value" :style="{color: flow.grid_to_house > 10 ? 'var(--price-expensive)' : flow.house_to_grid > 10 ? 'var(--price-cheap)' : 'var(--text-secondary)'}">
                         <template v-if="flow.grid_to_house > 10">{{ fmtW(flow.grid_to_house) }} ↓</template>
                         <template v-else-if="flow.house_to_grid > 10">{{ fmtW(flow.house_to_grid) }} ↑</template>
@@ -448,18 +448,18 @@ const _HomePage = {
                 </div>
                 <div class="info-divider"></div>
                 <div class="info-item">
-                    <span class="info-label">⏱ Produktion</span>
+                    <span class="info-label">⏱ {{ $t('home.panel.production') }}</span>
                     <span class="info-value info-small">{{ infoData.productionHours || '--' }}h</span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">⚡ Peak heute</span>
+                    <span class="info-label">⚡ {{ $t('home.panel.peakToday') }}</span>
                     <span class="info-value info-small" style="color: var(--solar)">
                         {{ infoData.peakTodayW ? (infoData.peakTodayW + ' W') : '--' }}
                         <span v-if="infoData.peakTodayTime" style="color:var(--text-muted); font-size:0.7rem"> {{ infoData.peakTodayTime }}</span>
                     </span>
                 </div>
                 <div class="info-item">
-                    <span class="info-label">🏆 Alltime</span>
+                    <span class="info-label">🏆 {{ $t('home.panel.alltime') }}</span>
                     <span class="info-value info-small" style="color: #fde68a">
                         {{ infoData.peakAlltimeW ? (infoData.peakAlltimeW + ' W') : '--' }}
                         <span v-if="infoData.peakAlltimeDate" style="color:var(--text-muted); font-size:0.7rem"> {{ infoData.peakAlltimeDate }}</span>
@@ -1980,30 +1980,6 @@ const _HomePage = {
             padding-top: var(--space-sm);
         }
 
-        /* ===== Responsive ===== */
-        @media (max-width: 600px) {
-            .panel-groups-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .forecast-summary-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .forecast-kpi-list {
-                justify-self: stretch;
-                min-width: 0;
-            }
-
-            .forecast-kpi-row {
-                grid-template-columns: minmax(98px, auto) 1fr;
-            }
-
-            .forecast-kpi-value {
-                justify-self: start;
-            }
-        }
-
         .pg-stats {
             display: flex;
             gap: var(--space-md);
@@ -2063,6 +2039,30 @@ const _HomePage = {
         .forecast-kpi-percent {
             font-weight: 600;
             color: inherit;
+        }
+
+        /* ===== Responsive: stack forecast summary on phones ===== */
+        @media (max-width: 768px) {
+            .panel-groups-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .forecast-summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .forecast-kpi-list {
+                justify-self: stretch;
+                min-width: 0;
+            }
+
+            .forecast-kpi-row {
+                grid-template-columns: minmax(98px, auto) 1fr;
+            }
+
+            .forecast-kpi-value {
+                justify-self: start;
+            }
         }
 
         .weather-trace {
