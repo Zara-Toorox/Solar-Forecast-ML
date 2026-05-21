@@ -1206,17 +1206,17 @@ const _HomePage = {
         }
 
         function describeWeather(weather) {
-            if (!weather) return 'Keine Daten';
+            if (!weather) return t('common.noData');
             const parts = [];
             const temp = weather.temperature ?? weather.temperature_c;
             const clouds = weather.clouds ?? weather.cloud_cover_percent ?? weather.cloud_cover;
             const precipitation = weather.precipitation ?? weather.precipitation_mm;
             const radiation = weather.solar_radiation_wm2 ?? weather.solar_radiation;
             if (temp != null) parts.push(`${Number(temp).toFixed(1)}°C`);
-            if (clouds != null) parts.push(`${Math.round(Number(clouds))}% Wolken`);
-            if (precipitation != null) parts.push(`${Number(precipitation).toFixed(1)} mm Regen`);
+            if (clouds != null) parts.push(t('home.weatherTrace.cloudsLine', { value: Math.round(Number(clouds)) }));
+            if (precipitation != null) parts.push(t('home.weatherTrace.rainLine', { value: Number(precipitation).toFixed(1) }));
             if (radiation != null) parts.push(`${Math.round(Number(radiation))} W/m²`);
-            return parts.length ? parts.join(' · ') : 'Keine Details';
+            return parts.length ? parts.join(' · ') : t('home.weatherTrace.noDetails');
         }
 
         function compareWeather(expected, actual) {
@@ -1233,19 +1233,20 @@ const _HomePage = {
             const details = [];
             if (!Number.isNaN(expectedClouds) && !Number.isNaN(actualClouds)) {
                 const cloudDelta = Math.abs(expectedClouds - actualClouds);
-                details.push(`Wolken Δ ${cloudDelta.toFixed(0)}%`);
+                details.push(t('home.weatherTrace.cloudsDelta', { value: cloudDelta.toFixed(0) }));
                 score += cloudDelta <= 20 ? 0 : cloudDelta <= 40 ? 1 : 2;
             }
 
             const rainDelta = Math.abs(expectedRain - actualRain);
             if (expectedRain > 0 || actualRain > 0) {
-                details.push(`Regen Δ ${rainDelta.toFixed(1)} mm`);
+                details.push(t('home.weatherTrace.rainDelta', { value: rainDelta.toFixed(1) }));
             }
             score += rainDelta <= 0.3 ? 0 : rainDelta <= 1.5 ? 1 : 2;
 
-            if (score <= 0) return { state: 'good', icon: '✓', title: `PV-relevant sehr gut getroffen${details.length ? ' · ' + details.join(' · ') : ''}` };
-            if (score <= 2) return { state: 'mixed', icon: '~', title: `PV-relevant gut getroffen${details.length ? ' · ' + details.join(' · ') : ''}` };
-            return { state: 'bad', icon: '×', title: `PV-relevant schlecht getroffen${details.length ? ' · ' + details.join(' · ') : ''}` };
+            const detailSuffix = details.length ? ' · ' + details.join(' · ') : '';
+            if (score <= 0) return { state: 'good', icon: '✓', title: t('home.weatherTrace.matchGood') + detailSuffix };
+            if (score <= 2) return { state: 'mixed', icon: '~', title: t('home.weatherTrace.matchMixed') + detailSuffix };
+            return { state: 'bad', icon: '×', title: t('home.weatherTrace.matchBad') + detailSuffix };
         }
 
         function buildWeatherTrace(hours, dateKey, expectedByDate, actualByDate, fallbackRows) {
@@ -1272,10 +1273,14 @@ const _HomePage = {
                         actualAvailable: Boolean(actual),
                         matchIcon: match.icon,
                         matchState: match.state,
-                        expectedTitle: `Erwartet ${String(hour).padStart(2, '0')}:00 · ${describeWeather(expected)}`,
-                        actualTitle: actual
-                            ? `Gesehen ${String(hour).padStart(2, '0')}:00 · ${describeWeather(actual)}`
-                            : `Gesehen ${String(hour).padStart(2, '0')}:00 · noch keine Daten`,
+                        expectedTitle: t('home.weatherTrace.expectedAt', {
+                            time: `${String(hour).padStart(2, '0')}:00`,
+                            details: describeWeather(expected),
+                        }),
+                        actualTitle: t('home.weatherTrace.actualAt', {
+                            time: `${String(hour).padStart(2, '0')}:00`,
+                            details: actual ? describeWeather(actual) : t('home.weatherTrace.noActualYet'),
+                        }),
                         matchTitle: match.title,
                     };
                 })
