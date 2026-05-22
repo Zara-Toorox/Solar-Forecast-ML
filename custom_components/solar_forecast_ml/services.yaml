@@ -213,6 +213,120 @@ send_daily_briefing:
               value: "en"
 
 # ============================================================================
+# Repair Services
+# ============================================================================
+
+repair_tool:
+  name: SFML Repair Tool
+  description: >
+    Developer only or on advice. This service writes directly to the live
+    Solar Forecast ML database when dry_run is false. Wrong values can corrupt
+    historical actuals, daily summaries, panel-group training data, and forecast
+    evaluation results. Use dry_run first.
+  fields:
+    operation:
+      name: Operation
+      description: "Developer only or on advice."
+      required: true
+      example: "daily_cumulative_actual"
+      selector:
+        select:
+          options:
+            - label: "Daily cumulative actual"
+              value: "daily_cumulative_actual"
+    date:
+      name: Target Date
+      description: "Date to repair in YYYY-MM-DD format."
+      required: false
+      example: "2026-05-19"
+      selector:
+        text:
+    cumulative_kwh:
+      name: Cumulative kWh
+      description: "Manufacturer app cumulative day yield in kWh."
+      required: true
+      example: 4.28
+      selector:
+        number:
+          min: 0
+          mode: box
+          step: 0.001
+          unit_of_measurement: kWh
+    measured_at:
+      name: Measured At
+      description: "Timestamp of the manufacturer app value. Defaults to now."
+      required: false
+      example: "2026-05-19T12:05:00+02:00"
+      selector:
+        text:
+    start_hour:
+      name: Start Hour
+      description: "Optional first hour to consider for repair."
+      required: false
+      example: 5
+      selector:
+        number:
+          min: 0
+          max: 23
+          mode: box
+    end_hour:
+      name: End Hour
+      description: "Optional last completed hour to consider for repair."
+      required: false
+      example: 11
+      selector:
+        number:
+          min: 0
+          max: 23
+          mode: box
+    distribution:
+      name: Hour Distribution
+      description: "Currently only forecast_shape is supported."
+      required: false
+      default: "forecast_shape"
+      selector:
+        select:
+          options:
+            - label: "Forecast shape"
+              value: "forecast_shape"
+    group_distribution:
+      name: Group Distribution
+      description: "Currently only historical_clean_share is supported."
+      required: false
+      default: "historical_clean_share"
+      selector:
+        select:
+          options:
+            - label: "Historical clean share"
+              value: "historical_clean_share"
+    learning_policy:
+      name: Learning Policy
+      description: "Currently only exclude is supported."
+      required: false
+      default: "exclude"
+      selector:
+        select:
+          options:
+            - label: "Exclude from learning"
+              value: "exclude"
+    dry_run:
+      name: Dry Run
+      description: "Preview only. Defaults to true and does not write to the DB."
+      required: false
+      default: true
+      selector:
+        boolean:
+    acknowledge_live_db_risk:
+      name: Acknowledge Live DB Risk
+      description: >
+        Must be true when dry_run is false. Confirms that this developer-only
+        service writes directly to the live SFML database.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+# ============================================================================
 # Subspace Anomaly Services
 # ============================================================================
 

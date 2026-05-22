@@ -15,7 +15,7 @@ from homeassistant.const import Platform
 # Warp Core Identity @starfleet-engineering
 DOMAIN = "solar_forecast_ml"
 NAME = "Solar Forecast ML"
-VERSION = "26.2.2"
+VERSION = "26.2.4"
 SOFTWARE_VERSION = VERSION
 AI_VERSION = "8.0 TFS"
 INTEGRATION_MODEL = "Solar Forecast ML V20"
@@ -234,6 +234,9 @@ SERVICE_SEND_DAILY_BRIEFING = "send_daily_briefing"
 
 # Subspace Anomaly Services @starfleet-engineering V16.2
 SERVICE_BACKFILL_SHADOW_DETECTION = "backfill_shadow_detection"
+
+# Repair Services @starfleet-engineering
+SERVICE_REPAIR_TOOL = "repair_tool"
 
 OPERATIONAL_REFORECAST_MODE_STANDARD = "standard"
 OPERATIONAL_REFORECAST_MODE_STANDARD_MIDDAY = "standard_midday"

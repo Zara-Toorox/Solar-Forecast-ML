@@ -56,6 +56,7 @@ from .const import (
     CONF_PANEL_GROUPS,
     DOMAIN,
     PLATFORMS,
+    SERVICE_REPAIR_TOOL,
     VERSION,
 )
 from .core.core_helpers import SafeDateTimeUtil as dt_util
@@ -1411,6 +1412,18 @@ async def _async_register_services(
 
     hass.data[DOMAIN]["service_registry"] = registry
 
+    if not hass.services.has_service(DOMAIN, SERVICE_REPAIR_TOOL):
+        from .services.service_repair_tool import RepairToolService
+
+        repair_tool = RepairToolService(hass, coordinator)
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_REPAIR_TOOL,
+            repair_tool.handle_repair_tool,
+        )
+        hass.data[DOMAIN]["repair_tool_service"] = repair_tool
+        _LOGGER.debug("Registered repair_tool compatibility service")
+
 
 def _async_unregister_services(hass: HomeAssistant) -> None:
     """Unregister integration services using Service Registry. @zara"""
@@ -1419,3 +1432,7 @@ def _async_unregister_services(hass: HomeAssistant) -> None:
         registry.unregister_all_services()
     else:
         _LOGGER.warning("Service registry not found for cleanup")
+
+    if hass.services.has_service(DOMAIN, SERVICE_REPAIR_TOOL):
+        hass.services.async_remove(DOMAIN, SERVICE_REPAIR_TOOL)
+    hass.data[DOMAIN].pop("repair_tool_service", None)

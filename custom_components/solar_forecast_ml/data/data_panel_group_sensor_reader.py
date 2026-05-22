@@ -56,7 +56,10 @@ class PanelGroupSensorReader(DataManagerIO):
         self._last_values: Dict[str, float] = {}  # group_name -> last kWh value
         self._last_updated_by_group: Dict[str, datetime] = {}
         self._sensor_rejection_warnings: Set[str] = set()
-        self._group_learning_disabled_warning: Optional[str] = None
+        self._group_learning_disabled_reason: Optional[str] = None
+        self._group_learning_disabled_streak: int = 0
+        self._consistency_mismatch_streak: int = 0
+        self._recorder_backfill_negative_delta_counts: Dict[str, int] = {}
 
         _LOGGER.debug(
             "PanelGroupSensorReader initialized with %d groups",
@@ -146,15 +149,38 @@ class PanelGroupSensorReader(DataManagerIO):
         self._sensor_rejection_warnings.add(warning_key)
 
     def _warn_group_learning_disabled(self, reason: str) -> None:
-        if self._group_learning_disabled_warning == reason:
+        if self._group_learning_disabled_reason == reason:
+            self._group_learning_disabled_streak += 1
+        else:
+            self._group_learning_disabled_reason = reason
+            self._group_learning_disabled_streak = 1
+
+        missing_sensor_config = "have a configured sensor" in reason
+        warn = missing_sensor_config or self._group_learning_disabled_streak >= 3
+        should_log = (
+            self._group_learning_disabled_streak == 1
+            or self._group_learning_disabled_streak == 3
+            or (warn and self._group_learning_disabled_streak % 6 == 0)
+        )
+        if not should_log:
             return
 
-        _LOGGER.warning(
-            "Panel group learning disabled: %s. Every panel group must provide a valid "
-            "cumulative DC energy sensor in kWh.",
-            reason,
+        log = _LOGGER.warning if warn else _LOGGER.info
+        suffix = (
+            "Please verify that every panel group has a valid cumulative DC energy sensor in kWh."
+            if missing_sensor_config or warn
+            else "Learning will resume automatically after fresh same-hour baselines are available."
         )
-        self._group_learning_disabled_warning = reason
+        log(
+            "Panel group learning skipped for this hour: %s (streak=%d). %s",
+            reason,
+            self._group_learning_disabled_streak,
+            suffix,
+        )
+
+    def _reset_group_learning_disabled_status(self) -> None:
+        self._group_learning_disabled_reason = None
+        self._group_learning_disabled_streak = 0
 
     def _get_group_capacity_kwp(self, group_name: str) -> Optional[float]:
         """Get configured group capacity in kWp by name. @zara"""
@@ -203,6 +229,17 @@ class PanelGroupSensorReader(DataManagerIO):
             return None
 
         if value < -0.001:
+            if source == "recorder backfill":
+                self._recorder_backfill_negative_delta_counts[group_name] = (
+                    self._recorder_backfill_negative_delta_counts.get(group_name, 0) + 1
+                )
+                _LOGGER.debug(
+                    "Ignored %s production for group '%s': negative delta %.4f kWh",
+                    source,
+                    group_name,
+                    value,
+                )
+                return None
             _LOGGER.warning(
                 "Rejected %s production for group '%s': negative delta %.4f kWh",
                 source,
@@ -425,7 +462,7 @@ class PanelGroupSensorReader(DataManagerIO):
         baseline_age = now - last_updated
         if baseline_age < timedelta(0) or baseline_age > MAX_LIVE_SENSOR_DELTA_AGE:
             await self._store_baseline(group_name, current_value)
-            _LOGGER.warning(
+            _LOGGER.info(
                 "Skipping panel group training target '%s': baseline is %.1f minutes old; "
                 "stored %.4f kWh as new baseline to avoid learning a multi-hour delta",
                 group_name,
@@ -504,6 +541,7 @@ class PanelGroupSensorReader(DataManagerIO):
             )
             return {}
 
+        self._reset_group_learning_disabled_status()
         return results
 
     async def backfill_missing_actuals_from_recorder(
@@ -527,6 +565,7 @@ class PanelGroupSensorReader(DataManagerIO):
 
         cutoff = (SafeDateTimeUtil.now() - timedelta(days=days)).date().isoformat()
         filled = 0
+        self._recorder_backfill_negative_delta_counts = {}
 
         for group in self.get_groups_with_sensors():
             group_name = group.get("name", "")
@@ -651,6 +690,16 @@ class PanelGroupSensorReader(DataManagerIO):
 
         if filled > 0:
             _LOGGER.info("Backfill: %d per-group actuals recovered from recorder", filled)
+
+        if self._recorder_backfill_negative_delta_counts:
+            details = ", ".join(
+                f"{group_name}={count}"
+                for group_name, count in sorted(self._recorder_backfill_negative_delta_counts.items())
+            )
+            _LOGGER.info(
+                "Backfill ignored recorder samples with negative deltas (%s); this is expected around daily-reset sensors or counter discontinuities",
+                details,
+            )
 
         return filled
 
@@ -800,14 +849,29 @@ class PanelGroupSensorReader(DataManagerIO):
         consistent = absolute_diff <= allowed_diff
 
         if not consistent:
-            _LOGGER.warning(
-                "Panel group learning disabled for this hour: group sum %.3f kWh does not match "
-                "DC yield %.3f kWh. Please verify that all panel group sensors and the yield "
-                "sensor measure the same DC energy basis in kWh, use the same time window, "
-                "and do not overlap.",
-                group_sum,
-                total_actual,
+            self._consistency_mismatch_streak += 1
+            warn = self._consistency_mismatch_streak >= 3
+            should_log = (
+                self._consistency_mismatch_streak == 1
+                or self._consistency_mismatch_streak == 3
+                or (warn and self._consistency_mismatch_streak % 6 == 0)
             )
+            if should_log:
+                log = _LOGGER.warning if warn else _LOGGER.info
+                suffix = (
+                    "Please verify that all panel group sensors and the yield sensor measure the same DC energy basis in kWh, use the same time window, and do not overlap."
+                    if warn
+                    else "Training uses safe fallback targets for this hour."
+                )
+                log(
+                    "Panel group learning skipped for this hour: group sum %.3f kWh does not match DC yield %.3f kWh (streak=%d). %s",
+                    group_sum,
+                    total_actual,
+                    self._consistency_mismatch_streak,
+                    suffix,
+                )
+        else:
+            self._consistency_mismatch_streak = 0
 
         return {
             "consistent": consistent,
