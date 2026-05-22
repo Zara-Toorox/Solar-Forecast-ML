@@ -855,18 +855,18 @@ const _HomePage = {
             const excludedMppt = cleanEvalStats.today.excludedMppt || 0;
             const excludedClipped = cleanEvalStats.today.excludedInverterClippedHours || 0;
             const parts = [];
-            if (missingActual > 0) parts.push(`${missingActual} h noch ohne IST`);
-            if (excludedMppt > 0) parts.push(`${excludedMppt} h wegen MPPT`);
-            if (excludedClipped > 0) parts.push(`${excludedClipped} h wegen Clipping`);
+            if (missingActual > 0) parts.push(t('home.coverage.missingActual', { hours: missingActual }));
+            if (excludedMppt > 0) parts.push(t('home.coverage.excludedMppt', { hours: excludedMppt }));
+            if (excludedClipped > 0) parts.push(t('home.coverage.excludedClipped', { hours: excludedClipped }));
 
             if (evaluated != null && candidates != null && candidates > 0) {
                 if (parts.length > 0) {
-                    return `Bewertet wurden ${evaluated} von ${candidates} relevanten Produktionsstunden. Nicht bewertet: ${parts.join(', ')}.`;
+                    return t('home.coverage.evaluatedWithRest', { evaluated, candidates, parts: parts.join(', ') });
                 }
-                return `Bewertet wurden ${evaluated} von ${candidates} relevanten Produktionsstunden.`;
+                return t('home.coverage.evaluatedFull', { evaluated, candidates });
             }
 
-            return 'Bewertet wurden nur Stunden mit IST-Wert und ohne technische Ausschlussgruende.';
+            return t('home.coverage.fallback');
         });
 
         // Helpers

@@ -301,27 +301,48 @@ const SettingsPage = {
             'Hausverbrauch (W)': 'settings.sensorLabel.houseConsumptionW',
             'Hausverbrauch (kWh/Tag)': 'settings.sensorLabel.houseConsumptionDaily',
             'Solar → Haus (W)': 'settings.sensorLabel.solarToHouseW',
+            'Solar → Batterie (W)': 'settings.sensorLabel.solarToBatteryW',
             'Solar Produktion (W)': 'settings.sensorLabel.solarProductionW',
             'Solar-Tagesertrag (kWh)': 'settings.sensorLabel.solarYieldDaily',
             'Batterie → Haus (W)': 'settings.sensorLabel.batteryToHouseW',
+            'Batterie → Netz (W)': 'settings.sensorLabel.batteryToGridW',
+            'Battery to Grid (W)': 'settings.sensorLabel.batteryToGridW',
             'Batterie SoC (%)': 'settings.sensorLabel.batterySoc',
             'Batterie Leistung (W)': 'settings.sensorLabel.batteryPowerW',
+            'Batterie von Solar (kWh/Tag)': 'settings.sensorLabel.batteryChargeSolarDaily',
+            'Batterie von Netz (kWh/Tag)': 'settings.sensorLabel.batteryChargeGridDaily',
+            'Batterie entladen (kWh/Tag)': 'settings.sensorLabel.batteryDischargeDaily',
+            'Netz → Haus (W)': 'settings.sensorLabel.gridToHouseW',
+            'Netz → Batterie (W)': 'settings.sensorLabel.gridToBatteryW',
+            'Haus → Netz (W)': 'settings.sensorLabel.houseToGridW',
             'Smartmeter Bezug (W)': 'settings.sensorLabel.smartmeterImportW',
             'Smartmeter Einspeisung (W)': 'settings.sensorLabel.smartmeterExportW',
             'Netzbezug (kWh/Tag)': 'settings.sensorLabel.gridImportDaily',
             'Netzeinspeisung (kWh/Tag)': 'settings.sensorLabel.gridExportDaily',
+            'Zusätzlicher Netzbezug (kWh/Tag)': 'settings.sensorLabel.gridImportExtra',
+            'Netzbezug (kWh/Jahr)': 'settings.sensorLabel.gridImportYearly',
             'Strompreis Gesamt (ct/kWh)': 'settings.sensorLabel.totalPrice',
             'Strompreis (ct/kWh)': 'settings.sensorLabel.electricityPrice',
             'Wetter': 'settings.sensorLabel.weather',
             'Außentemperatur (°C)': 'settings.sensorLabel.outdoorTemp',
-            'Wärmepumpe Verbrauch (W)': 'settings.sensorLabel.heatpumpW',
-            'Heizstab Verbrauch (W)': 'settings.sensorLabel.heatingrodW',
-            'Wallbox Verbrauch (W)': 'settings.sensorLabel.wallboxW',
+            'Wärmepumpe Leistung (W)': 'settings.sensorLabel.heatpumpW',
+            'Wärmepumpe (kWh/Tag)': 'settings.sensorLabel.heatpumpDaily',
+            'Heizstab Leistung (W)': 'settings.sensorLabel.heatingrodW',
+            'Heizstab (kWh/Tag)': 'settings.sensorLabel.heatingrodDaily',
+            'Wallbox Leistung (W)': 'settings.sensorLabel.wallboxW',
+            'Wallbox (kWh/Tag)': 'settings.sensorLabel.wallboxDaily',
+            'Wallbox Status': 'settings.sensorLabel.wallboxState',
         };
+        // Match "Panel 1 Leistung (W)" through "Panel 9 Leistung (W)" without
+        // hard-coding each one — backend exposes one entry per configured panel.
+        const PANEL_POWER_RE = /^Panel\s+(\d+)\s+Leistung\s+\(W\)$/;
         const translateSensorLabel = (label) => {
             if (!label) return label;
             const key = SENSOR_LABEL_KEYS[label];
-            return key ? t(key) : label;
+            if (key) return t(key);
+            const m = PANEL_POWER_RE.exec(label);
+            if (m) return t('settings.sensorLabel.panelPower', { n: m[1] });
+            return label;
         };
         // Weather entities return HA condition codes like "sunny"/"cloudy" as
         // their state. Map them via the existing weather.condition.* keys.

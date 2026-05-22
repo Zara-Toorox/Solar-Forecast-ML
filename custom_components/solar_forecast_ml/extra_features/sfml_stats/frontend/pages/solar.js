@@ -500,13 +500,13 @@ const _SolarPage = {
                 .map(h => {
                     let text, severity;
                     if (h.avg_percent >= 80) {
-                        text = 'Vollstaendig abgeschattet (Sonne weg / Hindernis 100%)';
+                        text = t('solar.fingerprint.insight.full');
                         severity = 'high';
                     } else if (h.avg_percent >= 40) {
-                        text = 'Starke feste Abschattung (Baum/Gebaeude)';
+                        text = t('solar.fingerprint.insight.strong');
                         severity = 'high';
                     } else {
-                        text = 'Wiederkehrende feste Teilabschattung';
+                        text = t('solar.fingerprint.insight.recurring');
                         severity = 'mid';
                     }
                     return { hour: h.hour, avg_percent: h.avg_percent, text, severity };
@@ -536,10 +536,10 @@ const _SolarPage = {
                     formatter: (p) => {
                         const d = metaMap[`${p.data[0]}-${p.data[1]}`] || {};
                         return `<b>${MONTH_SHORT[p.data[1]]} · ${hours[p.data[0]]}:00</b><br/>`
-                            + `Schatten: <b>${d.avg_percent || 0}%</b><br/>`
-                            + `Haeufigkeit: ${((d.rate || 0) * 100).toFixed(0)}%<br/>`
-                            + `Ursache: <b>${d.cause || '--'}</b><br/>`
-                            + `Samples: ${d.samples || 0} · Confidence: ${((d.confidence || 0) * 100).toFixed(0)}%`;
+                            + `${t('solar.fingerprint.tooltipShadow')}: <b>${d.avg_percent || 0}%</b><br/>`
+                            + `${t('solar.fingerprint.tooltipFrequency')}: ${((d.rate || 0) * 100).toFixed(0)}%<br/>`
+                            + `${t('solar.fingerprint.tooltipCause')}: <b>${d.cause || '--'}</b><br/>`
+                            + `${t('solar.fingerprint.tooltipSamples')}: ${d.samples || 0} · ${t('solar.fingerprint.tooltipConfidence')}: ${((d.confidence || 0) * 100).toFixed(0)}%`;
                     },
                 },
                 xAxis: {
@@ -562,10 +562,10 @@ const _SolarPage = {
                     inRange: {
                         color: ['#1e40af', '#7c3aed', '#db2777', '#ea580c', '#dc2626'],
                     },
-                    text: ['100% Schatten', '5%'],
+                    text: [t('solar.fingerprint.visualMapHigh'), t('solar.fingerprint.visualMapLow')],
                 },
                 series: [{
-                    name: 'Schatten',
+                    name: t('solar.fingerprint.tooltipShadow'),
                     type: 'heatmap',
                     data,
                     label: { show: false },
@@ -606,8 +606,8 @@ const _SolarPage = {
             return '#22c55e';
         });
         const smSceneModeLabel = computed(() => shadowMovement.selectedDate === 'typical'
-            ? 'Typischer Schattenverlauf auf Basis historischer Muster'
-            : 'Stundenansicht aus gemessenen oder prognostizierten Gruppendaten');
+            ? t('solar.movement.sceneTypical')
+            : t('solar.movement.sceneHourly'));
         const smCauseBadgeClass = computed(() => {
             const p = shadowMovement.hourData.shadowPct || 0;
             if (p >= 60) return 'severity-heavy';
@@ -849,7 +849,7 @@ const _SolarPage = {
                     backgroundColor: 'rgba(10,14,20,0.95)',
                     textStyle: { color: '#f0f6fc', fontSize: 11 },
                     formatter: function(p) {
-                        return p[0].axisValue + '<br/>Schatten: <b>' + p[0].value + '%</b>';
+                        return p[0].axisValue + '<br/>' + t('solar.movement.timelineShadow') + ': <b>' + p[0].value + '%</b>';
                     },
                 },
                 xAxis: {

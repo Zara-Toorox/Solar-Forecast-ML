@@ -114,37 +114,37 @@ const _WeatherPage = {
                 <div class="chart-card">
                     <div class="chart-header">
                         <span class="chart-title">\u{1F455} {{ $t('weather.clothingRecommendation') }}</span>
-                        <span class="chart-subtitle">{{ clothing.label || '' }}</span>
+                        <span class="chart-subtitle">{{ translateClothing(clothing.label) || '' }}</span>
                     </div>
                     <div v-if="!clothing.available" class="empty-state">
                         {{ $t('weather.noCurrent') }}
                     </div>
                     <div v-else>
-                        <p class="clothing-text">{{ clothing.description }}</p>
+                        <p class="clothing-text">{{ translateClothing(clothing.description) }}</p>
                         <div class="clothing-grid">
                             <div v-if="clothing.bottom" class="clothing-item">
                                 <div class="clothing-icon">\u{1F456}</div>
-                                <div class="clothing-name">{{ clothing.bottom }}</div>
+                                <div class="clothing-name">{{ translateClothing(clothing.bottom) }}</div>
                                 <div class="clothing-label">{{ $t('weather.clothing.bottom') }}</div>
                             </div>
                             <div v-if="clothing.top" class="clothing-item">
                                 <div class="clothing-icon">\u{1F455}</div>
-                                <div class="clothing-name">{{ clothing.top }}</div>
+                                <div class="clothing-name">{{ translateClothing(clothing.top) }}</div>
                                 <div class="clothing-label">{{ $t('weather.clothing.top') }}</div>
                             </div>
                             <div v-if="clothing.jacket" class="clothing-item">
                                 <div class="clothing-icon">\u{1F9E5}</div>
-                                <div class="clothing-name">{{ clothing.jacket }}</div>
+                                <div class="clothing-name">{{ translateClothing(clothing.jacket) }}</div>
                                 <div class="clothing-label">{{ $t('weather.clothing.jacket') }}</div>
                             </div>
                             <div v-if="clothing.headwear" class="clothing-item">
                                 <div class="clothing-icon">\u{1F3A9}</div>
-                                <div class="clothing-name">{{ clothing.headwear }}</div>
+                                <div class="clothing-name">{{ translateClothing(clothing.headwear) }}</div>
                                 <div class="clothing-label">{{ $t('weather.clothing.head') }}</div>
                             </div>
                         </div>
                         <div v-if="clothing.extras && clothing.extras.length" class="clothing-extras">
-                            <span v-for="x in clothing.extras" :key="x" class="clothing-extra-chip">{{ x }}</span>
+                            <span v-for="x in clothing.extras" :key="x" class="clothing-extra-chip">{{ translateClothing(x) }}</span>
                         </div>
                     </div>
                 </div>
@@ -245,6 +245,136 @@ const _WeatherPage = {
 
         // Map our locale codes to BCP47 tags for Date/Intl formatting
         const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'de-DE');
+
+        // Clothing recommendation arrives in German from the PyArmor-protected
+        // backend (no source access to localize at origin). Map known German
+        // values per locale; unknowns fall through unchanged so we don't hide
+        // information when a new label appears.
+        const CLOTHING_TRANSLATIONS = {
+            pl: {
+                // labels (chart subtitle)
+                'Frostig': 'Mróz',
+                'Sehr kalt': 'Bardzo zimno',
+                'Kalt': 'Zimno',
+                'Kühl': 'Chłodno',
+                'Mild': 'Łagodnie',
+                'Warm': 'Ciepło',
+                'Sehr warm': 'Bardzo ciepło',
+                'Heiß': 'Upał',
+                // descriptions
+                'Warm und angenehm.': 'Ciepło i przyjemnie.',
+                'Mild und angenehm.': 'Łagodnie i przyjemnie.',
+                'Sehr warm, kann ungemütlich werden.': 'Bardzo ciepło, może być męcząco.',
+                'Sehr warm, hell und sonnig.': 'Bardzo ciepło, jasno i słonecznie.',
+                'Heiß, viel trinken.': 'Upał, dużo pij.',
+                'Kühl, leichte Schicht reicht.': 'Chłodno, wystarczy lekka warstwa.',
+                'Kalt, warm anziehen.': 'Zimno, ubierz się ciepło.',
+                'Sehr kalt, dick einpacken.': 'Bardzo zimno, opatul się grubo.',
+                'Frostig, dick einpacken und Mütze nicht vergessen.': 'Mróz, ubierz się grubo i nie zapomnij czapki.',
+                'Es regnet, Regenjacke einpacken.': 'Pada deszcz, weź kurtkę przeciwdeszczową.',
+                'Achtung, Regen heute.': 'Uwaga, dziś deszcz.',
+                // bottoms
+                'Kurze/lange Hose': 'Krótkie/długie spodnie',
+                'Kurze Hose': 'Krótkie spodnie',
+                'Lange Hose': 'Długie spodnie',
+                'Shorts': 'Szorty',
+                'Warme Hose': 'Ciepłe spodnie',
+                'Dicke Hose': 'Grube spodnie',
+                'Thermohose': 'Spodnie termoaktywne',
+                // tops
+                'T-Shirt': 'T-shirt',
+                'Langarmshirt': 'Koszulka z długim rękawem',
+                'Pullover': 'Sweter',
+                'Hemd': 'Koszula',
+                'Bluse': 'Bluzka',
+                'Thermoshirt': 'Koszulka termoaktywna',
+                'Sweatshirt': 'Bluza',
+                // jackets
+                'Dünne Jacke': 'Cienka kurtka',
+                'Übergangsjacke': 'Kurtka przejściowa',
+                'Regenjacke': 'Kurtka przeciwdeszczowa',
+                'Mantel': 'Płaszcz',
+                'Wintermantel': 'Płaszcz zimowy',
+                'Winterjacke': 'Kurtka zimowa',
+                'Daunenjacke': 'Kurtka puchowa',
+                'Anorak': 'Anorak',
+                // headwear
+                'Mütze': 'Czapka',
+                'Wintermütze': 'Czapka zimowa',
+                'Cap': 'Czapka z daszkiem',
+                'Kappe': 'Czapka z daszkiem',
+                'Sonnenhut': 'Kapelusz przeciwsłoneczny',
+                'Stirnband': 'Opaska',
+                // extras
+                'Schal': 'Szalik',
+                'Handschuhe': 'Rękawiczki',
+                'Sonnenbrille': 'Okulary przeciwsłoneczne',
+                'Sonnencreme': 'Krem z filtrem',
+                'Regenschirm': 'Parasol',
+                'Schal und Handschuhe': 'Szalik i rękawiczki',
+            },
+            en: {
+                'Frostig': 'Frosty',
+                'Sehr kalt': 'Very cold',
+                'Kalt': 'Cold',
+                'Kühl': 'Cool',
+                'Mild': 'Mild',
+                'Warm': 'Warm',
+                'Sehr warm': 'Very warm',
+                'Heiß': 'Hot',
+                'Warm und angenehm.': 'Warm and pleasant.',
+                'Mild und angenehm.': 'Mild and pleasant.',
+                'Sehr warm, kann ungemütlich werden.': 'Very warm — may get uncomfortable.',
+                'Sehr warm, hell und sonnig.': 'Very warm, bright and sunny.',
+                'Heiß, viel trinken.': 'Hot — drink plenty of water.',
+                'Kühl, leichte Schicht reicht.': 'Cool — a light layer is enough.',
+                'Kalt, warm anziehen.': 'Cold — dress warm.',
+                'Sehr kalt, dick einpacken.': 'Very cold — bundle up.',
+                'Frostig, dick einpacken und Mütze nicht vergessen.': 'Frosty — bundle up and don’t forget a hat.',
+                'Es regnet, Regenjacke einpacken.': 'It’s raining — bring a rain jacket.',
+                'Achtung, Regen heute.': 'Heads up — rain today.',
+                'Kurze/lange Hose': 'Shorts or long pants',
+                'Kurze Hose': 'Shorts',
+                'Lange Hose': 'Long pants',
+                'Shorts': 'Shorts',
+                'Warme Hose': 'Warm pants',
+                'Dicke Hose': 'Thick pants',
+                'Thermohose': 'Thermal pants',
+                'T-Shirt': 'T-shirt',
+                'Langarmshirt': 'Long-sleeve shirt',
+                'Pullover': 'Sweater',
+                'Hemd': 'Shirt',
+                'Bluse': 'Blouse',
+                'Thermoshirt': 'Thermal shirt',
+                'Sweatshirt': 'Sweatshirt',
+                'Dünne Jacke': 'Light jacket',
+                'Übergangsjacke': 'Mid-season jacket',
+                'Regenjacke': 'Rain jacket',
+                'Mantel': 'Coat',
+                'Wintermantel': 'Winter coat',
+                'Winterjacke': 'Winter jacket',
+                'Daunenjacke': 'Down jacket',
+                'Anorak': 'Anorak',
+                'Mütze': 'Beanie',
+                'Wintermütze': 'Winter beanie',
+                'Cap': 'Cap',
+                'Kappe': 'Cap',
+                'Sonnenhut': 'Sun hat',
+                'Stirnband': 'Headband',
+                'Schal': 'Scarf',
+                'Handschuhe': 'Gloves',
+                'Sonnenbrille': 'Sunglasses',
+                'Sonnencreme': 'Sunscreen',
+                'Regenschirm': 'Umbrella',
+                'Schal und Handschuhe': 'Scarf and gloves',
+            },
+        };
+        const translateClothing = (value) => {
+            if (value == null || value === '') return value;
+            const map = CLOTHING_TRANSLATIONS[locale.value];
+            if (!map) return value;
+            return map[value] ?? value;
+        };
 
         const current = reactive({
             temperature: null, feels_like: null, humidity: null,
@@ -595,7 +725,7 @@ const _WeatherPage = {
         }
 
         return {
-            current, forecast, radiation, clothing, astronomy, history,
+            current, forecast, radiation, clothing, translateClothing, astronomy, history,
             historyTab, historyTabs, lastUpdated,
             forecastChartEl, radiationChartEl, historyChartEl,
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,

@@ -585,7 +585,7 @@ const _EnergyPage = {
 
             const allHours = prices.price_hours || [];
             if (allHours.length === 0) {
-                priceChart.setOption({ backgroundColor: 'transparent', graphic: { type: 'text', left: 'center', top: 'middle', style: { text: 'Keine Preisdaten', fill: '#6e7681', fontSize: 14 } } }, true);
+                priceChart.setOption({ backgroundColor: 'transparent', graphic: { type: 'text', left: 'center', top: 'middle', style: { text: t('energy.noPriceData'), fill: '#6e7681', fontSize: 14 } } }, true);
                 return true;
             }
 
