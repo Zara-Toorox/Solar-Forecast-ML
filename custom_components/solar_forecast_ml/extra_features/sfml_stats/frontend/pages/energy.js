@@ -9,13 +9,13 @@ const _EnergyPage = {
     template: `
         <div class="page page-energy">
             <div class="section-header">
-                <h2 class="section-title">Energie & Finanzen</h2>
+                <h2 class="section-title">{{ $t('nav.energyAndFinances') }}</h2>
             </div>
 
             <!-- ========== KARTE 1: ABRECHNUNGSZEITRAUM + FORTSCHRITT ========== -->
             <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="billing">
                 <div class="chart-header" style="margin-bottom: var(--space-sm);">
-                    <span class="chart-title">💰 Energiebilanz</span>
+                    <span class="chart-title">💰 {{ $t('energy.balance') }}</span>
                     <span style="font-size: 0.8rem; color: var(--text-muted); font-family: var(--font-mono);">
                         📅 {{ billing.period.start }} — {{ billing.period.end }}
                     </span>
@@ -23,8 +23,8 @@ const _EnergyPage = {
                 <!-- Period Progress Bar -->
                 <div style="margin-bottom: var(--space-lg);">
                     <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">
-                        <span>Tag {{ billing.period.days_elapsed }} von {{ billing.period.days_total }}</span>
-                        <span>{{ billing.period.progress_percent?.toFixed(0) || 0 }}% des Abrechnungsjahres</span>
+                        <span>{{ $t('energy.dayOf', { current: billing.period.days_elapsed, total: billing.period.days_total }) }}</span>
+                        <span>{{ $t('energy.periodProgress', { pct: billing.period.progress_percent?.toFixed(0) || 0 }) }}</span>
                     </div>
                     <div style="height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
                         <div :style="{width: billing.period.progress_percent + '%', height: '100%', background: 'linear-gradient(90deg, #22c55e, #06b6d4)', borderRadius: '3px', transition: 'width 0.6s'}"></div>
@@ -32,77 +32,77 @@ const _EnergyPage = {
                 </div>
 
                 <!-- BLOCK 1: Haushalt -->
-                <div class="eb-block-title"><span>🏠</span> Gesamtverbrauch Haushalt</div>
+                <div class="eb-block-title"><span>🏠</span> {{ $t('energy.homeTotal') }}</div>
                 <div class="eb-grid">
                     <div class="eb-item">
                         <div class="eb-icon">🏠</div>
                         <div class="eb-value" style="color: var(--solar);">{{ fmt(billing.household.total_kwh) }}</div>
-                        <div class="eb-label">kWh Gesamt</div>
-                        <div class="eb-sub">Verbrauch im Zeitraum</div>
+                        <div class="eb-label">{{ $t('energy.kwhTotal') }}</div>
+                        <div class="eb-sub">{{ $t('energy.consumptionPeriod') }}</div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">☀️🏠</div>
                         <div class="eb-value" style="color: var(--solar);">{{ fmt(billing.solar.to_house_kwh) }}</div>
-                        <div class="eb-label">davon Solar</div>
-                        <div class="eb-sub">Direktverbrauch</div>
+                        <div class="eb-label">{{ $t('energy.ofWhichSolar') }}</div>
+                        <div class="eb-sub">{{ $t('energy.directConsumption') }}</div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">🔋🏠</div>
                         <div class="eb-value" style="color: #22c55e;">{{ fmt(billing.household.from_battery_kwh) }}</div>
-                        <div class="eb-label">davon Akku</div>
-                        <div class="eb-sub">Aus Speicher</div>
+                        <div class="eb-label">{{ $t('energy.ofWhichBattery') }}</div>
+                        <div class="eb-sub">{{ $t('energy.fromStorage') }}</div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡🏠</div>
                         <div class="eb-value" style="color: #a855f7;">{{ fmt(billing.household.from_grid_kwh) }}</div>
-                        <div class="eb-label">davon Netz</div>
-                        <div class="eb-sub">Bezahlt!</div>
+                        <div class="eb-label">{{ $t('energy.ofWhichGrid') }}</div>
+                        <div class="eb-sub">{{ $t('energy.paid') }}</div>
                     </div>
                 </div>
 
                 <!-- BLOCK 2: Akku -->
-                <div class="eb-block-title" style="margin-top: var(--space-lg);"><span>🔋</span> Gesamtladung Akku</div>
+                <div class="eb-block-title" style="margin-top: var(--space-lg);"><span>🔋</span> {{ $t('energy.batteryTotal') }}</div>
                 <div class="eb-grid">
                     <div class="eb-item">
                         <div class="eb-icon">🔋</div>
                         <div class="eb-value" style="color: #22c55e;">{{ fmt(billing.battery.total_charge_kwh) }}</div>
-                        <div class="eb-label">kWh Gesamt</div>
-                        <div class="eb-sub">Geladen im Zeitraum</div>
+                        <div class="eb-label">{{ $t('energy.kwhTotal') }}</div>
+                        <div class="eb-sub">{{ $t('energy.chargedInPeriod') }}</div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">☀️🔋</div>
                         <div class="eb-value" style="color: var(--solar);">{{ fmt(billing.battery.from_solar_kwh) }}</div>
-                        <div class="eb-label">davon Solar</div>
-                        <div class="eb-sub">Kostenlos!</div>
+                        <div class="eb-label">{{ $t('energy.ofWhichSolar') }}</div>
+                        <div class="eb-sub">{{ $t('energy.free') }}</div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡🔋</div>
                         <div class="eb-value" style="color: #a855f7;">{{ fmt(billing.battery.from_grid_kwh) }}</div>
-                        <div class="eb-label">davon Netz</div>
-                        <div class="eb-sub">Bezahlt!</div>
+                        <div class="eb-label">{{ $t('energy.ofWhichGrid') }}</div>
+                        <div class="eb-sub">{{ $t('energy.paid') }}</div>
                     </div>
                 </div>
 
                 <!-- BLOCK 3: Übersicht & Finanzen -->
-                <div class="eb-block-title" style="margin-top: var(--space-lg);"><span>📊</span> Übersicht & Finanzen</div>
+                <div class="eb-block-title" style="margin-top: var(--space-lg);"><span>📊</span> {{ $t('energy.overviewFinances') }}</div>
                 <div class="eb-grid">
                     <div class="eb-item">
                         <div class="eb-icon">☀️</div>
                         <div class="eb-value" style="color: var(--solar);">{{ fmt(billing.solar.total_kwh) }}</div>
-                        <div class="eb-label">kWh Solar Gesamt</div>
-                        <div class="eb-sub">Ø {{ avgDaily }} kWh/Tag</div>
+                        <div class="eb-label">{{ $t('energy.kwhSolarTotal') }}</div>
+                        <div class="eb-sub">Ø {{ avgDaily }} {{ $t('energy.kwhPerDay') }}</div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡</div>
                         <div class="eb-value" style="color: #a855f7;">{{ fmt(billing.grid.total_import_kwh) }}</div>
-                        <div class="eb-label">kWh Netzbezug</div>
-                        <div class="eb-sub">Haus + Akkuladung</div>
+                        <div class="eb-label">{{ $t('energy.kwhGridImport') }}</div>
+                        <div class="eb-sub">{{ $t('energy.houseAndBattery') }}</div>
                     </div>
                     <div class="eb-item" v-if="billing.grid.export_kwh > 0">
                         <div class="eb-icon">⚡↗️</div>
                         <div class="eb-value" style="color: #06b6d4;">{{ fmt(billing.grid.export_kwh) }}</div>
-                        <div class="eb-label">kWh Einspeisung</div>
-                        <div class="eb-sub">Ins Netz</div>
+                        <div class="eb-label">{{ $t('energy.kwhFeedIn') }}</div>
+                        <div class="eb-sub">{{ $t('energy.toGrid') }}</div>
                     </div>
 
                     <!-- Autarkie Donut -->
@@ -120,7 +120,7 @@ const _EnergyPage = {
                             </svg>
                             <div class="autarkie-text">
                                 <div class="autarkie-value" :style="{color: autarkieColor}">{{ billing.autarkie_percent?.toFixed(0) || 0 }}%</div>
-                                <div class="autarkie-label">Autarkie</div>
+                                <div class="autarkie-label">{{ $t('energy.autarky') }}</div>
                             </div>
                         </div>
                     </div>
@@ -128,60 +128,61 @@ const _EnergyPage = {
                     <div class="eb-item">
                         <div class="eb-icon">💰</div>
                         <div class="eb-value" style="color: #ef4444;">{{ billing.finance.grid_cost_eur?.toFixed(2) || '0.00' }}</div>
-                        <div class="eb-label">€ Stromkosten</div>
+                        <div class="eb-label">{{ $t('energy.electricityCosts') }}</div>
                         <div class="eb-sub">Ø {{ billing.finance.avg_price_ct?.toFixed(1) || '35.0' }} ct/kWh</div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">💚</div>
                         <div class="eb-value" style="color: #22c55e;">{{ billing.finance.savings_eur?.toFixed(2) || '0.00' }}</div>
-                        <div class="eb-label">€ gespart</div>
-                        <div class="eb-sub">durch {{ savedKwh }} kWh Solar</div>
+                        <div class="eb-label">{{ $t('energy.saved') }}</div>
+                        <div class="eb-sub">{{ $t('energy.savedSubtitle', { kwh: savedKwh }) }}</div>
                     </div>
                     <div class="eb-item" v-if="projectedSavings">
                         <div class="eb-icon">📈</div>
                         <div class="eb-value" style="color: #06b6d4;">{{ projectedSavings }}</div>
-                        <div class="eb-label">€ Hochrechnung</div>
-                        <div class="eb-sub">Jahres-Ersparnis</div>
+                        <div class="eb-label">{{ $t('energy.projection') }}</div>
+                        <div class="eb-sub">{{ $t('energy.yearlySavings') }}</div>
                     </div>
                 </div>
 
                 <!-- Stromherkunft Breakdown Bar -->
                 <div class="breakdown-section" v-if="billing.household.total_kwh > 0" style="margin-top: var(--space-lg);">
-                    <div class="eb-sub" style="margin-bottom: 6px;">Stromherkunft im Zeitraum</div>
+                    <div class="eb-sub" style="margin-bottom: 6px;">{{ $t('energy.electricitySource') }}</div>
                     <div class="breakdown-bar">
                         <div class="breakdown-seg solar" :style="{width: breakdownPct.solar + '%'}" v-if="breakdownPct.solar > 3">{{ breakdownPct.solar }}%</div>
                         <div class="breakdown-seg battery" :style="{width: breakdownPct.battery + '%'}" v-if="breakdownPct.battery > 3">{{ breakdownPct.battery }}%</div>
                         <div class="breakdown-seg grid" :style="{width: breakdownPct.grid + '%'}" v-if="breakdownPct.grid > 3">{{ breakdownPct.grid }}%</div>
                     </div>
                     <div class="breakdown-legend">
-                        <span><span class="breakdown-dot solar"></span> Solar direkt</span>
-                        <span><span class="breakdown-dot battery"></span> Über Akku</span>
-                        <span><span class="breakdown-dot grid"></span> Aus Netz</span>
+                        <span><span class="breakdown-dot solar"></span> {{ $t('energy.solarDirect') }}</span>
+                        <span><span class="breakdown-dot battery"></span> {{ $t('energy.viaBattery') }}</span>
+                        <span><span class="breakdown-dot grid"></span> {{ $t('energy.fromGrid') }}</span>
                     </div>
                 </div>
 
                 <!-- Recorder Info -->
                 <div v-if="billing.data_source" style="font-size: 0.65rem; color: var(--text-muted); text-align: center; margin-top: var(--space-md);">
-                    📊 Quelle: {{ billing.data_source }} · {{ billing.period.days_with_data }} Tage mit Daten
+                    📊 {{ $t('energy.source') }}: {{ billing.data_source }} · {{ $t('energy.daysWithData', { days: billing.period.days_with_data }) }}
                 </div>
             </div>
 
             <!-- ========== KARTE 1b: MONATLICHE STROMKOSTEN ========== -->
             <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="monthlyData.length > 0">
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
-                    <span class="chart-title">📅 Laufende Stromkosten pro Monat</span>
+                    <span class="chart-title">📅 {{ $t('energy.monthlyCosts') }}</span>
                 </div>
+                <div class="data-table-scroll">
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th>Monat</th>
-                            <th style="text-align:right">Verbrauch</th>
-                            <th style="text-align:right">Solar</th>
-                            <th style="text-align:right">Autarkie</th>
-                            <th style="text-align:right">Bezug</th>
+                            <th>{{ $t('energy.month') }}</th>
+                            <th style="text-align:right">{{ $t('energy.consumption') }}</th>
+                            <th style="text-align:right">{{ $t('energy.solar') }}</th>
+                            <th style="text-align:right">{{ $t('energy.autarky') }}</th>
+                            <th style="text-align:right">{{ $t('energy.import') }}</th>
                             <th style="text-align:right">Ø ct/kWh</th>
-                            <th style="text-align:right">Kosten</th>
-                            <th style="text-align:right">Gespart</th>
+                            <th style="text-align:right">{{ $t('energy.costs') }}</th>
+                            <th style="text-align:right">{{ $t('energy.savedShort') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -190,7 +191,7 @@ const _EnergyPage = {
                             :style="{ background: m.isCurrent ? 'rgba(0,212,255,0.06)' : '' }">
                             <td style="font-weight: 600;">
                                 {{ m.label }}
-                                <span v-if="m.isCurrent" style="color:var(--accent); font-size:0.7rem;"> (laufend)</span>
+                                <span v-if="m.isCurrent" style="color:var(--accent); font-size:0.7rem;"> ({{ $t('energy.current') }})</span>
                             </td>
                             <td style="text-align:right; font-family:var(--font-mono);">{{ m.consumption }} kWh</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ m.solar }} kWh</td>
@@ -202,8 +203,8 @@ const _EnergyPage = {
                             <td style="text-align:right; font-family:var(--font-mono); color:#a855f7;">{{ m.gridImport }} kWh</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--text-secondary); font-size:0.8rem;">
                                 {{ m.avgPrice }} ct
-                                <span v-if="m.isDynamic" style="color:#22c55e; font-size:0.6rem;" title="Dynamischer Tarif (stündlich)">●</span>
-                                <span v-else style="color:#eab308; font-size:0.6rem;" title="Geschätzter Durchschnitt">○</span>
+                                <span v-if="m.isDynamic" style="color:#22c55e; font-size:0.6rem;" :title="$t('energy.dynamicTariff')">●</span>
+                                <span v-else style="color:#eab308; font-size:0.6rem;" :title="$t('energy.estimatedAvg')">○</span>
                             </td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ m.cost }} €</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ m.saved }} €</td>
@@ -211,7 +212,7 @@ const _EnergyPage = {
                     </tbody>
                     <tfoot>
                         <tr style="border-top: 2px solid var(--border-default); font-weight: 700;">
-                            <td>Gesamt</td>
+                            <td>{{ $t('energy.totalRow') }}</td>
                             <td style="text-align:right; font-family:var(--font-mono);">{{ monthlyTotals.consumption }} kWh</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ monthlyTotals.solar }} kWh</td>
                             <td style="text-align:right;">
@@ -226,15 +227,16 @@ const _EnergyPage = {
                         </tr>
                     </tfoot>
                 </table>
+                </div>
             </div>
 
             <!-- ========== KARTE 2: STROMPREISE HEUTE vs MORGEN ========== -->
             <div class="chart-card" style="margin-bottom: var(--space-lg);">
                 <div class="chart-header">
-                    <span class="chart-title">Strompreise Heute vs. Morgen (Endpreis)</span>
+                    <span class="chart-title">{{ $t('energy.priceTitle') }}</span>
                     <div v-if="priceRanges" style="display:flex; gap:var(--space-lg); align-items:center;">
-                        <span style="font-family:var(--font-mono); font-size:0.8rem; color:#f472b6;">Heute: {{ priceRanges.todayMin }}-{{ priceRanges.todayMax }} ct</span>
-                        <span style="font-family:var(--font-mono); font-size:0.8rem; color:#22d3ee;">Morgen: {{ priceRanges.tomorrowMin }}-{{ priceRanges.tomorrowMax }} ct</span>
+                        <span style="font-family:var(--font-mono); font-size:0.8rem; color:#f472b6;">{{ $t('common.today') }}: {{ priceRanges.todayMin }}-{{ priceRanges.todayMax }} ct</span>
+                        <span style="font-family:var(--font-mono); font-size:0.8rem; color:#22d3ee;">{{ $t('common.tomorrow') }}: {{ priceRanges.tomorrowMin }}-{{ priceRanges.tomorrowMax }} ct</span>
                     </div>
                 </div>
                 <div class="price-chart-target" style="height: 320px; width: 100%;"></div>
@@ -243,7 +245,7 @@ const _EnergyPage = {
             <!-- ========== KARTE 3: ENERGIEQUELLEN LIVE (Power Sources) ========== -->
             <div class="chart-card" style="margin-bottom: var(--space-lg);">
                 <div class="chart-header">
-                    <span class="chart-title">🔌 Energiequellen (heute)</span>
+                    <span class="chart-title">🔌 {{ $t('energy.sourcesToday') }}</span>
                 </div>
                 <div class="sources-chart-target" style="height: 300px; width: 100%;"></div>
             </div>
@@ -251,26 +253,26 @@ const _EnergyPage = {
             <!-- ========== KARTE 4: VERBRAUCHER ========== -->
             <div class="chart-card" v-if="hasConsumers" style="margin-bottom: var(--space-lg);">
                 <div class="chart-header">
-                    <span class="chart-title">🔌 Verbraucher</span>
+                    <span class="chart-title">🔌 {{ $t('energy.consumers') }}</span>
                 </div>
                 <div class="consumer-grid">
                     <div class="consumer-row clickable" v-if="billing.consumers.heatpump.total_kwh > 0" @click="openConsumerModal('heatpump')">
                         <span class="consumer-icon">♨️</span>
-                        <span class="consumer-name">Wärmepumpe</span>
+                        <span class="consumer-name">{{ $t('flow.consumer.heatpump') }}</span>
                         <span class="consumer-kwh">{{ billing.consumers.heatpump.total_kwh.toFixed(1) }} kWh</span>
                         <span class="consumer-cost">{{ billing.consumers.heatpump.cost_eur.toFixed(2) }} €</span>
                         <span class="consumer-arrow">›</span>
                     </div>
                     <div class="consumer-row clickable" v-if="billing.consumers.heatingrod.total_kwh > 0" @click="openConsumerModal('heatingrod')">
                         <span class="consumer-icon">🔥</span>
-                        <span class="consumer-name">Heizstab</span>
+                        <span class="consumer-name">{{ $t('flow.consumer.heatingrod') }}</span>
                         <span class="consumer-kwh">{{ billing.consumers.heatingrod.total_kwh.toFixed(1) }} kWh</span>
                         <span class="consumer-cost">{{ billing.consumers.heatingrod.cost_eur.toFixed(2) }} €</span>
                         <span class="consumer-arrow">›</span>
                     </div>
                     <div class="consumer-row clickable" v-if="billing.consumers.wallbox.total_kwh > 0" @click="openConsumerModal('wallbox')">
                         <span class="consumer-icon">🚗</span>
-                        <span class="consumer-name">Wallbox</span>
+                        <span class="consumer-name">{{ $t('energy.wallbox') }}</span>
                         <span class="consumer-kwh">{{ billing.consumers.wallbox.total_kwh.toFixed(1) }} kWh</span>
                         <span class="consumer-cost">{{ billing.consumers.wallbox.cost_eur.toFixed(2) }} €</span>
                         <span class="consumer-arrow">›</span>
@@ -285,40 +287,40 @@ const _EnergyPage = {
 
                     <!-- HEATPUMP MODAL -->
                     <template v-if="consumerModal === 'heatpump' && consumerDetail?.heatpump">
-                        <h3 style="margin:0 0 var(--space-md);">♨️ Wärmepumpe — Detail</h3>
+                        <h3 style="margin:0 0 var(--space-md);">♨️ {{ $t('flow.consumer.heatpump') }} — {{ $t('common.details') }}</h3>
                         <div class="cd-grid" v-if="consumerDetail.heatpump.live">
                             <div class="cd-badge" v-if="consumerDetail.heatpump.live.heating_mode">
-                                <span class="cd-label">Heizmodus</span>
+                                <span class="cd-label">{{ $t('energy.heatpump.heatingMode') }}</span>
                                 <span class="cd-value">{{ consumerDetail.heatpump.live.heating_mode }}</span>
                             </div>
                             <div class="cd-badge" v-if="consumerDetail.heatpump.live.dhw_mode">
-                                <span class="cd-label">WW-Modus</span>
+                                <span class="cd-label">{{ $t('energy.heatpump.dhwMode') }}</span>
                                 <span class="cd-value">{{ consumerDetail.heatpump.live.dhw_mode }}</span>
                             </div>
                             <div class="cd-badge" v-if="consumerDetail.heatpump.live.dhw_charging != null">
-                                <span class="cd-label">WW-Bereitung</span>
-                                <span class="cd-value" :style="{color: consumerDetail.heatpump.live.dhw_charging ? '#22c55e' : '#6e7681'}">{{ consumerDetail.heatpump.live.dhw_charging ? 'AKTIV' : 'Aus' }}</span>
+                                <span class="cd-label">{{ $t('energy.heatpump.dhwCharging') }}</span>
+                                <span class="cd-value" :style="{color: consumerDetail.heatpump.live.dhw_charging ? '#22c55e' : '#6e7681'}">{{ consumerDetail.heatpump.live.dhw_charging ? $t('energy.activeUpper') : $t('energy.off') }}</span>
                             </div>
                             <div class="cd-badge" v-if="consumerDetail.heatpump.live.pv_active != null">
-                                <span class="cd-label">PV-Modus</span>
-                                <span class="cd-value" :style="{color: consumerDetail.heatpump.live.pv_active ? '#fbbf24' : '#6e7681'}">{{ consumerDetail.heatpump.live.pv_active ? '☀ AKTIV' : 'Aus' }}</span>
+                                <span class="cd-label">{{ $t('energy.heatpump.pvMode') }}</span>
+                                <span class="cd-value" :style="{color: consumerDetail.heatpump.live.pv_active ? '#fbbf24' : '#6e7681'}">{{ consumerDetail.heatpump.live.pv_active ? '☀ ' + $t('energy.activeUpper') : $t('energy.off') }}</span>
                             </div>
                         </div>
                         <div class="cd-stats" v-if="consumerDetail.heatpump.live">
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.storage_temp != null">
                                 <span class="cd-stat-icon">🌡️</span>
                                 <span class="cd-stat-value" :style="{color: consumerDetail.heatpump.live.storage_temp > 55 ? '#ef4444' : consumerDetail.heatpump.live.storage_temp > 40 ? '#fbbf24' : '#22d3ee'}">{{ consumerDetail.heatpump.live.storage_temp }}°C</span>
-                                <span class="cd-stat-label">Speicher</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.storage') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.electric_power != null">
                                 <span class="cd-stat-icon">⚡</span>
                                 <span class="cd-stat-value">{{ consumerDetail.heatpump.live.electric_power }} kW</span>
-                                <span class="cd-stat-label">Elektr. Aufnahme</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.electricInput') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.thermal_power != null">
                                 <span class="cd-stat-icon">🔥</span>
                                 <span class="cd-stat-value">{{ consumerDetail.heatpump.live.thermal_power }} kW</span>
-                                <span class="cd-stat-label">Therm. Leistung</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.thermalPower') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.jaz != null">
                                 <span class="cd-stat-icon">📊</span>
@@ -328,71 +330,71 @@ const _EnergyPage = {
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.pv_energy_today != null">
                                 <span class="cd-stat-icon">☀️</span>
                                 <span class="cd-stat-value" style="color:#fbbf24;">{{ consumerDetail.heatpump.live.pv_energy_today }} kWh</span>
-                                <span class="cd-stat-label">PV→WP heute</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.pvToHpToday') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.grid_energy_today != null">
                                 <span class="cd-stat-icon">⚡</span>
                                 <span class="cd-stat-value" style="color:#a855f7;">{{ consumerDetail.heatpump.live.grid_energy_today }} kWh</span>
-                                <span class="cd-stat-label">Netz→WP heute</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.gridToHpToday') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.pv_share_percent != null">
                                 <span class="cd-stat-icon">🌿</span>
                                 <span class="cd-stat-value" style="color:#22c55e;">{{ consumerDetail.heatpump.live.pv_share_percent }}%</span>
-                                <span class="cd-stat-label">PV-Anteil</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.pvShare') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.compressor_starts != null">
                                 <span class="cd-stat-icon">🔄</span>
                                 <span class="cd-stat-value">{{ consumerDetail.heatpump.live.compressor_starts }}</span>
-                                <span class="cd-stat-label">Kompressorstarts</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.compressorStarts') }}</span>
                             </div>
                         </div>
                     </template>
 
                     <!-- HEATINGROD MODAL -->
                     <template v-if="consumerModal === 'heatingrod' && consumerDetail?.heatingrod">
-                        <h3 style="margin:0 0 var(--space-md);">🔥 Heizstab — Detail</h3>
+                        <h3 style="margin:0 0 var(--space-md);">🔥 {{ $t('flow.consumer.heatingrod') }} — {{ $t('common.details') }}</h3>
                         <div class="cd-stats">
                             <div class="cd-stat" v-if="consumerDetail.heatingrod.live.power != null">
                                 <span class="cd-stat-icon">⚡</span>
                                 <span class="cd-stat-value">{{ consumerDetail.heatingrod.live.power }} W</span>
-                                <span class="cd-stat-label">Aktuelle Leistung</span>
+                                <span class="cd-stat-label">{{ $t('energy.currentPower') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatingrod.live.daily_kwh != null">
                                 <span class="cd-stat-icon">📊</span>
                                 <span class="cd-stat-value">{{ consumerDetail.heatingrod.live.daily_kwh }} kWh</span>
-                                <span class="cd-stat-label">Heute</span>
+                                <span class="cd-stat-label">{{ $t('common.today') }}</span>
                             </div>
                         </div>
                     </template>
 
                     <!-- WALLBOX MODAL -->
                     <template v-if="consumerModal === 'wallbox' && consumerDetail?.wallbox">
-                        <h3 style="margin:0 0 var(--space-md);">🚗 Wallbox — Detail</h3>
+                        <h3 style="margin:0 0 var(--space-md);">🚗 {{ $t('energy.wallbox') }} — {{ $t('common.details') }}</h3>
                         <div class="cd-stats">
                             <div class="cd-stat" v-if="consumerDetail.wallbox.live.state">
                                 <span class="cd-stat-icon">🔌</span>
                                 <span class="cd-stat-value">{{ consumerDetail.wallbox.live.state }}</span>
-                                <span class="cd-stat-label">Status</span>
+                                <span class="cd-stat-label">{{ $t('settings.statusLabel') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.wallbox.live.charge_mode">
                                 <span class="cd-stat-icon">⚡</span>
                                 <span class="cd-stat-value">{{ consumerDetail.wallbox.live.charge_mode }}</span>
-                                <span class="cd-stat-label">Lademodus</span>
+                                <span class="cd-stat-label">{{ $t('energy.chargeMode') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.wallbox.live.power != null">
                                 <span class="cd-stat-icon">💪</span>
                                 <span class="cd-stat-value">{{ consumerDetail.wallbox.live.power }} W</span>
-                                <span class="cd-stat-label">Ladeleistung</span>
+                                <span class="cd-stat-label">{{ $t('energy.chargePower') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.wallbox.live.session_kwh != null">
                                 <span class="cd-stat-icon">🔋</span>
                                 <span class="cd-stat-value">{{ consumerDetail.wallbox.live.session_kwh }} kWh</span>
-                                <span class="cd-stat-label">Session</span>
+                                <span class="cd-stat-label">{{ $t('energy.session') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.wallbox.live.daily_kwh != null">
                                 <span class="cd-stat-icon">📊</span>
                                 <span class="cd-stat-value">{{ consumerDetail.wallbox.live.daily_kwh }} kWh</span>
-                                <span class="cd-stat-label">Heute</span>
+                                <span class="cd-stat-label">{{ $t('common.today') }}</span>
                             </div>
                         </div>
                     </template>
@@ -403,6 +405,10 @@ const _EnergyPage = {
     `,
 
     setup(props) {
+        const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
+        const locale = { value: window.SFMLI18n ? window.SFMLI18n.current : 'en' };
+        const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'en-US');
+
         const billing = ref(null);
         const priceData = ref(null);
         const monthlyData = ref([]);
@@ -411,7 +417,13 @@ const _EnergyPage = {
         let priceChart = null;
         let sourcesChart = null;
 
-        const MONTH_NAMES = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+        // Localized via months.shortJan/shortFeb/... at use-site.
+        const MONTH_SHORT_KEYS = [
+            'months.shortJan', 'months.shortFeb', 'months.shortMar', 'months.shortApr',
+            'months.shortMay', 'months.shortJun', 'months.shortJul', 'months.shortAug',
+            'months.shortSep', 'months.shortOct', 'months.shortNov', 'months.shortDec',
+        ];
+        const MONTH_NAMES = MONTH_SHORT_KEYS.map(k => t(k));
 
         function fmt(v) { return v != null ? v.toFixed(1) : '0.0'; }
 
@@ -571,7 +583,7 @@ const _EnergyPage = {
 
             const allHours = prices.price_hours || [];
             if (allHours.length === 0) {
-                priceChart.setOption({ backgroundColor: 'transparent', graphic: { type: 'text', left: 'center', top: 'middle', style: { text: 'Keine Preisdaten', fill: '#6e7681', fontSize: 14 } } }, true);
+                priceChart.setOption({ backgroundColor: 'transparent', graphic: { type: 'text', left: 'center', top: 'middle', style: { text: t('energy.noPriceData'), fill: '#6e7681', fontSize: 14 } } }, true);
                 return true;
             }
 
@@ -608,8 +620,8 @@ const _EnergyPage = {
                 },
                 legend: {
                     data: [
-                        { name: 'Heute', icon: 'circle', itemStyle: { color: '#f472b6' } },
-                        { name: 'Morgen', icon: 'circle', itemStyle: { color: '#22d3ee' } },
+                        { name: t('common.today'), icon: 'circle', itemStyle: { color: '#f472b6' } },
+                        { name: t('common.tomorrow'), icon: 'circle', itemStyle: { color: '#22d3ee' } },
                     ],
                     bottom: 0,
                     textStyle: { color: '#8b949e', fontSize: 11 },
@@ -630,7 +642,7 @@ const _EnergyPage = {
                 },
                 series: [
                     {
-                        name: 'Heute',
+                        name: t('common.today'),
                         type: 'line',
                         smooth: 0.3,
                         symbol: 'circle',
@@ -640,7 +652,7 @@ const _EnergyPage = {
                         data: todayData,
                     },
                     {
-                        name: 'Morgen',
+                        name: t('common.tomorrow'),
                         type: 'line',
                         smooth: 0.3,
                         symbol: 'circle',
@@ -664,7 +676,7 @@ const _EnergyPage = {
             if (!data.length) return true;
             const times = data.map(d => {
                 const dt = new Date(d.timestamp || d.time);
-                return dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                return dt.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
             });
 
             sourcesChart.setOption({
@@ -675,10 +687,10 @@ const _EnergyPage = {
                 xAxis: { type: 'category', data: times, axisLabel: { color: '#6e7681', fontSize: 10, interval: Math.floor(times.length / 12) }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
                 yAxis: { type: 'value', name: 'W', nameTextStyle: { color: '#6e7681' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }, axisLabel: { color: '#6e7681' } },
                 series: [
-                    { name: 'Solar→Haus', type: 'line', stack: 'pos', areaStyle: { color: 'rgba(251,191,36,0.3)' }, lineStyle: { color: '#fbbf24', width: 1.5 }, itemStyle: { color: '#fbbf24' }, symbol: 'none', smooth: true, data: data.map(d => d.solar_to_house || 0) },
-                    { name: 'Batterie→Haus', type: 'line', stack: 'pos', areaStyle: { color: 'rgba(34,197,94,0.2)' }, lineStyle: { color: '#22c55e', width: 1.5 }, itemStyle: { color: '#22c55e' }, symbol: 'none', smooth: true, data: data.map(d => d.battery_to_house || 0) },
-                    { name: 'Netz→Haus', type: 'line', stack: 'pos', areaStyle: { color: 'rgba(139,92,246,0.2)' }, lineStyle: { color: '#a855f7', width: 1.5 }, itemStyle: { color: '#a855f7' }, symbol: 'none', smooth: true, data: data.map(d => d.grid_to_house || 0) },
-                    { name: 'Verbrauch', type: 'line', lineStyle: { color: '#f0f6fc', width: 2, type: 'dashed' }, itemStyle: { color: '#f0f6fc' }, symbol: 'none', smooth: true, data: data.map(d => d.home_consumption || 0) },
+                    { name: t('flow.stat.solarToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(251,191,36,0.3)' }, lineStyle: { color: '#fbbf24', width: 1.5 }, itemStyle: { color: '#fbbf24' }, symbol: 'none', smooth: true, data: data.map(d => d.solar_to_house || 0) },
+                    { name: t('flow.stat.batteryToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(34,197,94,0.2)' }, lineStyle: { color: '#22c55e', width: 1.5 }, itemStyle: { color: '#22c55e' }, symbol: 'none', smooth: true, data: data.map(d => d.battery_to_house || 0) },
+                    { name: t('flow.stat.gridToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(139,92,246,0.2)' }, lineStyle: { color: '#a855f7', width: 1.5 }, itemStyle: { color: '#a855f7' }, symbol: 'none', smooth: true, data: data.map(d => d.grid_to_house || 0) },
+                    { name: t('flow.node.houseConsumption'), type: 'line', lineStyle: { color: '#f0f6fc', width: 2, type: 'dashed' }, itemStyle: { color: '#f0f6fc' }, symbol: 'none', smooth: true, data: data.map(d => d.home_consumption || 0) },
                 ],
                 animationDuration: 1000,
             }, true);

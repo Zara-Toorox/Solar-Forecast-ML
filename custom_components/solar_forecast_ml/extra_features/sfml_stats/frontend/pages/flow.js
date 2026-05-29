@@ -4,10 +4,11 @@
 const FlowPage = ((Vue) => {
 const { ref, reactive, computed, onMounted, onUnmounted } = Vue;
 
+// Consumer labels resolve via i18n at render time (`labelKey` -> $t(labelKey)).
 const CONSUMER_META = {
-    heatpump: { label: 'Waermepumpe', icon: 'HP', color: '#fb7185', x: 360, y: 574 },
-    heatingrod: { label: 'Heizstab', icon: 'HS', color: '#f97316', x: 660, y: 606 },
-    wallbox: { label: 'Auto', icon: 'EV', color: '#38bdf8', x: 960, y: 574 },
+    heatpump: { labelKey: 'flow.consumer.heatpump', icon: 'HP', color: '#fb7185', x: 360, y: 574 },
+    heatingrod: { labelKey: 'flow.consumer.heatingrod', icon: 'HS', color: '#f97316', x: 660, y: 606 },
+    wallbox: { labelKey: 'flow.consumer.wallbox', icon: 'EV', color: '#38bdf8', x: 960, y: 574 },
 };
 
 function fmtW(value) {
@@ -57,19 +58,19 @@ const _FlowPage = {
     template: `
         <div class="page page-flow">
             <div class="section-header">
-                <h2 class="section-title">Live Energiefluss</h2>
+                <h2 class="section-title">{{ $t('flow.title') }}</h2>
             </div>
 
             <div class="chart-card flow-hero-card">
                 <div class="flow-hero-head">
                     <div class="flow-hero-title">
-                        <span class="chart-title">Energy Flow</span>
-                        <span class="flow-hero-subtitle">Solar, Haus, Akku, Netz und optionale Verbraucher</span>
+                        <span class="chart-title">{{ $t('flow.heroTitle') }}</span>
+                        <span class="flow-hero-subtitle">{{ $t('flow.subtitle') }}</span>
                     </div>
                     <div class="flow-hero-badges">
                         <span class="flow-badge">{{ currentClock }}</span>
                         <span class="flow-badge" v-if="flowData.current_price">{{ fmtPrice(flowData.current_price.total_price) }}</span>
-                        <span class="flow-badge" :class="{ live: connected }">{{ connected ? 'Live' : 'Offline' }}</span>
+                        <span class="flow-badge" :class="{ live: connected }">{{ connected ? $t('common.live') : $t('flow.offline') }}</span>
                     </div>
                 </div>
 
@@ -155,9 +156,9 @@ const _FlowPage = {
                         <g class="flow-node solar-node" transform="translate(520 72)">
                             <rect x="0" y="0" width="280" height="122" rx="30" filter="url(#flowCardShadow)"></rect>
                             <text x="42" y="40" class="node-icon">☀</text>
-                            <text x="140" y="42" text-anchor="middle" class="node-title">PV-Erzeugung</text>
+                            <text x="140" y="42" text-anchor="middle" class="node-title">{{ $t('flow.node.pvProduction') }}</text>
                             <text x="140" y="82" text-anchor="middle" class="node-value solar">{{ fmtW(flowData.flows.solar_power) }}</text>
-                            <text x="140" y="106" text-anchor="middle" class="node-sub node-sub-tight">Live Solarleistung</text>
+                            <text x="140" y="106" text-anchor="middle" class="node-sub node-sub-tight">{{ $t('flow.node.liveSolarPower') }}</text>
                         </g>
 
 
@@ -166,13 +167,13 @@ const _FlowPage = {
                             <circle cx="108" cy="72" r="68" class="house-core-fill" filter="url(#flowSoftGlow)"></circle>
                             <text x="108" y="62" text-anchor="middle" class="house-core-icon">⌂</text>
                             <text x="108" y="98" text-anchor="middle" class="house-core-value">{{ fmtW(flowData.home.consumption) }}</text>
-                            <text x="108" y="124" text-anchor="middle" class="house-core-sub">Hausverbrauch live</text>
+                            <text x="108" y="124" text-anchor="middle" class="house-core-sub">{{ $t('flow.node.houseConsumption') }}</text>
                         </g>
 
                         <g class="flow-node grid-node" transform="translate(78 286)">
                             <rect x="0" y="0" width="228" height="144" rx="30" filter="url(#flowCardShadow)"></rect>
                             <text x="38" y="42" class="node-icon">⚡</text>
-                            <text x="114" y="44" text-anchor="middle" class="node-title">Stromnetz</text>
+                            <text x="114" y="44" text-anchor="middle" class="node-title">{{ $t('flow.node.grid') }}</text>
                             <text x="114" y="88" text-anchor="middle" class="node-value grid" :class="gridStatusTextPrimaryClass">{{ gridStatusTextSecondary }}</text>
                             <text x="114" y="116" text-anchor="middle" class="node-sub node-sub-strong" :class="gridModeTextClass">{{ gridModeText }}</text>
                         </g>
@@ -180,7 +181,7 @@ const _FlowPage = {
                         <g v-if="hasBattery" class="flow-node battery-node" transform="translate(1014 286)">
                             <rect x="0" y="0" width="228" height="144" rx="30" filter="url(#flowCardShadow)"></rect>
                             <text x="38" y="42" class="node-icon">🔋</text>
-                            <text x="114" y="42" text-anchor="middle" class="node-title">Batterie</text>
+                            <text x="114" y="42" text-anchor="middle" class="node-title">{{ $t('flow.node.battery') }}</text>
                             <text x="114" y="84" text-anchor="middle" class="node-value battery" :class="batteryPowerTextClass">{{ batteryPowerText }}</text>
                             <text x="114" y="112" text-anchor="middle" class="node-status battery" :class="batteryStateTextClass">{{ batteryStateText }}</text>
                             <text x="114" y="136" text-anchor="middle" class="node-sub">SOC {{ flowData.battery.soc != null ? flowData.battery.soc.toFixed(0) + '%' : '--' }}</text>
@@ -197,23 +198,23 @@ const _FlowPage = {
 
                 <div class="flow-bottom-stats">
                     <div class="flow-stat">
-                        <span class="flow-stat-label">Solar zu Haus</span>
+                        <span class="flow-stat-label">{{ $t('flow.stat.solarToHouse') }}</span>
                         <span class="flow-stat-value solar">{{ fmtW(flowData.flows.solar_to_house) }}</span>
                     </div>
                     <div class="flow-stat" v-if="hasBattery">
-                        <span class="flow-stat-label">Solar zu Akku</span>
+                        <span class="flow-stat-label">{{ $t('flow.stat.solarToBattery') }}</span>
                         <span class="flow-stat-value battery">{{ fmtW(flowData.flows.solar_to_battery) }}</span>
                     </div>
                     <div class="flow-stat">
-                        <span class="flow-stat-label">Netz zu Haus</span>
+                        <span class="flow-stat-label">{{ $t('flow.stat.gridToHouse') }}</span>
                         <span class="flow-stat-value grid">{{ fmtW(flowData.flows.grid_to_house) }}</span>
                     </div>
                     <div class="flow-stat" v-if="hasBattery">
-                        <span class="flow-stat-label">Akku zu Haus</span>
+                        <span class="flow-stat-label">{{ $t('flow.stat.batteryToHouse') }}</span>
                         <span class="flow-stat-value battery">{{ fmtW(flowData.flows.battery_to_house) }}</span>
                     </div>
                     <div class="flow-stat">
-                        <span class="flow-stat-label">Einspeisung</span>
+                        <span class="flow-stat-label">{{ $t('flow.stat.feedIn') }}</span>
                         <span class="flow-stat-value export">{{ fmtW(flowData.flows.house_to_grid) }}</span>
                     </div>
                 </div>
@@ -222,6 +223,10 @@ const _FlowPage = {
     `,
 
     setup() {
+        const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
+        const locale = window.SFMLI18n ? window.SFMLI18n.current : 'en';
+        const bcp = (value) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[value] || 'en-US');
+
         const connected = ref(false);
         const flowData = reactive({
             timestamp: null,
@@ -254,7 +259,7 @@ const _FlowPage = {
         const currentClock = computed(() => {
             if (!flowData.timestamp) return '--:--';
             const dt = new Date(flowData.timestamp);
-            return dt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return dt.toLocaleTimeString(bcp(locale), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         });
 
         const hasBattery = computed(() => flowData.battery.soc != null);
@@ -267,25 +272,25 @@ const _FlowPage = {
 
         const batteryStateText = computed(() => {
             const p = Number(flowData.battery.power) || 0;
-            if (p > 0) return 'Laedt';
-            if (p < 0) return 'Entlaedt';
-            return 'Standby';
+            if (p > 0) return t('flow.battery.charging');
+            if (p < 0) return t('flow.battery.discharging');
+            return t('flow.battery.standby');
         });
 
         const batteryPowerTextClass = computed(() => textScaleClass(batteryPowerText.value, 8, 12));
         const batteryStateTextClass = computed(() => textScaleClass(batteryStateText.value, 8, 12));
 
         const houseMixText = computed(() => (
-            `Solar ${fmtW(flowData.flows.solar_to_house)} | Netz ${fmtW(flowData.flows.grid_to_house)}`
+            `${t('flow.short.solar')} ${fmtW(flowData.flows.solar_to_house)} | ${t('flow.short.grid')} ${fmtW(flowData.flows.grid_to_house)}`
         ));
         const houseMixTextClass = computed(() => textScaleClass(houseMixText.value, 24, 34));
 
         const gridModeText = computed(() => {
             const importW = Number(flowData.flows.grid_to_house || 0) + Number(flowData.flows.grid_to_battery || 0);
             const exportW = Number(flowData.flows.house_to_grid || 0);
-            if (exportW > 0) return 'Rueckspeisung';
-            if (importW > 0) return 'Netzbezug';
-            return 'Nahe Null';
+            if (exportW > 0) return t('flow.gridMode.export');
+            if (importW > 0) return t('flow.gridMode.import');
+            return t('flow.gridMode.neutral');
         });
 
         const gridStatusText = computed(() => {
@@ -320,11 +325,13 @@ const _FlowPage = {
                 .map(([id, meta]) => {
                     const raw = flowData.consumers[id];
                     if (!raw || !raw.configured) return null;
+                    const label = t(meta.labelKey);
                     return {
                         id,
                         ...meta,
+                        label,
                         power: Math.max(0, Number(raw.power) || 0),
-                        titleClass: textScaleClass(meta.label, 10, 14),
+                        titleClass: textScaleClass(label, 10, 14),
                     };
                 })
                 .filter(Boolean);

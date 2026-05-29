@@ -307,7 +307,7 @@ actually represents kilo-Cochrane-Field (kCF) measurements.
 | Calibration | Day 10–30 | Ensemble blending, tilt/azimuth to ±3° |
 | Full Activation | Day 30+ | Hubble at peak, 93–97% accuracy |
 
-> 💡 **Shortcut:** Have old data? Use `bootstrap_physics_from_history` to import up to 6 months of Home Assistant history and hit 90%+ accuracy on Day 1.
+> 💡 **Note:** Solar Forecast ML learns from the data it records after setup. There is currently no Home Assistant service for importing historical Home Assistant data into the learning model.
 
 ---
 

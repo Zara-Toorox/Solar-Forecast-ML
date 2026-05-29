@@ -7,29 +7,48 @@ const SettingsPage = {
     template: `
         <div class="page page-settings">
             <div class="section-header">
-                <span class="section-title">Einstellungen</span>
+                <span class="section-title">{{ $t('nav.settings') }}</span>
             </div>
 
-            <!-- Accordion: Sensors -->
             <div class="settings-accordion">
+                <div class="accordion-section" :class="{ open: openSection === 'interface' }">
+                    <button class="accordion-header" @click="toggle('interface')">
+                        <span class="accordion-icon">{{ openSection === 'interface' ? '\u25BE' : '\u25B8' }}</span>
+                        <span class="accordion-title">{{ $t('settings.interface') }}</span>
+                        <span class="accordion-badge neutral">{{ localeName(currentLocale) }}</span>
+                    </button>
+                    <div class="accordion-body" v-show="openSection === 'interface'">
+                        <div class="settings-grid">
+                            <div class="settings-item">
+                                <span class="settings-item-label">{{ $t('settings.language') }}</span>
+                                <select class="language-picker settings-language-picker" :value="currentLocale"
+                                        @change="changeLocale($event.target.value)"
+                                        :title="$t('common.language')">
+                                    <option v-for="code in supportedLocales" :key="code" :value="code">{{ localeName(code) }}</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="accordion-section" :class="{ open: openSection === 'sensors' }">
                     <button class="accordion-header" @click="toggle('sensors')">
                         <span class="accordion-icon">{{ openSection === 'sensors' ? '\u25BE' : '\u25B8' }}</span>
-                        <span class="accordion-title">Sensoren</span>
+                        <span class="accordion-title">{{ $t('settings.sensors') }}</span>
                         <span class="accordion-badge" :class="sensorStatusClass">{{ sensorStatusText }}</span>
                     </button>
                     <div class="accordion-body" v-show="openSection === 'sensors'">
                         <div class="sensor-list">
                             <div v-for="s in sensors" :key="s.entity_id" class="sensor-row">
                                 <span class="sensor-status-dot" :class="s.available ? 'ok' : 'warn'"></span>
-                                <span class="sensor-name">{{ s.friendly_name || s.entity_id }}</span>
+                                <span class="sensor-name">{{ translateSensorLabel(s.friendly_name) || s.entity_id }}</span>
                                 <span class="sensor-entity">{{ s.entity_id }}</span>
-                                <span class="sensor-state">{{ s.state ?? '--' }}</span>
+                                <span class="sensor-state">{{ translateSensorState(s) }}</span>
                             </div>
-                            <div v-if="sensors.length === 0" class="empty-state">Keine Sensoren konfiguriert</div>
+                            <div v-if="sensors.length === 0" class="empty-state">{{ $t('settings.noSensors') }}</div>
                         </div>
                         <a class="settings-link" :href="haConfigUrl" target="_blank" rel="noopener">
-                            Sensoren ueber HA konfigurieren &rarr;
+                            {{ $t('settings.configureSensors') }} &rarr;
                         </a>
                     </div>
                 </div>
@@ -38,42 +57,42 @@ const SettingsPage = {
                 <div class="accordion-section" :class="{ open: openSection === 'price' }">
                     <button class="accordion-header" @click="toggle('price')">
                         <span class="accordion-icon">{{ openSection === 'price' ? '\u25BE' : '\u25B8' }}</span>
-                        <span class="accordion-title">Strompreis</span>
+                        <span class="accordion-title">{{ $t('settings.price') }}</span>
                         <span class="accordion-badge neutral">{{ priceInfo.mode || '--' }}</span>
                     </button>
                     <div class="accordion-body" v-show="openSection === 'price'">
                         <div class="settings-grid">
                             <div class="settings-item">
-                                <span class="settings-item-label">Land</span>
+                                <span class="settings-item-label">{{ $t('settings.country') }}</span>
                                 <span class="settings-item-value">{{ priceInfo.country || '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">MwSt</span>
+                                <span class="settings-item-label">{{ $t('settings.vat') }}</span>
                                 <span class="settings-item-value">{{ priceInfo.vat != null ? priceInfo.vat + '%' : '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Modus</span>
+                                <span class="settings-item-label">{{ $t('settings.mode') }}</span>
                                 <span class="settings-item-value">{{ priceInfo.mode || '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Arbeitspreis</span>
+                                <span class="settings-item-label">{{ $t('settings.energyPrice') }}</span>
                                 <span class="settings-item-value">{{ priceInfo.energy_price != null ? priceInfo.energy_price.toFixed(2) + ' ct/kWh' : '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Netzentgelte</span>
+                                <span class="settings-item-label">{{ $t('settings.gridFees') }}</span>
                                 <span class="settings-item-value">{{ priceInfo.grid_fees != null ? priceInfo.grid_fees.toFixed(2) + ' ct/kWh' : '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Grundgebuehr</span>
-                                <span class="settings-item-value">{{ priceInfo.base_fee != null ? priceInfo.base_fee.toFixed(2) + ' EUR/Monat' : '--' }}</span>
+                                <span class="settings-item-label">{{ $t('settings.baseFee') }}</span>
+                                <span class="settings-item-value">{{ priceInfo.base_fee != null ? priceInfo.base_fee.toFixed(2) + ' EUR/' + $t('settings.month') : '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Einspeiseverguetung</span>
+                                <span class="settings-item-label">{{ $t('settings.feedInTariff') }}</span>
                                 <span class="settings-item-value">{{ priceInfo.feed_in_tariff != null ? priceInfo.feed_in_tariff.toFixed(2) + ' ct/kWh' : '--' }}</span>
                             </div>
                         </div>
                         <a class="settings-link" :href="haConfigUrl" target="_blank" rel="noopener">
-                            Preis ueber HA konfigurieren &rarr;
+                            {{ $t('settings.configurePrice') }} &rarr;
                         </a>
                     </div>
                 </div>
@@ -82,57 +101,57 @@ const SettingsPage = {
                 <div class="accordion-section" :class="{ open: openSection === 'charging' }">
                     <button class="accordion-header" @click="toggle('charging')">
                         <span class="accordion-icon">{{ openSection === 'charging' ? '\u25BE' : '\u25B8' }}</span>
-                        <span class="accordion-title">Smart Charging</span>
+                        <span class="accordion-title">{{ $t('settings.smartCharging') }}</span>
                         <span class="accordion-badge" :class="chargingBadgeClass">{{ chargingBadgeText }}</span>
                     </button>
                     <div class="accordion-body" v-show="openSection === 'charging'">
                         <div v-if="!chargingInfo.enabled" class="empty-state">
-                            <div>Smart Charging ist deaktiviert.</div>
-                            <div style="margin-top:6px;">Integration oeffnen &rarr; <b>Konfigurieren</b> &rarr; <b>Smart Charging</b>.</div>
-                            <button class="export-btn" style="margin-top:var(--space-sm);" @click="openIntegration">Integration oeffnen</button>
+                            <div>{{ $t('settings.smartChargingDisabled') }}</div>
+                            <div style="margin-top:6px;">{{ $t('settings.smartChargingPath') }}</div>
+                            <button class="export-btn" style="margin-top:var(--space-sm);" @click="openIntegration">{{ $t('settings.openIntegration') }}</button>
                         </div>
                         <div v-else>
                             <div class="settings-grid">
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Status</span>
+                                    <span class="settings-item-label">{{ $t('settings.statusLabel') }}</span>
                                     <span class="settings-item-value" :class="chargingInfo.active ? 'val-ok' : ''">{{ chargingStatusText }}</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Preis-Schwelle</span>
+                                    <span class="settings-item-label">{{ $t('settings.priceThreshold') }}</span>
                                     <span class="settings-item-value">{{ chargingInfo.max_price != null ? chargingInfo.max_price.toFixed(1) + ' ct/kWh' : '--' }}</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Aktueller Preis</span>
-                                    <span class="settings-item-value" :class="chargingInfo.is_cheap === true ? 'val-ok' : chargingInfo.is_cheap === false ? 'val-warn' : ''">{{ chargingInfo.current_price != null ? chargingInfo.current_price.toFixed(2) + ' ct/kWh' : '--' }}{{ chargingInfo.is_cheap === true ? ' (guenstig)' : chargingInfo.is_cheap === false ? ' (zu hoch)' : '' }}</span>
+                                    <span class="settings-item-label">{{ $t('settings.currentPrice') }}</span>
+                                    <span class="settings-item-value" :class="chargingInfo.is_cheap === true ? 'val-ok' : chargingInfo.is_cheap === false ? 'val-warn' : ''">{{ chargingInfo.current_price != null ? chargingInfo.current_price.toFixed(2) + ' ct/kWh' : '--' }}{{ chargingInfo.is_cheap === true ? ' (' + $t('settings.cheap') + ')' : chargingInfo.is_cheap === false ? ' (' + $t('settings.tooHigh') + ')' : '' }}</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Batterie-Kapazitaet</span>
+                                    <span class="settings-item-label">{{ $t('settings.batteryCapacity') }}</span>
                                     <span class="settings-item-value">{{ chargingInfo.capacity != null ? chargingInfo.capacity + ' kWh' : '--' }}</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Min SOC</span>
+                                    <span class="settings-item-label">{{ $t('settings.minSoc') }}</span>
                                     <span class="settings-item-value">{{ chargingInfo.min_soc != null ? chargingInfo.min_soc + '%' : '--' }}</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Max SOC</span>
+                                    <span class="settings-item-label">{{ $t('settings.maxSoc') }}</span>
                                     <span class="settings-item-value">{{ chargingInfo.max_soc != null ? chargingInfo.max_soc + '%' : '--' }}</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Aktueller SOC</span>
+                                    <span class="settings-item-label">{{ $t('settings.currentSoc') }}</span>
                                     <span class="settings-item-value">{{ chargingInfo.current_soc != null ? chargingInfo.current_soc.toFixed(1) + '%' : '--' }}</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Ziel-SOC (berechnet)</span>
+                                    <span class="settings-item-label">{{ $t('settings.targetSoc') }}</span>
                                     <span class="settings-item-value">{{ chargingInfo.target_soc != null ? chargingInfo.target_soc.toFixed(1) + '%' : '--' }}</span>
                                 </div>
                                 <div class="settings-item" style="grid-column: 1 / -1;">
-                                    <span class="settings-item-label">Entscheidung</span>
+                                    <span class="settings-item-label">{{ $t('settings.decision') }}</span>
                                     <span class="settings-item-value">{{ chargingReasonText }}</span>
                                 </div>
                             </div>
                             <div v-if="!chargingInfo.soc_sensor_configured" class="empty-state" style="margin-top:var(--space-sm);">
-                                Kein SOC-Sensor konfiguriert &mdash; die Logik laeuft im Preis-Fallback.
-                                <button class="export-btn" style="margin-top:var(--space-sm);" @click="openIntegration">Integration oeffnen</button>
+                                {{ $t('settings.noSocSensor') }}
+                                <button class="export-btn" style="margin-top:var(--space-sm);" @click="openIntegration">{{ $t('settings.openIntegration') }}</button>
                             </div>
                         </div>
                     </div>
@@ -142,40 +161,40 @@ const SettingsPage = {
                 <div class="accordion-section" :class="{ open: openSection === 'panels' }">
                     <button class="accordion-header" @click="toggle('panels')">
                         <span class="accordion-icon">{{ openSection === 'panels' ? '\u25BE' : '\u25B8' }}</span>
-                        <span class="accordion-title">Panel-Gruppen</span>
-                        <span class="accordion-badge neutral">{{ panelGroups.length }} Gruppen</span>
+                        <span class="accordion-title">{{ $t('settings.panelGroups') }}</span>
+                        <span class="accordion-badge neutral">{{ panelGroups.length }} {{ $t('settings.groupsSuffix') }}</span>
                     </button>
                     <div class="accordion-body" v-show="openSection === 'panels'">
                         <div v-for="(pg, idx) in panelGroups" :key="idx" class="panel-group-card">
-                            <div class="panel-group-header">Gruppe {{ idx + 1 }}: {{ pg.name || 'Panel ' + (idx + 1) }}</div>
+                            <div class="panel-group-header">{{ $t('settings.group') }} {{ idx + 1 }}: {{ pg.name || 'Panel ' + (idx + 1) }}</div>
                             <div class="settings-grid">
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Azimut</span>
+                                    <span class="settings-item-label">{{ $t('settings.azimuth') }}</span>
                                     <span class="settings-item-value">{{ pg.azimuth }}deg</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Neigung</span>
+                                    <span class="settings-item-label">{{ $t('settings.tilt') }}</span>
                                     <span class="settings-item-value">{{ pg.tilt }}deg</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Leistung</span>
+                                    <span class="settings-item-label">{{ $t('settings.power') }}</span>
                                     <span class="settings-item-value">{{ pg.kwp }} kWp</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">Module</span>
+                                    <span class="settings-item-label">{{ $t('settings.modules') }}</span>
                                     <span class="settings-item-value">{{ pg.module_count || '--' }}</span>
                                 </div>
                                 <div class="settings-item" v-if="pg.factor != null">
-                                    <span class="settings-item-label">Physics-Faktor</span>
+                                    <span class="settings-item-label">{{ $t('settings.physicsFactor') }}</span>
                                     <span class="settings-item-value">{{ pg.factor.toFixed(3) }}</span>
                                 </div>
                                 <div class="settings-item" v-if="pg.confidence != null">
-                                    <span class="settings-item-label">Confidence</span>
+                                    <span class="settings-item-label">{{ $t('settings.confidence') }}</span>
                                     <span class="settings-item-value">{{ (pg.confidence * 100).toFixed(0) }}%</span>
                                 </div>
                             </div>
                         </div>
-                        <div v-if="panelGroups.length === 0" class="empty-state">Keine Panel-Gruppen konfiguriert</div>
+                        <div v-if="panelGroups.length === 0" class="empty-state">{{ $t('settings.noPanelGroups') }}</div>
                     </div>
                 </div>
 
@@ -189,15 +208,15 @@ const SettingsPage = {
                     <div class="accordion-body" v-show="openSection === 'ai'">
                         <div class="settings-grid">
                             <div class="settings-item">
-                                <span class="settings-item-label">Aktives Modell</span>
+                                <span class="settings-item-label">{{ $t('settings.activeModel') }}</span>
                                 <span class="settings-item-value">{{ aiInfo.active_model_display || '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Stack-Version</span>
+                                <span class="settings-item-label">{{ $t('settings.stackVersion') }}</span>
                                 <span class="settings-item-value">{{ aiInfo.version || '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Genauigkeit</span>
+                                <span class="settings-item-label">{{ $t('settings.accuracy') }}</span>
                                 <span class="settings-item-value">{{ aiInfo.accuracy_percent != null ? aiInfo.accuracy_percent.toFixed(1) + ' %' : '--' }}</span>
                             </div>
                             <div class="settings-item">
@@ -205,15 +224,15 @@ const SettingsPage = {
                                 <span class="settings-item-value">{{ aiInfo.rmse != null ? aiInfo.rmse.toFixed(4) : '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Trainings-Samples</span>
+                                <span class="settings-item-label">{{ $t('settings.trainingSamples') }}</span>
                                 <span class="settings-item-value">{{ aiInfo.training_samples != null ? aiInfo.training_samples.toLocaleString() : '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Letztes Training</span>
+                                <span class="settings-item-label">{{ $t('settings.lastTraining') }}</span>
                                 <span class="settings-item-value">{{ formatDate(aiInfo.last_trained) }}</span>
                             </div>
                             <div v-if="aiInfo.lstm" class="settings-item">
-                                <span class="settings-item-label">LSTM-Architektur</span>
+                                <span class="settings-item-label">{{ $t('settings.lstmArchitecture') }}</span>
                                 <span class="settings-item-value">{{ aiInfo.lstm.input_size }}&times;{{ aiInfo.lstm.hidden_size }} &middot; seq={{ aiInfo.lstm.sequence_length }} &middot; {{ aiInfo.lstm.num_layers }}L / {{ aiInfo.lstm.num_heads }}H{{ aiInfo.lstm.has_attention ? ' + Attention' : '' }}</span>
                             </div>
                             <div v-if="aiInfo.ridge" class="settings-item">
@@ -221,11 +240,11 @@ const SettingsPage = {
                                 <span class="settings-item-value">{{ aiInfo.ridge.alpha }} &middot; {{ aiInfo.ridge.loo_cv_score != null ? aiInfo.ridge.loo_cv_score.toFixed(4) : '--' }}</span>
                             </div>
                             <div v-if="aiInfo.coordinator" class="settings-item">
-                                <span class="settings-item-label">Erwartete Produktion heute</span>
+                                <span class="settings-item-label">{{ $t('settings.expectedToday') }}</span>
                                 <span class="settings-item-value">{{ aiInfo.coordinator.expected_kwh_today != null ? aiInfo.coordinator.expected_kwh_today.toFixed(2) + ' kWh' : '--' }}</span>
                             </div>
                             <div v-if="aiInfo.drift" class="settings-item">
-                                <span class="settings-item-label">Drift-Status</span>
+                                <span class="settings-item-label">{{ $t('settings.driftStatus') }}</span>
                                 <span class="settings-item-value" :class="driftStatusClass">{{ driftStatusText }}</span>
                             </div>
                         </div>
@@ -246,8 +265,8 @@ const SettingsPage = {
                 <div class="accordion-section" :class="{ open: openSection === 'system' }">
                     <button class="accordion-header" @click="toggle('system')">
                         <span class="accordion-icon">{{ openSection === 'system' ? '\u25BE' : '\u25B8' }}</span>
-                        <span class="accordion-title">System</span>
-                        <span class="accordion-badge" :class="systemInfo.healthy ? 'ok' : 'warn'">{{ systemInfo.healthy ? 'OK' : 'Warnung' }}</span>
+                        <span class="accordion-title">{{ $t('settings.system') }}</span>
+                        <span class="accordion-badge" :class="systemInfo.healthy ? 'ok' : 'warn'">{{ systemInfo.healthy ? 'OK' : $t('settings.warning') }}</span>
                     </button>
                     <div class="accordion-body" v-show="openSection === 'system'">
                         <div class="settings-grid">
@@ -260,24 +279,24 @@ const SettingsPage = {
                                 <span class="settings-item-value">{{ systemInfo.ml_version || '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Datenbank</span>
+                                <span class="settings-item-label">{{ $t('settings.database') }}</span>
                                 <span class="settings-item-value" :class="systemInfo.db_ok ? '' : 'val-warn'">{{ systemInfo.db_status || '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">DB Groesse</span>
+                                <span class="settings-item-label">{{ $t('settings.dbSize') }}</span>
                                 <span class="settings-item-value">{{ systemInfo.db_size || '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Letzte Aggregation</span>
+                                <span class="settings-item-label">{{ $t('settings.lastAggregation') }}</span>
                                 <span class="settings-item-value">{{ formatDate(systemInfo.last_aggregation) }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">Datenpunkte</span>
+                                <span class="settings-item-label">{{ $t('settings.dataPoints') }}</span>
                                 <span class="settings-item-value">{{ systemInfo.data_points != null ? systemInfo.data_points.toLocaleString() : '--' }}</span>
                             </div>
                         </div>
                         <button class="export-btn" @click="exportCsv" :disabled="exporting">
-                            {{ exporting ? 'Exportiere...' : 'CSV Export' }}
+                            {{ exporting ? $t('common.exporting') : $t('common.export') + ' CSV' }}
                         </button>
                     </div>
                 </div>
@@ -287,8 +306,99 @@ const SettingsPage = {
 
     setup(props) {
         const { ref: vRef, reactive, computed, onMounted } = Vue;
+        const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
+        const currentLocale = vRef((window.SFMLI18n && window.SFMLI18n.current) || 'en');
+        const locale = currentLocale;
+        const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'en-US');
+        const supportedLocales = (window.SFMLI18n && window.SFMLI18n.supported) || ['en'];
+        const localeName = (code) => (window.SFMLI18n ? window.SFMLI18n.nameOf(code) : code);
+        const changeLocale = (code) => {
+            currentLocale.value = code;
+            if (window.SFMLI18n) window.SFMLI18n.setLocale(code);
+        };
 
-        const openSection = vRef('sensors');
+        // Sensor friendly_name values arrive in German from the backend
+        // (extra_features/sfml_stats/api/views.py, PyArmor-obfuscated, so we
+        // can't translate at source). Map the known role labels here; unknown
+        // labels fall through unchanged.
+        const SENSOR_LABEL_KEYS = {
+            'Hausverbrauch (W)': 'settings.sensorLabel.houseConsumptionW',
+            'Hausverbrauch (kWh/Tag)': 'settings.sensorLabel.houseConsumptionDaily',
+            'Solar → Haus (W)': 'settings.sensorLabel.solarToHouseW',
+            'Solar → Batterie (W)': 'settings.sensorLabel.solarToBatteryW',
+            'Solar Produktion (W)': 'settings.sensorLabel.solarProductionW',
+            'Solar-Tagesertrag (kWh)': 'settings.sensorLabel.solarYieldDaily',
+            'Batterie → Haus (W)': 'settings.sensorLabel.batteryToHouseW',
+            'Batterie → Netz (W)': 'settings.sensorLabel.batteryToGridW',
+            'Battery to Grid (W)': 'settings.sensorLabel.batteryToGridW',
+            'Batterie SoC (%)': 'settings.sensorLabel.batterySoc',
+            'Batterie Leistung (W)': 'settings.sensorLabel.batteryPowerW',
+            'Batterie von Solar (kWh/Tag)': 'settings.sensorLabel.batteryChargeSolarDaily',
+            'Batterie von Netz (kWh/Tag)': 'settings.sensorLabel.batteryChargeGridDaily',
+            'Batterie entladen (kWh/Tag)': 'settings.sensorLabel.batteryDischargeDaily',
+            'Netz → Haus (W)': 'settings.sensorLabel.gridToHouseW',
+            'Netz → Batterie (W)': 'settings.sensorLabel.gridToBatteryW',
+            'Haus → Netz (W)': 'settings.sensorLabel.houseToGridW',
+            'Smartmeter Bezug (W)': 'settings.sensorLabel.smartmeterImportW',
+            'Smartmeter Einspeisung (W)': 'settings.sensorLabel.smartmeterExportW',
+            'Netzbezug (kWh/Tag)': 'settings.sensorLabel.gridImportDaily',
+            'Netzeinspeisung (kWh/Tag)': 'settings.sensorLabel.gridExportDaily',
+            'Zusätzlicher Netzbezug (kWh/Tag)': 'settings.sensorLabel.gridImportExtra',
+            'Netzbezug (kWh/Jahr)': 'settings.sensorLabel.gridImportYearly',
+            'Strompreis Gesamt (ct/kWh)': 'settings.sensorLabel.totalPrice',
+            'Strompreis (ct/kWh)': 'settings.sensorLabel.electricityPrice',
+            'Wetter': 'settings.sensorLabel.weather',
+            'Außentemperatur (°C)': 'settings.sensorLabel.outdoorTemp',
+            'Wärmepumpe Leistung (W)': 'settings.sensorLabel.heatpumpW',
+            'Wärmepumpe (kWh/Tag)': 'settings.sensorLabel.heatpumpDaily',
+            'Heizstab Leistung (W)': 'settings.sensorLabel.heatingrodW',
+            'Heizstab (kWh/Tag)': 'settings.sensorLabel.heatingrodDaily',
+            'Wallbox Leistung (W)': 'settings.sensorLabel.wallboxW',
+            'Wallbox (kWh/Tag)': 'settings.sensorLabel.wallboxDaily',
+            'Wallbox Status': 'settings.sensorLabel.wallboxState',
+        };
+        // Match "Panel 1 Leistung (W)" through "Panel 9 Leistung (W)" without
+        // hard-coding each one — backend exposes one entry per configured panel.
+        const PANEL_POWER_RE = /^Panel\s+(\d+)\s+Leistung\s+\(W\)$/;
+        const translateSensorLabel = (label) => {
+            if (!label) return label;
+            const key = SENSOR_LABEL_KEYS[label];
+            if (key) return t(key);
+            const m = PANEL_POWER_RE.exec(label);
+            if (m) return t('settings.sensorLabel.panelPower', { n: m[1] });
+            return label;
+        };
+        // Weather entities return HA condition codes like "sunny"/"cloudy" as
+        // their state. Map them via the existing weather.condition.* keys.
+        const HA_CONDITION_KEYS = {
+            'clear-night': 'weather.condition.clearNight',
+            'cloudy': 'weather.condition.cloudy',
+            'exceptional': 'weather.condition.exceptional',
+            'fog': 'weather.condition.fog',
+            'hail': 'weather.condition.hail',
+            'lightning': 'weather.condition.lightning',
+            'lightning-rainy': 'weather.condition.lightningRainy',
+            'partlycloudy': 'weather.condition.partlyCloudy',
+            'pouring': 'weather.condition.pouring',
+            'rainy': 'weather.condition.rainy',
+            'snowy': 'weather.condition.snowy',
+            'snowy-rainy': 'weather.condition.snowyRainy',
+            'sunny': 'weather.condition.sunny',
+            'clear': 'weather.condition.clear',
+            'windy': 'weather.condition.windy',
+            'windy-variant': 'weather.condition.windyVariant',
+        };
+        const translateSensorState = (s) => {
+            if (s == null || s.state == null) return '--';
+            const eid = String(s.entity_id || '');
+            if (eid.startsWith('weather.')) {
+                const key = HA_CONDITION_KEYS[String(s.state).toLowerCase()];
+                if (key) return t(key);
+            }
+            return s.state;
+        };
+
+        const openSection = vRef('interface');
         const exporting = vRef(false);
 
         const sensors = vRef([]);
@@ -300,17 +410,18 @@ const SettingsPage = {
             is_cheap: null, current_price: null,
         });
 
-        const REASON_LABELS = {
-            price_too_high: 'Strompreis ueber Schwelle — kein Netzladen',
-            soc_unavailable_fallback: 'SOC-Sensor fehlt — Preis-Fallback aktiv',
-            soc_below_target: 'SOC unter Ziel — Netzladen empfohlen',
-            soc_reached_solar_expected: 'SOC-Ziel erreicht — Solar fuellt den Rest',
-            soc_reached_target: 'SOC-Ziel erreicht — Laden gestoppt',
+        // Reason keys map directly to i18n keys for localization.
+        const REASON_KEYS = {
+            price_too_high: 'settings.reason.priceTooHigh',
+            soc_unavailable_fallback: 'settings.reason.socUnavailable',
+            soc_below_target: 'settings.reason.socBelowTarget',
+            soc_reached_solar_expected: 'settings.reason.socReachedSolar',
+            soc_reached_target: 'settings.reason.socReachedTarget',
         };
 
         const chargingBadgeText = computed(() => {
-            if (!chargingInfo.enabled) return 'Inaktiv';
-            return chargingInfo.active === true ? 'Laedt' : 'Bereit';
+            if (!chargingInfo.enabled) return t('settings.charging.inactive');
+            return chargingInfo.active === true ? t('settings.charging.charging') : t('settings.charging.ready');
         });
 
         const chargingBadgeClass = computed(() => {
@@ -319,14 +430,15 @@ const SettingsPage = {
         });
 
         const chargingStatusText = computed(() => {
-            if (chargingInfo.active === true) return 'Netzladen AKTIV';
-            if (chargingInfo.active === false) return 'Netzladen gestoppt';
-            return 'Wartet auf Daten';
+            if (chargingInfo.active === true) return t('settings.charging.gridActive');
+            if (chargingInfo.active === false) return t('settings.charging.gridStopped');
+            return t('settings.charging.waiting');
         });
 
         const chargingReasonText = computed(() => {
             if (!chargingInfo.reason) return '--';
-            return REASON_LABELS[chargingInfo.reason] || chargingInfo.reason;
+            const k = REASON_KEYS[chargingInfo.reason];
+            return k ? t(k) : chargingInfo.reason;
         });
         const panelGroups = vRef([]);
         const systemInfo = reactive({ stats_version: '', ml_version: '', db_status: '', db_size: '', db_ok: true, healthy: true, last_aggregation: '', data_points: null });
@@ -337,7 +449,7 @@ const SettingsPage = {
             try {
                 const d = new Date(ts);
                 if (isNaN(d.getTime())) return String(ts);
-                return d.toLocaleString('de-DE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                return d.toLocaleString(bcp(locale.value), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
             } catch (e) { return String(ts); }
         }
 
@@ -379,18 +491,15 @@ const SettingsPage = {
         const driftStatusText = computed(() => {
             const drift = aiInfo.drift;
             if (!drift) return '--';
-            const labels = {
-                stable: 'Stabil',
-                warning: 'Warnung',
-                critical: 'Kritisch',
-                recovering: 'Erholung',
-                unknown: 'Unbekannt',
-            };
-            const state = labels[drift.state] || drift.state || 'Unbekannt';
+            const driftKey = (k) => 'settings.drift.' + k;
+            const knownStates = ['stable', 'warning', 'critical', 'recovering', 'unknown'];
+            const state = knownStates.includes(drift.state)
+                ? t(driftKey(drift.state))
+                : (drift.state || t(driftKey('unknown')));
             const warningCount = drift.warning_count || 0;
             const criticalCount = drift.critical_count || 0;
-            if (criticalCount > 0) return `${state} · ${criticalCount} kritisch`;
-            if (warningCount > 0) return `${state} · ${warningCount} Warnungen`;
+            if (criticalCount > 0) return `${state} · ${criticalCount} ${t('settings.drift.criticalSuffix')}`;
+            if (warningCount > 0) return `${state} · ${warningCount} ${t('settings.drift.warningsSuffix')}`;
             return state;
         });
 
@@ -510,6 +619,8 @@ const SettingsPage = {
             haConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
             toggle, exportCsv, formatDate, openIntegration,
+            translateSensorLabel, translateSensorState,
+            currentLocale, supportedLocales, localeName, changeLocale,
         };
     },
 };
@@ -667,6 +778,10 @@ const SettingsPage = {
             font-family: var(--font-mono);
             font-weight: 500;
             color: var(--text-primary);
+        }
+        .settings-language-picker {
+            width: min(240px, 100%);
+            margin-top: 2px;
         }
         .settings-item-value.val-warn {
             color: var(--warning);

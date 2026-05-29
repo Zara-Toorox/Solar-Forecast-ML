@@ -19,8 +19,8 @@ const _WeatherPage = {
     template: `
         <div class="page page-weather">
             <div class="section-header">
-                <h2 class="section-title">Wetter</h2>
-                <span v-if="lastUpdated" class="weather-updated">Stand: {{ lastUpdated }}</span>
+                <h2 class="section-title">{{ $t('nav.weather') }}</h2>
+                <span v-if="lastUpdated" class="weather-updated">{{ $t('common.status') }}: {{ lastUpdated }}</span>
             </div>
 
             <!-- ================= CARD 1: CURRENT WEATHER (HERO) ================= -->
@@ -33,11 +33,11 @@ const _WeatherPage = {
                         </div>
                         <div class="weather-hero-condition">{{ conditionText }}</div>
                         <div class="weather-hero-feels">
-                            gefuehlt {{ fmt(current.feels_like, 1) }}°C
+                            {{ $t('weather.feelsLike') }} {{ fmt(current.feels_like, 1) }}°C
                         </div>
                     </div>
                     <div class="weather-hero-badge" :class="'potential-' + (current.solar_potential || 'none')">
-                        <div class="potential-label">Solar-Potenzial</div>
+                        <div class="potential-label">{{ $t('weather.solarPotential') }}</div>
                         <div class="potential-value">{{ potentialText }}</div>
                     </div>
                 </div>
@@ -46,42 +46,42 @@ const _WeatherPage = {
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{2601}</div>
                         <div class="weather-stat-value">{{ fmt(current.cloud_cover, 0) }}<span class="weather-stat-unit">%</span></div>
-                        <div class="weather-stat-label">Bewoelkung</div>
+                        <div class="weather-stat-label">{{ $t('weather.cloudCover') }}</div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F4A8}</div>
                         <div class="weather-stat-value">{{ fmt(current.wind_speed, 1) }}<span class="weather-stat-unit">km/h</span></div>
-                        <div class="weather-stat-label">Wind</div>
+                        <div class="weather-stat-label">{{ $t('weather.wind') }}</div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F4A7}</div>
                         <div class="weather-stat-value">{{ fmt(current.humidity, 0) }}<span class="weather-stat-unit">%</span></div>
-                        <div class="weather-stat-label">Luftfeuchte</div>
+                        <div class="weather-stat-label">{{ $t('weather.humidity') }}</div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F321}</div>
                         <div class="weather-stat-value">{{ fmt(current.dewpoint, 1) }}<span class="weather-stat-unit">°C</span></div>
-                        <div class="weather-stat-label">Taupunkt</div>
+                        <div class="weather-stat-label">{{ $t('weather.dewpoint') }}</div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F4CF}</div>
                         <div class="weather-stat-value">{{ fmt(current.pressure, 0) }}<span class="weather-stat-unit">hPa</span></div>
-                        <div class="weather-stat-label">Druck {{ pressureArrow }}</div>
+                        <div class="weather-stat-label">{{ $t('weather.pressure') }} {{ pressureArrow }}</div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F441}</div>
                         <div class="weather-stat-value">{{ fmtVisibility }}<span class="weather-stat-unit">km</span></div>
-                        <div class="weather-stat-label">Sichtweite</div>
+                        <div class="weather-stat-label">{{ $t('weather.visibility') }}</div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{2600}</div>
                         <div class="weather-stat-value">{{ fmt(current.solar_radiation_wm2, 0) }}<span class="weather-stat-unit">W/m²</span></div>
-                        <div class="weather-stat-label">Einstrahlung</div>
+                        <div class="weather-stat-label">{{ $t('weather.radiation') }}</div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F327}</div>
                         <div class="weather-stat-value">{{ fmt(current.precipitation_mm, 1) }}<span class="weather-stat-unit">mm</span></div>
-                        <div class="weather-stat-label">Niederschlag</div>
+                        <div class="weather-stat-label">{{ $t('weather.precipitation') }}</div>
                     </div>
                 </div>
             </div>
@@ -90,7 +90,7 @@ const _WeatherPage = {
             <div class="chart-card">
                 <div class="chart-header">
                     <span class="chart-title">\u{1F4C8} SFML AI Weather Forecast 72h</span>
-                    <span class="chart-subtitle">Temp · Cloud · Niederschlag · Wind</span>
+                    <span class="chart-subtitle">{{ $t('weather.forecast72hSub') }}</span>
                 </div>
                 <div ref="forecastChartEl" class="weather-chart" style="height: 340px;"></div>
             </div>
@@ -98,7 +98,7 @@ const _WeatherPage = {
             <!-- ================= CARD 3: SOLAR RADIATION (FULL WIDTH) ================= -->
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">\u{2600} Solar-Strahlung heute</span>
+                    <span class="chart-title">\u{2600} {{ $t('weather.solarRadiationToday') }}</span>
                     <span class="chart-subtitle">GHI · DNI · DHI vs. Forecast</span>
                 </div>
                 <div ref="radiationChartEl" class="weather-chart" style="height: 360px;"></div>
@@ -113,77 +113,77 @@ const _WeatherPage = {
             <div class="weather-row-2col">
                 <div class="chart-card">
                     <div class="chart-header">
-                        <span class="chart-title">\u{1F455} Kleidungsempfehlung</span>
-                        <span class="chart-subtitle">{{ clothing.label || '' }}</span>
+                        <span class="chart-title">\u{1F455} {{ $t('weather.clothingRecommendation') }}</span>
+                        <span class="chart-subtitle">{{ translateClothing(clothing.label) || '' }}</span>
                     </div>
                     <div v-if="!clothing.available" class="empty-state">
-                        Keine aktuellen Wetterdaten verfuegbar.
+                        {{ $t('weather.noCurrent') }}
                     </div>
                     <div v-else>
-                        <p class="clothing-text">{{ clothing.description }}</p>
+                        <p class="clothing-text">{{ translateClothing(clothing.description) }}</p>
                         <div class="clothing-grid">
                             <div v-if="clothing.bottom" class="clothing-item">
                                 <div class="clothing-icon">\u{1F456}</div>
-                                <div class="clothing-name">{{ clothing.bottom }}</div>
-                                <div class="clothing-label">Hose</div>
+                                <div class="clothing-name">{{ translateClothing(clothing.bottom) }}</div>
+                                <div class="clothing-label">{{ $t('weather.clothing.bottom') }}</div>
                             </div>
                             <div v-if="clothing.top" class="clothing-item">
                                 <div class="clothing-icon">\u{1F455}</div>
-                                <div class="clothing-name">{{ clothing.top }}</div>
-                                <div class="clothing-label">Oberteil</div>
+                                <div class="clothing-name">{{ translateClothing(clothing.top) }}</div>
+                                <div class="clothing-label">{{ $t('weather.clothing.top') }}</div>
                             </div>
                             <div v-if="clothing.jacket" class="clothing-item">
                                 <div class="clothing-icon">\u{1F9E5}</div>
-                                <div class="clothing-name">{{ clothing.jacket }}</div>
-                                <div class="clothing-label">Jacke</div>
+                                <div class="clothing-name">{{ translateClothing(clothing.jacket) }}</div>
+                                <div class="clothing-label">{{ $t('weather.clothing.jacket') }}</div>
                             </div>
                             <div v-if="clothing.headwear" class="clothing-item">
                                 <div class="clothing-icon">\u{1F3A9}</div>
-                                <div class="clothing-name">{{ clothing.headwear }}</div>
-                                <div class="clothing-label">Kopf</div>
+                                <div class="clothing-name">{{ translateClothing(clothing.headwear) }}</div>
+                                <div class="clothing-label">{{ $t('weather.clothing.head') }}</div>
                             </div>
                         </div>
                         <div v-if="clothing.extras && clothing.extras.length" class="clothing-extras">
-                            <span v-for="x in clothing.extras" :key="x" class="clothing-extra-chip">{{ x }}</span>
+                            <span v-for="x in clothing.extras" :key="x" class="clothing-extra-chip">{{ translateClothing(x) }}</span>
                         </div>
                     </div>
                 </div>
 
                 <div class="chart-card">
                     <div class="chart-header">
-                        <span class="chart-title">\u{1F30C} Astronomie</span>
-                        <span class="chart-subtitle">Sonne · Mond · Geometrie</span>
+                        <span class="chart-title">\u{1F30C} {{ $t('weather.astronomy') }}</span>
+                        <span class="chart-subtitle">{{ $t('weather.astroSubtitle') }}</span>
                     </div>
                     <div class="astro-grid">
                         <div class="astro-item">
                             <div class="astro-icon">\u{1F305}</div>
                             <div class="astro-value">{{ formatTime(astronomy.sunrise) }}</div>
-                            <div class="astro-label">Sonnenaufgang</div>
+                            <div class="astro-label">{{ $t('weather.sunrise') }}</div>
                         </div>
                         <div class="astro-item">
                             <div class="astro-icon">\u{1F307}</div>
                             <div class="astro-value">{{ formatTime(astronomy.sunset) }}</div>
-                            <div class="astro-label">Sonnenuntergang</div>
+                            <div class="astro-label">{{ $t('weather.sunset') }}</div>
                         </div>
                         <div class="astro-item">
                             <div class="astro-icon">\u{2600}</div>
                             <div class="astro-value">{{ dayLengthText }}</div>
-                            <div class="astro-label">Tageslaenge <span v-if="astronomy.day_length_delta_min != null" :class="astronomy.day_length_delta_min > 0 ? 'delta-up' : 'delta-down'">{{ astronomy.day_length_delta_min > 0 ? '+' : '' }}{{ astronomy.day_length_delta_min }} min</span></div>
+                            <div class="astro-label">{{ $t('weather.dayLength') }} <span v-if="astronomy.day_length_delta_min != null" :class="astronomy.day_length_delta_min > 0 ? 'delta-up' : 'delta-down'">{{ astronomy.day_length_delta_min > 0 ? '+' : '' }}{{ astronomy.day_length_delta_min }} min</span></div>
                         </div>
                         <div class="astro-item">
                             <div class="astro-icon">\u{1F31E}</div>
                             <div class="astro-value">{{ fmt(astronomy.max_elevation_deg, 1) }}°</div>
-                            <div class="astro-label">Max. Sonnenhoehe</div>
+                            <div class="astro-label">{{ $t('weather.maxElevation') }}</div>
                         </div>
                         <div class="astro-item">
                             <div class="astro-icon">{{ moonIcon }}</div>
                             <div class="astro-value">{{ astronomy.moon_phase || '--' }}</div>
-                            <div class="astro-label">Mondphase</div>
+                            <div class="astro-label">{{ $t('weather.moonPhase') }}</div>
                         </div>
                         <div class="astro-item">
                             <div class="astro-icon">\u{1F319}</div>
                             <div class="astro-value">{{ fmt(astronomy.moon_illumination, 0) }}%</div>
-                            <div class="astro-label">Beleuchtung</div>
+                            <div class="astro-label">{{ $t('weather.illumination') }}</div>
                         </div>
                     </div>
                 </div>
@@ -192,7 +192,7 @@ const _WeatherPage = {
             <!-- ================= CARD 7: HISTORY ================= -->
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">\u{1F4C5} Wetter-Historie</span>
+                    <span class="chart-title">\u{1F4C5} {{ $t('weather.history') }}</span>
                     <div class="history-tabs">
                         <button v-for="tab in historyTabs" :key="tab.id"
                                 class="history-tab"
@@ -201,34 +201,34 @@ const _WeatherPage = {
                     </div>
                 </div>
                 <div v-if="!history.data.length" class="empty-state">
-                    Historiendaten werden geladen...
+                    {{ $t('weather.historyLoading') }}
                 </div>
                 <div v-else>
                     <div v-if="historyAvailabilityText" class="history-note">{{ historyAvailabilityText }}</div>
                     <div class="history-kpis">
                         <div class="history-kpi">
                             <div class="history-kpi-value">{{ fmt(history.stats.avgTemp, 1) }}°C</div>
-                            <div class="history-kpi-label">Ø Temperatur</div>
+                            <div class="history-kpi-label">Ø {{ $t('weather.temperature') }}</div>
                         </div>
                         <div class="history-kpi">
                             <div class="history-kpi-value" style="color:#ef4444;">{{ fmt(history.stats.maxTemp, 1) }}°C</div>
-                            <div class="history-kpi-label">Max</div>
+                            <div class="history-kpi-label">{{ $t('common.max') }}</div>
                         </div>
                         <div class="history-kpi">
                             <div class="history-kpi-value" style="color:#60a5fa;">{{ fmt(history.stats.minTemp, 1) }}°C</div>
-                            <div class="history-kpi-label">Min</div>
+                            <div class="history-kpi-label">{{ $t('common.min') }}</div>
                         </div>
                         <div class="history-kpi">
                             <div class="history-kpi-value" style="color:#3b82f6;">{{ fmt(history.stats.totalRain, 1) }} mm</div>
-                            <div class="history-kpi-label">Niederschlag</div>
+                            <div class="history-kpi-label">{{ $t('weather.precipitation') }}</div>
                         </div>
                         <div class="history-kpi">
                             <div class="history-kpi-value" style="color:#10b981;">{{ fmt(history.stats.avgWind, 1) }} m/s</div>
-                            <div class="history-kpi-label">Ø Wind</div>
+                            <div class="history-kpi-label">Ø {{ $t('weather.wind') }}</div>
                         </div>
                         <div class="history-kpi">
                             <div class="history-kpi-value" style="color:#fbbf24;">{{ fmt(history.stats.sunHours, 0) }} h</div>
-                            <div class="history-kpi-label">Sonnenstd.</div>
+                            <div class="history-kpi-label">{{ $t('weather.sunHours') }}</div>
                         </div>
                     </div>
                     <div ref="historyChartEl" class="weather-chart" style="height: 340px; margin-top: var(--space-md);"></div>
@@ -238,6 +238,142 @@ const _WeatherPage = {
     `,
 
     setup() {
+        const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
+        const locale = { value: window.SFMLI18n ? window.SFMLI18n.current : 'en' };
+
+        // Map our locale codes to BCP47 tags for Date/Intl formatting
+        const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'en-US');
+
+        // Clothing recommendation arrives in German from the PyArmor-protected
+        // backend (no source access to localize at origin). Map known German
+        // values per locale; unknowns fall through unchanged so we don't hide
+        // information when a new label appears.
+        const CLOTHING_TRANSLATIONS = {
+            pl: {
+                // labels (chart subtitle)
+                'Frostig': 'Mróz',
+                'Sehr kalt': 'Bardzo zimno',
+                'Kalt': 'Zimno',
+                'Kühl': 'Chłodno',
+                'Mild': 'Łagodnie',
+                'Warm': 'Ciepło',
+                'Sehr warm': 'Bardzo ciepło',
+                'Heiß': 'Upał',
+                // descriptions
+                'Warm und angenehm.': 'Ciepło i przyjemnie.',
+                'Mild und angenehm.': 'Łagodnie i przyjemnie.',
+                'Sehr warm, kann ungemütlich werden.': 'Bardzo ciepło, może być męcząco.',
+                'Sehr warm, hell und sonnig.': 'Bardzo ciepło, jasno i słonecznie.',
+                'Heiß, viel trinken.': 'Upał, dużo pij.',
+                'Kühl, leichte Schicht reicht.': 'Chłodno, wystarczy lekka warstwa.',
+                'Kalt, warm anziehen.': 'Zimno, ubierz się ciepło.',
+                'Sehr kalt, dick einpacken.': 'Bardzo zimno, opatul się grubo.',
+                'Frostig, dick einpacken und Mütze nicht vergessen.': 'Mróz, ubierz się grubo i nie zapomnij czapki.',
+                'Es regnet, Regenjacke einpacken.': 'Pada deszcz, weź kurtkę przeciwdeszczową.',
+                'Achtung, Regen heute.': 'Uwaga, dziś deszcz.',
+                // bottoms
+                'Kurze/lange Hose': 'Krótkie/długie spodnie',
+                'Kurze Hose': 'Krótkie spodnie',
+                'Lange Hose': 'Długie spodnie',
+                'Shorts': 'Szorty',
+                'Warme Hose': 'Ciepłe spodnie',
+                'Dicke Hose': 'Grube spodnie',
+                'Thermohose': 'Spodnie termoaktywne',
+                // tops
+                'T-Shirt': 'T-shirt',
+                'Langarmshirt': 'Koszulka z długim rękawem',
+                'Pullover': 'Sweter',
+                'Hemd': 'Koszula',
+                'Bluse': 'Bluzka',
+                'Thermoshirt': 'Koszulka termoaktywna',
+                'Sweatshirt': 'Bluza',
+                // jackets
+                'Dünne Jacke': 'Cienka kurtka',
+                'Übergangsjacke': 'Kurtka przejściowa',
+                'Regenjacke': 'Kurtka przeciwdeszczowa',
+                'Mantel': 'Płaszcz',
+                'Wintermantel': 'Płaszcz zimowy',
+                'Winterjacke': 'Kurtka zimowa',
+                'Daunenjacke': 'Kurtka puchowa',
+                'Anorak': 'Anorak',
+                // headwear
+                'Mütze': 'Czapka',
+                'Wintermütze': 'Czapka zimowa',
+                'Cap': 'Czapka z daszkiem',
+                'Kappe': 'Czapka z daszkiem',
+                'Sonnenhut': 'Kapelusz przeciwsłoneczny',
+                'Stirnband': 'Opaska',
+                // extras
+                'Schal': 'Szalik',
+                'Handschuhe': 'Rękawiczki',
+                'Sonnenbrille': 'Okulary przeciwsłoneczne',
+                'Sonnencreme': 'Krem z filtrem',
+                'Regenschirm': 'Parasol',
+                'Schal und Handschuhe': 'Szalik i rękawiczki',
+            },
+            en: {
+                'Frostig': 'Frosty',
+                'Sehr kalt': 'Very cold',
+                'Kalt': 'Cold',
+                'Kühl': 'Cool',
+                'Mild': 'Mild',
+                'Warm': 'Warm',
+                'Sehr warm': 'Very warm',
+                'Heiß': 'Hot',
+                'Warm und angenehm.': 'Warm and pleasant.',
+                'Mild und angenehm.': 'Mild and pleasant.',
+                'Sehr warm, kann ungemütlich werden.': 'Very warm — may get uncomfortable.',
+                'Sehr warm, hell und sonnig.': 'Very warm, bright and sunny.',
+                'Heiß, viel trinken.': 'Hot — drink plenty of water.',
+                'Kühl, leichte Schicht reicht.': 'Cool — a light layer is enough.',
+                'Kalt, warm anziehen.': 'Cold — dress warm.',
+                'Sehr kalt, dick einpacken.': 'Very cold — bundle up.',
+                'Frostig, dick einpacken und Mütze nicht vergessen.': 'Frosty — bundle up and don’t forget a hat.',
+                'Es regnet, Regenjacke einpacken.': 'It’s raining — bring a rain jacket.',
+                'Achtung, Regen heute.': 'Heads up — rain today.',
+                'Kurze/lange Hose': 'Shorts or long pants',
+                'Kurze Hose': 'Shorts',
+                'Lange Hose': 'Long pants',
+                'Shorts': 'Shorts',
+                'Warme Hose': 'Warm pants',
+                'Dicke Hose': 'Thick pants',
+                'Thermohose': 'Thermal pants',
+                'T-Shirt': 'T-shirt',
+                'Langarmshirt': 'Long-sleeve shirt',
+                'Pullover': 'Sweater',
+                'Hemd': 'Shirt',
+                'Bluse': 'Blouse',
+                'Thermoshirt': 'Thermal shirt',
+                'Sweatshirt': 'Sweatshirt',
+                'Dünne Jacke': 'Light jacket',
+                'Übergangsjacke': 'Mid-season jacket',
+                'Regenjacke': 'Rain jacket',
+                'Mantel': 'Coat',
+                'Wintermantel': 'Winter coat',
+                'Winterjacke': 'Winter jacket',
+                'Daunenjacke': 'Down jacket',
+                'Anorak': 'Anorak',
+                'Mütze': 'Beanie',
+                'Wintermütze': 'Winter beanie',
+                'Cap': 'Cap',
+                'Kappe': 'Cap',
+                'Sonnenhut': 'Sun hat',
+                'Stirnband': 'Headband',
+                'Schal': 'Scarf',
+                'Handschuhe': 'Gloves',
+                'Sonnenbrille': 'Sunglasses',
+                'Sonnencreme': 'Sunscreen',
+                'Regenschirm': 'Umbrella',
+                'Schal und Handschuhe': 'Scarf and gloves',
+            },
+        };
+        const translateClothing = (value) => {
+            if (value == null || value === '') return value;
+            const map = CLOTHING_TRANSLATIONS[locale.value];
+            if (!map) return value;
+            return map[value] ?? value;
+        };
+
         const current = reactive({
             temperature: null, feels_like: null, humidity: null,
             wind_speed: null, pressure: null, pressure_trend: null,
@@ -252,11 +388,12 @@ const _WeatherPage = {
         const history = reactive({ data: [], stats: {} });
         const historyMeta = reactive({ availableDays: 0, requestedDays: 7, returnedDays: 0 });
         const historyTab = ref('week');
-        const historyTabs = [
-            { id: 'week', label: 'Woche' },
-            { id: 'month', label: 'Monat' },
-            { id: 'year', label: 'Jahr' },
-        ];
+        // Reactive: relabels when locale switches.
+        const historyTabs = computed(() => [
+            { id: 'week',  label: t('weather.tab.week') },
+            { id: 'month', label: t('weather.tab.month') },
+            { id: 'year',  label: t('weather.tab.year') },
+        ]);
         const lastUpdated = ref('');
 
         const forecastChartEl = ref(null);
@@ -270,7 +407,7 @@ const _WeatherPage = {
             if (!historyMeta.availableDays || historyMeta.availableDays >= historyRequestedDays.value) {
                 return '';
             }
-            return `Derzeit sind ${historyMeta.availableDays} Tage Wetterhistorie verfuegbar.`;
+            return t('weather.historyAvail', { days: historyMeta.availableDays });
         });
         // Helpers ------------------------------------------------------
         function fmt(v, digits = 1) {
@@ -282,24 +419,27 @@ const _WeatherPage = {
             try {
                 const d = new Date(iso);
                 if (Number.isNaN(d.getTime())) return String(iso);
-                return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                return d.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
             } catch (e) { return String(iso); }
         }
         const weatherIcon = computed(() => WEATHER_ICONS[current.condition] || '\u{2601}');
+        // Map HA condition strings to our weather.condition.* keys.
+        const CONDITION_KEY = {
+            'clear-night': 'clearNight', 'sunny': 'sunny', 'clear': 'clear',
+            'partlycloudy': 'partlyCloudy', 'cloudy': 'cloudy',
+            'rainy': 'rainy', 'pouring': 'pouring', 'snowy': 'snowy',
+            'snowy-rainy': 'snowyRainy', 'windy': 'windy', 'fog': 'fog',
+            'hail': 'hail', 'lightning': 'lightning', 'lightning-rainy': 'lightningRainy',
+            'exceptional': 'exceptional', 'windy-variant': 'windyVariant',
+        };
         const conditionText = computed(() => {
-            const map = {
-                'clear-night': 'Klar', 'sunny': 'Sonnig', 'clear': 'Klar',
-                'partlycloudy': 'Teils bewoelkt', 'cloudy': 'Bewoelkt',
-                'rainy': 'Regen', 'pouring': 'Starkregen', 'snowy': 'Schnee',
-                'snowy-rainy': 'Schneeregen', 'windy': 'Windig', 'fog': 'Nebel',
-                'hail': 'Hagel', 'lightning': 'Gewitter', 'lightning-rainy': 'Gewitter + Regen',
-                'exceptional': 'Ausnahme',
-            };
-            return map[current.condition] || current.condition || '--';
+            const k = CONDITION_KEY[current.condition];
+            return k ? t('weather.condition.' + k) : (current.condition || '--');
         });
         const potentialText = computed(() => {
-            const m = { good: 'Gut', medium: 'Mittel', poor: 'Gering', none: '--' };
-            return m[current.solar_potential] || '--';
+            const k = current.solar_potential;
+            if (!k || k === 'none') return '--';
+            return t('weather.potential.' + k);
         });
         const pressureArrow = computed(() => {
             if (current.pressure_trend === 'rising') return '\u{2191}';
@@ -354,7 +494,7 @@ const _WeatherPage = {
             const dayLabels = labels.map((h, i) => {
                 if (i === 0 || xDates[i] !== xDates[i - 1]) {
                     const d = new Date(xDates[i]);
-                    return `${h}\n${d.toLocaleDateString('de-DE', { weekday: 'short' })}`;
+                    return `${h}\n${d.toLocaleDateString(bcp(locale.value), { weekday: 'short' })}`;
                 }
                 return h;
             });
@@ -369,7 +509,7 @@ const _WeatherPage = {
                     textStyle: { color: '#e2e8f0' },
                 },
                 legend: {
-                    data: ['Temperatur', 'Bewoelkung', 'Niederschlag', 'Wind'],
+                    data: [t('weather.temperature'), t('weather.cloudCover'), t('weather.precipitation'), t('weather.wind')],
                     top: 0, textStyle: { color: '#cbd5e1' },
                 },
                 xAxis: {
@@ -384,14 +524,14 @@ const _WeatherPage = {
                 ],
                 series: [
                     {
-                        name: 'Temperatur', type: 'line', yAxisIndex: 0,
+                        name: t('weather.temperature'), type: 'line', yAxisIndex: 0,
                         data: forecast.value.map(r => r.temperature),
                         smooth: true, symbol: 'none',
                         lineStyle: { color: '#ef4444', width: 2 },
                         itemStyle: { color: '#ef4444' },
                     },
                     {
-                        name: 'Bewoelkung', type: 'line', yAxisIndex: 1,
+                        name: t('weather.cloudCover'), type: 'line', yAxisIndex: 1,
                         data: forecast.value.map(r => r.cloud_cover),
                         smooth: true, symbol: 'none',
                         areaStyle: { color: 'rgba(148,163,184,0.25)' },
@@ -399,13 +539,13 @@ const _WeatherPage = {
                         itemStyle: { color: '#94a3b8' },
                     },
                     {
-                        name: 'Niederschlag', type: 'bar', yAxisIndex: 0,
+                        name: t('weather.precipitation'), type: 'bar', yAxisIndex: 0,
                         data: forecast.value.map(r => r.rain),
                         itemStyle: { color: '#3b82f6' },
                         barWidth: 4,
                     },
                     {
-                        name: 'Wind', type: 'line', yAxisIndex: 0,
+                        name: t('weather.wind'), type: 'line', yAxisIndex: 0,
                         data: forecast.value.map(r => r.wind),
                         smooth: true, symbol: 'none',
                         lineStyle: { color: '#10b981', width: 1, type: 'dashed' },
@@ -483,17 +623,17 @@ const _WeatherPage = {
                 backgroundColor: 'transparent',
                 grid: { left: 55, right: 55, top: 30, bottom: 40 },
                 tooltip: { trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.95)', borderColor: '#334155', textStyle: { color: '#e2e8f0' } },
-                legend: { data: ['Temp Ø', 'Temp Max', 'Temp Min', 'Niederschlag'], top: 0, textStyle: { color: '#cbd5e1' } },
+                legend: { data: [t('weather.tempAvg'), t('weather.tempMax'), t('weather.tempMin'), t('weather.precipitation')], top: 0, textStyle: { color: '#cbd5e1' } },
                 xAxis: { type: 'category', data: dates, axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { lineStyle: { color: '#334155' } } },
                 yAxis: [
                     { type: 'value', name: '°C', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
                     { type: 'value', name: 'mm', position: 'right', axisLabel: { color: '#94a3b8' }, splitLine: { show: false } },
                 ],
                 series: [
-                    { name: 'Temp Max', type: 'line', data: history.data.map(d => d.temp_max), smooth: true, symbol: 'none', lineStyle: { color: '#ef4444', width: 1 }, itemStyle: { color: '#ef4444' } },
-                    { name: 'Temp Ø', type: 'line', data: history.data.map(d => d.temp_avg), smooth: true, symbol: 'none', lineStyle: { color: '#fbbf24', width: 2 }, itemStyle: { color: '#fbbf24' } },
-                    { name: 'Temp Min', type: 'line', data: history.data.map(d => d.temp_min), smooth: true, symbol: 'none', lineStyle: { color: '#60a5fa', width: 1 }, itemStyle: { color: '#60a5fa' } },
-                    { name: 'Niederschlag', type: 'bar', yAxisIndex: 1, data: history.data.map(d => d.rain), itemStyle: { color: '#3b82f6' }, barWidth: 6 },
+                    { name: t('weather.tempMax'), type: 'line', data: history.data.map(d => d.temp_max), smooth: true, symbol: 'none', lineStyle: { color: '#ef4444', width: 1 }, itemStyle: { color: '#ef4444' } },
+                    { name: t('weather.tempAvg'), type: 'line', data: history.data.map(d => d.temp_avg), smooth: true, symbol: 'none', lineStyle: { color: '#fbbf24', width: 2 }, itemStyle: { color: '#fbbf24' } },
+                    { name: t('weather.tempMin'), type: 'line', data: history.data.map(d => d.temp_min), smooth: true, symbol: 'none', lineStyle: { color: '#60a5fa', width: 1 }, itemStyle: { color: '#60a5fa' } },
+                    { name: t('weather.precipitation'), type: 'bar', yAxisIndex: 1, data: history.data.map(d => d.rain), itemStyle: { color: '#3b82f6' }, barWidth: 6 },
                 ],
             });
             historyChart.resize();
@@ -509,7 +649,7 @@ const _WeatherPage = {
                 Object.assign(radiation, res.radiation || {});
                 Object.assign(clothing, res.clothing || { available: false });
                 Object.assign(astronomy, res.astronomy || {});
-                lastUpdated.value = new Date().toLocaleTimeString('de-DE');
+                lastUpdated.value = new Date().toLocaleTimeString(bcp(locale.value));
 
                 await nextTick();
                 renderForecastChart();
@@ -583,7 +723,7 @@ const _WeatherPage = {
         }
 
         return {
-            current, forecast, radiation, clothing, astronomy, history,
+            current, forecast, radiation, clothing, translateClothing, astronomy, history,
             historyTab, historyTabs, lastUpdated,
             forecastChartEl, radiationChartEl, historyChartEl,
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,

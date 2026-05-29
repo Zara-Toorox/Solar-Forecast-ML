@@ -61,6 +61,8 @@ const App = {
     `,
 
     setup() {
+        const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
+
         const currentPage = ref('home');
         const wsConnected = ref(false);
         const isMobile = ref(window.innerWidth < 768);
@@ -83,23 +85,24 @@ const App = {
             country: 'DE',
         });
 
-        const tabs = [
-            { id: 'home', label: 'Home', icon: '🏠' },
-            { id: 'flow', label: 'Flow', icon: '🔀' },
-            { id: 'solar', label: 'Solar', icon: '☀' },
-            { id: 'weather', label: 'Wetter', icon: '🌤' },
-            { id: 'energy', label: 'Energie', icon: '⚡' },
-            { id: 'settings', label: 'Settings', icon: '⚙' },
-        ];
+        const tabs = computed(() => [
+            { id: 'home',     label: t('nav.home'),     icon: '🏠' },
+            { id: 'flow',     label: t('nav.flow'),     icon: '🔀' },
+            { id: 'solar',    label: t('nav.solar'),    icon: '☀' },
+            { id: 'weather',  label: t('nav.weather'),  icon: '🌤' },
+            { id: 'energy',   label: t('nav.energy'),   icon: '⚡' },
+            { id: 'settings', label: t('nav.settings'), icon: '⚙' },
+        ]);
 
-        // Pages (lazy loaded)
+        // Pages (lazy loaded). Loading placeholders are intentionally minimal —
+        // page components own their own headings once mounted.
         const pages = {
             home: window.HomePage || { template: '<div class="page page-home"><h2>Loading...</h2></div>' },
             flow: window.FlowPage || { template: '<div class="page page-flow"><h2>Loading...</h2></div>' },
             solar: window.SolarPage || { template: '<div class="page page-solar"><h2>Loading...</h2></div>' },
             weather: window.WeatherPage || { template: '<div class="page page-weather"><h2>Loading...</h2></div>' },
-            energy: window.EnergyPage || { template: '<div class="page page-energy"><h2>⚡ Energie & Finanzen</h2><p>Loading...</p></div>' },
-            settings: window.SettingsPage || { template: '<div class="page page-settings"><h2>⚙ Einstellungen</h2><p>Loading...</p></div>' },
+            energy: window.EnergyPage || { template: '<div class="page page-energy"><h2>⚡ ' + t('nav.energyAndFinances') + '</h2><p>Loading...</p></div>' },
+            settings: window.SettingsPage || { template: '<div class="page page-settings"><h2>⚙ ' + t('nav.settings') + '</h2><p>Loading...</p></div>' },
         };
 
         const currentPageComponent = computed(() => pages[currentPage.value] || pages.home);
@@ -198,4 +201,6 @@ const App = {
     }
 };
 
-createApp(App).mount('#app');
+const sfmlStatsApp = createApp(App);
+sfmlStatsApp.config.globalProperties.$t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
+sfmlStatsApp.mount('#app');

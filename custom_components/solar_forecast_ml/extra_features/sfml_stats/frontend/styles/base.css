@@ -332,15 +332,28 @@ html, body {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--border-default);
+    white-space: nowrap;
 }
 
 .data-table td {
     padding: var(--space-sm) var(--space-md);
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    white-space: nowrap;
 }
 
 .data-table tr:hover td {
     background: rgba(255, 255, 255, 0.03);
+}
+
+.data-table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 calc(-1 * var(--space-md));
+    padding: 0 var(--space-md);
+}
+
+.data-table-scroll .data-table {
+    min-width: max-content;
 }
 
 /* === SECTION HEADERS === */
@@ -490,4 +503,33 @@ html, body {
 .flow-glow-purple {
     filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.8))
             drop-shadow(0 0 12px rgba(139, 92, 246, 0.4));
+}
+
+/* Language Picker (i18n) */
+.language-picker {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 6px;
+    padding: 4px 24px 4px 8px;
+    color: inherit;
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image:
+        linear-gradient(45deg, transparent 50%, currentColor 50%),
+        linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 12px) 55%, calc(100% - 7px) 55%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+.language-picker:hover {
+    border-color: rgba(255,255,255,0.35);
+    background-color: rgba(255,255,255,0.08);
+}
+.language-picker option {
+    background: #1a1a2e;
+    color: #fff;
 }
