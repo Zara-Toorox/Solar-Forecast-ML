@@ -481,7 +481,7 @@ const _HomePage = {
                 </button>
             </div>
             <div class="hubble-chip-row">
-                <span v-for="chip in hubbleView.chips" :key="chip.key" class="hubble-chip">
+                <span v-for="chip in hubbleView.chips" :key="chip.key" class="hubble-chip" :title="chip.title || null">
                     <span class="hubble-chip-label">{{ chip.label }}</span>
                     <span class="hubble-chip-value">{{ chip.value }}</span>
                 </span>
@@ -502,7 +502,16 @@ const _HomePage = {
             </div>
             <div v-if="hubbleView.answer" class="hubble-answer">
                 <span class="hubble-answer-label">{{ hubbleView.answer.label }}</span>
-                <p>{{ hubbleView.answer.text }}</p>
+                <div v-if="hubbleView.answer.chips" class="hubble-chip-row">
+                    <span v-for="chip in hubbleView.answer.chips" :key="chip.key" class="hubble-chip">
+                        <span class="hubble-chip-label">{{ chip.label }}</span>
+                        <span class="hubble-chip-value">{{ chip.value }}</span>
+                    </span>
+                </div>
+                <template v-if="hubbleView.answer.paragraphs">
+                    <p v-for="paragraph in hubbleView.answer.paragraphs" :key="paragraph">{{ paragraph }}</p>
+                </template>
+                <p v-else>{{ hubbleView.answer.text }}</p>
             </div>
             <div v-if="hubbleExpanded" class="hubble-details">
                 <template v-for="block in hubbleView.story" :key="block.key">
@@ -535,7 +544,7 @@ const _HomePage = {
                 </div>
                 <div class="forecast-kpi-list">
                     <div class="forecast-kpi-row">
-                        <span class="forecast-kpi-label">{{ $t('common.yield') }}:</span>
+                        <span class="forecast-kpi-label" :title="$t('home.forecastActualKpiTitle')">{{ $t('home.forecastActualKpi') }}:</span>
                         <span class="forecast-kpi-value" style="color:#22c55e">{{ actualTotal }} kWh</span>
                     </div>
                     <div class="forecast-kpi-row">
@@ -923,6 +932,7 @@ const _HomePage = {
             const metrics = payload.metrics || {};
             const bestWindow = payload.best_window || null;
             const moment = payload.moment || 'midday';
+            const hasBattery = metrics.battery_available === true;
             const windowLabel = formatHubbleWindow(bestWindow);
             const forecast = formatHubbleNumber(metrics.forecast_today_kwh, 1);
             const solarYield = formatHubbleNumber(metrics.solar_yield_kwh, 1);
@@ -955,13 +965,14 @@ const _HomePage = {
             }[moment] || 'home.hubble.lead.midday';
 
             const chips = [
-                { key: 'yield', label: t('home.hubble.chip.yield'), value: metrics.solar_yield_kwh != null ? `${solarYield} kWh` : `${forecast} kWh` },
+                { key: 'yield', label: t('home.hubble.chip.yield'), value: metrics.solar_yield_kwh != null ? `${solarYield} kWh` : `${forecast} kWh`, title: t('home.hubble.chip.yieldTitle') },
                 { key: 'autarky', label: t('energy.autarky'), value: metrics.autarky_percent != null ? `${autarky}%` : t('common.noData') },
                 { key: 'quality', label: t('home.hubble.chip.quality'), value: metrics.forecast_quality_percent != null ? `${quality}%` : t('common.noData') },
                 { key: 'window', label: t('home.hubble.chip.window'), value: windowLabel },
             ];
 
             const storyParams = {
+                hasWindow: Boolean(bestWindow),
                 forecast,
                 solar: solarYield,
                 consumption: formatHubbleNumber(metrics.home_consumption_kwh, 1),
@@ -976,6 +987,18 @@ const _HomePage = {
                 declineHour,
                 battery: batteryCharge,
                 average: avgBattery,
+                batterySentence: hasBattery
+                    ? t('home.hubble.text.batterySentence', { battery: batteryCharge, average: avgBattery })
+                    : '',
+                batteryPlanningSentence: hasBattery
+                    ? t('home.hubble.text.batteryPlanningSentence', { average: avgBattery })
+                    : '',
+                batteryServedSentence: hasBattery
+                    ? t('home.hubble.text.batteryServedSentence', { battery: batteryCharge, average: avgBattery })
+                    : '',
+                directSource: hasBattery
+                    ? t('home.hubble.text.sunAndBattery')
+                    : t('home.hubble.text.sun'),
                 avgConsumption,
                 consumptionShare,
                 peakPower,
@@ -984,7 +1007,14 @@ const _HomePage = {
                 priceAverage: avgPrice,
             };
             const story = buildHubbleStory(moment, storyParams);
-            const quickActions = ['now', 'load', 'confidence', 'battery'].map(key => ({
+            const hasMemory = payload.memory?.available === true
+                && Array.isArray(payload.memory.matches)
+                && payload.memory.matches.length >= 2;
+            const quickActionKeys = hasBattery
+                ? ['now', 'load', 'confidence', 'battery']
+                : ['now', 'load', 'confidence'];
+            if (hasMemory) quickActionKeys.push('memory');
+            const quickActions = quickActionKeys.map(key => ({
                 key,
                 label: t(`home.hubble.quick.${key}`),
             }));
@@ -1010,6 +1040,60 @@ const _HomePage = {
                 updated: t('home.hubble.updated', {
                     time: formatHubbleTime(payload.generated_at),
                 }),
+            };
+        });
+
+        const hubbleMemoryView = computed(() => {
+            const memory = hubble.value?.memory || null;
+            if (!memory || !memory.available || !Array.isArray(memory.matches) || memory.matches.length < 2) {
+                return null;
+            }
+
+            const matches = memory.matches.map(match => ({
+                date: formatHubbleDate(match.date),
+                similarity: formatHubbleNumber(match.similarity_percent, 0),
+                yield: formatHubbleNumber(match.yield_kwh, 1),
+                forecast: formatHubbleNumber(match.forecast_kwh, 1),
+                autarky: formatHubbleNumber(match.autarky_percent, 0),
+                window: match.window ? formatHubbleWindow(match.window) : t('home.hubble.noWindow'),
+            }));
+            const bestMatch = matches[0];
+            const dates = matches.map(match => match.date).join(', ');
+            const commonWindow = memory.common_window ? formatHubbleWindow(memory.common_window) : null;
+            const params = {
+                count: memory.match_count || matches.length,
+                dates,
+                bestDate: bestMatch?.date || dates,
+                bestSimilarity: bestMatch?.similarity || '--',
+                bestYield: bestMatch?.yield || '--',
+                bestAutarky: bestMatch?.autarky || '--',
+                bestWindow: bestMatch?.window || t('home.hubble.noWindow'),
+                similarity: formatHubbleNumber(memory.avg_similarity_percent, 0),
+                yield: formatHubbleNumber(memory.avg_yield_kwh, 1),
+                forecast: formatHubbleNumber(memory.avg_forecast_kwh, 1),
+                autarky: formatHubbleNumber(memory.avg_autarky_percent, 0),
+                window: commonWindow || t('home.hubble.noWindow'),
+            };
+
+            return {
+                title: t('home.hubbleMemory.title'),
+                special: t('home.hubbleMemory.special', params),
+                lead: t('home.hubbleMemory.lead', params),
+                comparable: t('home.hubbleMemory.comparable', params),
+                advice: commonWindow
+                    ? t('home.hubbleMemory.adviceWindow', params)
+                    : t('home.hubbleMemory.adviceNoWindow', params),
+                detailIntro: t('home.hubbleMemory.detailIntro'),
+                chips: [
+                    { key: 'matches', label: t('home.hubbleMemory.chip.matches'), value: String(params.count) },
+                    { key: 'similarity', label: t('home.hubbleMemory.chip.similarity'), value: `${params.similarity}%` },
+                    { key: 'yield', label: t('home.hubbleMemory.chip.yield'), value: `${params.yield} kWh` },
+                    { key: 'window', label: t('home.hubbleMemory.chip.window'), value: params.window },
+                ],
+                matches: matches.map(match => ({
+                    date: match.date,
+                    text: t('home.hubbleMemory.matchLine', match),
+                })),
             };
         });
 
@@ -1099,6 +1183,13 @@ const _HomePage = {
             return dateValue.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
         }
 
+        function formatHubbleDate(value) {
+            if (!value) return '--';
+            const dateValue = new Date(`${value}T00:00:00`);
+            if (Number.isNaN(dateValue.getTime())) return value;
+            return dateValue.toLocaleDateString(bcp(locale.value), { day: '2-digit', month: '2-digit' });
+        }
+
         function formatHubbleWindow(bestWindow) {
             if (!bestWindow) return t('home.hubble.noWindow');
             const start = String(bestWindow.start_hour).padStart(2, '0') + ':00';
@@ -1108,6 +1199,7 @@ const _HomePage = {
 
         function buildHubbleTip(payload, windowLabel) {
             const metrics = payload.metrics || {};
+            const hasBattery = metrics.battery_available === true;
             const type = payload.tip_type || 'flex_load_window';
             const params = {
                 window: windowLabel,
@@ -1116,7 +1208,7 @@ const _HomePage = {
                 price: formatHubbleNumber(metrics.price_current_ct, 2),
                 priceAverage: formatHubbleNumber(metrics.price_avg_ct, 2),
             };
-            if (type === 'battery_served') return t('home.hubble.tip.batteryServed', params);
+            if (hasBattery && type === 'battery_served') return t('home.hubble.tip.batteryServed', params);
             if (type === 'cheap_price_plus_solar') return t('home.hubble.tip.cheapPricePlusSolar', params);
             if (type === 'evening_review') return t('home.hubble.tip.eveningReview', params);
             if (type === 'watch_day') return t('home.hubble.tip.watchDay', params);
@@ -1135,7 +1227,9 @@ const _HomePage = {
             const metrics = payload.metrics || {};
             const hasWindow = Boolean(payload.best_window);
             const hasQuality = metrics.forecast_quality_percent != null;
-            const hasBattery = metrics.solar_to_battery_kwh != null && metrics.avg_battery_charge_7d_kwh != null;
+            const hasBattery = metrics.battery_available === true
+                && metrics.solar_to_battery_kwh != null
+                && metrics.avg_battery_charge_7d_kwh != null;
             const consumptionRatio = buildHubbleConsumptionRatio(metrics);
             let answerKey = null;
 
@@ -1154,7 +1248,23 @@ const _HomePage = {
             } else if (question === 'confidence') {
                 answerKey = hasQuality ? 'home.hubble.answer.confidenceKnown' : 'home.hubble.answer.confidencePending';
             } else if (question === 'battery') {
+                if (metrics.battery_available !== true) return null;
                 answerKey = hasBattery ? 'home.hubble.answer.batteryKnown' : 'home.hubble.answer.batteryPending';
+            } else if (question === 'memory') {
+                const memory = hubbleMemoryView.value;
+                if (!memory) return null;
+                return {
+                    label: t('home.hubble.quick.memory'),
+                    chips: memory.chips,
+                    paragraphs: [
+                        memory.special,
+                        memory.lead,
+                        memory.comparable,
+                        memory.advice,
+                        memory.detailIntro,
+                        ...memory.matches.map(match => match.text),
+                    ],
+                };
             }
 
             if (!answerKey) return null;
@@ -1177,11 +1287,13 @@ const _HomePage = {
                 ['simple', 'paragraph'],
                 ['closing', 'paragraph'],
             ];
-            return keys.map(([name, type]) => ({
-                key: name,
-                type,
-                text: t(`home.hubble.story.${storyMoment}.${name}`, params),
-            }));
+            return keys
+                .filter(([name]) => name !== 'outlook' || params.hasWindow)
+                .map(([name, type]) => ({
+                    key: name,
+                    type,
+                    text: t(`home.hubble.story.${storyMoment}.${name}`, params),
+                }));
         }
 
         function parseTimeToMinutes(value) {
