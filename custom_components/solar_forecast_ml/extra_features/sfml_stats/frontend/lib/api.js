@@ -111,6 +111,21 @@ const SFMLApi = {
         return this.fetch(`/api/sfml_stats/shadow_analytics?days=${days}`, { forceRefresh, ttl: 300000 });
     },
 
+    async createHelperSensor(sourceSensor, name, configKey) {
+        const response = await fetch('/api/sfml_stats/create_helper_sensor', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ source_sensor: sourceSensor, name, config_key: configKey })
+        });
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.json();
+    },
+
     // Clear cache (useful for forcing refresh)
     clearCache(endpoint = null) {
         if (endpoint) {

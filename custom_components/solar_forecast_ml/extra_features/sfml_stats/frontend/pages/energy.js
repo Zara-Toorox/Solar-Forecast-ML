@@ -2,7 +2,16 @@
 // (C) 2026 Zara-Toorox
 
 const EnergyPage = ((Vue) => {
-const { ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
+const { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
+
+function getThemeColor(varName, fallback) {
+    try {
+        const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        return val || fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
 
 const _EnergyPage = {
     props: ['liveData', 'config'],
@@ -411,6 +420,7 @@ const _EnergyPage = {
 
         const billing = ref(null);
         const priceData = ref(null);
+        const sourcesData = ref(null);
         const monthlyData = ref([]);
         const consumerModal = ref(null);
         const consumerDetail = ref(null);
@@ -518,6 +528,7 @@ const _EnergyPage = {
                 ]);
                 if (bill?.data_available !== false) billing.value = bill;
                 priceData.value = prices;
+                sourcesData.value = sources;
 
                 // Build monthly cost table from real DB data
                 try {
@@ -605,9 +616,9 @@ const _EnergyPage = {
                 backgroundColor: 'transparent',
                 tooltip: {
                     trigger: 'axis',
-                    backgroundColor: 'rgba(10,14,20,0.95)',
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    textStyle: { color: '#f0f6fc', fontFamily: 'var(--font-mono)', fontSize: 12 },
+                    backgroundColor: getThemeColor('--bg-card', 'rgba(10,14,20,0.95)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-mono)', fontSize: 12 },
                     formatter: function(params) {
                         let html = '<b>' + params[0].axisValue + '</b>';
                         params.forEach(function(p) {
@@ -624,21 +635,21 @@ const _EnergyPage = {
                         { name: t('common.tomorrow'), icon: 'circle', itemStyle: { color: '#22d3ee' } },
                     ],
                     bottom: 0,
-                    textStyle: { color: '#8b949e', fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                 },
                 grid: { left: 55, right: 20, top: 15, bottom: 40 },
                 xAxis: {
                     type: 'category',
                     data: labels,
                     boundaryGap: false,
-                    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } },
-                    axisLabel: { color: '#6e7681', fontSize: 10, interval: 3 },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.15)') } },
+                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, interval: 3 },
                     axisTick: { show: false },
                 },
                 yAxis: {
                     type: 'value',
-                    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
-                    axisLabel: { color: '#6e7681', fontSize: 10, formatter: '{value} ct' },
+                    splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.06)') } },
+                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, formatter: '{value} ct' },
                 },
                 series: [
                     {
@@ -648,7 +659,7 @@ const _EnergyPage = {
                         symbol: 'circle',
                         symbolSize: function(value, params) { return params.dataIndex === nowHour ? 10 : 5; },
                         lineStyle: { color: '#f472b6', width: 2.5 },
-                        itemStyle: { color: '#f472b6', borderColor: '#0a0e14', borderWidth: 1 },
+                        itemStyle: { color: '#f472b6', borderColor: getThemeColor('--bg-app', '#0a0e14'), borderWidth: 1 },
                         data: todayData,
                     },
                     {
@@ -658,7 +669,7 @@ const _EnergyPage = {
                         symbol: 'circle',
                         symbolSize: 5,
                         lineStyle: { color: '#22d3ee', width: 2.5 },
-                        itemStyle: { color: '#22d3ee', borderColor: '#0a0e14', borderWidth: 1 },
+                        itemStyle: { color: '#22d3ee', borderColor: getThemeColor('--bg-app', '#0a0e14'), borderWidth: 1 },
                         data: tomorrowData,
                     },
                 ],
@@ -681,16 +692,16 @@ const _EnergyPage = {
 
             sourcesChart.setOption({
                 backgroundColor: 'transparent',
-                tooltip: { trigger: 'axis', backgroundColor: 'rgba(10,14,20,0.95)', textStyle: { color: '#f0f6fc', fontSize: 11 } },
-                legend: { bottom: 0, textStyle: { color: '#8b949e', fontSize: 10 } },
+                tooltip: { trigger: 'axis', backgroundColor: getThemeColor('--bg-card', 'rgba(10,14,20,0.95)'), borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 11 } },
+                legend: { bottom: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 } },
                 grid: { left: 50, right: 20, top: 10, bottom: 45 },
-                xAxis: { type: 'category', data: times, axisLabel: { color: '#6e7681', fontSize: 10, interval: Math.floor(times.length / 12) }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
-                yAxis: { type: 'value', name: 'W', nameTextStyle: { color: '#6e7681' }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }, axisLabel: { color: '#6e7681' } },
+                xAxis: { type: 'category', data: times, axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, interval: Math.floor(times.length / 12) }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } } },
+                yAxis: { type: 'value', name: 'W', nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } }, axisLabel: { color: getThemeColor('--text-muted', '#6e7681') } },
                 series: [
                     { name: t('flow.stat.solarToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(251,191,36,0.3)' }, lineStyle: { color: '#fbbf24', width: 1.5 }, itemStyle: { color: '#fbbf24' }, symbol: 'none', smooth: true, data: data.map(d => d.solar_to_house || 0) },
                     { name: t('flow.stat.batteryToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(34,197,94,0.2)' }, lineStyle: { color: '#22c55e', width: 1.5 }, itemStyle: { color: '#22c55e' }, symbol: 'none', smooth: true, data: data.map(d => d.battery_to_house || 0) },
                     { name: t('flow.stat.gridToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(139,92,246,0.2)' }, lineStyle: { color: '#a855f7', width: 1.5 }, itemStyle: { color: '#a855f7' }, symbol: 'none', smooth: true, data: data.map(d => d.grid_to_house || 0) },
-                    { name: t('flow.node.houseConsumption'), type: 'line', lineStyle: { color: '#f0f6fc', width: 2, type: 'dashed' }, itemStyle: { color: '#f0f6fc' }, symbol: 'none', smooth: true, data: data.map(d => d.home_consumption || 0) },
+                    { name: t('flow.node.houseConsumption'), type: 'line', lineStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), width: 2, type: 'dashed' }, itemStyle: { color: getThemeColor('--text-primary', '#f0f6fc') }, symbol: 'none', smooth: true, data: data.map(d => d.home_consumption || 0) },
                 ],
                 animationDuration: 1000,
             }, true);
@@ -708,6 +719,15 @@ const _EnergyPage = {
         }
 
         function handleResize() { priceChart?.resize(); sourcesChart?.resize(); }
+
+        watch(() => props.config?.theme, () => {
+            if (priceChart) { priceChart.dispose(); priceChart = null; }
+            if (sourcesChart) { sourcesChart.dispose(); sourcesChart = null; }
+            nextTick(() => {
+                if (priceData.value) renderPriceChart(priceData.value);
+                if (sourcesData.value) renderSourcesChart(sourcesData.value);
+            });
+        });
 
         onMounted(async () => {
             await loadData();
@@ -753,7 +773,7 @@ const _EnergyPage = {
         }
 
         .eb-item {
-            background: rgba(255,255,255,0.02);
+            background: var(--bg-card);
             border: 1px solid var(--border-default);
             border-radius: var(--radius-md);
             padding: var(--space-md);
@@ -762,7 +782,8 @@ const _EnergyPage = {
         }
 
         .eb-item:hover {
-            background: rgba(255,255,255,0.04);
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
             transform: translateY(-1px);
         }
 
@@ -805,7 +826,7 @@ const _EnergyPage = {
             height: 24px;
             border-radius: 12px;
             overflow: hidden;
-            background: rgba(255,255,255,0.05);
+            background: var(--border-default);
         }
 
         .breakdown-seg {
@@ -864,12 +885,16 @@ const _EnergyPage = {
             align-items: center;
             gap: var(--space-sm);
             padding: var(--space-sm) var(--space-md);
-            background: rgba(255,255,255,0.02);
+            background: var(--bg-card);
             border: 1px solid var(--border-default);
             border-radius: var(--radius-sm);
+            transition: all var(--transition-normal);
         }
-        .consumer-row.clickable { cursor: pointer; transition: background 0.2s; }
-        .consumer-row.clickable:hover { background: rgba(0,212,255,0.06); border-color: rgba(0,212,255,0.3); }
+        .consumer-row.clickable { cursor: pointer; }
+        .consumer-row.clickable:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--accent);
+        }
         .consumer-arrow { color: var(--text-secondary); font-size: 1.2rem; }
 
         .consumer-icon { font-size: 1.2rem; }
@@ -880,14 +905,17 @@ const _EnergyPage = {
         /* Consumer Detail Modal */
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+            background: rgba(0,0,0,0.6); backdrop-filter: var(--glass-blur);
             z-index: 9999; display: flex; align-items: center; justify-content: center;
         }
         .modal-content {
-            background: rgba(15,20,30,0.95); border: 1px solid rgba(0,212,255,0.2);
+            background: var(--bg-card);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-default);
             border-radius: var(--radius-lg); padding: var(--space-xl);
             max-width: 600px; width: 90%; max-height: 85vh; overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            box-shadow: var(--glass-shadow);
+            color: var(--text-primary);
         }
         .modal-close {
             float: right; background: none; border: none; color: var(--text-secondary);
@@ -899,7 +927,7 @@ const _EnergyPage = {
         .cd-badge {
             display: flex; flex-direction: column; gap: 2px;
             padding: 6px 12px; border-radius: var(--radius-sm);
-            background: rgba(255,255,255,0.04); border: 1px solid var(--border-default);
+            background: var(--bg-card); border: 1px solid var(--border-default);
         }
         .cd-label { font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
         .cd-value { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; color: var(--accent); }
@@ -908,7 +936,13 @@ const _EnergyPage = {
         .cd-stat {
             display: flex; flex-direction: column; align-items: center; gap: 4px;
             padding: var(--space-md); border-radius: var(--radius-sm);
-            background: rgba(255,255,255,0.03); border: 1px solid var(--border-default);
+            background: var(--bg-card); border: 1px solid var(--border-default);
+            transition: all var(--transition-normal);
+        }
+        .cd-stat:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
         }
         .cd-stat-icon { font-size: 1.3rem; }
         .cd-stat-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }

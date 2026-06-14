@@ -10,6 +10,13 @@
           "sensor_home_consumption_daily": "Hausverbrauch (kWh/Tag)",
           "sensor_solar_to_house": "Solar → Haus (W)",
           "weather_entity": "Wetter"
+        },
+        "data_description": {
+          "country": "Wähle dein Land für Standard-Steuersätze und Strompreise.",
+          "sensor_home_consumption": "Einheit: Watt. Aktueller Gesamtstromverbrauch des Haushalts. (Erforderlich)",
+          "sensor_home_consumption_daily": "Einheit: kWh. Hausverbrauch seit Mitternacht. (Optional: wird bei Fehlen aus W-Sensor integriert)",
+          "sensor_solar_to_house": "Einheit: Watt. Solarstrom, der direkt ins Haus fließt. (Optional: wird bei Fehlen berechnet)",
+          "weather_entity": "Wetter-Entität für Diagramme. (Optional)"
         }
       },
       "optional": {
@@ -51,14 +58,22 @@
       },
       "pricing_dynamic": {
         "title": "Dynamischer Tarif",
-        "description": "GPM (Grid Price Monitor) liefert die kWh-Preise stündlich — nur Grundgebühr und Einspeisevergütung nötig.",
+        "description": "GPM (Grid Price Monitor) liefert die Marktpreise stündlich. Bitte gib deine Grundgebühr, Steuern, Abgaben und Aufschläge ein.",
         "data": {
           "billing_base_fee": "Grundgebühr (EUR/Monat)",
-          "feed_in_tariff": "Einspeisevergütung (ct/kWh)"
+          "feed_in_tariff": "Einspeisevergütung (ct/kWh)",
+          "vat_rate": "Mehrwertsteuersatz (%)",
+          "gpm_grid_fee": "Netzentgelte (ct/kWh)",
+          "taxes_fees": "Steuern & Abgaben (ct/kWh)",
+          "provider_markup": "Anbieter-Aufschlag (ct/kWh)"
         },
         "data_description": {
           "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
-          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
+          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh.",
+          "vat_rate": "Mehrwertsteuersatz in Prozent (z.B. 19 für DE, 20 für AT).",
+          "gpm_grid_fee": "Netzentgelte und Messentgelte pro kWh (brutto).",
+          "taxes_fees": "Konzessionsabgabe, Stromsteuer und sonstige Umlagen pro kWh (brutto).",
+          "provider_markup": "Anbieter-Aufschlag pro kWh (brutto)."
         }
       }
     }
@@ -92,7 +107,6 @@
           "sensor_battery_power": "Batterie Leistung (W)",
           "sensor_solar_to_battery": "Solar → Batterie (W)",
           "sensor_battery_to_house": "Batterie → Haus (W)",
-          "sensor_battery_to_grid": "Battery to Grid (W)",
           "sensor_battery_charge_solar_daily": "Batterie von Solar (kWh/Tag)",
           "sensor_battery_charge_grid_daily": "Batterie von Netz (kWh/Tag)",
           "sensor_battery_discharge_daily": "Batterie entladen (kWh/Tag)",
@@ -101,10 +115,11 @@
           "sensor_house_to_grid": "Haus → Netz (W)",
           "sensor_smartmeter_import": "Smartmeter Bezug (W)",
           "sensor_smartmeter_export": "Smartmeter Einspeisung (W)",
+          "sensor_smartmeter_import_kwh": "Smartmeter Bezug Kumuliert (kWh)",
+          "sensor_smartmeter_export_kwh": "Smartmeter Einspeisung Kumuliert (kWh)",
           "sensor_grid_import_daily": "Netzbezug (kWh/Tag)",
           "sensor_grid_export_daily": "Netzeinspeisung (kWh/Tag)",
           "sensor_grid_import_extra": "Zusätzlicher Netzbezug (kWh/Tag)",
-          "sensor_grid_import_yearly": "Netzbezug (kWh/Jahr)",
           "sensor_price_total": "Strompreis Gesamt (ct/kWh)",
           "sensor_heatpump_power": "Wärmepumpe Leistung (W)",
           "sensor_heatpump_daily": "Wärmepumpe (kWh/Tag)",
@@ -113,6 +128,38 @@
           "sensor_wallbox_power": "Wallbox Leistung (W)",
           "sensor_wallbox_daily": "Wallbox (kWh/Tag)",
           "sensor_wallbox_state": "Wallbox Status"
+        },
+        "data_description": {
+          "country": "Land für MwSt. und Strompreis-Standardwerte wählen.",
+          "sensor_home_consumption": "Aktueller Hausverbrauch der gesamten Last in Watt. (Erforderlich)",
+          "sensor_home_consumption_daily": "Hausverbrauch des heutigen Tages seit Mitternacht in kWh. (Optional)",
+          "sensor_solar_to_house": "Direkter Solarstrom-Fluss ins Hausnetz in Watt. (Optional)",
+          "weather_entity": "Wetter-Integration für Diagramm-Overlays. (Optional)",
+          "sensor_battery_soc": "Batterieladezustand in Prozent (0-100). (Optional)",
+          "sensor_battery_power": "Lade- und Entladeleistung der Batterie in Watt. Positiv = Laden, Negativ = Entladen. (Optional)",
+          "sensor_solar_to_battery": "Solarleistung, die in die Batterie fließt, in Watt. (Optional)",
+          "sensor_battery_to_house": "Leistung, die aus der Batterie ins Haus fließt, in Watt. (Optional)",
+          "sensor_battery_charge_solar_daily": "Heute aus Solar in die Batterie geladene Energie in kWh. (Optional)",
+          "sensor_battery_charge_grid_daily": "Heute aus dem Netz in die Batterie geladene Energie in kWh. (Optional)",
+          "sensor_battery_discharge_daily": "Heute aus der Batterie entladene Energie in kWh. (Optional)",
+          "sensor_grid_to_house": "Aktueller Bezug direkt aus dem Netz ins Haus in Watt. (Optional)",
+          "sensor_grid_to_battery": "Aktuelle Batterieladung direkt aus dem Netz in Watt. (Optional)",
+          "sensor_house_to_grid": "Aktuelle Einspeisung ins öffentliche Netz in Watt. (Optional)",
+          "sensor_smartmeter_import": "Aktueller Bezug am Smartmeter in Watt. (Optional)",
+          "sensor_smartmeter_export": "Aktuelle Einspeisung am Smartmeter in Watt. (Optional)",
+          "sensor_smartmeter_import_kwh": "Kumulierter Zählerstand Netzbezug am Smartmeter in kWh (setzt sich nicht zurück). (Optional)",
+          "sensor_smartmeter_export_kwh": "Kumulierter Zählerstand Netzeinspeisung am Smartmeter in kWh (setzt sich nicht zurück). (Optional)",
+          "sensor_grid_import_daily": "Heutiger Netzbezug seit Mitternacht in kWh. (Optional)",
+          "sensor_grid_export_daily": "Heutige Netzeinspeisung seit Mitternacht in kWh. (Optional)",
+          "sensor_grid_import_extra": "Zusätzlicher Netzbezug außerhalb des Smartmeters in kWh. (Optional)",
+          "sensor_price_total": "Sensor mit aktuellem Gesamtstrompreis inkl. Steuern/Entgelten (z.B. von Tibber). (Optional)",
+          "sensor_heatpump_power": "Aktuelle elektrische Leistungsaufnahme der Wärmepumpe in Watt. (Optional)",
+          "sensor_heatpump_daily": "Heutiger Stromverbrauch der Wärmepumpe in kWh. (Optional)",
+          "sensor_heatingrod_power": "Aktuelle elektrische Leistungsaufnahme des Heizstabs in Watt. (Optional)",
+          "sensor_heatingrod_daily": "Heutiger Stromverbrauch des Heizstabs in kWh. (Optional)",
+          "sensor_wallbox_power": "Aktuelle Ladeleistung der Wallbox in Watt. (Optional)",
+          "sensor_wallbox_daily": "Heutige Ladeenergie der Wallbox in kWh. (Optional)",
+          "sensor_wallbox_state": "Wallbox-Status-Sensor (z.B. Laden, Verbunden, Standby). (Optional)"
         }
       },
       "pricing": {
@@ -143,14 +190,22 @@
       },
       "pricing_dynamic": {
         "title": "Dynamischer Tarif",
-        "description": "GPM (Grid Price Monitor) liefert die kWh-Preise stündlich — nur Grundgebühr und Einspeisevergütung nötig.",
+        "description": "GPM (Grid Price Monitor) liefert die Marktpreise stündlich. Bitte gib deine Grundgebühr, Steuern, Abgaben und Aufschläge ein.",
         "data": {
           "billing_base_fee": "Grundgebühr (EUR/Monat)",
-          "feed_in_tariff": "Einspeisevergütung (ct/kWh)"
+          "feed_in_tariff": "Einspeisevergütung (ct/kWh)",
+          "vat_rate": "Mehrwertsteuersatz (%)",
+          "gpm_grid_fee": "Netzentgelte (ct/kWh)",
+          "taxes_fees": "Steuern & Abgaben (ct/kWh)",
+          "provider_markup": "Anbieter-Aufschlag (ct/kWh)"
         },
         "data_description": {
           "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
-          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
+          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh.",
+          "vat_rate": "Mehrwertsteuersatz in Prozent (z.B. 19 für DE, 20 für AT).",
+          "gpm_grid_fee": "Netzentgelte und Messentgelte pro kWh (brutto).",
+          "taxes_fees": "Konzessionsabgabe, Stromsteuer und sonstige Umlagen pro kWh (brutto).",
+          "provider_markup": "Anbieter-Aufschlag pro kWh (brutto)."
         }
       },
       "advanced": {
@@ -158,8 +213,6 @@
         "description": "Smart Charging, Panels, Prognose-Vergleich, Einstellungen",
         "data": {
           "smart_charging_enabled": "Smart Charging aktivieren",
-          "theme": "Theme",
-          "dashboard_style": "Dashboard-Stil",
           "billing_start_month": "Abrechnungs-Startmonat",
           "billing_start_day": "Abrechnungs-Starttag",
           "show_panel_groups": "Panel-Gruppen anzeigen",
@@ -176,18 +229,40 @@
           "forecast_entity_1_name": "Name Prognose 1",
           "forecast_entity_2": "Vergleichs-Prognose 2",
           "forecast_entity_2_name": "Name Prognose 2"
+        },
+        "data_description": {
+          "smart_charging_enabled": "Intelligentes Laden der Batterie basierend auf Strompreisen aktivieren.",
+          "billing_start_month": "Monat, in dem dein Abrechnungsjahr beginnt.",
+          "billing_start_day": "Tag, an dem dein Abrechnungsjahr beginnt.",
+          "show_panel_groups": "Diagramme und Details für einzelne Solargruppen auf der Startseite anzeigen.",
+          "panel1_name": "Anzeigename für Panel/String 1. (Optional)",
+          "sensor_panel1_power": "Einheit: Watt. Aktuelle Leistung von PV-String 1. (Optional)",
+          "panel2_name": "Anzeigename für Panel/String 2. (Optional)",
+          "sensor_panel2_power": "Einheit: Watt. Aktuelle Leistung von PV-String 2. (Optional)",
+          "panel3_name": "Anzeigename für Panel/String 3. (Optional)",
+          "sensor_panel3_power": "Einheit: Watt. Aktuelle Leistung von PV-String 3. (Optional)",
+          "panel4_name": "Anzeigename für Panel/String 4. (Optional)",
+          "sensor_panel4_power": "Einheit: Watt. Aktuelle Leistung von PV-String 4. (Optional)",
+          "panel_group_names_input": "Panel-Gruppen umbenennen. Format: Alt=Neu, Alt2=Neu2",
+          "forecast_entity_1": "Sensor mit täglicher Solarprognose in kWh (z.B. sensor.solcast_forecast_today). (Optional)",
+          "forecast_entity_1_name": "Anzeigename im Vergleichsdiagramm (z.B. 'Solcast'). (Optional)",
+          "forecast_entity_2": "Sensor mit täglicher Solarprognose in kWh. (Optional)",
+          "forecast_entity_2_name": "Anzeigename im Vergleichsdiagramm. (Optional)"
         }
       },
       "smart_charging": {
         "title": "Smart Charging",
-        "description": "Automatisches Netzladen der Batterie in guenstigen Stunden, beruecksichtigt den Solar-Forecast. Ziel-SOC = Max-SOC minus erwartete Solar-kWh, begrenzt auf Min/Max.",
+        "description": "Automatisches Laden der Batterie aus dem Netz in günstigen Stunden unter Berücksichtigung des Solar-Forecasts und des durchschnittlichen Hausverbrauchs. Der Ziel-SOC wird dynamisch berechnet, um Platz für den morgigen Solar-Überschuss zu lassen, begrenzt auf Min/Max.",
         "data": {
           "smart_charging_enabled": "Smart Charging aktivieren",
           "battery_capacity": "Batterie-Kapazitaet (kWh)",
           "min_soc": "Minimum SOC (%)",
           "max_soc": "Maximum SOC (%)",
           "max_price": "Preis-Schwelle guenstig (ct/kWh)",
-          "battery_soc_sensor": "Batterie-SOC Sensor"
+          "force_charge_price": "Preis-Schwelle extrem guenstig (ct/kWh)",
+          "battery_soc_sensor": "Batterie-SOC Sensor",
+          "smart_charging_switch": "Ladeschalter / Ladesteuerung",
+          "sensor_price_total": "Strompreis-Sensor"
         },
         "data_description": {
           "smart_charging_enabled": "Master-Schalter. Deaktiviert laeuft keine Ladelogik.",
@@ -195,7 +270,10 @@
           "min_soc": "Ziel-SOC faellt nie unter diesen Wert.",
           "max_soc": "Ziel-SOC uebersteigt nie diesen Wert. Typisch 95-100.",
           "max_price": "Aktueller Preis unterhalb dieser Schwelle gilt als guenstig. Nur dann wird Netzladen zugelassen.",
-          "battery_soc_sensor": "Batterie-Ladezustand-Sensor (0-100%). Ohne Sensor arbeitet die Logik im Preis-Fallback."
+          "force_charge_price": "Preis unterhalb dieser Schwelle loest tagsüber bei solarem Defizit oder nachts Zwangsnetzladung bis max_soc aus.",
+          "battery_soc_sensor": "Batterie-Ladezustand-Sensor (0-100%). Ohne Sensor arbeitet die Logik im Preis-Fallback.",
+          "smart_charging_switch": "Schalter-Entität in Home Assistant zur Steuerung der Netzladung.",
+          "sensor_price_total": "Sensor für den aktuellen dynamischen Gesamtstrompreis (z.B. von Tibber)."
         }
       },
       "consumers": {

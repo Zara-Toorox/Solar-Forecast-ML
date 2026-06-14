@@ -36,7 +36,6 @@
           "sensor_grid_to_battery": "⚡ Réseau → Batterie (W)",
           "sensor_battery_charge_grid_daily": "⚡ Réseau → Batterie aujourd'hui (kWh)",
           "sensor_battery_soc": "📊 État de charge batterie (%)",
-          "sensor_battery_to_grid": "🔋 Batterie → Réseau (W)",
           "sensor_battery_power": "🔋 Puissance totale batterie (W)"
         },
         "data_description": {
@@ -47,7 +46,6 @@
           "sensor_grid_to_battery": "Unité : Watt. Puissance du réseau utilisée pour charger la batterie. Uniquement la part de charge réseau, pas la charge solaire ! (Optionnel)",
           "sensor_battery_charge_grid_daily": "Unité : kWh. Énergie du réseau utilisée pour charger la batterie aujourd'hui. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
           "sensor_battery_soc": "Unité : Pourcentage (0–100). État de charge (SOC) actuel de la batterie. La valeur doit être entre 0 et 100, pas de valeurs décimales comme 0.0–1.0 ! (Optionnel)",
-          "sensor_battery_to_grid": "Unité : Watt. Puissance de batterie injectée dans le réseau. Uniquement pertinent pour l'injection depuis batterie, p. ex. lors de prix négatifs. (Optionnel)",
           "sensor_battery_power": "Unité : Watt. Puissance totale de batterie en un seul capteur. Positif = charge, Négatif = décharge. À utiliser uniquement si aucun capteur séparé de charge/décharge disponible ! (Optionnel)"
         }
       },
@@ -60,8 +58,7 @@
           "sensor_grid_to_house": "⚡ Réseau → Maison (W)",
           "sensor_smartmeter_export": "📤 Injection réseau (W)",
           "sensor_grid_export_daily": "📤 Injection réseau aujourd'hui (kWh)",
-          "sensor_house_to_grid": "📤 Injection surplus (W)",
-          "sensor_grid_import_yearly": "📊 Soutirage réseau annuel (kWh)"
+          "sensor_house_to_grid": "📤 Injection surplus (W)"
         },
         "data_description": {
           "sensor_smartmeter_import": "Unité : Watt. Soutirage réseau total au point de comptage. Inclut TOUTE la puissance du réseau — y compris la charge batterie depuis le réseau ! (Optionnel)",
@@ -69,8 +66,7 @@
           "sensor_grid_to_house": "Unité : Watt. Puissance du réseau allant directement vers la maison. Sans charge batterie depuis le réseau ! Différence avec Soutirage réseau : uniquement la part de consommation domestique. (Optionnel)",
           "sensor_smartmeter_export": "Unité : Watt. Injection totale au point de comptage. Inclut TOUTE l'injection — y compris l'injection batterie vers le réseau ! (Optionnel)",
           "sensor_grid_export_daily": "Unité : kWh. Injection réseau totale depuis minuit. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
-          "sensor_house_to_grid": "Unité : Watt. Puissance excédentaire injectée dans le réseau. Uniquement surplus solaire, pas injection batterie ! Différence avec Injection réseau : uniquement la part de surplus. (Optionnel)",
-          "sensor_grid_import_yearly": "Unité : kWh. Soutirage réseau total pour l'année calendaire en cours. Utilisé pour la facturation annuelle et la prévision des coûts. (Optionnel)"
+          "sensor_house_to_grid": "Unité : Watt. Puissance excédentaire injectée dans le réseau. Uniquement surplus solaire, pas injection batterie ! Différence avec Injection réseau : uniquement la part de surplus. (Optionnel)"
         }
       },
       "sensors": {
@@ -87,7 +83,6 @@
           "sensor_grid_to_battery": "⚡ Réseau → Batterie (W)",
           "sensor_battery_charge_grid_daily": "⚡ Réseau → Batterie aujourd'hui (kWh)",
           "sensor_battery_soc": "📊 État de charge batterie (%)",
-          "sensor_battery_to_grid": "🔋 Batterie → Réseau (W)",
           "sensor_battery_power": "🔋 Puissance totale batterie (W)",
           "sensor_smartmeter_import": "📥 Soutirage réseau (W)",
           "sensor_grid_import_daily": "📥 Soutirage réseau aujourd'hui (kWh)",
@@ -95,7 +90,6 @@
           "sensor_smartmeter_export": "📤 Injection réseau (W)",
           "sensor_grid_export_daily": "📤 Injection réseau aujourd'hui (kWh)",
           "sensor_house_to_grid": "📤 Injection surplus (W)",
-          "sensor_grid_import_yearly": "📊 Soutirage réseau annuel (kWh)",
           "sensor_price_total": "💰 Prix actuel (ct/kWh)",
           "weather_entity": "🌤️ Entité météo"
         },
@@ -110,7 +104,6 @@
           "sensor_grid_to_battery": "Unité : Watt. Puissance du réseau utilisée pour charger la batterie. Uniquement la part de charge réseau, pas la charge solaire ! (Optionnel)",
           "sensor_battery_charge_grid_daily": "Unité : kWh. Énergie du réseau utilisée pour charger la batterie aujourd'hui. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
           "sensor_battery_soc": "Unité : Pourcentage (0–100). État de charge (SOC) actuel de la batterie. La valeur doit être entre 0 et 100, pas de valeurs décimales comme 0.0–1.0 ! (Optionnel)",
-          "sensor_battery_to_grid": "Unité : Watt. Puissance de batterie injectée dans le réseau. Uniquement pertinent pour l'injection depuis batterie, p. ex. lors de prix négatifs. (Optionnel)",
           "sensor_battery_power": "Unité : Watt. Puissance totale de batterie en un seul capteur. Positif = charge, Négatif = décharge. À utiliser uniquement si aucun capteur séparé de charge/décharge disponible ! (Optionnel)",
           "sensor_smartmeter_import": "Unité : Watt. Soutirage réseau total au point de comptage. Inclut TOUTE la puissance du réseau — y compris la charge batterie depuis le réseau ! (Optionnel)",
           "sensor_grid_import_daily": "Unité : kWh. Soutirage réseau total depuis minuit. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
@@ -118,7 +111,6 @@
           "sensor_smartmeter_export": "Unité : Watt. Injection totale au point de comptage. Inclut TOUTE l'injection — y compris l'injection batterie vers le réseau ! (Optionnel)",
           "sensor_grid_export_daily": "Unité : kWh. Injection réseau totale depuis minuit. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
           "sensor_house_to_grid": "Unité : Watt. Puissance excédentaire injectée dans le réseau. Uniquement surplus solaire, pas injection batterie ! Différence avec Injection réseau : uniquement la part de surplus. (Optionnel)",
-          "sensor_grid_import_yearly": "Unité : kWh. Soutirage réseau total pour l'année calendaire en cours. Utilisé pour la facturation annuelle et la prévision des coûts. (Optionnel)",
           "sensor_price_total": "Unité : ct/kWh (TTC). Capteur dynamique, p. ex. de Tibber, Octopus Energy ou EPEX Spot. Non nécessaire avec tarif fixe. (Optionnel)",
           "weather_entity": "Format : weather.xxx. Intégration météo Home Assistant pour les prévisions dans les graphiques. Pas une entité sensor, mais une entité weather ! (Optionnel)"
         }
@@ -140,8 +132,6 @@
           "auto_generate": "Génération automatique des rapports",
           "generate_weekly": "Rapports hebdomadaires",
           "generate_monthly": "Rapports mensuels",
-          "theme": "Thème de couleur",
-          "dashboard_style": "Style du flux énergétique",
           "billing_start_month": "Mois de début de facturation",
           "billing_start_day": "Jour de début de facturation",
           "billing_price_mode": "Mode tarifaire",
@@ -152,8 +142,6 @@
           "auto_generate": "Générer automatiquement les rapports hebdomadaires et mensuels",
           "generate_weekly": "Créer un rapport hebdomadaire chaque dimanche",
           "generate_monthly": "Créer un rapport mensuel le 1er de chaque mois",
-          "theme": "Thème sombre ou clair pour les graphiques",
-          "dashboard_style": "Diagramme de flux énergétique 3D isométrique ou classique 2D",
           "billing_start_month": "Mois de début de votre année de facturation",
           "billing_start_day": "Jour de début de votre année de facturation",
           "billing_price_mode": "Dynamique : prix horaires de Grid Price Monitor. Fixe : prix unique. Sans tarif : désactive les indicateurs financiers.",
@@ -218,7 +206,6 @@
           "sensor_grid_to_battery": "⚡ Réseau → Batterie (W)",
           "sensor_battery_charge_grid_daily": "⚡ Réseau → Batterie aujourd'hui (kWh)",
           "sensor_battery_soc": "📊 État de charge batterie (%)",
-          "sensor_battery_to_grid": "🔋 Batterie → Réseau (W)",
           "sensor_battery_power": "🔋 Puissance totale batterie (W)"
         },
         "data_description": {
@@ -229,7 +216,6 @@
           "sensor_grid_to_battery": "Unité : Watt. Puissance du réseau utilisée pour charger la batterie. Uniquement la part de charge réseau, pas la charge solaire ! (Optionnel)",
           "sensor_battery_charge_grid_daily": "Unité : kWh. Énergie du réseau utilisée pour charger la batterie aujourd'hui. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
           "sensor_battery_soc": "Unité : Pourcentage (0–100). État de charge (SOC) actuel de la batterie. La valeur doit être entre 0 et 100, pas de valeurs décimales comme 0.0–1.0 ! (Optionnel)",
-          "sensor_battery_to_grid": "Unité : Watt. Puissance de batterie injectée dans le réseau. Uniquement pertinent pour l'injection depuis batterie, p. ex. lors de prix négatifs. (Optionnel)",
           "sensor_battery_power": "Unité : Watt. Puissance totale de batterie en un seul capteur. Positif = charge, Négatif = décharge. À utiliser uniquement si aucun capteur séparé de charge/décharge disponible ! (Optionnel)"
         }
       },
@@ -242,8 +228,7 @@
           "sensor_grid_to_house": "⚡ Réseau → Maison (W)",
           "sensor_smartmeter_export": "📤 Injection réseau (W)",
           "sensor_grid_export_daily": "📤 Injection réseau aujourd'hui (kWh)",
-          "sensor_house_to_grid": "📤 Injection surplus (W)",
-          "sensor_grid_import_yearly": "📊 Soutirage réseau annuel (kWh)"
+          "sensor_house_to_grid": "📤 Injection surplus (W)"
         },
         "data_description": {
           "sensor_smartmeter_import": "Unité : Watt. Soutirage réseau total au point de comptage. Inclut TOUTE la puissance du réseau — y compris la charge batterie depuis le réseau ! (Optionnel)",
@@ -251,8 +236,7 @@
           "sensor_grid_to_house": "Unité : Watt. Puissance du réseau allant directement vers la maison. Sans charge batterie depuis le réseau ! Différence avec Soutirage réseau : uniquement la part de consommation domestique. (Optionnel)",
           "sensor_smartmeter_export": "Unité : Watt. Injection totale au point de comptage. Inclut TOUTE l'injection — y compris l'injection batterie vers le réseau ! (Optionnel)",
           "sensor_grid_export_daily": "Unité : kWh. Injection réseau totale depuis minuit. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
-          "sensor_house_to_grid": "Unité : Watt. Puissance excédentaire injectée dans le réseau. Uniquement surplus solaire, pas injection batterie ! Différence avec Injection réseau : uniquement la part de surplus. (Optionnel)",
-          "sensor_grid_import_yearly": "Unité : kWh. Soutirage réseau total pour l'année calendaire en cours. Utilisé pour la facturation annuelle et la prévision des coûts. (Optionnel)"
+          "sensor_house_to_grid": "Unité : Watt. Puissance excédentaire injectée dans le réseau. Uniquement surplus solaire, pas injection batterie ! Différence avec Injection réseau : uniquement la part de surplus. (Optionnel)"
         }
       },
       "sensors": {
@@ -269,7 +253,6 @@
           "sensor_grid_to_battery": "⚡ Réseau → Batterie (W)",
           "sensor_battery_charge_grid_daily": "⚡ Réseau → Batterie aujourd'hui (kWh)",
           "sensor_battery_soc": "📊 État de charge batterie (%)",
-          "sensor_battery_to_grid": "🔋 Batterie → Réseau (W)",
           "sensor_battery_power": "🔋 Puissance totale batterie (W)",
           "sensor_smartmeter_import": "📥 Soutirage réseau (W)",
           "sensor_grid_import_daily": "📥 Soutirage réseau aujourd'hui (kWh)",
@@ -277,7 +260,6 @@
           "sensor_smartmeter_export": "📤 Injection réseau (W)",
           "sensor_grid_export_daily": "📤 Injection réseau aujourd'hui (kWh)",
           "sensor_house_to_grid": "📤 Injection surplus (W)",
-          "sensor_grid_import_yearly": "📊 Soutirage réseau annuel (kWh)",
           "sensor_price_total": "💰 Prix actuel (ct/kWh)",
           "weather_entity": "🌤️ Entité météo"
         },
@@ -292,7 +274,6 @@
           "sensor_grid_to_battery": "Unité : Watt. Puissance du réseau utilisée pour charger la batterie. Uniquement la part de charge réseau, pas la charge solaire ! (Optionnel)",
           "sensor_battery_charge_grid_daily": "Unité : kWh. Énergie du réseau utilisée pour charger la batterie aujourd'hui. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
           "sensor_battery_soc": "Unité : Pourcentage (0–100). État de charge (SOC) actuel de la batterie. La valeur doit être entre 0 et 100, pas de valeurs décimales comme 0.0–1.0 ! (Optionnel)",
-          "sensor_battery_to_grid": "Unité : Watt. Puissance de batterie injectée dans le réseau. Uniquement pertinent pour l'injection depuis batterie, p. ex. lors de prix négatifs. (Optionnel)",
           "sensor_battery_power": "Unité : Watt. Puissance totale de batterie en un seul capteur. Positif = charge, Négatif = décharge. À utiliser uniquement si aucun capteur séparé de charge/décharge disponible ! (Optionnel)",
           "sensor_smartmeter_import": "Unité : Watt. Soutirage réseau total au point de comptage. Inclut TOUTE la puissance du réseau — y compris la charge batterie depuis le réseau ! (Optionnel)",
           "sensor_grid_import_daily": "Unité : kWh. Soutirage réseau total depuis minuit. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
@@ -300,9 +281,32 @@
           "sensor_smartmeter_export": "Unité : Watt. Injection totale au point de comptage. Inclut TOUTE l'injection — y compris l'injection batterie vers le réseau ! (Optionnel)",
           "sensor_grid_export_daily": "Unité : kWh. Injection réseau totale depuis minuit. Doit se remettre à zéro à 0h00. Si non disponible, la valeur est calculée à partir du capteur W. (Optionnel)",
           "sensor_house_to_grid": "Unité : Watt. Puissance excédentaire injectée dans le réseau. Uniquement surplus solaire, pas injection batterie ! Différence avec Injection réseau : uniquement la part de surplus. (Optionnel)",
-          "sensor_grid_import_yearly": "Unité : kWh. Soutirage réseau total pour l'année calendaire en cours. Utilisé pour la facturation annuelle et la prévision des coûts. (Optionnel)",
           "sensor_price_total": "Unité : ct/kWh (TTC). Capteur dynamique, p. ex. de Tibber, Octopus Energy ou EPEX Spot. Non nécessaire avec tarif fixe. (Optionnel)",
           "weather_entity": "Format : weather.xxx. Intégration météo Home Assistant pour les prévisions dans les graphiques. Pas une entité sensor, mais une entité weather ! (Optionnel)"
+        }
+      },
+      "smart_charging": {
+        "title": "Charge intelligente",
+        "description": "Charge automatique de la batterie depuis le réseau pendant les heures creuses, en respectant les prévisions solaires et la consommation quotidienne moyenne. Le SOC cible est calculé dynamiquement pour laisser suffisamment de place au surplus solaire du lendemain, limité aux valeurs min/max.",
+        "data": {
+          "smart_charging_enabled": "Activer la charge intelligente",
+          "battery_capacity": "Capacité de la batterie (kWh)",
+          "min_soc": "SOC minimum (%)",
+          "max_soc": "SOC maximum (%)",
+          "max_price": "Seuil de prix bas (ct/kWh)",
+          "battery_soc_sensor": "Capteur de SOC de la batterie",
+          "smart_charging_switch": "Interrupteur de commande de charge",
+          "sensor_price_total": "Capteur de prix de l'électricité"
+        },
+        "data_description": {
+          "smart_charging_enabled": "Interrupteur principal. Lorsqu'il est désactivé, aucune logique de charge ne s'exécute.",
+          "battery_capacity": "Capacité utile de la batterie. Utilisée pour convertir les prévisions solaires en kWh en pourcentage de SOC.",
+          "min_soc": "Le SOC cible ne descendra jamais en dessous de cette valeur.",
+          "max_soc": "Le SOC cible ne dépassera jamais cette valeur. Typique : 95-100.",
+          "max_price": "Le prix actuel en dessous de ce seuil est considéré comme bon marché. La charge depuis le réseau n'est autorisée qu'à ce moment-là.",
+          "battery_soc_sensor": "Capteur d'état de charge de la batterie (0-100%). Sans lui, la logique bascule en mode prix uniquement.",
+          "smart_charging_switch": "Entité d'interrupteur pour activer/désactiver la charge depuis le réseau dans Home Assistant.",
+          "sensor_price_total": "Capteur monétaire fournissant le prix dynamique actuel (par exemple, de Tibber)."
         }
       },
       "consumers": {
@@ -336,8 +340,6 @@
           "auto_generate": "Génération automatique",
           "generate_weekly": "Rapports hebdomadaires",
           "generate_monthly": "Rapports mensuels",
-          "theme": "Thème de couleur",
-          "dashboard_style": "Style du flux énergétique",
           "billing_start_month": "Mois de début de facturation",
           "billing_start_day": "Jour de début de facturation",
           "billing_price_mode": "Mode tarifaire",
@@ -348,8 +350,6 @@
           "auto_generate": "Générer les rapports automatiquement selon le planning",
           "generate_weekly": "Créer un rapport hebdomadaire chaque dimanche",
           "generate_monthly": "Créer un rapport mensuel le 1er de chaque mois",
-          "theme": "Thème sombre ou clair pour les graphiques",
-          "dashboard_style": "Diagramme de flux énergétique 3D isométrique ou classique 2D",
           "billing_start_month": "Mois de début de votre année de facturation",
           "billing_start_day": "Jour de début de votre année de facturation",
           "billing_price_mode": "Dynamique : prix horaires de Grid Price Monitor. Fixe : prix unique. Sans tarif : désactive les indicateurs financiers.",

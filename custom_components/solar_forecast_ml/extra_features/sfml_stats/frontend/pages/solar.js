@@ -2,7 +2,16 @@
 // (C) 2026 Zara-Toorox
 
 const SolarPage = ((Vue) => {
-const { ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
+const { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
+
+function getThemeColor(varName, fallback) {
+    try {
+        const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        return val || fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
 
 // Filled in setup() once the active locale is resolved. Keep a fallback for
 // helpers that may run before setup.
@@ -107,6 +116,16 @@ const _SolarPage = {
                 </div>
                 <div class="heatmap-chart-target" style="height: 320px; width: 100%;"></div>
             </div>
+
+            <!-- ========== KARTE 2b: PROGNOSE-VERGLEICH ========== -->
+            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="forecastComparisonData">
+                <div class="chart-header" style="margin-bottom: var(--space-md);">
+                    <span class="chart-title">📊 {{ $t('solar.forecastComparison.title') }}</span>
+                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: var(--space-sm);">{{ $t('solar.forecastComparison.subtitle') }}</span>
+                </div>
+                <div ref="comparisonChartEl" class="comparison-chart-target" style="height: 320px; width: 100%;"></div>
+            </div>
+
 
             <!-- ========== KARTE 3: SCHATTEN-ANALYSE ========== -->
             <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="shadowStats">
@@ -403,6 +422,10 @@ const _SolarPage = {
         const monthlyChartEl = ref(null);
         let monthlyChart = null;
 
+        const comparisonChartEl = ref(null);
+        let comparisonChart = null;
+        const forecastComparisonData = ref(null);
+
         const annualData = ref(null);
 
         const dataCoverage = computed(() => {
@@ -527,9 +550,9 @@ const _SolarPage = {
                 backgroundColor: 'transparent',
                 grid: { left: 60, right: 40, top: 30, bottom: 60 },
                 tooltip: {
-                    backgroundColor: 'rgba(15,23,42,0.95)',
-                    borderColor: '#334155',
-                    textStyle: { color: '#e2e8f0' },
+                    backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc') },
                     formatter: (p) => {
                         const d = metaMap[`${p.data[0]}-${p.data[1]}`] || {};
                         return `<b>${MONTH_SHORT[p.data[1]]} · ${hours[p.data[0]]}:00</b><br/>`
@@ -541,20 +564,20 @@ const _SolarPage = {
                 },
                 xAxis: {
                     type: 'category', data: hours,
-                    axisLabel: { color: '#94a3b8', interval: 1, fontSize: 10 },
-                    axisLine: { lineStyle: { color: '#334155' } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#94a3b8'), interval: 1, fontSize: 10 },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', '#334155') } },
                     axisTick: { show: false },
                 },
                 yAxis: {
                     type: 'category', data: MONTH_SHORT,
-                    axisLabel: { color: '#94a3b8' },
-                    axisLine: { lineStyle: { color: '#334155' } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#94a3b8') },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', '#334155') } },
                     axisTick: { show: false },
                 },
                 visualMap: {
                     min: 5, max: 100, calculable: true, orient: 'horizontal',
                     left: 'center', bottom: 5,
-                    textStyle: { color: '#94a3b8' },
+                    textStyle: { color: getThemeColor('--text-secondary', '#94a3b8') },
                     itemWidth: 20,
                     inRange: {
                         color: ['#1e40af', '#7c3aed', '#db2777', '#ea580c', '#dc2626'],
@@ -843,8 +866,9 @@ const _SolarPage = {
                 grid: { left: 30, right: 10, top: 5, bottom: 20 },
                 tooltip: {
                     trigger: 'axis',
-                    backgroundColor: 'rgba(10,14,20,0.95)',
-                    textStyle: { color: '#f0f6fc', fontSize: 11 },
+                    backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 11 },
                     formatter: function(p) {
                         return p[0].axisValue + '<br/>' + t('solar.movement.timelineShadow') + ': <b>' + p[0].value + '%</b>';
                     },
@@ -852,8 +876,8 @@ const _SolarPage = {
                 xAxis: {
                     type: 'category',
                     data: smHourRange.map(h => h + ':00'),
-                    axisLabel: { color: '#6e7681', fontSize: 9 },
-                    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 9 },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
                 },
                 yAxis: { type: 'value', max: 100, show: false },
                 series: [{
@@ -938,16 +962,18 @@ const _SolarPage = {
 
         async function loadData() {
             try {
-                const [annual, summary, shadow, solar] = await Promise.all([
+                const [annual, summary, shadow, solar, comparison] = await Promise.all([
                     SFMLApi.fetch('/api/sfml_stats/annual_forecast', { forceRefresh: true }),
                     SFMLApi.fetch('/api/sfml_stats/summary', { forceRefresh: true }),
                     SFMLApi.fetch('/api/sfml_stats/shadow_analytics?days=30', { forceRefresh: true }),
                     SFMLApi.fetch('/api/sfml_stats/solar?days=7', { forceRefresh: true }),
+                    SFMLApi.fetch('/api/sfml_stats/forecast_comparison?days=7', { forceRefresh: true }),
                 ]);
                 annualData.value = annual;
                 shadowData.value = shadow;
                 solarDailyData.value = solar;
                 summaryData.value = summary;
+                forecastComparisonData.value = comparison;
                 if (summary?.monthly_by_year) {
                     monthlyByYear.value = summary.monthly_by_year;
                 }
@@ -961,6 +987,7 @@ const _SolarPage = {
                         renderMonthlyChart();
                         renderHeatmapChart();
                         renderShadowCharts();
+                        renderComparisonChart();
                     } else {
                         setTimeout(() => tryRender(attempts - 1), 200);
                     }
@@ -1119,9 +1146,9 @@ const _SolarPage = {
                 backgroundColor: 'transparent',
                 tooltip: {
                     trigger: 'axis',
-                    backgroundColor: 'rgba(10, 14, 20, 0.95)',
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    textStyle: { color: '#f0f6fc', fontSize: 12, fontFamily: 'var(--font-mono)' },
+                    backgroundColor: getThemeColor('--bg-app', 'rgba(10, 14, 20, 0.95)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-mono)' },
                     formatter: function(params) {
                         let s = '<b>' + params[0].axisValue + '</b><br/>';
                         params.forEach(p => {
@@ -1136,22 +1163,22 @@ const _SolarPage = {
                 },
                 legend: {
                     bottom: 0,
-                    textStyle: { color: '#8b949e', fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                     data: yearKeys,
                 },
                 grid: { left: 55, right: 20, top: 15, bottom: 40 },
                 xAxis: {
                     type: 'category',
                     data: MONTH_NAMES,
-                    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
-                    axisLabel: { color: '#8b949e', fontSize: 11 },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                 },
                 yAxis: {
                     type: 'value',
                     name: 'kWh',
-                    nameTextStyle: { color: '#6e7681', fontSize: 10 },
-                    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
-                    axisLabel: { color: '#8b949e', fontSize: 11 },
+                    nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 },
+                    splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                 },
                 series: series,
                 animationDuration: 1000,
@@ -1198,9 +1225,9 @@ const _SolarPage = {
             heatmapChart.setOption({
                 backgroundColor: 'transparent',
                 tooltip: {
-                    backgroundColor: 'rgba(10,14,20,0.95)',
-                    borderColor: 'rgba(255,255,255,0.1)',
-                    textStyle: { color: '#f0f6fc', fontSize: 12, fontFamily: 'var(--font-mono)' },
+                    backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-mono)' },
                     formatter: p => {
                         const date = dateLabels[p.data[0]] || '';
                         const hour = hours[p.data[1]] || '';
@@ -1212,15 +1239,15 @@ const _SolarPage = {
                 xAxis: {
                     type: 'category',
                     data: dateLabels,
-                    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
-                    axisLabel: { color: '#8b949e', fontSize: 11 },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                     splitArea: { show: false },
                 },
                 yAxis: {
                     type: 'category',
                     data: hours,
-                    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
-                    axisLabel: { color: '#8b949e', fontSize: 11 },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                     splitArea: { show: false },
                 },
                 visualMap: {
@@ -1263,12 +1290,12 @@ const _SolarPage = {
                 }));
                 causesChart.setOption({
                     backgroundColor: 'transparent',
-                    tooltip: { trigger: 'item', backgroundColor: 'rgba(10,14,20,0.95)', textStyle: { color: '#f0f6fc' }, formatter: p => p.name + ': ' + p.value + 'h (' + p.percent.toFixed(1) + '%)' },
+                    tooltip: { trigger: 'item', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc') }, formatter: p => p.name + ': ' + p.value + 'h (' + p.percent.toFixed(1) + '%)' },
                     series: [{
                         type: 'pie', radius: ['40%', '72%'],
                         data: pieData,
-                        label: { show: true, color: '#8b949e', fontSize: 11, formatter: '{b}\n{d}%' },
-                        labelLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } },
+                        label: { show: true, color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, formatter: '{b}\n{d}%' },
+                        labelLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.15)') } },
                         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },
                     }],
                     animationDuration: 1000,
@@ -1283,14 +1310,133 @@ const _SolarPage = {
                 const losses = sh.daily_loss.map(d => d.loss_kwh || 0);
                 lossChart.setOption({
                     backgroundColor: 'transparent',
-                    tooltip: { trigger: 'axis', backgroundColor: 'rgba(10,14,20,0.95)', textStyle: { color: '#f0f6fc', fontSize: 12 }, formatter: p => p[0].axisValue + '<br/>Verlust: <b>' + p[0].value.toFixed(2) + ' kWh</b>' },
+                    tooltip: { trigger: 'axis', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 }, formatter: p => p[0].axisValue + '<br/>Verlust: <b>' + p[0].value.toFixed(2) + ' kWh</b>' },
                     grid: { left: 45, right: 15, top: 10, bottom: 40 },
-                    xAxis: { type: 'category', data: dates, axisLabel: { color: '#6e7681', fontSize: 10, rotate: 45 }, axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } } },
-                    yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: '#6e7681', fontSize: 10 }, splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }, axisLabel: { color: '#6e7681', fontSize: 10 } },
+                    xAxis: { type: 'category', data: dates, axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10, rotate: 45 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } } },
+                    yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } }, axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 } },
                     series: [{ type: 'bar', data: losses, itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#ef4444' }, { offset: 1, color: '#991b1b' }] }, borderRadius: [3,3,0,0] }, barMaxWidth: 16 }],
                     animationDuration: 800,
                 }, true);
             }
+        }
+
+        function renderComparisonChart() {
+            const el = comparisonChartEl.value || document.querySelector('.comparison-chart-target');
+            if (!el || !forecastComparisonData.value) return;
+            if (!comparisonChart) comparisonChart = echarts.init(el);
+
+            const data = forecastComparisonData.value;
+            const dates = data.dates || [];
+            const actual = data.actual || [];
+            const sfml = data.sfml || [];
+            const ext1 = data.external_1 || [];
+            const ext2 = data.external_2 || [];
+            const ext1_name = data.external_1_name || (t('common.forecast') + ' 1');
+            const ext2_name = data.external_2_name || (t('common.forecast') + ' 2');
+
+            const legendData = [t('solar.movement.actual') || 'Istwert', 'SFML'];
+            const series = [
+                {
+                    name: t('solar.movement.actual') || 'Istwert',
+                    type: 'line',
+                    data: actual,
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    lineStyle: { color: getThemeColor('--price-cheap', '#22c55e'), width: 3 },
+                    itemStyle: { color: getThemeColor('--price-cheap', '#22c55e') },
+                    areaStyle: {
+                        color: {
+                            type: 'linear',
+                            x: 0,
+                            y: 0,
+                            x2: 0,
+                            y2: 1,
+                            colorStops: [
+                                { offset: 0, color: 'rgba(34, 197, 94, 0.15)' },
+                                { offset: 1, color: 'rgba(34, 197, 94, 0.0)' }
+                            ]
+                        }
+                    }
+                },
+                {
+                    name: 'SFML',
+                    type: 'line',
+                    data: sfml,
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 5,
+                    lineStyle: { color: getThemeColor('--solar', '#fbbf24'), width: 2 },
+                    itemStyle: { color: getThemeColor('--solar', '#fbbf24') }
+                }
+            ];
+
+            if (data.external_1) {
+                legendData.push(ext1_name);
+                series.push({
+                    name: ext1_name,
+                    type: 'line',
+                    data: ext1,
+                    smooth: true,
+                    symbol: 'none',
+                    lineStyle: { color: getThemeColor('--grid', '#6366f1'), width: 1.5, type: 'dashed' },
+                    itemStyle: { color: getThemeColor('--grid', '#6366f1') }
+                });
+            }
+
+            if (data.external_2) {
+                legendData.push(ext2_name);
+                series.push({
+                    name: ext2_name,
+                    type: 'line',
+                    data: ext2,
+                    smooth: true,
+                    symbol: 'none',
+                    lineStyle: { color: getThemeColor('--house', '#8b5cf6'), width: 1.5, type: 'dotted' },
+                    itemStyle: { color: getThemeColor('--house', '#8b5cf6') }
+                });
+            }
+
+            comparisonChart.setOption({
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-mono)' },
+                    formatter: function(params) {
+                        let s = '<b>' + params[0].axisValue + '</b><br/>';
+                        params.forEach(p => {
+                            if (p.value !== null && p.value !== undefined) {
+                                s += '<span style="color:' + p.color + '">● ' + p.seriesName + ':</span> ' + p.value.toFixed(2) + ' kWh<br/>';
+                            }
+                        });
+                        return s;
+                    }
+                },
+                legend: {
+                    bottom: 0,
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    data: legendData
+                },
+                grid: { left: 45, right: 20, top: 20, bottom: 40 },
+                xAxis: {
+                    type: 'category',
+                    data: dates,
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: 'kWh',
+                    nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 },
+                    splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 }
+                },
+                series: series,
+                animationDuration: 1000,
+                animationEasing: 'cubicOut'
+            }, true);
         }
 
         function handleResize() {
@@ -1300,7 +1446,26 @@ const _SolarPage = {
             lossChart?.resize();
             shadowFingerprintChart?.resize();
             smTimeline?.resize();
+            comparisonChart?.resize();
         }
+
+        watch(() => props.config?.theme, () => {
+            nextTick(() => {
+                if (monthlyChart) { monthlyChart.dispose(); monthlyChart = null; }
+                renderMonthlyChart();
+                if (heatmapChart) { heatmapChart.dispose(); heatmapChart = null; }
+                renderHeatmapChart();
+                if (causesChart) { causesChart.dispose(); causesChart = null; }
+                if (lossChart) { lossChart.dispose(); lossChart = null; }
+                renderShadowCharts();
+                if (shadowFingerprintChart) { shadowFingerprintChart.dispose(); shadowFingerprintChart = null; }
+                renderShadowFingerprint();
+                if (smTimeline) { smTimeline.dispose(); smTimeline = null; }
+                smRenderTimeline();
+                if (comparisonChart) { comparisonChart.dispose(); comparisonChart = null; }
+                renderComparisonChart();
+            });
+        });
 
         onMounted(async () => {
             await loadData();
@@ -1327,11 +1492,14 @@ const _SolarPage = {
             lossChart?.dispose(); lossChart = null;
             shadowFingerprintChart?.dispose(); shadowFingerprintChart = null;
             smTimeline?.dispose(); smTimeline = null;
+            comparisonChart?.dispose(); comparisonChart = null;
             if (smAutoPlayTimer) clearInterval(smAutoPlayTimer);
         });
 
         return {
             monthlyChartEl,
+            comparisonChartEl,
+            forecastComparisonData,
             dataCoverage, annualKpis, yearOverview,
             shadowStats, weeklyRows,
             shadowFingerprint, shadowFingerprintEl,
@@ -1748,6 +1916,89 @@ const _SolarPage = {
             background: rgba(251,191,36,0.15);
             border-color: rgba(251,191,36,0.4);
             color: #fbbf24;
+        }
+
+        /* Light Theme overrides */
+        [data-theme="light"] .zebra-odd td {
+            background: rgba(15, 23, 42, 0.015);
+        }
+        [data-theme="light"] .shadow-insights {
+            border-top: 1px solid rgba(15, 23, 42, 0.06);
+        }
+        [data-theme="light"] .shadow-insight-item {
+            background: rgba(15, 23, 42, 0.02);
+        }
+        [data-theme="light"] .shadow-insight-item.insight-high {
+            background: rgba(239, 68, 68, 0.05);
+        }
+        [data-theme="light"] .shadow-insight-item.insight-mid {
+            background: rgba(245, 158, 11, 0.05);
+        }
+        [data-theme="light"] .sm-panel-container {
+            background:
+                radial-gradient(circle at top, rgba(2, 132, 199, 0.05), transparent 40%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(241, 245, 249, 0.5));
+            border-color: rgba(15, 23, 42, 0.08);
+        }
+        [data-theme="light"] .sm-badge {
+            border-color: rgba(15, 23, 42, 0.08);
+            background: rgba(15, 23, 42, 0.03);
+        }
+        [data-theme="light"] .sm-sun-line {
+            border-bottom-color: rgba(15, 23, 42, 0.08);
+        }
+        [data-theme="light"] .sm-panel {
+            background: rgba(15, 23, 42, 0.02);
+        }
+        [data-theme="light"] .sm-panel-meter {
+            background: rgba(15, 23, 42, 0.06);
+        }
+        [data-theme="light"] .sm-play-btn {
+            background: rgba(15, 23, 42, 0.03);
+            border-color: rgba(15, 23, 42, 0.08);
+        }
+        [data-theme="light"] .sm-play-btn:hover {
+            background: rgba(15, 23, 42, 0.06);
+        }
+        [data-theme="light"] .sm-slider {
+            background: rgba(15, 23, 42, 0.06);
+        }
+        [data-theme="light"] .sm-panel-shadow-overlay {
+            background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(241,245,249,0.72));
+        }
+        [data-theme="light"] .sm-panel-status.severity-heavy,
+        [data-theme="light"] .sm-badge.severity-heavy {
+            color: #b91c1c;
+            background: rgba(239,68,68,0.08);
+            border-color: rgba(239,68,68,0.18);
+        }
+        [data-theme="light"] .sm-panel-status.severity-forecast {
+            color: #1d4ed8;
+            background: rgba(59,130,246,0.08);
+            border-color: rgba(59,130,246,0.18);
+        }
+        [data-theme="light"] .sm-panel-status.severity-medium,
+        [data-theme="light"] .sm-badge.severity-medium {
+            color: #b45309;
+            background: rgba(245,158,11,0.08);
+            border-color: rgba(245,158,11,0.18);
+        }
+        [data-theme="light"] .sm-panel-status.severity-light,
+        [data-theme="light"] .sm-badge.severity-light {
+            color: #a16207;
+            background: rgba(234,179,8,0.08);
+            border-color: rgba(234,179,8,0.18);
+        }
+        [data-theme="light"] .sm-panel-status.severity-clear,
+        [data-theme="light"] .sm-badge.severity-clear {
+            color: #15803d;
+            background: rgba(34,197,94,0.08);
+            border-color: rgba(34,197,94,0.18);
+        }
+        [data-theme="light"] .sm-panel-status.severity-nodata {
+            color: #475569;
+            background: rgba(148,163,184,0.08);
+            border-color: rgba(148,163,184,0.15);
         }
 
         @media (max-width: 768px) {

@@ -112,7 +112,8 @@ class StatisticsStore:
         """
         try:
             row = await self._db.fetchone(
-                "SELECT all_time_low, all_time_high FROM GPM_price_extremes WHERE id = 1"
+                """SELECT all_time_low, all_time_low_date, all_time_high, all_time_high_date
+                   FROM GPM_price_extremes WHERE id = 1"""
             )
 
             new_low = min_price
@@ -123,18 +124,11 @@ class StatisticsStore:
             if row:
                 if row["all_time_low"] is not None and row["all_time_low"] <= min_price:
                     new_low = row["all_time_low"]
-                    # Keep existing date - fetch it
-                    existing = await self._db.fetchone(
-                        "SELECT all_time_low_date FROM GPM_price_extremes WHERE id = 1"
-                    )
-                    new_low_date = existing["all_time_low_date"] if existing else date
+                    new_low_date = row["all_time_low_date"] or date
 
                 if row["all_time_high"] is not None and row["all_time_high"] >= max_price:
                     new_high = row["all_time_high"]
-                    existing = await self._db.fetchone(
-                        "SELECT all_time_high_date FROM GPM_price_extremes WHERE id = 1"
-                    )
-                    new_high_date = existing["all_time_high_date"] if existing else date
+                    new_high_date = row["all_time_high_date"] or date
 
             await self._db.execute(
                 """INSERT INTO GPM_price_extremes

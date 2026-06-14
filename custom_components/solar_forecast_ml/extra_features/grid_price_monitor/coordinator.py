@@ -162,7 +162,8 @@ class GridPriceMonitorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         gpm_path = config_path / "grid_price_monitor"
 
         # Initialize database connector
-        self._db_connector = GPMDatabaseConnector(DB_PATH)
+        db_path = self.hass.config.path("solar_forecast_ml/solar_forecast.db")
+        self._db_connector = GPMDatabaseConnector(db_path)
         await self._db_connector.connect()
 
         # Initialize data validator (for logs directory + legacy cleanup)

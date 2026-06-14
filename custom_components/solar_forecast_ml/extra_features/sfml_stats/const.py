@@ -15,7 +15,7 @@ from typing import Final
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "26.4.0"
+VERSION: Final = "28.0.0"
 
 from datetime import timedelta
 from homeassistant.const import Platform
@@ -118,32 +118,16 @@ COLORS: Final = {
 
 LOGGER_NAME: Final = "sfml_stats"
 
-CONF_THEME: Final = "theme"
-CONF_DASHBOARD_STYLE: Final = "dashboard_style"
-
-THEME_DARK: Final = "dark"
-THEME_LIGHT: Final = "light"
-
-DASHBOARD_STYLE_3D: Final = "3d"
-DASHBOARD_STYLE_2D: Final = "2d"
-
-DEFAULT_THEME: Final = THEME_DARK
-DEFAULT_DASHBOARD_STYLE: Final = DASHBOARD_STYLE_3D
-
-CONF_SENSOR_SOLAR_POWER: Final = "sensor_solar_power"
 CONF_SENSOR_SOLAR_TO_HOUSE: Final = "sensor_solar_to_house"
 CONF_SENSOR_SOLAR_TO_BATTERY: Final = "sensor_solar_to_battery"
 CONF_SENSOR_BATTERY_TO_HOUSE: Final = "sensor_battery_to_house"
-CONF_SENSOR_BATTERY_TO_GRID: Final = "sensor_battery_to_grid"
 CONF_SENSOR_GRID_TO_HOUSE: Final = "sensor_grid_to_house"
 CONF_SENSOR_GRID_TO_BATTERY: Final = "sensor_grid_to_battery"
 CONF_SENSOR_HOUSE_TO_GRID: Final = "sensor_house_to_grid"
 CONF_SENSOR_BATTERY_SOC: Final = "sensor_battery_soc"
 CONF_SENSOR_BATTERY_POWER: Final = "sensor_battery_power"
 CONF_SENSOR_HOME_CONSUMPTION: Final = "sensor_home_consumption"
-CONF_SENSOR_SOLAR_YIELD_DAILY: Final = "sensor_solar_yield_daily"
 CONF_SENSOR_GRID_IMPORT_DAILY: Final = "sensor_grid_import_daily"
-CONF_SENSOR_GRID_IMPORT_YEARLY: Final = "sensor_grid_import_yearly"
 CONF_SENSOR_BATTERY_CHARGE_SOLAR_DAILY: Final = "sensor_battery_charge_solar_daily"
 CONF_SENSOR_BATTERY_CHARGE_GRID_DAILY: Final = "sensor_battery_charge_grid_daily"
 CONF_SENSOR_BATTERY_DISCHARGE_DAILY: Final = "sensor_battery_discharge_daily"
@@ -153,7 +137,6 @@ CONF_SENSOR_PRICE_TOTAL: Final = "sensor_price_total"
 
 CONF_SENSOR_SMARTMETER_IMPORT_KWH: Final = "sensor_smartmeter_import_kwh"
 CONF_SENSOR_SMARTMETER_EXPORT_KWH: Final = "sensor_smartmeter_export_kwh"
-CONF_SENSOR_SOLAR_YIELD_TOTAL_KWH: Final = "sensor_solar_yield_total_kwh"
 
 CONF_SENSOR_SMARTMETER_IMPORT: Final = "sensor_smartmeter_import"
 CONF_SENSOR_SMARTMETER_EXPORT: Final = "sensor_smartmeter_export"
@@ -163,13 +146,9 @@ CONF_SENSOR_GRID_IMPORT_EXTRA: Final = "sensor_grid_import_extra"
 CONF_WEATHER_ENTITY: Final = "weather_entity"
 
 CONF_SENSOR_PANEL1_POWER: Final = "sensor_panel1_power"
-CONF_SENSOR_PANEL1_MAX_TODAY: Final = "sensor_panel1_max_today"
 CONF_SENSOR_PANEL2_POWER: Final = "sensor_panel2_power"
-CONF_SENSOR_PANEL2_MAX_TODAY: Final = "sensor_panel2_max_today"
 CONF_SENSOR_PANEL3_POWER: Final = "sensor_panel3_power"
-CONF_SENSOR_PANEL3_MAX_TODAY: Final = "sensor_panel3_max_today"
 CONF_SENSOR_PANEL4_POWER: Final = "sensor_panel4_power"
-CONF_SENSOR_PANEL4_MAX_TODAY: Final = "sensor_panel4_max_today"
 
 CONF_PANEL1_NAME: Final = "panel1_name"
 CONF_PANEL2_NAME: Final = "panel2_name"
@@ -219,7 +198,6 @@ ENERGY_FLOW_SENSORS: Final = [
     CONF_SENSOR_SOLAR_TO_HOUSE,
     CONF_SENSOR_SOLAR_TO_BATTERY,
     CONF_SENSOR_BATTERY_TO_HOUSE,
-    CONF_SENSOR_BATTERY_TO_GRID,
     CONF_SENSOR_GRID_TO_HOUSE,
     CONF_SENSOR_GRID_TO_BATTERY,
     CONF_SENSOR_HOUSE_TO_GRID,
@@ -227,7 +205,6 @@ ENERGY_FLOW_SENSORS: Final = [
     CONF_SENSOR_BATTERY_POWER,
     CONF_SENSOR_HOME_CONSUMPTION,
     CONF_SENSOR_GRID_IMPORT_DAILY,
-    CONF_SENSOR_GRID_IMPORT_YEARLY,
     CONF_SENSOR_BATTERY_CHARGE_SOLAR_DAILY,
     CONF_SENSOR_BATTERY_CHARGE_GRID_DAILY,
     CONF_SENSOR_BATTERY_DISCHARGE_DAILY,
@@ -236,18 +213,13 @@ ENERGY_FLOW_SENSORS: Final = [
     CONF_SENSOR_PRICE_TOTAL,
     CONF_SENSOR_SMARTMETER_IMPORT_KWH,
     CONF_SENSOR_SMARTMETER_EXPORT_KWH,
-    CONF_SENSOR_SOLAR_YIELD_TOTAL_KWH,
 ]
 
 PANEL_SENSORS: Final = [
     CONF_SENSOR_PANEL1_POWER,
-    CONF_SENSOR_PANEL1_MAX_TODAY,
     CONF_SENSOR_PANEL2_POWER,
-    CONF_SENSOR_PANEL2_MAX_TODAY,
     CONF_SENSOR_PANEL3_POWER,
-    CONF_SENSOR_PANEL3_MAX_TODAY,
     CONF_SENSOR_PANEL4_POWER,
-    CONF_SENSOR_PANEL4_MAX_TODAY,
 ]
 
 CONF_SENSOR_HEATPUMP_POWER: Final = "sensor_heatpump_power"
@@ -397,6 +369,8 @@ CONF_BATTERY_SOC_SENSOR: Final = "battery_soc_sensor"
 CONF_GPM_BATTERY_POWER_SENSOR: Final = "gpm_battery_power_sensor"
 CONF_MAX_SOC: Final = "max_soc"
 CONF_MIN_SOC: Final = "min_soc"
+CONF_SMART_CHARGING_SWITCH: Final = "smart_charging_switch"
+CONF_FORCE_CHARGE_PRICE: Final = "force_charge_price"
 
 # GPM Defaults
 DEFAULT_COUNTRY: Final = "DE"
@@ -410,6 +384,7 @@ DEFAULT_MAX_PRICE: Final = 30.0
 DEFAULT_MAX_SOC: Final = 100
 DEFAULT_MIN_SOC: Final = 10
 DEFAULT_BATTERY_CAPACITY: Final = 10.0
+DEFAULT_FORCE_CHARGE_PRICE: Final = 15.0
 
 # GPM Update Intervals
 GPM_UPDATE_INTERVAL: Final = timedelta(minutes=5)

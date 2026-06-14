@@ -48,9 +48,11 @@ from .const import (
     CONF_PROVIDER_MARKUP,
     CONF_MAX_PRICE,
     CONF_SMART_CHARGING_ENABLED,
+    CONF_SMART_CHARGING_SWITCH,
+    CONF_SENSOR_PRICE_TOTAL,
     CONF_BATTERY_CAPACITY,
     CONF_BATTERY_SOC_SENSOR,
-    CONF_GPM_BATTERY_POWER_SENSOR,
+    CONF_SENSOR_BATTERY_POWER,
     CONF_MAX_SOC,
     CONF_MIN_SOC,
     CONF_FORECAST_ENTITY_1,
@@ -128,7 +130,7 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
 
         # Battery tracker (optional)
-        battery_sensor = entry_data.get(CONF_GPM_BATTERY_POWER_SENSOR)
+        battery_sensor = entry_data.get(CONF_SENSOR_BATTERY_POWER)
         if battery_sensor:
             try:
                 from .core.battery_tracker import BatteryTracker
@@ -160,6 +162,12 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         soc_sensor_entity=soc_sensor,
                         max_soc=entry_data.get(CONF_MAX_SOC, DEFAULT_MAX_SOC),
                         min_soc=entry_data.get(CONF_MIN_SOC, DEFAULT_MIN_SOC),
+                        smart_charging_switch=entry_data.get(CONF_SMART_CHARGING_SWITCH),
+                        home_consumption_sensor=entry_data.get(CONF_SENSOR_HOME_CONSUMPTION),
+                        solar_power_sensor=entry_data.get(CONF_SENSOR_SOLAR_TO_HOUSE),
+                        force_charge_price=entry_data.get(
+                            CONF_FORCE_CHARGE_PRICE, DEFAULT_FORCE_CHARGE_PRICE
+                        ),
                     )
                     _LOGGER.info("Smart charging initialized")
             except Exception as err:
@@ -213,6 +221,29 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     data.get("total_price"), data.get("total_price_next_hour")
                 )
 
+            # Fallback: Read total price from external sensor if GPM price service is not available or has no data
+            price_sensor_id = self._entry.data.get(CONF_SENSOR_PRICE_TOTAL)
+            if price_sensor_id and data.get("total_price") is None:
+                state = self.hass.states.get(price_sensor_id)
+                if state is not None and state.state not in ("unknown", "unavailable", None):
+                    try:
+                        price_val = float(state.state)
+                        unit = state.attributes.get("unit_of_measurement", "")
+                        if unit in ("EUR/kWh", "€/kWh", "USD/kWh", "$/kWh"):
+                            price_val *= 100.0
+                        elif unit in ("EUR/MWh", "€/MWh"):
+                            price_val /= 10.0
+                        elif price_val < 3.0:  # Fallback for EUR/kWh values (e.g. 0.26)
+                            price_val *= 100.0
+                        data["total_price"] = round(price_val, 2)
+                    except ValueError:
+                        pass
+
+            # Calculate is_cheap if not already done and total_price is available
+            if data.get("total_price") is not None and not data.get("is_cheap", False):
+                max_price = self._entry.data.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
+                data["is_cheap"] = data["total_price"] < max_price
+
             # Battery stats
             if self._battery_tracker:
                 stats = self._battery_tracker.get_statistics()
@@ -224,7 +255,7 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Smart charging
             if self._smart_charging:
                 is_cheap = data.get("is_cheap", False)
-                state = await self._smart_charging.async_update(is_cheap)
+                state = await self._smart_charging.async_update(is_cheap, current_price=data.get("total_price"))
                 data["smart_charging_target_soc"] = state.target_soc
                 data["smart_charging_active"] = state.is_active
                 data["smart_charging_reason"] = state.reason
@@ -565,5 +596,69 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 obj.update_config(new_config)
             except Exception as err:
                 _LOGGER.warning("Error updating %s: %s", key, err)
+
+    # Update GPM Coordinator Price Calculator config dynamically
+    gpm_coordinator = entry_data.get("gpm_coordinator")
+    if gpm_coordinator and hasattr(gpm_coordinator, "_price_calculator") and gpm_coordinator._price_calculator:
+        try:
+            gpm_coordinator._price_calculator.update_config(
+                vat_rate=new_config.get(CONF_VAT_RATE, DEFAULT_VAT_RATE_DE),
+                grid_fee=new_config.get(CONF_GPM_GRID_FEE, DEFAULT_GPM_GRID_FEE),
+                taxes_fees=new_config.get(CONF_TAXES_FEES, DEFAULT_TAXES_FEES),
+                provider_markup=new_config.get(CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP),
+            )
+            _LOGGER.info("GPM Price Calculator configuration updated dynamically")
+        except Exception as err:
+            _LOGGER.warning("Error updating GPM price calculator: %s", err)
+
+    # Update GPM Coordinator Smart Charging config dynamically
+    if gpm_coordinator:
+        try:
+            if new_config.get(CONF_SMART_CHARGING_ENABLED):
+                if gpm_coordinator._smart_charging is None:
+                    from .core.solar_forecast_reader_gpm import SolarForecastReader
+                    from .core.smart_charging import SmartChargingManager
+                    db = get_manager()
+                    if db:
+                        gpm_coordinator._forecast_reader = SolarForecastReader(db)
+                        soc_sensor = new_config.get(CONF_BATTERY_SOC_SENSOR, "")
+                        gpm_coordinator._smart_charging = SmartChargingManager(
+                            hass=hass,
+                            forecast_reader=gpm_coordinator._forecast_reader,
+                            battery_capacity_kwh=new_config.get(
+                                CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY
+                            ),
+                            soc_sensor_entity=soc_sensor,
+                            max_soc=new_config.get(CONF_MAX_SOC, DEFAULT_MAX_SOC),
+                            min_soc=new_config.get(CONF_MIN_SOC, DEFAULT_MIN_SOC),
+                            smart_charging_switch=new_config.get(CONF_SMART_CHARGING_SWITCH),
+                            home_consumption_sensor=new_config.get(CONF_SENSOR_HOME_CONSUMPTION),
+                            solar_power_sensor=new_config.get(CONF_SENSOR_SOLAR_TO_HOUSE),
+                            force_charge_price=new_config.get(
+                                CONF_FORCE_CHARGE_PRICE, DEFAULT_FORCE_CHARGE_PRICE
+                            ),
+                        )
+                        _LOGGER.info("Smart charging initialized dynamically")
+                else:
+                    gpm_coordinator._smart_charging.update_config(
+                        battery_capacity_kwh=new_config.get(
+                            CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY
+                        ),
+                        soc_sensor_entity=new_config.get(CONF_BATTERY_SOC_SENSOR, ""),
+                        max_soc=new_config.get(CONF_MAX_SOC, DEFAULT_MAX_SOC),
+                        min_soc=new_config.get(CONF_MIN_SOC, DEFAULT_MIN_SOC),
+                        smart_charging_switch=new_config.get(CONF_SMART_CHARGING_SWITCH),
+                        home_consumption_sensor=new_config.get(CONF_SENSOR_HOME_CONSUMPTION),
+                        solar_power_sensor=new_config.get(CONF_SENSOR_SOLAR_TO_HOUSE),
+                        force_charge_price=new_config.get(
+                            CONF_FORCE_CHARGE_PRICE, DEFAULT_FORCE_CHARGE_PRICE
+                        ),
+                    )
+                    _LOGGER.info("Smart charging configuration updated dynamically")
+            else:
+                gpm_coordinator._smart_charging = None
+                _LOGGER.info("Smart charging disabled dynamically")
+        except Exception as err:
+            _LOGGER.warning("Error updating smart charging dynamically: %s", err)
 
     _LOGGER.info("Configuration refresh complete")

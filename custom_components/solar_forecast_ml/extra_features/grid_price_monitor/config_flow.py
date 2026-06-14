@@ -102,7 +102,7 @@ def _get_pricing_schema(
     return vol.Schema({
         vol.Required(
             CONF_VAT_RATE,
-            default=defaults.get(CONF_VAT_RATE, default_vat),
+            default=str(defaults.get(CONF_VAT_RATE, default_vat)),
         ): selector.SelectSelector(
             selector.SelectSelectorConfig(
                 options=[

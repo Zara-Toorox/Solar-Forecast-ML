@@ -217,49 +217,62 @@ class PanelGroupSensorReader(DataManagerIO):
         delta: Any,
         source: str,
     ) -> Optional[float]:
-        """Validate one hourly group actual before it can enter persistence."""
+        """Validate one hourly group actual before it can enter persistence. @zara"""
+        from ..core.core_hubble import Hubble
+        from homeassistant.helpers.issue_registry import IssueSeverity as Severity
+
         value = self._safe_float(delta)
         if value is None or not math.isfinite(value):
-            _LOGGER.warning(
-                "Rejected %s production for group '%s': invalid value %r",
-                source,
-                group_name,
-                delta,
+            Hubble.warning(
+                f"Ungültiger Messwert ({delta!r}) von Sensor '{group_name}' ({source}). "
+                f"Ich ignoriere diese Stunde für das Training."
             )
             return None
+
+        issue_id = f"sensor_spike_{group_name}"
 
         if value < -0.001:
             if source == "recorder backfill":
                 self._recorder_backfill_negative_delta_counts[group_name] = (
                     self._recorder_backfill_negative_delta_counts.get(group_name, 0) + 1
                 )
-                _LOGGER.debug(
-                    "Ignored %s production for group '%s': negative delta %.4f kWh",
-                    source,
-                    group_name,
-                    value,
-                )
                 return None
-            _LOGGER.warning(
-                "Rejected %s production for group '%s': negative delta %.4f kWh",
-                source,
-                group_name,
-                value,
+
+            Hubble.warning(
+                f"Negativer Ertrags-Messwert ({value:.4f} kWh) bei Modulgruppe '{group_name}' ({source}). "
+                f"Ich ignoriere diesen Wert zum Schutz der KI."
             )
             return None
 
         value = max(0.0, value)
         max_hourly = self._max_hourly_kwh(group_name)
         if value > max_hourly:
-            _LOGGER.warning(
-                "Rejected %s production for group '%s': %.4f kWh exceeds %.1f kWh",
-                source,
-                group_name,
-                value,
-                max_hourly,
+            error_msg = f"Der Messwert von {value:.4f} kWh überschreitet das physikalische Maximum von {max_hourly:.1f} kWh."
+            Hubble.warning(
+                f"Unerwarteter Ertragssprung bei Modulgruppe '{group_name}' ({source}): {error_msg} "
+                f"Ich filtere diese Stunde aus den Trainingsdaten."
+            )
+
+            title = f"Unerwarteter Ertragssprung bei '{group_name}'"
+            description = (
+                f"Hallo! Hubble hier.\n\n"
+                f"Der Sensor deiner Modulgruppe **{group_name}** hat einen unplausiblen Ertragssprung gemeldet:\n\n"
+                f"**Gemessen:** {value:.4f} kWh\n"
+                f"**Physikalisch maximal möglich:** {max_hourly:.1f} kWh\n\n"
+                f"**Auswirkung:** Um deine KI-Prognose nicht zu vergiften, habe ich diesen Ausreißer aus den Trainingsdaten gefiltert.\n\n"
+                f"**Mögliche Ursache:** Das passiert häufig bei einem plötzlichen Neustart der DTU/des Inverters oder bei einer Verbindungsunterbrechung des Smart Meters. Du musst nichts tun, ich überwache die Werte weiter."
+            )
+            self.hass.add_job(
+                Hubble.async_create_issue,
+                self.hass,
+                issue_id,
+                title,
+                description,
+                Severity.WARNING,
             )
             return None
 
+        self.hass.add_job(Hubble.async_dismiss_issue, self.hass, issue_id)
         return round(value, 4)
 
     async def initialize(self) -> None:
@@ -474,16 +487,17 @@ class PanelGroupSensorReader(DataManagerIO):
         if current_value < last_value:
             _LOGGER.info(
                 "Energy counter reset or discontinuity detected for group '%s': %.4f -> %.4f kWh; "
-                "stored current value as new baseline, no hourly delta learned",
+                "assumed reset to 0.0 and accumulated %.4f kWh",
                 group_name,
                 last_value,
                 current_value,
+                current_value,
             )
+            delta = current_value
             await self._store_baseline(group_name, current_value)
-            return None
-
-        delta = current_value - last_value
-        await self._store_baseline(group_name, current_value)
+        else:
+            delta = current_value - last_value
+            await self._store_baseline(group_name, current_value)
 
         validated_delta = self._validate_hourly_delta(
             group_name,
@@ -648,22 +662,37 @@ class PanelGroupSensorReader(DataManagerIO):
                         f"{target_date}T{target_hour:02d}:59:59"
                     )
 
-                    val_before = None
-                    val_at_end = None
-
-                    for ts, val in readings:
+                    baseline_idx = -1
+                    for idx, (ts, val) in enumerate(readings):
                         ts_naive = ts.replace(tzinfo=None) if ts.tzinfo else ts
                         if ts_naive <= hour_start:
-                            val_before = val
-                        if ts_naive <= hour_end:
-                            val_at_end = val
+                            baseline_idx = idx
 
-                    if val_before is None or val_at_end is None:
+                    if baseline_idx == -1:
                         continue
+
+                    hour_readings = []
+                    for idx in range(baseline_idx + 1, len(readings)):
+                        ts, val = readings[idx]
+                        ts_naive = ts.replace(tzinfo=None) if ts.tzinfo else ts
+                        if ts_naive <= hour_end:
+                            hour_readings.append(val)
+                        else:
+                            break
+
+                    prev_val = readings[baseline_idx][1]
+                    accumulated_delta = 0.0
+
+                    for val in hour_readings:
+                        if val >= prev_val:
+                            accumulated_delta += (val - prev_val)
+                        else:
+                            accumulated_delta += val
+                        prev_val = val
 
                     delta = self._validate_hourly_delta(
                         group_name,
-                        val_at_end - val_before,
+                        accumulated_delta,
                         "recorder backfill",
                     )
                     if delta is None:
@@ -980,3 +1009,50 @@ class PanelGroupSensorReader(DataManagerIO):
                 for g in self.panel_groups
             ],
         }
+
+    async def async_perform_sensor_audit(self) -> None:
+        """Perform a complete audit of configured sensors and report issues via Hubble. @zara"""
+        from ..core.core_hubble import Hubble
+        from homeassistant.helpers.issue_registry import IssueSeverity as Severity
+
+        groups_with_sensors = self.get_groups_with_sensors()
+        if not groups_with_sensors:
+            Hubble.info("Keine Modulgruppen-Energiesensoren konfiguriert. Ich überspringe das Sensor-Audit.")
+            return
+
+        validation_results = await self.validate_sensors()
+
+        for group_name, validation in validation_results.items():
+            entity_id = validation.get("entity_id")
+            issue_id = f"sensor_config_{group_name}_{entity_id}"
+
+            if not validation.get("valid", False):
+                error_msg = validation.get("error", "Unbekannter Konfigurationsfehler.")
+
+                # Hubble meldet den Fehler verständlich im Log
+                Hubble.error(
+                    f"Sensor-Problem bei Modulgruppe '{group_name}' (Sensor: {entity_id}): {error_msg} "
+                    f"Ich deaktiviere das Lernen für diese Modulgruppe zum Schutz deiner Datenbank."
+                )
+
+                # Repairs Issue anlegen
+                title = f"PV-Sensorfehler bei Gruppe '{group_name}'"
+                description = (
+                    f"Hallo! Hubble hier.\n\n"
+                    f"Ich habe ein Problem mit dem Sensor **{entity_id}** der Modulgruppe **{group_name}** festgestellt:\n\n"
+                    f"**Fehler:** {error_msg}\n\n"
+                    f"**Auswirkung:** Um deine Datenbank vor fehlerhaften Trainingsdaten zu schützen, habe ich das "
+                    f"Lernen für diese Gruppe vorübergehend deaktiviert.\n\n"
+                    f"**Lösung:** Bitte überprüfe in den Einstellungen der Integration oder in deinen Home Assistant "
+                    f"Entitäten, ob der Sensor existiert und kumulierte kWh-Werte liefert."
+                )
+                Hubble.async_create_issue(
+                    self.hass,
+                    issue_id=issue_id,
+                    title=title,
+                    description=description,
+                    severity=Severity.ERROR,
+                )
+            else:
+                # Sensor ist gültig: eventuell altes Problem löschen
+                Hubble.async_dismiss_issue(self.hass, issue_id)

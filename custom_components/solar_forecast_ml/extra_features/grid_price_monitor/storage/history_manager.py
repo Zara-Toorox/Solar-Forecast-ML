@@ -167,10 +167,8 @@ class HistoryManager:
         start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_of_day = start_of_day + timedelta(days=1)
 
-        if start_of_day.tzinfo is None:
-            start_of_day = start_of_day.replace(tzinfo=timezone.utc)
-        if end_of_day.tzinfo is None:
-            end_of_day = end_of_day.replace(tzinfo=timezone.utc)
+        start_of_day = start_of_day.astimezone()
+        end_of_day = end_of_day.astimezone()
 
         try:
             rows = await self._db.fetchall(
@@ -211,10 +209,8 @@ class HistoryManager:
         Returns:
             List of price entries in range
         """
-        if start_date.tzinfo is None:
-            start_date = start_date.replace(tzinfo=timezone.utc)
-        if end_date.tzinfo is None:
-            end_date = end_date.replace(tzinfo=timezone.utc)
+        start_date = start_date.astimezone()
+        end_date = end_date.astimezone()
 
         try:
             rows = await self._db.fetchall(
@@ -254,10 +250,8 @@ class HistoryManager:
         start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_of_day = start_of_day + timedelta(days=1)
 
-        if start_of_day.tzinfo is None:
-            start_of_day = start_of_day.replace(tzinfo=timezone.utc)
-        if end_of_day.tzinfo is None:
-            end_of_day = end_of_day.replace(tzinfo=timezone.utc)
+        start_of_day = start_of_day.astimezone()
+        end_of_day = end_of_day.astimezone()
 
         try:
             row = await self._db.fetchone(
@@ -289,10 +283,8 @@ class HistoryManager:
         start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_of_day = start_of_day + timedelta(days=1)
 
-        if start_of_day.tzinfo is None:
-            start_of_day = start_of_day.replace(tzinfo=timezone.utc)
-        if end_of_day.tzinfo is None:
-            end_of_day = end_of_day.replace(tzinfo=timezone.utc)
+        start_of_day = start_of_day.astimezone()
+        end_of_day = end_of_day.astimezone()
 
         try:
             min_row = await self._db.fetchone(

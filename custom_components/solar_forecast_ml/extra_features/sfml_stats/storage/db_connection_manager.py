@@ -305,6 +305,22 @@ class DatabaseConnectionManager:
                     continue
                 raise
 
+    @classmethod
+    @asynccontextmanager
+    async def connect_direct_safe(cls, db_path: Path) -> AsyncIterator[aiosqlite.Connection]:
+        """Establish a direct, robust SQLite connection with safe defaults. @zara"""
+        conn = await aiosqlite.connect(
+            str(db_path), timeout=60.0, isolation_level="IMMEDIATE"
+        )
+        conn.row_factory = aiosqlite.Row
+        try:
+            await conn.execute("PRAGMA foreign_keys = ON")
+            await conn.execute("PRAGMA journal_mode = DELETE")
+            await conn.execute("PRAGMA busy_timeout = 30000")
+            yield conn
+        finally:
+            await conn.close()
+
     @asynccontextmanager
     async def get_connection_ctx(self) -> AsyncIterator[aiosqlite.Connection]:
         """Context manager for multi-statement operations. @zara"""

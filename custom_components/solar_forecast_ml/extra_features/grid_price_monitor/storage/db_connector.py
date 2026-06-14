@@ -51,6 +51,11 @@ class GPMDatabaseConnector:
             "GPM database connected: %s", self.db_path
         )
 
+    @property
+    def is_connected(self) -> bool:
+        """Return True if the database connection is open @zara"""
+        return self._db is not None
+
     async def close(self) -> None:
         """Close database connection @zara"""
         if self._db:
@@ -60,6 +65,9 @@ class GPMDatabaseConnector:
 
     async def _retry_on_locked(self, operation, max_retries: int = 3):
         """Retry a DB operation on 'database is locked' with exponential backoff. @zara"""
+        if self._db is None:
+            _LOGGER.warning("GPM DB operation skipped: no active connection")
+            return None
         for attempt in range(max_retries + 1):
             try:
                 return await operation()
@@ -127,6 +135,9 @@ class GPMDatabaseConnector:
 
     async def commit(self) -> None:
         """Commit current transaction @zara"""
+        if self._db is None:
+            _LOGGER.warning("GPM DB commit skipped: no active connection")
+            return
         await self._db.commit()
 
     async def _ensure_tables(self) -> None:

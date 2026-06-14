@@ -36,7 +36,6 @@
           "sensor_grid_to_battery": "⚡ Red → Batería (W)",
           "sensor_battery_charge_grid_daily": "⚡ Red → Batería hoy (kWh)",
           "sensor_battery_soc": "📊 Estado de carga de batería (%)",
-          "sensor_battery_to_grid": "🔋 Batería → Red (W)",
           "sensor_battery_power": "🔋 Potencia total de batería (W)"
         },
         "data_description": {
@@ -47,7 +46,6 @@
           "sensor_grid_to_battery": "Unidad: Vatios. Potencia de red utilizada para cargar la batería. ¡Solo la parte de carga desde red, no la carga solar! (Opcional)",
           "sensor_battery_charge_grid_daily": "Unidad: kWh. Energía de red usada para cargar la batería hoy. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
           "sensor_battery_soc": "Unidad: Porcentaje (0–100). Estado de carga (SOC) actual de la batería. El valor debe estar entre 0 y 100, ¡no valores decimales como 0.0–1.0! (Opcional)",
-          "sensor_battery_to_grid": "Unidad: Vatios. Potencia de batería inyectada a la red. Solo relevante para inyección desde batería, p. ej. con precios negativos de electricidad. (Opcional)",
           "sensor_battery_power": "Unidad: Vatios. Potencia total de batería en un solo sensor. Positivo = carga, Negativo = descarga. ¡Usar solo si no hay sensores separados de carga/descarga! (Opcional)"
         }
       },
@@ -60,8 +58,7 @@
           "sensor_grid_to_house": "⚡ Red → Casa (W)",
           "sensor_smartmeter_export": "📤 Exportación a red (W)",
           "sensor_grid_export_daily": "📤 Exportación a red hoy (kWh)",
-          "sensor_house_to_grid": "📤 Inyección de excedentes (W)",
-          "sensor_grid_import_yearly": "📊 Importación de red anual (kWh)"
+          "sensor_house_to_grid": "📤 Inyección de excedentes (W)"
         },
         "data_description": {
           "sensor_smartmeter_import": "Unidad: Vatios. Importación total de red en el punto de medición. ¡Incluye TODA la potencia de red — incluyendo carga de batería desde red! (Opcional)",
@@ -69,8 +66,7 @@
           "sensor_grid_to_house": "Unidad: Vatios. Potencia de red que fluye directamente a la casa. ¡Sin carga de batería desde red! Diferencia con Importación de red: Solo la parte de consumo doméstico. (Opcional)",
           "sensor_smartmeter_export": "Unidad: Vatios. Exportación total en el punto de medición. ¡Incluye TODA la inyección — incluyendo inyección de batería a red! (Opcional)",
           "sensor_grid_export_daily": "Unidad: kWh. Exportación total a red desde medianoche. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
-          "sensor_house_to_grid": "Unidad: Vatios. Potencia excedente inyectada a la red. ¡Solo excedentes solares, no inyección de batería! Diferencia con Exportación a red: Solo la parte de excedentes. (Opcional)",
-          "sensor_grid_import_yearly": "Unidad: kWh. Importación total de red del año calendario actual. Se utiliza para la facturación anual y previsión de costes. (Opcional)"
+          "sensor_house_to_grid": "Unidad: Vatios. Potencia excedente inyectada a la red. ¡Solo excedentes solares, no inyección de batería! Diferencia con Exportación a red: Solo la parte de excedentes. (Opcional)"
         }
       },
       "sensors": {
@@ -87,7 +83,6 @@
           "sensor_grid_to_battery": "⚡ Red → Batería (W)",
           "sensor_battery_charge_grid_daily": "⚡ Red → Batería hoy (kWh)",
           "sensor_battery_soc": "📊 Estado de carga de batería (%)",
-          "sensor_battery_to_grid": "🔋 Batería → Red (W)",
           "sensor_battery_power": "🔋 Potencia total de batería (W)",
           "sensor_smartmeter_import": "📥 Importación de red (W)",
           "sensor_grid_import_daily": "📥 Importación de red hoy (kWh)",
@@ -95,7 +90,6 @@
           "sensor_smartmeter_export": "📤 Exportación a red (W)",
           "sensor_grid_export_daily": "📤 Exportación a red hoy (kWh)",
           "sensor_house_to_grid": "📤 Inyección de excedentes (W)",
-          "sensor_grid_import_yearly": "📊 Importación de red anual (kWh)",
           "sensor_price_total": "💰 Precio actual (ct/kWh)",
           "weather_entity": "🌤️ Entidad meteorológica"
         },
@@ -110,7 +104,6 @@
           "sensor_grid_to_battery": "Unidad: Vatios. Potencia de red utilizada para cargar la batería. ¡Solo la parte de carga desde red, no la carga solar! (Opcional)",
           "sensor_battery_charge_grid_daily": "Unidad: kWh. Energía de red usada para cargar la batería hoy. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
           "sensor_battery_soc": "Unidad: Porcentaje (0–100). Estado de carga (SOC) actual de la batería. El valor debe estar entre 0 y 100, ¡no valores decimales como 0.0–1.0! (Opcional)",
-          "sensor_battery_to_grid": "Unidad: Vatios. Potencia de batería inyectada a la red. Solo relevante para inyección desde batería, p. ej. con precios negativos de electricidad. (Opcional)",
           "sensor_battery_power": "Unidad: Vatios. Potencia total de batería en un solo sensor. Positivo = carga, Negativo = descarga. ¡Usar solo si no hay sensores separados de carga/descarga! (Opcional)",
           "sensor_smartmeter_import": "Unidad: Vatios. Importación total de red en el punto de medición. ¡Incluye TODA la potencia de red — incluyendo carga de batería desde red! (Opcional)",
           "sensor_grid_import_daily": "Unidad: kWh. Importación total de red desde medianoche. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
@@ -118,7 +111,6 @@
           "sensor_smartmeter_export": "Unidad: Vatios. Exportación total en el punto de medición. ¡Incluye TODA la inyección — incluyendo inyección de batería a red! (Opcional)",
           "sensor_grid_export_daily": "Unidad: kWh. Exportación total a red desde medianoche. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
           "sensor_house_to_grid": "Unidad: Vatios. Potencia excedente inyectada a la red. ¡Solo excedentes solares, no inyección de batería! Diferencia con Exportación a red: Solo la parte de excedentes. (Opcional)",
-          "sensor_grid_import_yearly": "Unidad: kWh. Importación total de red del año calendario actual. Se utiliza para la facturación anual y previsión de costes. (Opcional)",
           "sensor_price_total": "Unidad: ct/kWh (bruto). Sensor dinámico, p. ej. de Tibber, Octopus Energy o EPEX Spot. No necesario con tarifa fija. (Opcional)",
           "weather_entity": "Formato: weather.xxx. Integración meteorológica de Home Assistant para previsiones en los gráficos. ¡No es una entidad sensor, sino una entidad weather! (Opcional)"
         }
@@ -140,8 +132,6 @@
           "auto_generate": "Generación automática de informes",
           "generate_weekly": "Informes semanales",
           "generate_monthly": "Informes mensuales",
-          "theme": "Tema de color",
-          "dashboard_style": "Estilo de flujo energético",
           "billing_start_month": "Mes de inicio de facturación",
           "billing_start_day": "Día de inicio de facturación",
           "billing_price_mode": "Modo de tarifa",
@@ -152,8 +142,6 @@
           "auto_generate": "Generar automáticamente informes semanales y mensuales",
           "generate_weekly": "Crear un informe semanal cada domingo",
           "generate_monthly": "Crear un informe mensual el 1.º de cada mes",
-          "theme": "Tema oscuro o claro para los gráficos",
-          "dashboard_style": "Diagrama de flujo energético 3D isométrico o clásico 2D",
           "billing_start_month": "Mes en que comienza tu año de facturación",
           "billing_start_day": "Día en que comienza tu año de facturación",
           "billing_price_mode": "Dinámico: precios por hora de Grid Price Monitor. Fijo: precio único. Sin tarifa: desactiva indicadores financieros.",
@@ -218,7 +206,6 @@
           "sensor_grid_to_battery": "⚡ Red → Batería (W)",
           "sensor_battery_charge_grid_daily": "⚡ Red → Batería hoy (kWh)",
           "sensor_battery_soc": "📊 Estado de carga de batería (%)",
-          "sensor_battery_to_grid": "🔋 Batería → Red (W)",
           "sensor_battery_power": "🔋 Potencia total de batería (W)"
         },
         "data_description": {
@@ -229,7 +216,6 @@
           "sensor_grid_to_battery": "Unidad: Vatios. Potencia de red utilizada para cargar la batería. ¡Solo la parte de carga desde red, no la carga solar! (Opcional)",
           "sensor_battery_charge_grid_daily": "Unidad: kWh. Energía de red usada para cargar la batería hoy. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
           "sensor_battery_soc": "Unidad: Porcentaje (0–100). Estado de carga (SOC) actual de la batería. El valor debe estar entre 0 y 100, ¡no valores decimales como 0.0–1.0! (Opcional)",
-          "sensor_battery_to_grid": "Unidad: Vatios. Potencia de batería inyectada a la red. Solo relevante para inyección desde batería, p. ej. con precios negativos de electricidad. (Opcional)",
           "sensor_battery_power": "Unidad: Vatios. Potencia total de batería en un solo sensor. Positivo = carga, Negativo = descarga. ¡Usar solo si no hay sensores separados de carga/descarga! (Opcional)"
         }
       },
@@ -242,8 +228,7 @@
           "sensor_grid_to_house": "⚡ Red → Casa (W)",
           "sensor_smartmeter_export": "📤 Exportación a red (W)",
           "sensor_grid_export_daily": "📤 Exportación a red hoy (kWh)",
-          "sensor_house_to_grid": "📤 Inyección de excedentes (W)",
-          "sensor_grid_import_yearly": "📊 Importación de red anual (kWh)"
+          "sensor_house_to_grid": "📤 Inyección de excedentes (W)"
         },
         "data_description": {
           "sensor_smartmeter_import": "Unidad: Vatios. Importación total de red en el punto de medición. ¡Incluye TODA la potencia de red — incluyendo carga de batería desde red! (Opcional)",
@@ -251,8 +236,7 @@
           "sensor_grid_to_house": "Unidad: Vatios. Potencia de red que fluye directamente a la casa. ¡Sin carga de batería desde red! Diferencia con Importación de red: Solo la parte de consumo doméstico. (Opcional)",
           "sensor_smartmeter_export": "Unidad: Vatios. Exportación total en el punto de medición. ¡Incluye TODA la inyección — incluyendo inyección de batería a red! (Opcional)",
           "sensor_grid_export_daily": "Unidad: kWh. Exportación total a red desde medianoche. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
-          "sensor_house_to_grid": "Unidad: Vatios. Potencia excedente inyectada a la red. ¡Solo excedentes solares, no inyección de batería! Diferencia con Exportación a red: Solo la parte de excedentes. (Opcional)",
-          "sensor_grid_import_yearly": "Unidad: kWh. Importación total de red del año calendario actual. Se utiliza para la facturación anual y previsión de costes. (Opcional)"
+          "sensor_house_to_grid": "Unidad: Vatios. Potencia excedente inyectada a la red. ¡Solo excedentes solares, no inyección de batería! Diferencia con Exportación a red: Solo la parte de excedentes. (Opcional)"
         }
       },
       "sensors": {
@@ -269,7 +253,6 @@
           "sensor_grid_to_battery": "⚡ Red → Batería (W)",
           "sensor_battery_charge_grid_daily": "⚡ Red → Batería hoy (kWh)",
           "sensor_battery_soc": "📊 Estado de carga de batería (%)",
-          "sensor_battery_to_grid": "🔋 Batería → Red (W)",
           "sensor_battery_power": "🔋 Potencia total de batería (W)",
           "sensor_smartmeter_import": "📥 Importación de red (W)",
           "sensor_grid_import_daily": "📥 Importación de red hoy (kWh)",
@@ -277,7 +260,6 @@
           "sensor_smartmeter_export": "📤 Exportación a red (W)",
           "sensor_grid_export_daily": "📤 Exportación a red hoy (kWh)",
           "sensor_house_to_grid": "📤 Inyección de excedentes (W)",
-          "sensor_grid_import_yearly": "📊 Importación de red anual (kWh)",
           "sensor_price_total": "💰 Precio actual (ct/kWh)",
           "weather_entity": "🌤️ Entidad meteorológica"
         },
@@ -292,7 +274,6 @@
           "sensor_grid_to_battery": "Unidad: Vatios. Potencia de red utilizada para cargar la batería. ¡Solo la parte de carga desde red, no la carga solar! (Opcional)",
           "sensor_battery_charge_grid_daily": "Unidad: kWh. Energía de red usada para cargar la batería hoy. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
           "sensor_battery_soc": "Unidad: Porcentaje (0–100). Estado de carga (SOC) actual de la batería. El valor debe estar entre 0 y 100, ¡no valores decimales como 0.0–1.0! (Opcional)",
-          "sensor_battery_to_grid": "Unidad: Vatios. Potencia de batería inyectada a la red. Solo relevante para inyección desde batería, p. ej. con precios negativos de electricidad. (Opcional)",
           "sensor_battery_power": "Unidad: Vatios. Potencia total de batería en un solo sensor. Positivo = carga, Negativo = descarga. ¡Usar solo si no hay sensores separados de carga/descarga! (Opcional)",
           "sensor_smartmeter_import": "Unidad: Vatios. Importación total de red en el punto de medición. ¡Incluye TODA la potencia de red — incluyendo carga de batería desde red! (Opcional)",
           "sensor_grid_import_daily": "Unidad: kWh. Importación total de red desde medianoche. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
@@ -300,9 +281,32 @@
           "sensor_smartmeter_export": "Unidad: Vatios. Exportación total en el punto de medición. ¡Incluye TODA la inyección — incluyendo inyección de batería a red! (Opcional)",
           "sensor_grid_export_daily": "Unidad: kWh. Exportación total a red desde medianoche. Debe reiniciarse a las 0:00. Si no está disponible, el valor se calcula a partir del sensor de W. (Opcional)",
           "sensor_house_to_grid": "Unidad: Vatios. Potencia excedente inyectada a la red. ¡Solo excedentes solares, no inyección de batería! Diferencia con Exportación a red: Solo la parte de excedentes. (Opcional)",
-          "sensor_grid_import_yearly": "Unidad: kWh. Importación total de red del año calendario actual. Se utiliza para la facturación anual y previsión de costes. (Opcional)",
           "sensor_price_total": "Unidad: ct/kWh (bruto). Sensor dinámico, p. ej. de Tibber, Octopus Energy o EPEX Spot. No necesario con tarifa fija. (Opcional)",
           "weather_entity": "Formato: weather.xxx. Integración meteorológica de Home Assistant para previsiones en los gráficos. ¡No es una entidad sensor, sino una entidad weather! (Opcional)"
+        }
+      },
+      "smart_charging": {
+        "title": "Carga inteligente",
+        "description": "Carga automática de la batería desde la red durante las horas baratas, respetando la previsión solar y el consumo diario medio. El SOC objetivo se calcula dinámicamente para dejar suficiente espacio para el excedente solar del día siguiente, limitado al min/max.",
+        "data": {
+          "smart_charging_enabled": "Activar carga inteligente",
+          "battery_capacity": "Capacidad de la batería (kWh)",
+          "min_soc": "SOC mínimo (%)",
+          "max_soc": "SOC máximo (%)",
+          "max_price": "Umbral de precio barato (ct/kWh)",
+          "battery_soc_sensor": "Sensor de SOC de la batería",
+          "smart_charging_switch": "Interruptor de control de carga",
+          "sensor_price_total": "Sensor de precio de la electricidad"
+        },
+        "data_description": {
+          "smart_charging_enabled": "Interruptor principal. Cuando está apagado, no se ejecuta la lógica de carga.",
+          "battery_capacity": "Capacidad útil de la batería. Se utiliza para convertir la previsión solar en kWh a porcentaje de SOC.",
+          "min_soc": "El SOC objetivo nunca bajará de este valor.",
+          "max_soc": "El SOC objetivo nunca superará este valor. Típico: 95-100.",
+          "max_price": "El precio actual por debajo de este umbral se considera barato. Solo entonces se permite la carga desde la red.",
+          "battery_soc_sensor": "Sensor del estado de carga de la batería (0-100%). Sin él, la lógica vuelve al modo de solo precio.",
+          "smart_charging_switch": "Entidad de interruptor para activar/desactivar la carga desde la red en Home Assistant.",
+          "sensor_price_total": "Sensor monetario que proporciona el precio dinámico actual (por ejemplo, de Tibber)."
         }
       },
       "consumers": {
@@ -336,8 +340,6 @@
           "auto_generate": "Generación automática",
           "generate_weekly": "Informes semanales",
           "generate_monthly": "Informes mensuales",
-          "theme": "Tema de color",
-          "dashboard_style": "Estilo de flujo energético",
           "billing_start_month": "Mes de inicio de facturación",
           "billing_start_day": "Día de inicio de facturación",
           "billing_price_mode": "Modo de tarifa",
@@ -348,8 +350,6 @@
           "auto_generate": "Generar informes automáticamente según programación",
           "generate_weekly": "Crear un informe semanal cada domingo",
           "generate_monthly": "Crear un informe mensual el 1.º de cada mes",
-          "theme": "Tema oscuro o claro para los gráficos",
-          "dashboard_style": "Diagrama de flujo energético 3D isométrico o clásico 2D",
           "billing_start_month": "Mes en que comienza tu año de facturación",
           "billing_start_day": "Día en que comienza tu año de facturación",
           "billing_price_mode": "Dinámico: precios por hora de Grid Price Monitor. Fijo: precio único. Sin tarifa: desactiva indicadores financieros.",

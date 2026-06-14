@@ -95,7 +95,7 @@ class SmartChargingManager:
         Returns:
             Target SoC as percentage (0-100)
         """
-        if solar_forecast_kwh is None or solar_forecast_kwh <= 0:
+        if solar_forecast_kwh is None or solar_forecast_kwh <= 0 or self._battery_capacity_kwh <= 0:
             return float(self._max_soc)
 
         solar_percent = (solar_forecast_kwh / self._battery_capacity_kwh) * 100

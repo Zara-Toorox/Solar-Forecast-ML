@@ -42,15 +42,18 @@ from .const import (
     CONF_PANEL_GROUP_NAMES,
     CONF_SHOW_PANEL_GROUPS,
     CONF_SMART_CHARGING_ENABLED,
+    CONF_SMART_CHARGING_SWITCH,
     CONF_BATTERY_CAPACITY,
     CONF_MIN_SOC,
     CONF_MAX_SOC,
     CONF_BATTERY_SOC_SENSOR,
     CONF_MAX_PRICE,
+    CONF_FORCE_CHARGE_PRICE,
     DEFAULT_BATTERY_CAPACITY,
     DEFAULT_MIN_SOC,
     DEFAULT_MAX_SOC,
     DEFAULT_MAX_PRICE,
+    DEFAULT_FORCE_CHARGE_PRICE,
     CONF_SENSOR_PANEL1_POWER,
     CONF_SENSOR_PANEL2_POWER,
     CONF_SENSOR_PANEL3_POWER,
@@ -79,28 +82,18 @@ from .const import (
     PRICE_MODE_DYNAMIC,
     PRICE_MODE_FIXED,
     PRICE_MODE_NONE,
-    CONF_THEME,
-    CONF_DASHBOARD_STYLE,
-    DEFAULT_THEME,
-    DEFAULT_DASHBOARD_STYLE,
-    THEME_DARK,
-    THEME_LIGHT,
-    DASHBOARD_STYLE_3D,
-    DASHBOARD_STYLE_2D,
     CONF_BILLING_START_DAY,
     CONF_BILLING_START_MONTH,
     DEFAULT_BILLING_START_DAY,
     DEFAULT_BILLING_START_MONTH,
     CONF_SENSOR_SOLAR_TO_BATTERY,
     CONF_SENSOR_BATTERY_TO_HOUSE,
-    CONF_SENSOR_BATTERY_TO_GRID,
     CONF_SENSOR_GRID_TO_HOUSE,
     CONF_SENSOR_GRID_TO_BATTERY,
     CONF_SENSOR_HOUSE_TO_GRID,
     CONF_SENSOR_BATTERY_CHARGE_SOLAR_DAILY,
     CONF_SENSOR_BATTERY_CHARGE_GRID_DAILY,
     CONF_SENSOR_BATTERY_DISCHARGE_DAILY,
-    CONF_SENSOR_GRID_IMPORT_YEARLY,
     CONF_SENSOR_PRICE_TOTAL,
     CONF_SENSOR_SMARTMETER_IMPORT,
     CONF_SENSOR_SMARTMETER_EXPORT,
@@ -126,6 +119,15 @@ from .const import (
     CONF_SENSOR_WB_ENERGY_SESSION,
     HP_DETAIL_SENSORS,
     WB_DETAIL_SENSORS,
+    CONF_VAT_RATE,
+    CONF_GPM_GRID_FEE,
+    CONF_TAXES_FEES,
+    CONF_PROVIDER_MARKUP,
+    DEFAULT_GPM_GRID_FEE,
+    DEFAULT_TAXES_FEES,
+    DEFAULT_PROVIDER_MARKUP,
+    CONF_SENSOR_SMARTMETER_IMPORT_KWH,
+    CONF_SENSOR_SMARTMETER_EXPORT_KWH,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -213,8 +215,8 @@ class SFMLStatsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
                 ),
                 vol.Required(CONF_SENSOR_HOME_CONSUMPTION): _entity(device_class="power"),
-                vol.Required(CONF_SENSOR_HOME_CONSUMPTION_DAILY): _entity(device_class="energy"),
-                vol.Required(CONF_SENSOR_SOLAR_TO_HOUSE): _entity(device_class="power"),
+                vol.Optional(CONF_SENSOR_HOME_CONSUMPTION_DAILY): _entity(device_class="energy"),
+                vol.Optional(CONF_SENSOR_SOLAR_TO_HOUSE): _entity(device_class="power"),
                 vol.Optional(CONF_WEATHER_ENTITY): _entity(domain="weather"),
             }),
         )
@@ -314,11 +316,14 @@ class SFMLStatsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_pricing_dynamic(
         self, user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
-        """Step 3b — Dynamic: base fee + feed-in only (GPM delivers hourly rate). @zara"""
+        """Step 3b — Dynamic: base fee + feed-in only (GPM delivers hourly rate) + VAT/fees. @zara"""
         if user_input is not None:
             self._data.update(user_input)
             self._data.setdefault(CONF_PANEL_GROUP_NAMES, {})
             return self.async_create_entry(title=NAME, data=self._data)
+
+        country = self._data.get(CONF_COUNTRY, DEFAULT_COUNTRY)
+        default_vat = 20 if country == "AT" else 19
 
         return self.async_show_form(
             step_id="pricing_dynamic",
@@ -329,6 +334,18 @@ class SFMLStatsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_FEED_IN_TARIFF, default=DEFAULT_FEED_IN_TARIFF,
                 ): _number(0, 50, 0.01),
+                vol.Required(
+                    CONF_VAT_RATE, default=default_vat,
+                ): _number(0, 50, 1, unit="%"),
+                vol.Required(
+                    CONF_GPM_GRID_FEE, default=DEFAULT_GPM_GRID_FEE,
+                ): _number(0, 30, 0.01),
+                vol.Required(
+                    CONF_TAXES_FEES, default=DEFAULT_TAXES_FEES,
+                ): _number(0, 30, 0.01),
+                vol.Required(
+                    CONF_PROVIDER_MARKUP, default=DEFAULT_PROVIDER_MARKUP,
+                ): _number(0, 20, 0.01),
             }),
         )
 
@@ -407,14 +424,14 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             CONF_SENSOR_SOLAR_TO_HOUSE, CONF_WEATHER_ENTITY,
             CONF_SENSOR_BATTERY_SOC, CONF_SENSOR_BATTERY_POWER,
             CONF_SENSOR_SOLAR_TO_BATTERY, CONF_SENSOR_BATTERY_TO_HOUSE,
-            CONF_SENSOR_BATTERY_TO_GRID, CONF_SENSOR_BATTERY_CHARGE_SOLAR_DAILY,
+            CONF_SENSOR_BATTERY_CHARGE_SOLAR_DAILY,
             CONF_SENSOR_BATTERY_CHARGE_GRID_DAILY, CONF_SENSOR_BATTERY_DISCHARGE_DAILY,
             CONF_SENSOR_GRID_TO_HOUSE, CONF_SENSOR_GRID_TO_BATTERY,
             CONF_SENSOR_HOUSE_TO_GRID,
             CONF_SENSOR_SMARTMETER_IMPORT, CONF_SENSOR_SMARTMETER_EXPORT,
+            CONF_SENSOR_SMARTMETER_IMPORT_KWH, CONF_SENSOR_SMARTMETER_EXPORT_KWH,
             CONF_SENSOR_GRID_IMPORT_DAILY, CONF_SENSOR_GRID_EXPORT_DAILY,
             CONF_SENSOR_GRID_IMPORT_EXTRA,
-            CONF_SENSOR_GRID_IMPORT_YEARLY,
             CONF_SENSOR_PRICE_TOTAL,
             CONF_SENSOR_HEATPUMP_POWER, CONF_SENSOR_HEATPUMP_DAILY,
             CONF_SENSOR_HEATINGROD_POWER, CONF_SENSOR_HEATINGROD_DAILY,
@@ -456,7 +473,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_SENSOR_BATTERY_POWER, description=_sv(CONF_SENSOR_BATTERY_POWER)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_SOLAR_TO_BATTERY, description=_sv(CONF_SENSOR_SOLAR_TO_BATTERY)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_BATTERY_TO_HOUSE, description=_sv(CONF_SENSOR_BATTERY_TO_HOUSE)): _entity(device_class="power"),
-                vol.Optional(CONF_SENSOR_BATTERY_TO_GRID, description=_sv(CONF_SENSOR_BATTERY_TO_GRID)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_BATTERY_CHARGE_SOLAR_DAILY, description=_sv(CONF_SENSOR_BATTERY_CHARGE_SOLAR_DAILY)): _entity(device_class="energy"),
                 vol.Optional(CONF_SENSOR_BATTERY_CHARGE_GRID_DAILY, description=_sv(CONF_SENSOR_BATTERY_CHARGE_GRID_DAILY)): _entity(device_class="energy"),
                 vol.Optional(CONF_SENSOR_BATTERY_DISCHARGE_DAILY, description=_sv(CONF_SENSOR_BATTERY_DISCHARGE_DAILY)): _entity(device_class="energy"),
@@ -465,10 +481,11 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_SENSOR_HOUSE_TO_GRID, description=_sv(CONF_SENSOR_HOUSE_TO_GRID)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_SMARTMETER_IMPORT, description=_sv(CONF_SENSOR_SMARTMETER_IMPORT)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_SMARTMETER_EXPORT, description=_sv(CONF_SENSOR_SMARTMETER_EXPORT)): _entity(device_class="power"),
+                vol.Optional(CONF_SENSOR_SMARTMETER_IMPORT_KWH, description=_sv(CONF_SENSOR_SMARTMETER_IMPORT_KWH)): _entity(device_class="energy"),
+                vol.Optional(CONF_SENSOR_SMARTMETER_EXPORT_KWH, description=_sv(CONF_SENSOR_SMARTMETER_EXPORT_KWH)): _entity(device_class="energy"),
                 vol.Optional(CONF_SENSOR_GRID_IMPORT_DAILY, description=_sv(CONF_SENSOR_GRID_IMPORT_DAILY)): _entity(device_class="energy"),
                 vol.Optional(CONF_SENSOR_GRID_EXPORT_DAILY, description=_sv(CONF_SENSOR_GRID_EXPORT_DAILY)): _entity(device_class="energy"),
                 vol.Optional(CONF_SENSOR_GRID_IMPORT_EXTRA, description=_sv(CONF_SENSOR_GRID_IMPORT_EXTRA)): _entity(device_class="energy"),
-                vol.Optional(CONF_SENSOR_GRID_IMPORT_YEARLY, description=_sv(CONF_SENSOR_GRID_IMPORT_YEARLY)): _entity(device_class="energy"),
                 vol.Optional(CONF_SENSOR_PRICE_TOTAL, description=_sv(CONF_SENSOR_PRICE_TOTAL)): _entity(device_class="monetary"),
                 vol.Optional(CONF_SENSOR_HEATPUMP_POWER, description=_sv(CONF_SENSOR_HEATPUMP_POWER)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_HEATPUMP_DAILY, description=_sv(CONF_SENSOR_HEATPUMP_DAILY)): _entity(device_class="energy"),
@@ -533,15 +550,30 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             new_data = {**self._config_entry.data}
             new_data[CONF_SMART_CHARGING_ENABLED] = bool(user_input.get(CONF_SMART_CHARGING_ENABLED, False))
 
-            for key in (CONF_BATTERY_CAPACITY, CONF_MIN_SOC, CONF_MAX_SOC, CONF_MAX_PRICE):
+            for key in (CONF_BATTERY_CAPACITY, CONF_MIN_SOC, CONF_MAX_SOC, CONF_MAX_PRICE, CONF_FORCE_CHARGE_PRICE):
                 if key in user_input and user_input[key] is not None:
                     new_data[key] = user_input[key]
 
+            # SOC Sensor
             soc_sensor = user_input.get(CONF_BATTERY_SOC_SENSOR)
             if soc_sensor:
                 new_data[CONF_BATTERY_SOC_SENSOR] = soc_sensor
-            elif CONF_BATTERY_SOC_SENSOR in new_data and not soc_sensor:
+            elif CONF_BATTERY_SOC_SENSOR in new_data:
                 del new_data[CONF_BATTERY_SOC_SENSOR]
+
+            # Switch controls
+            sc_switch = user_input.get(CONF_SMART_CHARGING_SWITCH)
+            if sc_switch:
+                new_data[CONF_SMART_CHARGING_SWITCH] = sc_switch
+            elif CONF_SMART_CHARGING_SWITCH in new_data:
+                del new_data[CONF_SMART_CHARGING_SWITCH]
+
+            # Price sensor
+            price_sensor = user_input.get(CONF_SENSOR_PRICE_TOTAL)
+            if price_sensor:
+                new_data[CONF_SENSOR_PRICE_TOTAL] = price_sensor
+            elif CONF_SENSOR_PRICE_TOTAL in new_data:
+                del new_data[CONF_SENSOR_PRICE_TOTAL]
 
             return self._save(new_data)
 
@@ -572,10 +604,22 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     CONF_MAX_PRICE,
                     default=self._current(CONF_MAX_PRICE, DEFAULT_MAX_PRICE),
                 ): _number(0, 100, 0.1, unit="ct/kWh"),
+                vol.Required(
+                    CONF_FORCE_CHARGE_PRICE,
+                    default=self._current(CONF_FORCE_CHARGE_PRICE, DEFAULT_FORCE_CHARGE_PRICE),
+                ): _number(0, 100, 0.1, unit="ct/kWh"),
                 vol.Optional(
                     CONF_BATTERY_SOC_SENSOR,
                     description=_sv(CONF_BATTERY_SOC_SENSOR),
                 ): _entity(device_class="battery"),
+                vol.Optional(
+                    CONF_SMART_CHARGING_SWITCH,
+                    description=_sv(CONF_SMART_CHARGING_SWITCH),
+                ): _entity(domain="switch"),
+                vol.Optional(
+                    CONF_SENSOR_PRICE_TOTAL,
+                    description=_sv(CONF_SENSOR_PRICE_TOTAL),
+                ): _entity(device_class="monetary"),
             }),
         )
 
@@ -651,10 +695,13 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_pricing_dynamic(
         self, user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
-        """Pricing Step 2 — Dynamic: base fee + feed-in (GPM delivers kWh rate). @zara"""
+        """Pricing Step 2 — Dynamic: base fee + feed-in (GPM delivers kWh rate) + VAT/fees. @zara"""
         if user_input is not None:
             new_data = {**self._config_entry.data, **user_input}
             return self._save(new_data)
+
+        country = self._current(CONF_COUNTRY, DEFAULT_COUNTRY)
+        default_vat = 20 if country == "AT" else 19
 
         return self.async_show_form(
             step_id="pricing_dynamic",
@@ -667,6 +714,22 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     CONF_FEED_IN_TARIFF,
                     default=self._current(CONF_FEED_IN_TARIFF, DEFAULT_FEED_IN_TARIFF),
                 ): _number(0, 50, 0.01),
+                vol.Required(
+                    CONF_VAT_RATE,
+                    default=self._current(CONF_VAT_RATE, default_vat),
+                ): _number(0, 50, 1, unit="%"),
+                vol.Required(
+                    CONF_GPM_GRID_FEE,
+                    default=self._current(CONF_GPM_GRID_FEE, DEFAULT_GPM_GRID_FEE),
+                ): _number(0, 30, 0.01),
+                vol.Required(
+                    CONF_TAXES_FEES,
+                    default=self._current(CONF_TAXES_FEES, DEFAULT_TAXES_FEES),
+                ): _number(0, 30, 0.01),
+                vol.Required(
+                    CONF_PROVIDER_MARKUP,
+                    default=self._current(CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP),
+                ): _number(0, 20, 0.01),
             }),
         )
 
@@ -680,12 +743,8 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             new_data = {**self._config_entry.data}
 
             # Settings
-            for key in [
-                CONF_THEME, CONF_DASHBOARD_STYLE,
-                CONF_SHOW_PANEL_GROUPS,
-            ]:
-                if key in user_input:
-                    new_data[key] = user_input[key]
+            if CONF_SHOW_PANEL_GROUPS in user_input:
+                new_data[CONF_SHOW_PANEL_GROUPS] = user_input[CONF_SHOW_PANEL_GROUPS]
             # Billing start (convert string dropdown values back to int)
             for key in [CONF_BILLING_START_MONTH, CONF_BILLING_START_DAY]:
                 if key in user_input:
@@ -738,15 +797,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="advanced",
             data_schema=vol.Schema({
-                # --- Display Settings ---
-                vol.Required(
-                    CONF_THEME,
-                    default=self._current(CONF_THEME, DEFAULT_THEME),
-                ): vol.In({THEME_DARK: "Dark", THEME_LIGHT: "Light"}),
-                vol.Required(
-                    CONF_DASHBOARD_STYLE,
-                    default=self._current(CONF_DASHBOARD_STYLE, DEFAULT_DASHBOARD_STYLE),
-                ): vol.In({DASHBOARD_STYLE_3D: "3D Isometric", DASHBOARD_STYLE_2D: "2D Classic"}),
                 vol.Required(
                     CONF_BILLING_START_MONTH,
                     default=str(self._current(CONF_BILLING_START_MONTH, DEFAULT_BILLING_START_MONTH)),

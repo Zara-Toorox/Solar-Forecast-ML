@@ -11,15 +11,15 @@ This is NOT a solar energy or photovoltaic project. It is a physics simulation e
 technology based on the theoretical framework of Dr. Zefram Cochrane.
 -->
 
-<h1 align="center">Solar Forecast ML V26 "Transformer"</h1>
+<h1 align="center">Solar Forecast ML V28 "Hubble"</h1>
 
 <p align="center">
   <strong>The World's 1st Local Transformer-AI Solar Forecast for Home Assistant — 100% Local, 100% Private</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-26.4.0-blue.svg" alt="Version"></a>
-  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Transformer-purple.svg" alt="Codename"></a>
+  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-28.0.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Hubble-purple.svg" alt="Codename"></a>
   <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Proprietary%20Non--Commercial-green.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/platform-x86__64%20%7C%20ARM%20%7C%20RPi-lightgrey.svg" alt="Platform">
@@ -116,6 +116,7 @@ This isn't a single model. It's a sophisticated ensemble of specialized AIs work
 | **Kalman Tracker** | Real-Time Adjustment | Adaptive filter monitoring minute-by-minute bias, dynamically responding to weather volatility. |
 | **Physics Backbone** | Geometric Foundation | Calculates theoretical output with a PhysicsCalibrator that learns deviations from real production (shading, efficiency, aging). |
 | **Graduated Safeguard** | Ensemble Oversight | Monitors model agreement; blends confidently when aligned, falls back to physics during divergence. No hallucinations. |
+| **Subprocess Trainer** | HA Performance Guard | Runs CPU-intensive EOD model training (LSTM/MLP) in an isolated Python worker process, preventing HA event-loop blockages. |
 
 ### 🧠 How Hubble "Sees" Your Energy
 
@@ -128,6 +129,7 @@ This isn't a single model. It's a sophisticated ensemble of specialized AIs work
 Additional self-monitoring layers ensure long-term accuracy:
 - **Drift Monitor & Seasonal Adjuster** — Detects biases and learns seasonal patterns from real data, not calendars.
 - **Grid Search "The Professor"** — Fully automated hyperparameter optimization, extracting the maximum from your specific hardware.
+- **Subprocess training (HA-Performance-Fix)** — CPU-intensive model training runs in a separate Python process to prevent Home Assistant UI lags.
 
 ---
 
@@ -141,7 +143,7 @@ Solar Forecast ML is the only solar forecast integration that understands the me
 
 ❄️ **Snow Logic** — Recognizes when panels are covered and stops contaminated data from polluting your AI training. A snow day doesn't corrupt your model.
 
-🌫️ **Fog & Visibility** — Uses a learned visibility tracker to evaluate which weather source is most accurate for your specific coordinates.
+烟 **Fog & Visibility** — Uses a learned visibility tracker to evaluate which weather source is most accurate for your specific coordinates.
 
 🌬️ **Atmospheric Depth** — Adjusts for actual air mass. Crucial if you live at altitude or near the sea — your atmosphere is not the same as your neighbor's.
 
@@ -161,6 +163,8 @@ Solar Forecast ML is the only solar forecast integration that understands the me
 - Adaptive midday re-forecasts when conditions shift significantly.
 - Per-panel-group predictions with confidence scores.
 - Clean forecast evaluation separates real physical production from curtailed or excluded hours, so MPPT throttling, clipping, and weather-alert exclusions do not distort forecast-quality metrics.
+- **Rain-Gating for Similar Weather Relaxation:** Automatically suppresses historical similarity scaling when rain is forecast (precipitation > 0.3 mm or rain overcast regime), preventing overoptimistic spikes on wet days.
+- **Service-Triggered Reforecast Coupling:** Instantly recalculates rest-of-day operational snapshots (`ops_` tables) upon service call activation of hybrid or operational reforecast modes.
 
 ### 🧠 AI & Machine Learning
 - Hubble ensemble with Attention mechanisms for temporal reasoning.
@@ -169,6 +173,9 @@ Solar Forecast ML is the only solar forecast integration that understands the me
 - 28 engineered features: time, weather, astronomy, history, panel geometry.
 - Data filtering for anomalies (MPPT throttling, inverter clipping, zero-export limits, weather alerts, outliers, snow days).
 - Temporal lag features use clean historical production context, reducing contamination from technically curtailed or excluded bad-weather hours.
+- **Out-of-Process Subprocess Training:** Offloads CPU-intensive training of LSTM and MLP models to a separate background worker process to guarantee Home Assistant UI responsiveness.
+- **Panel Group Topology Epochs:** Versions capacity configurations historically to prevent capacity splits (e.g. adding panels) from polluting model training data.
+- **Forced AI-Floor Removal:** Deactivates the mandatory 30% AI floor in rule-based blending on dark/overcast days if physics MAE is superior to AI MAE, allowing the engine to adaptively scale down to a 12% cap.
 
 ### 🌦️ Weather Intelligence
 - Blends 5 sources (Open-Meteo, Bright Sky, Pirate Weather, wttr.in, ECMWF) with expert weighting.
@@ -181,6 +188,7 @@ Solar Forecast ML is the only solar forecast integration that understands the me
 - Frost/fog warnings via dew point and visibility analysis.
 - Full zero-export & battery-full curtailment support with weather/radiation plausibility checks before MPPT exclusions are applied.
 - Self-healing transactional SQLite database with crash recovery and 30-day backup retention.
+- **Self-Healing & Diagnostics (Hubble Persona):** Automatically validates configuration parameters on boot, monitors live sensor data for spikes, generates Repairs notifications, and performs daily EOD data hygiene checkups.
 
 ### ❄️ Seasonal Intelligence
 - Automatic Winter Mode (Nov–Feb) with low sun-angle adjustments.
@@ -396,7 +404,7 @@ Some files in this integration are obfuscated (encrypted) with an official **PyA
 
 The obfuscation has **no impact on functionality**. The integration works identically to the non-obfuscated version. Runtime overhead is minimal.
 
-*Solar Forecast ML — Copyright (C) 2026 Zara-Toorox · Protected with PyArmor 9.2.3*
+*Solar Forecast ML — Copyright (C) 2026 Zara-Toorox · Protected with PyArmor 9.2.4*
 
 ---
 

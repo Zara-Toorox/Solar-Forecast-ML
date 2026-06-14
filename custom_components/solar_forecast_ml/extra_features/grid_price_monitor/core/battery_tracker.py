@@ -120,7 +120,7 @@ class BatteryTracker:
         """Unload the battery tracker @zara"""
         self._unloaded = True
 
-        # Cancel pending save timer before closing DB @zara
+        # Cancel pending delayed save timer to prevent post-close DB access
         if self._save_timer_handle is not None:
             self._save_timer_handle.cancel()
             self._save_timer_handle = None
@@ -129,7 +129,7 @@ class BatteryTracker:
             self._unsub_state_change()
             self._unsub_state_change = None
 
-        # Final save before unloading (DB still open) @zara
+        # Final save before unloading (DB still open at this point)
         await self._async_save_data()
 
     @callback
@@ -137,6 +137,7 @@ class BatteryTracker:
         """Handle state changes of the power sensor @zara"""
         new_state = event.data.get("new_state")
         if new_state is None or new_state.state in ("unknown", "unavailable"):
+            self._last_update = None
             return
 
         try:
@@ -156,7 +157,7 @@ class BatteryTracker:
         # Left Riemann Sum: use the PREVIOUS power value for the interval
         if self._last_update is not None:
             # Calculate time delta in hours
-            delta_hours = (now - self._last_update).total_seconds() / 3600
+            delta_hours = max(0.0, (now - self._last_update).total_seconds() / 3600)
 
             # Energy = Power x Time (Wh)
             # Use previous power value (left Riemann sum)
@@ -195,6 +196,7 @@ class BatteryTracker:
                 self._energy_today_wh / 1000,
             )
             self._energy_today_wh = 0.0
+            self._schedule_save()
 
         # Weekly reset (on Monday)
         if self._current_week is not None and current_week != self._current_week:
@@ -203,6 +205,7 @@ class BatteryTracker:
                 self._energy_week_wh / 1000,
             )
             self._energy_week_wh = 0.0
+            self._schedule_save()
 
         # Monthly reset
         if self._current_month is not None and current_month != self._current_month:
@@ -211,6 +214,7 @@ class BatteryTracker:
                 self._energy_month_wh / 1000,
             )
             self._energy_month_wh = 0.0
+            self._schedule_save()
 
         # Update current date values
         self._current_day = current_day
@@ -221,7 +225,7 @@ class BatteryTracker:
     def _schedule_save(self) -> None:
         """Schedule a debounced save operation @zara"""
         if self._save_pending or self._unloaded:
-            return  # Already scheduled or shutting down
+            return  # Already scheduled or tracker shut down
 
         self._save_pending = True
 
@@ -232,7 +236,7 @@ class BatteryTracker:
             await self._async_save_data()
             self._save_pending = False
 
-        # Schedule save after interval, store handle for cancellation @zara
+        # Schedule save after interval
         self._save_timer_handle = self.hass.loop.call_later(
             self._save_interval_seconds,
             lambda: self.hass.async_create_task(_delayed_save())
@@ -338,6 +342,7 @@ class BatteryTracker:
 
     def get_statistics(self) -> dict[str, Any]:
         """Get all battery statistics @zara"""
+        self._check_date_resets(datetime.now(timezone.utc))
         return {
             "battery_power": self._last_power_w,
             "battery_charged_today": self.energy_today_kwh,

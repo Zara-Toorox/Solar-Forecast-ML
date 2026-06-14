@@ -2,7 +2,16 @@
 // (C) 2026 Zara-Toorox
 
 const WeatherPage = ((Vue) => {
-const { ref, reactive, computed, onMounted, onUnmounted, nextTick } = Vue;
+const { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
+
+function getThemeColor(varName, fallback) {
+    try {
+        const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        return val || fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
 
 const WEATHER_ICONS = {
     'clear-night': '\u{1F319}', 'sunny': '\u{2600}', 'clear': '\u{2600}',
@@ -237,7 +246,7 @@ const _WeatherPage = {
         </div>
     `,
 
-    setup() {
+    setup(props) {
         const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
         const locale = { value: window.SFMLI18n ? window.SFMLI18n.current : 'en' };
 
@@ -482,7 +491,7 @@ const _WeatherPage = {
         // Charts -------------------------------------------------------
         function renderForecastChart() {
             if (!forecastChartEl.value || !forecast.value.length) return;
-            if (!forecastChart) forecastChart = echarts.init(forecastChartEl.value, 'dark');
+            if (!forecastChart) forecastChart = echarts.init(forecastChartEl.value);
 
             const labels = forecast.value.map(r => {
                 const parts = r.time.split(' ');
@@ -504,23 +513,24 @@ const _WeatherPage = {
                 grid: { left: 55, right: 55, top: 30, bottom: 40 },
                 tooltip: {
                     trigger: 'axis',
-                    backgroundColor: 'rgba(15,23,42,0.95)',
-                    borderColor: '#334155',
-                    textStyle: { color: '#e2e8f0' },
+                    backgroundColor: getThemeColor('--bg-card', 'rgba(21, 28, 44, 0.85)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-family)', fontSize: 12 },
+                    extraCssText: 'backdrop-filter: blur(8px);',
                 },
                 legend: {
                     data: [t('weather.temperature'), t('weather.cloudCover'), t('weather.precipitation'), t('weather.wind')],
-                    top: 0, textStyle: { color: '#cbd5e1' },
+                    top: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e') },
                 },
                 xAxis: {
                     type: 'category',
                     data: dayLabels,
-                    axisLabel: { color: '#94a3b8', interval: 2, fontSize: 10 },
-                    axisLine: { lineStyle: { color: '#334155' } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), interval: 2, fontSize: 10 },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } },
                 },
                 yAxis: [
-                    { type: 'value', name: '°C', position: 'left', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
-                    { type: 'value', name: '%', position: 'right', max: 100, axisLabel: { color: '#94a3b8' }, splitLine: { show: false } },
+                    { type: 'value', name: '°C', position: 'left', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.06)') } } },
+                    { type: 'value', name: '%', position: 'right', max: 100, axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { show: false } },
                 ],
                 series: [
                     {
@@ -558,7 +568,7 @@ const _WeatherPage = {
 
         function renderRadiationChart() {
             if (!radiationChartEl.value) return;
-            if (!radiationChart) radiationChart = echarts.init(radiationChartEl.value, 'dark');
+            if (!radiationChart) radiationChart = echarts.init(radiationChartEl.value);
 
             const hours = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
             const actualMap = new Map(radiation.actual.map(r => [r.hour, r.ghi]));
@@ -568,10 +578,16 @@ const _WeatherPage = {
             radiationChart.setOption({
                 backgroundColor: 'transparent',
                 grid: { left: 55, right: 20, top: 30, bottom: 40 },
-                tooltip: { trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.95)', borderColor: '#334155', textStyle: { color: '#e2e8f0' } },
-                legend: { data: ['GHI Ist', 'GHI Forecast', 'DNI', 'DHI', 'Clear Sky'], top: 0, textStyle: { color: '#cbd5e1' } },
-                xAxis: { type: 'category', data: hours, axisLabel: { color: '#94a3b8', fontSize: 10, interval: 2 }, axisLine: { lineStyle: { color: '#334155' } } },
-                yAxis: { type: 'value', name: 'W/m²', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: getThemeColor('--bg-card', 'rgba(21, 28, 44, 0.85)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-family)', fontSize: 12 },
+                    extraCssText: 'backdrop-filter: blur(8px);',
+                },
+                legend: { data: ['GHI Ist', 'GHI Forecast', 'DNI', 'DHI', 'Clear Sky'], top: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e') } },
+                xAxis: { type: 'category', data: hours, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10, interval: 2 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
+                yAxis: { type: 'value', name: 'W/m²', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.06)') } } },
                 series: [
                     csMap.size > 0 ? {
                         name: 'Clear Sky', type: 'line',
@@ -616,18 +632,24 @@ const _WeatherPage = {
 
         function renderHistoryChart() {
             if (!historyChartEl.value || !history.data.length) return;
-            if (!historyChart) historyChart = echarts.init(historyChartEl.value, 'dark');
+            if (!historyChart) historyChart = echarts.init(historyChartEl.value);
 
             const dates = history.data.map(d => d.date);
             historyChart.setOption({
                 backgroundColor: 'transparent',
                 grid: { left: 55, right: 55, top: 30, bottom: 40 },
-                tooltip: { trigger: 'axis', backgroundColor: 'rgba(15,23,42,0.95)', borderColor: '#334155', textStyle: { color: '#e2e8f0' } },
-                legend: { data: [t('weather.tempAvg'), t('weather.tempMax'), t('weather.tempMin'), t('weather.precipitation')], top: 0, textStyle: { color: '#cbd5e1' } },
-                xAxis: { type: 'category', data: dates, axisLabel: { color: '#94a3b8', fontSize: 10 }, axisLine: { lineStyle: { color: '#334155' } } },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: getThemeColor('--bg-card', 'rgba(21, 28, 44, 0.85)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-family)', fontSize: 12 },
+                    extraCssText: 'backdrop-filter: blur(8px);',
+                },
+                legend: { data: [t('weather.tempAvg'), t('weather.tempMax'), t('weather.tempMin'), t('weather.precipitation')], top: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e') } },
+                xAxis: { type: 'category', data: dates, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
                 yAxis: [
-                    { type: 'value', name: '°C', axisLabel: { color: '#94a3b8' }, splitLine: { lineStyle: { color: '#1e293b' } } },
-                    { type: 'value', name: 'mm', position: 'right', axisLabel: { color: '#94a3b8' }, splitLine: { show: false } },
+                    { type: 'value', name: '°C', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.06)') } } },
+                    { type: 'value', name: 'mm', position: 'right', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { show: false } },
                 ],
                 series: [
                     { name: t('weather.tempMax'), type: 'line', data: history.data.map(d => d.temp_max), smooth: true, symbol: 'none', lineStyle: { color: '#ef4444', width: 1 }, itemStyle: { color: '#ef4444' } },
@@ -722,6 +744,17 @@ const _WeatherPage = {
             historyChart?.resize();
         }
 
+        watch(() => props.config?.theme, () => {
+            if (forecastChart) { forecastChart.dispose(); forecastChart = null; }
+            if (radiationChart) { radiationChart.dispose(); radiationChart = null; }
+            if (historyChart) { historyChart.dispose(); historyChart = null; }
+            nextTick(() => {
+                renderForecastChart();
+                renderRadiationChart();
+                renderHistoryChart();
+            });
+        });
+
         return {
             current, forecast, radiation, clothing, translateClothing, astronomy, history,
             historyTab, historyTabs, lastUpdated,
@@ -751,7 +784,7 @@ const _WeatherPage = {
             gap: var(--space-lg);
             align-items: center;
             padding-bottom: var(--space-lg);
-            border-bottom: 1px solid rgba(255,255,255,0.06);
+            border-bottom: 1px solid var(--border-default);
         }
         .weather-hero-icon { font-size: 4rem; line-height: 1; }
         .weather-hero-temp {
@@ -767,7 +800,7 @@ const _WeatherPage = {
             border-radius: 12px;
             text-align: center;
             min-width: 140px;
-            border: 1px solid rgba(255,255,255,0.08);
+            border: 1px solid var(--border-default);
         }
         .potential-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
         .potential-value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
@@ -778,7 +811,7 @@ const _WeatherPage = {
         .potential-poor { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); }
         .potential-poor .potential-value { color: #ef4444; }
         .potential-none .potential-value { color: var(--text-muted); }
-
+ 
         .weather-stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -787,9 +820,16 @@ const _WeatherPage = {
         }
         .weather-stat {
             padding: var(--space-md);
-            background: rgba(255,255,255,0.03);
-            border-radius: 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
             text-align: center;
+            transition: all var(--transition-normal);
+        }
+        .weather-stat:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
         }
         .weather-stat-icon { font-size: 1.2rem; margin-bottom: 4px; opacity: 0.8; }
         .weather-stat-value {
@@ -833,7 +873,8 @@ const _WeatherPage = {
             line-height: 1.5;
             margin: 0 0 var(--space-md);
             padding: var(--space-sm);
-            background: rgba(255,255,255,0.03);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
             border-radius: 6px;
         }
         .clothing-grid {
@@ -844,8 +885,15 @@ const _WeatherPage = {
         .clothing-item {
             text-align: center;
             padding: var(--space-md) var(--space-sm);
-            background: rgba(255,255,255,0.03);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
             border-radius: 8px;
+            transition: all var(--transition-normal);
+        }
+        .clothing-item:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
         }
         .clothing-icon { font-size: 2rem; }
         .clothing-name { font-weight: 600; margin-top: 6px; font-size: 0.85rem; }
@@ -868,8 +916,15 @@ const _WeatherPage = {
         .astro-item {
             text-align: center;
             padding: var(--space-md) var(--space-sm);
-            background: rgba(255,255,255,0.03);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
             border-radius: 8px;
+            transition: all var(--transition-normal);
+        }
+        .astro-item:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
         }
         .astro-icon { font-size: 1.6rem; }
         .astro-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600; margin-top: 4px; color: var(--text-primary); }
@@ -881,16 +936,19 @@ const _WeatherPage = {
         .history-tab {
             padding: 6px 14px;
             background: transparent;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid var(--border-default);
             color: var(--text-muted);
             border-radius: 6px;
             cursor: pointer;
             font-size: 0.85rem;
-            transition: all 0.15s;
+            transition: all var(--transition-normal);
         }
-        .history-tab:hover { color: var(--text-primary); border-color: rgba(0,212,255,0.4); }
+        .history-tab:hover {
+            color: var(--text-primary);
+            border-color: var(--accent);
+        }
         .history-tab.active {
-            background: rgba(0,212,255,0.12);
+            background: var(--bg-card-hover);
             color: var(--accent);
             border-color: var(--accent);
         }
@@ -907,8 +965,15 @@ const _WeatherPage = {
         .history-kpi {
             text-align: center;
             padding: var(--space-md) var(--space-sm);
-            background: rgba(255,255,255,0.03);
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
             border-radius: 8px;
+            transition: all var(--transition-normal);
+        }
+        .history-kpi:hover {
+            background: var(--bg-card-hover);
+            border-color: var(--border-hover);
+            transform: translateY(-2px);
         }
         .history-kpi-value { font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--text-primary); }
         .history-kpi-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em; }

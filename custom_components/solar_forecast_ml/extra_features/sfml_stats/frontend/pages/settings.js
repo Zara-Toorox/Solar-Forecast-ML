@@ -7,7 +7,7 @@ const SettingsPage = {
     template: `
         <div class="page page-settings">
             <div class="section-header">
-                <span class="section-title">{{ $t('nav.settings') }}</span>
+                <span class="section-title">{{ $t('common.settings') }}</span>
             </div>
 
             <div class="settings-accordion">
@@ -25,6 +25,15 @@ const SettingsPage = {
                                         @change="changeLocale($event.target.value)"
                                         :title="$t('common.language')">
                                     <option v-for="code in supportedLocales" :key="code" :value="code">{{ localeName(code) }}</option>
+                                </select>
+                            </div>
+                            <div class="settings-item">
+                                <span class="settings-item-label">{{ $t('settings.theme') }}</span>
+                                <select class="language-picker settings-language-picker" :value="config.theme"
+                                        @change="changeTheme($event.target.value)"
+                                        :title="$t('settings.theme')">
+                                    <option value="dark">{{ $t('settings.themeDark') }}</option>
+                                    <option value="light">{{ $t('settings.themeLight') }}</option>
                                 </select>
                             </div>
                         </div>
@@ -47,6 +56,21 @@ const SettingsPage = {
                             </div>
                             <div v-if="sensors.length === 0" class="empty-state">{{ $t('settings.noSensors') }}</div>
                         </div>
+
+                        <!-- Configured Consumers Status -->
+                        <div v-if="configuredConsumers && configuredConsumers.length > 0" class="missing-helpers-section">
+                            <div class="missing-helpers-title">{{ $t('settings.consumersStatusTitle') || 'Großverbraucher-Status' }}</div>
+                            <div v-for="c in configuredConsumers" :key="c.config_key" class="missing-helper-row">
+                                <div class="helper-info">
+                                    <span class="helper-name">{{ getConsumerName(c.config_key) }}</span>
+                                    <span class="helper-desc">
+                                        <span v-if="c.mode === 'sensor'">{{ $t('home.hubble.answer.consumerSensorMode') || 'Nutzt konfigurierten Zählersensor' }}: {{ c.daily_entity_id }}</span>
+                                        <span v-else>{{ $t('home.hubble.answer.consumerIntegratedMode') || 'Automatische Integration aus Leistungssensor' }}: {{ c.power_entity_id }}</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
                         <a class="settings-link" :href="haConfigUrl" target="_blank" rel="noopener">
                             {{ $t('settings.configureSensors') }} &rarr;
                         </a>
@@ -304,7 +328,7 @@ const SettingsPage = {
         </div>
     `,
 
-    setup(props) {
+    setup(props, { emit }) {
         const { ref: vRef, reactive, computed, onMounted } = Vue;
         const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
         const currentLocale = vRef((window.SFMLI18n && window.SFMLI18n.current) || 'en');
@@ -315,6 +339,9 @@ const SettingsPage = {
         const changeLocale = (code) => {
             currentLocale.value = code;
             if (window.SFMLI18n) window.SFMLI18n.setLocale(code);
+        };
+        const changeTheme = (theme) => {
+            emit('change-theme', theme);
         };
 
         // Sensor friendly_name values arrive in German from the backend
@@ -402,6 +429,7 @@ const SettingsPage = {
         const exporting = vRef(false);
 
         const sensors = vRef([]);
+        const configuredConsumers = vRef([]);
         const priceInfo = reactive({ country: '', vat: null, mode: '', energy_price: null, grid_fees: null, base_fee: null, feed_in_tariff: null });
         const chargingInfo = reactive({
             enabled: false, capacity: null, min_soc: null, max_soc: null,
@@ -548,6 +576,9 @@ const SettingsPage = {
                         available: s.available !== false,
                     }));
 
+                    // Configured consumers status
+                    configuredConsumers.value = dashboard.configured_consumers || [];
+
                     // Price config
                     const pc = dashboard.price || {};
                     priceInfo.country = pc.country || props.config?.country || '';
@@ -588,6 +619,15 @@ const SettingsPage = {
             }
         }
 
+        const getConsumerName = (key) => {
+            const names = {
+                heatpump: t('flow.consumer.heatpump') || 'Wärmepumpe',
+                heatingrod: t('flow.consumer.heatingrod') || 'Heizstab',
+                wallbox: t('flow.consumer.wallbox') || 'Wallbox',
+            };
+            return names[key] || key;
+        };
+
         async function exportCsv() {
             exporting.value = true;
             try {
@@ -620,7 +660,8 @@ const SettingsPage = {
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
             toggle, exportCsv, formatDate, openIntegration,
             translateSensorLabel, translateSensorState,
-            currentLocale, supportedLocales, localeName, changeLocale,
+            currentLocale, supportedLocales, localeName, changeLocale, changeTheme,
+            configuredConsumers, getConsumerName,
         };
     },
 };
@@ -787,7 +828,7 @@ const SettingsPage = {
             color: var(--warning);
         }
         .settings-item-value.val-critical {
-            color: var(--error);
+            color: var(--danger);
         }
         .panel-group-card {
             background: rgba(255,255,255,0.03);
@@ -868,6 +909,81 @@ const SettingsPage = {
             font-size: 0.75rem;
             color: var(--text-muted);
         }
+        .missing-helpers-section {
+            margin-top: var(--space-md);
+            padding: var(--space-md);
+            border-top: 1px solid var(--border-default);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: var(--radius-md);
+        }
+        .missing-helpers-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--warning);
+            margin-bottom: var(--space-sm);
+        }
+        .missing-helper-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-md);
+            padding: var(--space-sm) 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .missing-helper-row:last-child {
+            border-bottom: none;
+        }
+        .helper-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .helper-info .helper-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .helper-info .helper-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .create-helper-btn {
+            padding: 6px 12px;
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        .create-helper-btn:hover:not(:disabled) {
+            background: rgba(234, 179, 8, 0.2);
+            color: var(--text-primary);
+        }
+        .create-helper-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .helper-status-msg {
+            margin-top: var(--space-sm);
+            padding: 8px var(--space-md);
+            border-radius: var(--radius-sm);
+            font-size: 0.8rem;
+            text-align: center;
+        }
+        .helper-status-msg.success {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+        .helper-status-msg.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
         @media (max-width: 768px) {
             .sensor-row {
                 grid-template-columns: 16px 1fr auto;
@@ -879,6 +995,13 @@ const SettingsPage = {
                 grid-template-columns: 1fr 1fr;
             }
         }
+
+        /* Light theme overrides for transparent layers */
+        [data-theme="light"] .accordion-badge.neutral { background: rgba(15, 23, 42, 0.03); }
+        [data-theme="light"] .sensor-row:hover { background: rgba(15, 23, 42, 0.02); }
+        [data-theme="light"] .panel-group-card { background: rgba(15, 23, 42, 0.015); }
+        [data-theme="light"] .ai-physics-item { background: rgba(15, 23, 42, 0.015); }
+        [data-theme="light"] .missing-helpers-section { background: rgba(15, 23, 42, 0.015); }
     `;
     document.head.appendChild(style);
 })();

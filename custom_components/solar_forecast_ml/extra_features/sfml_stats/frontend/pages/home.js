@@ -4,6 +4,15 @@
 const HomePage = ((Vue) => {
 const { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } = Vue;
 
+function getThemeColor(varName, fallback) {
+    try {
+        const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        return val || fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
+
 const WEATHER_SYMBOLS = {
     'clear-night': '🌙',
     'cloudy': '☁',
@@ -36,6 +45,86 @@ function forecastBandColorFromAccuracy(accuracyPercent) {
     return forecastBandColor(100 - accuracyPercent);
 }
 
+const STATUS_TRANSLATIONS = {
+    de: {
+        producing: 'Erzeugt',
+        idle: 'Inaktiv',
+        charging: 'Laden',
+        discharging: 'Entladen',
+        standby: 'Standby',
+        grid_import: 'Netzbezug',
+        grid_export: 'Einspeisung',
+        grid_neutral: 'Neutral',
+        home_desc: 'Hausverbrauch',
+        solar: 'SOLAR',
+        home: 'BEDARF',
+        battery: 'AKKU',
+        grid: 'NETZ',
+        car: 'AUTO',
+        peakToday: 'PEAK HEUTE',
+        alltime: 'ALLTIME',
+    },
+    en: {
+        producing: 'Producing',
+        idle: 'Idle',
+        charging: 'Charging',
+        discharging: 'Discharging',
+        standby: 'Standby',
+        grid_import: 'Grid Import',
+        grid_export: 'Grid Export',
+        grid_neutral: 'Neutral',
+        home_desc: 'House Consumption',
+        solar: 'SOLAR',
+        home: 'BEDARF',
+        battery: 'AKKU',
+        grid: 'NETZ',
+        car: 'AUTO',
+        peakToday: 'PEAK TODAY',
+        alltime: 'ALLTIME',
+    },
+    pl: {
+        producing: 'Produkcja',
+        idle: 'Brak',
+        charging: 'Ładowanie',
+        discharging: 'Rozładowywanie',
+        standby: 'Czuwanie',
+        grid_import: 'Pobór z sieci',
+        grid_export: 'Oddawanie do sieci',
+        grid_neutral: 'Neutralny',
+        home_desc: 'Zużycie domu',
+        solar: 'SOLAR',
+        home: 'BEDARF',
+        battery: 'AKKU',
+        grid: 'NETZ',
+        car: 'AUTO',
+        peakToday: 'SZCZYT DZIŚ',
+        alltime: 'ALLTIME',
+    }
+};
+
+function pathWidth(power) {
+    const p = Math.max(0, Number(power) || 0);
+    if (p <= 0) return 2.5;
+    return 2.5 + Math.min(3.5, Math.sqrt(p) * 0.08);
+}
+
+function particleCount(power) {
+    const p = Math.max(0, Number(power) || 0);
+    if (p <= 0) return 0;
+    if (p < 400) return 2;
+    if (p < 1200) return 3;
+    return 4;
+}
+
+function particleDuration(power) {
+    const p = Math.max(0, Number(power) || 0);
+    if (p <= 0) return '5s';
+    if (p < 400) return '4s';
+    if (p < 1200) return '3s';
+    return '2s';
+}
+
+
 const _HomePage = {
     props: {
         liveData: { type: Object, required: true },
@@ -49,375 +138,156 @@ const _HomePage = {
         <!-- ========== SECTION 1: 3D ISOMETRIC ENERGY FLOW + INFO PANEL ========== -->
         <div class="energy-flow-container" style="min-height: 45vh">
             <div class="chart-header">
-                <div style="display:flex; align-items:baseline; gap:0; flex-wrap:wrap;">
-                    <span class="chart-title" style="margin-right:24px;">{{ $t('home.energyFlow') }}</span>
-                    <span v-if="infoData.outdoorTemperatureLabel" style="font-size:0.95rem; color:var(--text-muted); font-family:var(--font-mono); letter-spacing:0.01em;">
-                        {{ infoData.outdoorTemperatureLabel }}
-                    </span>
+                <div style="display:flex; align-items:center; gap:var(--space-sm); flex-wrap:wrap;">
+                    <span class="chart-title">{{ $t('home.energyFlow') }}</span>
+                    <div class="weather-badges" v-if="infoData.outdoorTemp != null || infoData.outdoorClouds != null">
+                        <div class="weather-badge temp-badge" v-if="infoData.outdoorTemp != null" :title="$t('weather.temperature')">
+                            <span class="badge-icon">🌡️</span>
+                            <span class="badge-val">{{ infoData.outdoorTemp.toFixed(1) }}°C</span>
+                        </div>
+                        <div class="weather-badge clouds-badge" v-if="infoData.outdoorClouds != null" :title="$t('weather.cloudCover')">
+                            <span class="badge-icon">{{ getWeatherSymbol(infoData.outdoorCondition, infoData.outdoorClouds) }}</span>
+                            <span class="badge-val">{{ Math.round(infoData.outdoorClouds) }}% {{ $t('weather.cloudCover') }}</span>
+                        </div>
+                        <div class="weather-badge source-badge" v-if="infoData.outdoorSource === 'forecast'">
+                            <span class="badge-val">{{ $t('common.forecast') }}</span>
+                        </div>
+                    </div>
                 </div>
-                <span class="flow-time" style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono)">
-                    {{ currentTime }}
-                </span>
+                <div class="time-badge">
+                    <span class="badge-icon">🕒</span>
+                    <span class="flow-time">{{ currentTime }}</span>
+                </div>
             </div>
-
             <div class="flow-layout">
-
-            <svg class="isometric-energy-flow" viewBox="0 0 900 520" preserveAspectRatio="xMidYMid meet"
-                 style="width:100%; height:auto; max-height:45vh; display:block;">
-
-                <!-- ========== DAY/NIGHT SKY EFFECTS ========== -->
-                <g v-if="isNightTime" class="night-sky">
-                    <circle cx="50" cy="30" r="2" fill="#ffffff" class="star star-twinkle-1"/>
-                    <circle cx="150" cy="60" r="1.5" fill="#ffffff" class="star star-twinkle-2"/>
-                    <circle cx="280" cy="25" r="2.5" fill="#ffffff" class="star star-twinkle-3"/>
-                    <circle cx="420" cy="45" r="1.8" fill="#ffffff" class="star star-twinkle-1"/>
-                    <circle cx="550" cy="20" r="2" fill="#ffffff" class="star star-twinkle-2"/>
-                    <circle cx="680" cy="55" r="2.2" fill="#ffffff" class="star star-twinkle-3"/>
-                    <circle cx="800" cy="35" r="1.5" fill="#ffffff" class="star star-twinkle-1"/>
-                    <circle cx="850" cy="70" r="2" fill="#ffffff" class="star star-twinkle-2"/>
-                    <circle cx="100" cy="80" r="1.2" fill="#c0c0ff" class="star star-twinkle-2"/>
-                    <circle cx="200" cy="40" r="1" fill="#c0c0ff" class="star star-twinkle-3"/>
-                    <circle cx="350" cy="70" r="1.3" fill="#c0c0ff" class="star star-twinkle-1"/>
-                    <circle cx="500" cy="50" r="1" fill="#c0c0ff" class="star star-twinkle-2"/>
-                    <circle cx="620" cy="30" r="1.2" fill="#c0c0ff" class="star star-twinkle-3"/>
-                    <circle cx="750" cy="65" r="1" fill="#c0c0ff" class="star star-twinkle-1"/>
-                    <circle cx="75" cy="50" r="0.8" fill="#8080ff" class="star star-twinkle-3"/>
-                    <circle cx="180" cy="85" r="0.6" fill="#8080ff" class="star star-twinkle-1"/>
-                    <circle cx="320" cy="35" r="0.7" fill="#8080ff" class="star star-twinkle-2"/>
-                    <circle cx="460" cy="75" r="0.8" fill="#8080ff" class="star star-twinkle-3"/>
-                    <circle cx="580" cy="40" r="0.6" fill="#8080ff" class="star star-twinkle-1"/>
-                    <circle cx="720" cy="80" r="0.7" fill="#8080ff" class="star star-twinkle-2"/>
-                    <circle cx="820" cy="45" r="0.8" fill="#8080ff" class="star star-twinkle-3"/>
-                    <path d="M780,30 A30,30 0 1,1 780,90 A22,22 0 1,0 780,30 Z"
-                          fill="#fffacd" opacity="0.3" filter="url(#glowCyan)"/>
-                    <path d="M780,35 A25,25 0 1,1 780,85 A18,18 0 1,0 780,35 Z"
-                          fill="#fffacd" opacity="1"/>
-                    <path d="M780,40 A23,23 0 0,1 780,80 A16,16 0 0,0 780,40 Z"
-                          fill="#fff" opacity="0.3"/>
-                </g>
-
-                <g v-else class="day-sky">
-                    <circle cx="820" cy="60" r="50" fill="url(#sunGlowGrad)" class="sun-glow" opacity="0.4"/>
-                    <circle cx="820" cy="60" r="30" fill="#ffd60a" class="sun-body" filter="url(#glowYellow)"/>
-                    <circle cx="820" cy="60" r="22" fill="#ffeb3b"/>
-                    <g class="sun-rays">
-                        <line x1="820" y1="15" x2="820" y2="0" stroke="#ffd60a" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
-                        <line x1="820" y1="105" x2="820" y2="120" stroke="#ffd60a" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
-                        <line x1="775" y1="60" x2="760" y2="60" stroke="#ffd60a" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
-                        <line x1="865" y1="60" x2="880" y2="60" stroke="#ffd60a" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
-                        <line x1="788" y1="28" x2="778" y2="18" stroke="#ffd60a" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
-                        <line x1="852" y1="92" x2="862" y2="102" stroke="#ffd60a" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
-                        <line x1="788" y1="92" x2="778" y2="102" stroke="#ffd60a" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
-                        <line x1="852" y1="28" x2="862" y2="18" stroke="#ffd60a" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
-                    </g>
-                </g>
-
+            <svg class="isometric-energy-flow" viewBox="0 0 1024 576" preserveAspectRatio="xMidYMid meet"
+                 style="width:100%; height:auto; display:block;">
                 <defs>
-                    <radialGradient id="sunGlowGrad" cx="50%" cy="50%" r="50%">
-                        <stop offset="0%" stop-color="#ffd60a" stop-opacity="0.8"/>
-                        <stop offset="50%" stop-color="#ff9500" stop-opacity="0.3"/>
-                        <stop offset="100%" stop-color="#ff9500" stop-opacity="0"/>
-                    </radialGradient>
-                    <linearGradient id="houseWallGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#2a4a6a"/>
-                        <stop offset="100%" stop-color="#1a3050"/>
-                    </linearGradient>
-                    <linearGradient id="houseRoofGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stop-color="#4a7090"/>
-                        <stop offset="100%" stop-color="#2a5070"/>
-                    </linearGradient>
-                    <linearGradient id="solarPanelGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#1a3a5a"/>
-                        <stop offset="50%" stop-color="#0a2540"/>
-                        <stop offset="100%" stop-color="#1a4a6a"/>
-                    </linearGradient>
-                    <linearGradient id="reactorPlasmaGreen" x1="0%" y1="100%" x2="0%" y2="0%">
-                        <stop offset="0%" stop-color="#22c55e"/>
-                        <stop offset="50%" stop-color="#4ade80"/>
-                        <stop offset="100%" stop-color="#86efac"/>
-                    </linearGradient>
-                    <linearGradient id="reactorPlasmaGold" x1="0%" y1="100%" x2="0%" y2="0%">
-                        <stop offset="0%" stop-color="#b45309"/>
-                        <stop offset="50%" stop-color="#fbbf24"/>
-                        <stop offset="100%" stop-color="#fde68a"/>
-                    </linearGradient>
-                    <linearGradient id="reactorPlasmaGray" x1="0%" y1="100%" x2="0%" y2="0%">
-                        <stop offset="0%" stop-color="#475569"/>
-                        <stop offset="50%" stop-color="#64748b"/>
-                        <stop offset="100%" stop-color="#94a3b8"/>
-                    </linearGradient>
-                    <linearGradient id="gridBoxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stop-color="#3a2a5a"/>
-                        <stop offset="100%" stop-color="#2a1a4a"/>
-                    </linearGradient>
-                    <filter id="glowCyan" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="4" result="blur"/>
-                        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                    <filter id="flowSoftGlow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur stdDeviation="6" result="blur"/>
+                        <feMerge>
+                            <feMergeNode in="blur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
                     </filter>
-                    <filter id="glowYellow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="3" result="blur"/>
-                        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                    </filter>
-                    <filter id="glowGreen" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="3" result="blur"/>
-                        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                    </filter>
-                    <filter id="glowPurple" x="-50%" y="-50%" width="200%" height="200%">
-                        <feGaussianBlur stdDeviation="3" result="blur"/>
-                        <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-                    </filter>
-                    <filter id="shadowFilter" x="-20%" y="-20%" width="140%" height="140%">
-                        <feDropShadow dx="2" dy="4" stdDeviation="3" flood-color="#000" flood-opacity="0.5"/>
-                    </filter>
+                    <marker id="leaderDot" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6">
+                        <circle cx="5" cy="5" r="3" class="leader-dot-circle" />
+                    </marker>
                 </defs>
 
-                <!-- ========== ISOMETRIC HOUSE (Top Center) ========== -->
-                <g class="iso-house iso-element-clickable" @click="() => {}" transform="translate(390, 50) scale(1.4)">
-                    <ellipse cx="40" cy="120" rx="70" ry="20" fill="#000" opacity="0.3"/>
-                    <polygon points="0,60 0,120 60,150 60,90" fill="url(#houseWallGrad)" stroke="#00d4ff" stroke-width="1" opacity="0.9"/>
-                    <polygon points="60,90 60,150 120,120 120,60" fill="#1a3a5a" stroke="#00d4ff" stroke-width="1" opacity="0.9"/>
-                    <polygon points="0,60 60,30 120,60 60,90" fill="url(#houseRoofGrad)" stroke="#00d4ff" stroke-width="1"/>
-                    <polygon points="60,0 -10,50 60,80 60,0" fill="#3a5a7a" stroke="#00d4ff" stroke-width="1"/>
-                    <polygon points="60,0 130,50 60,80 60,0" fill="#2a4a6a" stroke="#00d4ff" stroke-width="1"/>
-                    <polygon points="85,15 85,40 100,32 100,7" fill="#4a6a8a" stroke="#00d4ff" stroke-width="0.5"/>
-                    <polygon points="85,15 100,7 105,10 90,18" fill="#5a7a9a" stroke="#00d4ff" stroke-width="0.5"/>
-                    <rect x="10" y="75" width="20" height="25" fill="rgba(0, 212, 255, 0.3)" stroke="#00d4ff" stroke-width="1" transform="skewY(26.5)"/>
-                    <rect x="35" y="75" width="15" height="25" fill="rgba(0, 212, 255, 0.3)" stroke="#00d4ff" stroke-width="1" transform="skewY(26.5)"/>
-                    <polygon points="75,95 75,135 95,125 95,85" fill="rgba(0, 212, 255, 0.4)" stroke="#00d4ff" stroke-width="1"/>
-                    <rect x="12" y="78" width="16" height="20" fill="#00d4ff" opacity="0.2" transform="skewY(26.5)">
-                        <animate attributeName="opacity" values="0.2;0.4;0.2" dur="3s" repeatCount="indefinite"/>
-                    </rect>
-                </g>
+                <!-- Background Rendered Image (Full Image, y=0) -->
+                <image href="/api/sfml_stats/static/solar_house_flow_bg.png" x="0" y="0" width="1024" height="576"/>
 
-                <text x="590" y="210" fill="#00d4ff" font-size="22" font-weight="bold" text-anchor="start" filter="url(#glowCyan)">
-                    {{ flow.home_consumption?.toFixed(0) || '0' }} W
-                </text>
-
-                <!-- ========== ISOMETRIC SOLAR PANELS (Left-Center) ========== -->
-                <g class="iso-solar iso-element-clickable" @click="() => {}" transform="translate(55, 80) scale(1.25)">
-                    <line x1="30" y1="130" x2="30" y2="80" stroke="#4a6a8a" stroke-width="3"/>
-                    <line x1="90" y1="130" x2="90" y2="80" stroke="#4a6a8a" stroke-width="3"/>
-                    <line x1="60" y1="145" x2="60" y2="60" stroke="#4a6a8a" stroke-width="4"/>
-                    <ellipse cx="60" cy="145" rx="50" ry="15" fill="#000" opacity="0.3"/>
-                    <g class="panel-s1">
-                        <polygon points="20,20 60,0 100,20 60,40" fill="url(#solarPanelGrad)" stroke="#00d4ff" stroke-width="1"/>
-                        <line x1="40" y1="10" x2="40" y2="30" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <line x1="60" y1="5" x2="60" y2="35" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <line x1="80" y1="10" x2="80" y2="30" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <polygon points="25,18 45,8 50,12 30,22" fill="#4a8aaa" opacity="0.3"/>
-                    </g>
-                    <g class="panel-s2">
-                        <polygon points="15,45 55,25 95,45 55,65" fill="url(#solarPanelGrad)" stroke="#00d4ff" stroke-width="1"/>
-                        <line x1="35" y1="35" x2="35" y2="55" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <line x1="55" y1="30" x2="55" y2="60" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <line x1="75" y1="35" x2="75" y2="55" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <polygon points="20,43 40,33 45,37 25,47" fill="#4a8aaa" opacity="0.3"/>
-                    </g>
-                    <g class="panel-s3">
-                        <polygon points="10,70 50,50 90,70 50,90" fill="url(#solarPanelGrad)" stroke="#00d4ff" stroke-width="1"/>
-                        <line x1="30" y1="60" x2="30" y2="80" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <line x1="50" y1="55" x2="50" y2="85" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <line x1="70" y1="60" x2="70" y2="80" stroke="#00d4ff" stroke-width="0.5" opacity="0.5"/>
-                        <polygon points="15,68 35,58 40,62 20,72" fill="#4a8aaa" opacity="0.3"/>
-                    </g>
-                    <circle cx="60" cy="40" r="8" fill="#ffdd00" opacity="0.15">
-                        <animate attributeName="opacity" values="0.1;0.25;0.1" dur="2s" repeatCount="indefinite"/>
-                        <animate attributeName="r" values="6;10;6" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                </g>
-
-                <text x="10" y="210" fill="#ffdd00" font-size="22" font-weight="bold" text-anchor="start" filter="url(#glowYellow)">
-                    {{ flow.solar_power?.toFixed(0) || '0' }} W
-                </text>
-
-                <!-- ========== ISOMETRIC BATTERY (Bottom-Left - Hexagonal Reactor) ========== -->
-                <g class="iso-battery iso-element-clickable" @click="() => {}" transform="translate(140, 340) scale(1.4)">
-                    <ellipse cx="50" cy="110" rx="45" ry="15" fill="#000" opacity="0.5"/>
-                    <polygon points="50,100 90,82 90,55 50,37 10,55 10,82" fill="rgba(20, 40, 35, 0.8)" stroke="#22c55e" stroke-width="1.5"/>
-                    <polygon points="50,37 90,55 90,82 50,100 10,82 10,55" fill="none" stroke="#fbbf24" stroke-width="0.5" opacity="0.5"/>
-                    <ellipse cx="50" cy="78" rx="32" ry="12" fill="none" stroke="#22c55e" stroke-width="2" opacity="0.8"/>
-                    <ellipse cx="50" cy="78" rx="28" ry="10" fill="rgba(34, 197, 94, 0.1)" stroke="#22c55e" stroke-width="1" opacity="0.5"/>
-                    <ellipse cx="50" cy="55" rx="18" ry="7" :fill="flow.battery_power > 0 ? 'rgba(34, 197, 94, 0.3)' : (flow.battery_power < 0 ? 'rgba(251, 191, 36, 0.3)' : 'rgba(100, 116, 139, 0.3)')" />
-                    <ellipse cx="50" cy="55" rx="12" ry="5" :fill="flow.battery_power > 0 ? '#22c55e' : (flow.battery_power < 0 ? '#fbbf24' : '#64748b')" filter="url(#glowGreen)">
-                        <animate attributeName="opacity" values="0.8;1;0.8" dur="1.5s" repeatCount="indefinite"/>
-                    </ellipse>
-                    <rect x="46" y="18" width="8" height="37" :fill="flow.battery_power > 0 ? 'url(#reactorPlasmaGreen)' : (flow.battery_power < 0 ? 'url(#reactorPlasmaGold)' : 'url(#reactorPlasmaGray)')" opacity="0.8" rx="4"/>
-                    <rect x="48" y="20" width="4" height="33" fill="#fff" opacity="0.3" rx="2">
-                        <animate attributeName="opacity" values="0.2;0.5;0.2" dur="0.8s" repeatCount="indefinite"/>
-                    </rect>
-                    <g transform="translate(50, 25)">
-                        <ellipse cx="0" cy="0" rx="22" ry="8" fill="none" stroke="#22c55e" stroke-width="2" stroke-dasharray="8,4" opacity="0.9">
-                            <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="8s" repeatCount="indefinite"/>
-                        </ellipse>
-                        <ellipse cx="0" cy="0" rx="16" ry="6" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="6,6" opacity="0.7">
-                            <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="6s" repeatCount="indefinite"/>
-                        </ellipse>
-                    </g>
-                    <g transform="translate(50, 42)">
-                        <ellipse cx="0" cy="0" rx="26" ry="10" fill="none" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="10,5" opacity="0.6">
-                            <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="10s" repeatCount="indefinite"/>
-                        </ellipse>
-                    </g>
-                    <g transform="translate(50, 78)">
-                        <ellipse cx="0" cy="0" rx="38" ry="14" fill="none" stroke="#1a4a3a" stroke-width="4" opacity="0.5"/>
-                        <ellipse cx="0" cy="0" rx="38" ry="14" fill="none" stroke="#22c55e" stroke-width="4"
-                            :stroke-dasharray="(flow.battery_soc || 0) * 2.4 + ' 240'"
-                            stroke-linecap="round" filter="url(#glowGreen)"/>
-                    </g>
-                    <circle cx="10" cy="55" r="3" fill="#fbbf24" filter="url(#glowYellow)">
-                        <animate attributeName="r" values="2;3;2" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <circle cx="90" cy="55" r="3" fill="#fbbf24" filter="url(#glowYellow)">
-                        <animate attributeName="r" values="2;3;2" dur="2s" repeatCount="indefinite" begin="0.5s"/>
-                    </circle>
-                    <circle cx="50" cy="37" r="3" fill="#22c55e" filter="url(#glowGreen)">
-                        <animate attributeName="r" values="2;4;2" dur="1.5s" repeatCount="indefinite"/>
-                    </circle>
-                    <rect x="30" y="85" width="40" height="18" fill="rgba(0,0,0,0.8)" rx="3" stroke="#22c55e" stroke-width="0.5"/>
-                    <text x="50" y="98" fill="#22c55e" font-size="12" font-weight="bold" text-anchor="middle" filter="url(#glowGreen)">
-                        {{ flow.battery_soc?.toFixed(0) || '0' }}%
-                    </text>
-                    <circle cx="50" cy="8" r="5" :fill="flow.battery_power > 0 ? '#22c55e' : (flow.battery_power < 0 ? '#fbbf24' : '#64748b')" filter="url(#glowGreen)">
-                        <animate attributeName="opacity" values="1;0.4;1" dur="1s" repeatCount="indefinite"/>
-                    </circle>
-                </g>
-
-                <text x="130" y="450" fill="#22c55e" font-size="18" font-weight="bold" text-anchor="end" filter="url(#glowGreen)">
-                    {{ flow.battery_power > 0 ? '+' : '' }}{{ flow.battery_power?.toFixed(0) || '0' }} W
-                </text>
-
-                <!-- ========== ISOMETRIC GRID TOWER (Bottom-Right) ========== -->
-                <g class="iso-grid iso-element-clickable" @click="() => {}" transform="translate(690, 340) scale(1.3)">
-                    <ellipse cx="45" cy="120" rx="40" ry="12" fill="#000" opacity="0.5"/>
-                    <polygon points="45,115 85,97 85,75 45,57 5,75 5,97" fill="rgba(30, 20, 50, 0.8)" stroke="#8b5cf6" stroke-width="1.5"/>
-                    <polygon points="45,57 85,75 85,97 45,115 5,97 5,75" fill="none" stroke="#ff2e97" stroke-width="0.5" opacity="0.5"/>
-                    <line x1="25" y1="75" x2="35" y2="0" stroke="#8b5cf6" stroke-width="3"/>
-                    <line x1="25" y1="75" x2="35" y2="0" stroke="#c4b5fd" stroke-width="1" opacity="0.5"/>
-                    <line x1="65" y1="75" x2="55" y2="0" stroke="#8b5cf6" stroke-width="3"/>
-                    <line x1="65" y1="75" x2="55" y2="0" stroke="#c4b5fd" stroke-width="1" opacity="0.5"/>
-                    <line x1="28" y1="60" x2="62" y2="60" stroke="#8b5cf6" stroke-width="2"/>
-                    <line x1="31" y1="45" x2="59" y2="45" stroke="#8b5cf6" stroke-width="2"/>
-                    <line x1="34" y1="30" x2="56" y2="30" stroke="#8b5cf6" stroke-width="1.5"/>
-                    <line x1="37" y1="15" x2="53" y2="15" stroke="#8b5cf6" stroke-width="1.5"/>
-                    <line x1="28" y1="60" x2="59" y2="45" stroke="#8b5cf6" stroke-width="1" opacity="0.7"/>
-                    <line x1="62" y1="60" x2="31" y2="45" stroke="#8b5cf6" stroke-width="1" opacity="0.7"/>
-                    <line x1="31" y1="45" x2="56" y2="30" stroke="#8b5cf6" stroke-width="1" opacity="0.7"/>
-                    <line x1="59" y1="45" x2="34" y2="30" stroke="#8b5cf6" stroke-width="1" opacity="0.7"/>
-                    <rect x="20" y="-2" width="50" height="6" fill="#3a2a5a" stroke="#8b5cf6" stroke-width="1.5" rx="1"/>
-                    <g transform="translate(25, -5)">
-                        <ellipse cx="0" cy="0" rx="6" ry="8" fill="#1a1a3a" stroke="#00ffff" stroke-width="1.5"/>
-                        <ellipse cx="0" cy="0" rx="8" ry="3" fill="none" :stroke="flow.grid_to_house > 0 ? '#ff2e97' : (flow.house_to_grid > 0 ? '#00ffff' : '#8b5cf6')" stroke-width="1" stroke-dasharray="3,3" opacity="0.8">
-                            <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="3s" repeatCount="indefinite"/>
-                        </ellipse>
-                    </g>
-                    <g transform="translate(45, -5)">
-                        <ellipse cx="0" cy="0" rx="6" ry="8" fill="#1a1a3a" stroke="#00ffff" stroke-width="1.5"/>
-                        <ellipse cx="0" cy="0" rx="8" ry="3" fill="none" :stroke="flow.grid_to_house > 0 ? '#ff2e97' : (flow.house_to_grid > 0 ? '#00ffff' : '#8b5cf6')" stroke-width="1" stroke-dasharray="3,3" opacity="0.8">
-                            <animateTransform attributeName="transform" type="rotate" from="360" to="0" dur="4s" repeatCount="indefinite"/>
-                        </ellipse>
-                    </g>
-                    <g transform="translate(65, -5)">
-                        <ellipse cx="0" cy="0" rx="6" ry="8" fill="#1a1a3a" stroke="#00ffff" stroke-width="1.5"/>
-                        <ellipse cx="0" cy="0" rx="8" ry="3" fill="none" :stroke="flow.grid_to_house > 0 ? '#ff2e97' : (flow.house_to_grid > 0 ? '#00ffff' : '#8b5cf6')" stroke-width="1" stroke-dasharray="3,3" opacity="0.8">
-                            <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="3.5s" repeatCount="indefinite"/>
-                        </ellipse>
-                    </g>
-                    <path d="M25,-10 Q10,-20 -5,-15" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0.8"/>
-                    <path d="M65,-10 Q80,-20 95,-15" fill="none" stroke="#8b5cf6" stroke-width="2" opacity="0.8"/>
-                    <circle cx="10" cy="-18" r="2" :fill="flow.grid_to_house > 0 ? '#ff2e97' : (flow.house_to_grid > 0 ? '#00ffff' : '#8b5cf6')">
-                        <animate attributeName="opacity" values="0;1;0" dur="0.8s" repeatCount="indefinite"/>
-                    </circle>
-                    <circle cx="80" cy="-18" r="2" :fill="flow.grid_to_house > 0 ? '#ff2e97' : (flow.house_to_grid > 0 ? '#00ffff' : '#8b5cf6')">
-                        <animate attributeName="opacity" values="0;1;0" dur="0.8s" repeatCount="indefinite" begin="0.4s"/>
-                    </circle>
-                    <rect x="30" y="62" width="30" height="22" fill="url(#gridBoxGrad)" stroke="#8b5cf6" stroke-width="1.5" rx="2"/>
-                    <rect x="33" y="65" width="24" height="10" fill="#0a0a1a" stroke="#8b5cf6" stroke-width="0.5"/>
-                    <text x="45" y="73" :fill="(flow.grid_to_house > 0 || flow.grid_to_battery > 0) ? '#ff2e97' : (flow.house_to_grid > 0 ? '#00ffff' : '#8b5cf6')" font-size="7" font-weight="bold" text-anchor="middle">
-                        {{ (flow.grid_to_house > 0 || flow.grid_to_battery > 0) ? 'IMPORT' : (flow.house_to_grid > 0 ? 'EXPORT' : 'IDLE') }}
-                    </text>
-                    <circle cx="35" cy="80" r="2.5" :fill="(flow.grid_to_house > 0 || flow.grid_to_battery > 0) ? '#ff2e97' : '#3a2a5a'" filter="url(#glowPurple)">
-                        <animate attributeName="opacity" values="0.5;1;0.5" dur="0.8s" repeatCount="indefinite"/>
-                    </circle>
-                    <circle cx="45" cy="80" r="2.5" fill="#22c55e" opacity="0.8">
-                        <animate attributeName="opacity" values="0.4;1;0.4" dur="2s" repeatCount="indefinite"/>
-                    </circle>
-                    <circle cx="55" cy="80" r="2.5" :fill="flow.house_to_grid > 0 ? '#00ffff' : '#3a2a5a'" filter="url(#glowCyan)">
-                        <animate attributeName="opacity" values="0.5;1;0.5" dur="0.8s" repeatCount="indefinite" begin="0.4s"/>
-                    </circle>
-                    <g transform="translate(45, -18)">
-                        <path d="M0,-8 L4,0 L0,0 L4,8 L-4,0 L0,0 Z" :fill="flow.grid_to_house > 0 ? '#ff2e97' : (flow.house_to_grid > 0 ? '#00ffff' : '#fbbf24')" filter="url(#glowYellow)">
-                            <animate attributeName="opacity" values="0.7;1;0.7" dur="0.5s" repeatCount="indefinite"/>
-                        </path>
-                    </g>
-                    <g v-if="flow.grid_to_house > 0 || flow.grid_to_battery > 0 || flow.house_to_grid > 0">
-                        <circle cx="25" cy="-10" r="1.5" fill="#00ffff">
-                            <animate attributeName="opacity" values="0;1;0" dur="0.3s" repeatCount="indefinite"/>
-                            <animate attributeName="r" values="1;2.5;1" dur="0.3s" repeatCount="indefinite"/>
-                        </circle>
-                        <circle cx="45" cy="-10" r="1.5" fill="#00ffff">
-                            <animate attributeName="opacity" values="0;1;0" dur="0.25s" repeatCount="indefinite" begin="0.1s"/>
-                            <animate attributeName="r" values="1;2.5;1" dur="0.25s" repeatCount="indefinite" begin="0.1s"/>
-                        </circle>
-                        <circle cx="65" cy="-10" r="1.5" fill="#00ffff">
-                            <animate attributeName="opacity" values="0;1;0" dur="0.35s" repeatCount="indefinite" begin="0.2s"/>
-                            <animate attributeName="r" values="1;2.5;1" dur="0.35s" repeatCount="indefinite" begin="0.2s"/>
+                <!-- Active Flow Connections -->
+                <g v-for="route in routes" :key="route.id">
+                    <!-- Inactive/Background Path -->
+                    <path
+                        :d="route.d"
+                        class="flow-route-bg"
+                        :style="{ strokeWidth: route.width + 'px' }"
+                    ></path>
+                    <!-- Active Glowing Path -->
+                    <path
+                        v-if="route.active"
+                        :d="route.d"
+                        class="flow-route"
+                        :class="'route-' + route.theme"
+                        :style="{ strokeWidth: route.width + 'px' }"
+                    ></path>
+                    <path
+                        v-if="route.active"
+                        :d="route.d"
+                        class="flow-route-glow"
+                        :class="'route-' + route.theme"
+                        :style="{ strokeWidth: (route.width + 6) + 'px' }"
+                    ></path>
+                    <!-- Flow Particles -->
+                    <g v-if="route.active">
+                        <circle
+                            v-for="idx in route.particles"
+                            :key="route.id + '-' + idx"
+                            class="flow-particle"
+                            :class="'particle-' + route.theme"
+                            r="4"
+                        >
+                            <animateMotion
+                                :dur="route.duration"
+                                :begin="(idx - 1) * 0.7 + 's'"
+                                repeatCount="indefinite"
+                                :path="route.d"
+                            />
                         </circle>
                     </g>
-                    <circle cx="5" cy="75" r="3" fill="#ff2e97" filter="url(#glowPurple)">
-                        <animate attributeName="r" values="2;3.5;2" dur="1.8s" repeatCount="indefinite"/>
-                    </circle>
-                    <circle cx="85" cy="75" r="3" fill="#00ffff" filter="url(#glowCyan)">
-                        <animate attributeName="r" values="2;3.5;2" dur="1.8s" repeatCount="indefinite" begin="0.6s"/>
-                    </circle>
-                    <circle cx="45" cy="57" r="3" fill="#8b5cf6" filter="url(#glowPurple)">
-                        <animate attributeName="r" values="2;4;2" dur="1.5s" repeatCount="indefinite"/>
-                    </circle>
                 </g>
 
-                <text x="830" y="450" fill="#8b5cf6" font-size="18" font-weight="bold" text-anchor="start" filter="url(#glowPurple)">
-                    {{ getGridPower() }} W
-                </text>
-                <text x="830" y="468" fill="#94a3b8" font-size="12" text-anchor="start">{{ getGridLabel() }}</text>
+                <!-- Leader Lines for Annotation -->
+                <path d="M 589 174 L 589 80" class="leader-line" marker-start="url(#leaderDot)"></path>
+                <path d="M 752 320 L 752 80" class="leader-line" marker-start="url(#leaderDot)"></path>
+                <path d="M 874 40 L 874 90" class="leader-line-separator"></path>
+                <path d="M 150 40 L 150 90" class="leader-line-separator"></path>
 
-                <!-- ========== ANIMATED FLOW LINES ========== -->
-                <g v-if="flow.solar_to_house > 0">
-                    <path d="M180,220 Q300,150 400,150" fill="none" stroke="#ffdd00" stroke-width="3" class="flow-line-animated flow-glow-yellow" stroke-linecap="round"/>
+                <!-- 0. PEAK TODAY / ALLTIME -->
+                <g transform="translate(135, 44)" class="text-block-left">
+                    <text x="0" y="0" class="val-main solar">{{ infoData.peakTodayW != null ? infoData.peakTodayW + ' W' : '--' }}</text>
+                    <text x="0" y="16" class="label-sub">{{ localText('peakToday') }}</text>
+                    <text x="0" y="32" class="status-sub neutral">{{ infoData.peakTodayTime || '--' }}</text>
                 </g>
-                <g v-if="flow.solar_to_battery > 0">
-                    <path d="M150,280 Q140,360 180,420" fill="none" stroke="#ffdd00" stroke-width="3" class="flow-line-animated flow-glow-yellow" stroke-linecap="round"/>
+                <g transform="translate(165, 44)">
+                    <text x="0" y="0" class="val-main" style="filter: drop-shadow(0 0 1px rgba(253,230,138,0.3));">{{ infoData.peakAlltimeW != null ? infoData.peakAlltimeW + ' W' : '--' }}</text>
+                    <text x="0" y="16" class="label-sub">{{ localText('alltime') }}</text>
+                    <text x="0" y="32" class="status-sub neutral">{{ infoData.peakAlltimeDate || '--' }}</text>
                 </g>
-                <g v-if="flow.battery_to_house > 0">
-                    <path d="M280,420 Q350,300 430,220" fill="none" stroke="#22c55e" stroke-width="3.5" class="flow-line-animated flow-glow-green" stroke-linecap="round"/>
-                </g>
-                <g v-if="flow.grid_to_house > 0">
-                    <path d="M710,390 Q600,300 500,220" fill="none" stroke="#ff2e97" stroke-width="3.5" stroke-dasharray="10,5" class="flow-line-animated-reverse flow-glow-purple" stroke-linecap="round"/>
-                </g>
-                <g v-if="flow.house_to_grid > 0">
-                    <path d="M500,220 Q600,300 710,390" fill="none" stroke="#00ffff" stroke-width="3.5" class="flow-line-animated flow-glow-cyan" stroke-linecap="round"/>
-                </g>
-                <g v-if="flow.grid_to_battery > 0">
-                    <path d="M735,455 Q460,500 190,440" fill="none" stroke="#8b5cf6" stroke-width="2.5" stroke-dasharray="8,4" class="flow-line-animated-reverse flow-glow-purple"/>
+                <path d="M 645 448 L 645 535" class="leader-line" marker-start="url(#leaderDot)"></path>
+                <path d="M 95 476 L 95 535" class="leader-line" marker-start="url(#leaderDot)"></path>
+                <path d="M 437 398 L 437 460 L 378 460 L 378 535" class="leader-line" marker-start="url(#leaderDot)"></path>
+
+                <!-- Text-Blöcke (transform="translate(x y)") -->
+                <!-- 1. SOLAR -->
+                <g transform="translate(859, 44)" class="text-block-left">
+                    <text x="0" y="0" class="val-main solar">{{ fmtW(flow.solar_power) }}</text>
+                    <text x="0" y="16" class="label-sub">{{ localText('solar') }}</text>
+                    <text x="0" y="32" class="status-sub" :class="flow.solar_power > 10 ? 'producing' : 'idle'">
+                        {{ flow.solar_power > 10 ? localText('producing') : localText('idle') }}
+                    </text>
                 </g>
 
-                <!-- ========== FLOW LABELS ========== -->
-                <g class="flow-labels">
-                    <text v-if="flow.solar_to_house > 0" x="280" y="140" fill="#ffdd00" font-size="13" font-weight="bold" text-anchor="middle" filter="url(#glowYellow)">
-                        {{ flow.solar_to_house.toFixed(0) }} W
+                <!-- 2. HOME -->
+                <g transform="translate(889, 44)">
+                    <text x="0" y="0" class="val-main home">{{ fmtW(flow.home_consumption) }}</text>
+                    <text x="0" y="16" class="label-sub">{{ localText('home') }}</text>
+                    <text x="0" y="32" class="status-sub neutral" v-if="!(consumers.heatpump?.power > 10 || consumers.heatingrod?.power > 10)">{{ localText('home_desc') }}</text>
+                    <text x="0" y="32" class="val-extra heatpump" v-if="consumers.heatpump?.power > 10">
+                        ♨️ HP: {{ fmtW(consumers.heatpump.power) }}
                     </text>
-                    <text v-if="flow.solar_to_battery > 0" x="120" y="350" fill="#ffdd00" font-size="12" font-weight="bold" text-anchor="middle" filter="url(#glowYellow)">
-                        {{ flow.solar_to_battery.toFixed(0) }} W
+                    <text x="0" y="45" class="val-extra heatingrod" v-if="consumers.heatingrod?.power > 10">
+                        🔥 HS: {{ fmtW(consumers.heatingrod.power) }}
                     </text>
-                    <text v-if="flow.battery_to_house > 0" x="280" y="320" fill="#22c55e" font-size="13" font-weight="bold" text-anchor="middle" filter="url(#glowGreen)">
-                        {{ flow.battery_to_house.toFixed(0) }} W
+                </g>
+
+                <!-- 3. CAR -->
+                <g transform="translate(110, 520)" v-if="consumers.wallbox?.configured">
+                    <text x="0" y="0" class="val-main car">{{ fmtW(consumers.wallbox.power) }}</text>
+                    <text x="0" y="16" class="label-sub">{{ localText('car') }}</text>
+                    <text x="0" y="32" class="status-sub" :class="consumers.wallbox.power > 10 ? 'charging' : 'idle'">
+                        {{ consumers.wallbox.power > 10 ? localText('charging') : localText('idle') }}
                     </text>
-                    <text v-if="flow.grid_to_house > 0" x="580" y="320" fill="#ff2e97" font-size="13" font-weight="bold" text-anchor="middle" filter="url(#glowPurple)">
-                        {{ flow.grid_to_house.toFixed(0) }} W
+                </g>
+
+                <!-- 4. GRID -->
+                <g transform="translate(434, 520)">
+                    <text x="0" y="0" class="val-main grid" :class="gridStateColorClass">{{ gridPowerAbsText }}</text>
+                    <text x="0" y="16" class="label-sub">{{ localText('grid') }}</text>
+                    <text x="0" y="32" class="status-sub" :class="gridStateColorClass">
+                        {{ gridStateTextLocal }}
                     </text>
-                    <text v-if="flow.house_to_grid > 0" x="580" y="300" fill="#00ffff" font-size="13" font-weight="bold" text-anchor="middle" filter="url(#glowCyan)">
-                        {{ flow.house_to_grid.toFixed(0) }} W
-                    </text>
-                    <text v-if="flow.grid_to_battery > 0" x="500" y="485" fill="#8b5cf6" font-size="11" font-weight="bold" text-anchor="middle">
-                        {{ flow.grid_to_battery.toFixed(0) }} W
+                </g>
+
+                <!-- 5. BATTERY -->
+                <g transform="translate(623, 520)" v-if="flow.battery_soc != null">
+                    <text x="0" y="0" class="val-main battery">{{ batteryPowerText }}</text>
+                    <text x="0" y="16" class="label-sub">{{ localText('battery') }} · {{ flow.battery_soc != null ? flow.battery_soc.toFixed(0) + '%' : '--' }}</text>
+                    <text x="0" y="32" class="status-sub" :class="batteryStateClass">
+                        {{ batteryStateTextLocal }}
                     </text>
                 </g>
             </svg>
@@ -451,20 +321,6 @@ const _HomePage = {
                     <span class="info-label">⏱ {{ $t('home.panel.production') }}</span>
                     <span class="info-value info-small">{{ infoData.productionHours || '--' }}h</span>
                 </div>
-                <div class="info-item">
-                    <span class="info-label">⚡ {{ $t('home.panel.peakToday') }}</span>
-                    <span class="info-value info-small" style="color: var(--solar)">
-                        {{ infoData.peakTodayW ? (infoData.peakTodayW + ' W') : '--' }}
-                        <span v-if="infoData.peakTodayTime" style="color:var(--text-muted); font-size:0.7rem"> {{ infoData.peakTodayTime }}</span>
-                    </span>
-                </div>
-                <div class="info-item">
-                    <span class="info-label">🏆 {{ $t('home.panel.alltime') }}</span>
-                    <span class="info-value info-small" style="color: #fde68a">
-                        {{ infoData.peakAlltimeW ? (infoData.peakAlltimeW + ' W') : '--' }}
-                        <span v-if="infoData.peakAlltimeDate" style="color:var(--text-muted); font-size:0.7rem"> {{ infoData.peakAlltimeDate }}</span>
-                    </span>
-                </div>
             </div>
 
             </div><!-- /flow-layout -->
@@ -472,6 +328,18 @@ const _HomePage = {
 
         <section v-if="hubbleView" class="hubble-card" :aria-label="$t('home.hubble.title')">
             <div class="hubble-header">
+                <div class="hubble-sensor-ring-container">
+                    <svg class="hubble-sensor-ring" viewBox="0 0 100 100">
+                        <circle class="ring-bg" cx="50" cy="50" r="40" />
+                        <circle class="ring-active" cx="50" cy="50" r="40" :class="hubbleView.moment_key" />
+                        <!-- Hubble Face (Personality) -->
+                        <g class="hubble-face" :class="[hubbleView.moment_key, { pulse: hubbleView.is_pulsing }]">
+                            <ellipse class="hubble-eye left" cx="37" cy="48" rx="5" ry="9" />
+                            <ellipse class="hubble-eye right" cx="63" cy="48" rx="5" ry="9" />
+                            <path class="hubble-mouth" d="M 43 62 Q 50 66 57 62" fill="none" stroke-width="3.5" stroke-linecap="round" />
+                        </g>
+                    </svg>
+                </div>
                 <div class="hubble-heading">
                     <span class="hubble-kicker">{{ $t('home.hubble.agent') }} · {{ hubbleView.moment }}</span>
                     <span class="chart-title">{{ hubbleView.title }}</span>
@@ -486,8 +354,12 @@ const _HomePage = {
                     <span class="hubble-chip-value">{{ chip.value }}</span>
                 </span>
             </div>
-            <p class="hubble-lead">{{ hubbleView.lead }}</p>
-            <p class="hubble-tip">{{ hubbleView.tip }}</p>
+            
+            <div class="hubble-speech-bubble">
+                <p class="hubble-lead">{{ hubbleView.lead }}</p>
+                <p v-if="hubbleView.tip" class="hubble-tip">{{ hubbleView.tip }}</p>
+            </div>
+
             <div class="hubble-actions" :aria-label="$t('home.hubble.quick.title')">
                 <button
                     v-for="action in hubbleView.quickActions"
@@ -499,6 +371,14 @@ const _HomePage = {
                 >
                     {{ action.label }}
                 </button>
+                <a
+                    href="/api/sfml_stats/static/docs.html"
+                    target="_blank"
+                    class="hubble-action docs-link"
+                    style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;"
+                >
+                    📖 {{ $t('home.hubble.quick.docs') || 'Handbuch' }}
+                </a>
             </div>
             <div v-if="hubbleView.answer" class="hubble-answer">
                 <span class="hubble-answer-label">{{ hubbleView.answer.label }}</span>
@@ -511,13 +391,34 @@ const _HomePage = {
                 <template v-if="hubbleView.answer.paragraphs">
                     <p v-for="paragraph in hubbleView.answer.paragraphs" :key="paragraph">{{ paragraph }}</p>
                 </template>
+                <div v-else-if="hubbleView.answer.isHelpers" class="hubble-helpers-quick-create">
+                    <p>{{ hubbleView.answer.text }}</p>
+                    <div v-for="c in hubbleView.answer.consumers" :key="c.config_key" class="hubble-helper-action-row">
+                        <div class="hubble-helper-info">
+                            <span class="hubble-helper-name">{{ getConsumerName(c.config_key) }}</span>
+                            <span class="hubble-helper-desc">
+                                <span v-if="c.mode === 'sensor'">{{ $t('home.hubble.answer.consumerSensorMode') || 'Nutzt Zählersensor' }}: {{ c.daily_entity_id }}</span>
+                                <span v-else>{{ $t('home.hubble.answer.consumerIntegratedMode') || 'Integrierter Leistungssensor' }}: {{ c.power_entity_id }}</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
                 <p v-else>{{ hubbleView.answer.text }}</p>
             </div>
             <div v-if="hubbleExpanded" class="hubble-details">
-                <template v-for="block in hubbleView.story" :key="block.key">
-                    <p v-if="block.type === 'heading'" class="hubble-story-heading">{{ block.text }}</p>
-                    <p v-else>{{ block.text }}</p>
-                </template>
+                <div class="hubble-story-grid">
+                    <template v-for="block in hubbleView.story" :key="block.key">
+                        <div v-if="block.type === 'tile'" class="hubble-story-tile" :class="block.key">
+                            <div class="hubble-tile-header">
+                                <span class="hubble-tile-icon">{{ block.icon }}</span>
+                                <span class="hubble-tile-title">{{ block.title }}</span>
+                            </div>
+                            <div class="hubble-tile-body">
+                                <p v-for="p in block.paragraphs" :key="p">{{ p }}</p>
+                            </div>
+                        </div>
+                    </template>
+                </div>
                 <p class="hubble-updated">{{ hubbleView.updated }}</p>
             </div>
         </section>
@@ -527,45 +428,75 @@ const _HomePage = {
             <div class="chart-header forecast-card-title-row">
                 <span class="chart-title">{{ $t('home.dayForecastVsActual') }}</span>
             </div>
-            <div class="forecast-summary-grid">
-                <div v-if="todayForecastAccuracyPercent != null || todayForecastErrorLabel || todayLearningBasisLabel" class="forecast-eval-list">
-                    <span v-if="todayForecastAccuracyPercent != null">
-                        {{ $t('home.todayQuality') }}: <span :style="{ color: forecastBandColorFromAccuracy(todayForecastAccuracyPercent) }">{{ todayForecastAccuracyPercent.toFixed(1) }}%</span>
-                    </span>
-                    <span v-if="todayForecastErrorLabel">
-                        {{ $t('home.todayError') }}: <span :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ todayForecastErrorLabel }}</span>
-                    </span>
-                    <span v-if="todayLearningBasisLabel">
-                        {{ $t('home.todayLearningBasis') }}: <span style="color:#fbbf24">{{ todayLearningBasisLabel }}</span>
-                    </span>
-                    <span v-if="todayDiscardedLearningLabel">
-                        {{ $t('home.todayDiscarded') }}: <span style="color:#f87171">{{ todayDiscardedLearningLabel }}</span>
-                    </span>
+            <div class="forecast-metrics-wrapper">
+                <!-- Links: Qualitätsmetriken (Evaluierung) -->
+                <div class="forecast-metrics-column eval-column">
+                    <div v-if="todayForecastAccuracyPercent != null" class="metric-badge-card">
+                        <span class="metric-badge-icon">🎯</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" :style="{ color: forecastBandColorFromAccuracy(todayForecastAccuracyPercent) }">{{ todayForecastAccuracyPercent.toFixed(1) }}%</span>
+                            <span class="metric-badge-label">{{ $t('home.todayQuality') }}</span>
+                        </div>
+                    </div>
+                    <div v-if="todayForecastErrorLabel" class="metric-badge-card">
+                        <span class="metric-badge-icon">⚠️</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ todayForecastErrorLabel }}</span>
+                            <span class="metric-badge-label">{{ $t('home.todayError') }}</span>
+                        </div>
+                    </div>
+                    <div v-if="todayLearningBasisLabel" class="metric-badge-card">
+                        <span class="metric-badge-icon">⏱️</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" style="color: #fbbf24">{{ todayLearningBasisLabel }}</span>
+                            <span class="metric-badge-label">{{ $t('home.todayLearningBasis') }}</span>
+                        </div>
+                    </div>
+                    <div v-if="todayDiscardedLearningLabel" class="metric-badge-card">
+                        <span class="metric-badge-icon">🗑️</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" style="color: #f87171">{{ todayDiscardedLearningLabel }}</span>
+                            <span class="metric-badge-label">{{ $t('home.todayDiscarded') }}</span>
+                        </div>
+                    </div>
                 </div>
-                <div class="forecast-kpi-list">
-                    <div class="forecast-kpi-row">
-                        <span class="forecast-kpi-label" :title="$t('home.forecastActualKpiTitle')">{{ $t('home.forecastActualKpi') }}:</span>
-                        <span class="forecast-kpi-value" style="color:#22c55e">{{ actualTotal }} kWh</span>
+                <!-- Rechts: Ertragsmetriken (Absolute Werte) -->
+                <div class="forecast-metrics-column values-column">
+                    <div class="metric-badge-card" :title="$t('home.forecastActualKpiTitle')">
+                        <span class="metric-badge-icon">📈</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" style="color: #22c55e">{{ actualTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-label">{{ $t('home.forecastActualKpi') }}</span>
+                        </div>
                     </div>
-                    <div class="forecast-kpi-row">
-                        <span class="forecast-kpi-label">{{ $t('common.forecast') }}:</span>
-                        <span class="forecast-kpi-value" style="color:#fbbf24">{{ forecastTotal }} kWh</span>
+                    <div class="metric-badge-card">
+                        <span class="metric-badge-icon">📉</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" style="color: #fbbf24">{{ forecastTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-label">{{ $t('common.forecast') }}</span>
+                        </div>
                     </div>
-                    <div v-if="hasHybridForecast" class="forecast-kpi-row">
-                        <span class="forecast-kpi-label">{{ $t('home.hybrid') }}:</span>
-                        <span class="forecast-kpi-value" style="color:#38bdf8">{{ hybridForecastTotal }} kWh</span>
+                    <div v-if="hasHybridForecast" class="metric-badge-card">
+                        <span class="metric-badge-icon">🔀</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" style="color: #38bdf8">{{ hybridForecastTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-label">{{ $t('home.hybrid') }}</span>
+                        </div>
                     </div>
-                    <div class="forecast-kpi-row">
-                        <span class="forecast-kpi-label">{{ $t('home.deviation') }}:</span>
-                        <span class="forecast-kpi-value" :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ forecastDeviationKwhLabel }}</span>
+                    <div class="metric-badge-card">
+                        <span class="metric-badge-icon">↕️</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ forecastDeviationKwhLabel }}</span>
+                            <span class="metric-badge-label">{{ $t('home.deviation') }}</span>
+                        </div>
                     </div>
                 </div>
             </div>
             <div v-if="hasWeatherTrace" class="weather-trace" :aria-label="$t('home.weatherTraceAria')">
                 <div class="weather-trace-labels">
-                    <span>{{ $t('home.expected') }}</span>
-                    <span>{{ $t('home.seen') }}</span>
-                    <span :title="$t('home.matchTitle')">{{ $t('home.match') }}</span>
+                    <span :title="$t('home.expected')">🔮</span>
+                    <span :title="$t('home.seen')">👀</span>
+                    <span :title="$t('home.matchTitle')">🎯</span>
                 </div>
                 <div class="weather-trace-grid">
                     <template v-for="item in weatherTrace" :key="'weather-' + item.hour">
@@ -592,7 +523,9 @@ const _HomePage = {
                                 >{{ indicator.label }}</span>
                             </div>
                         </div>
-                        <div class="weather-trace-cell weather-trace-match" :class="'match-' + item.matchState" :title="item.matchTitle">{{ item.matchIcon }}</div>
+                        <div class="weather-trace-cell weather-trace-match-badge" :class="'match-' + item.matchState" :title="item.matchTitle">
+                            <span class="match-icon">{{ item.matchIcon }}</span>
+                        </div>
                     </template>
                 </div>
             </div>
@@ -623,17 +556,17 @@ const _HomePage = {
             </div>
             <div class="panel-groups-grid">
                 <div class="chart-card panel-group-chart-card" v-for="(group, groupName) in panelGroupsData.groups" :key="groupName">
-                    <div class="chart-header" style="flex-wrap:wrap; gap:4px;">
-                        <span class="chart-title" style="font-size:0.95rem">☀ {{ groupName }}</span>
+                    <div class="chart-header" style="flex-wrap:wrap; gap:6px; margin-bottom: 8px;">
+                        <span class="chart-title" style="font-size:0.92rem; font-weight: 700;">☀ {{ groupName }}</span>
                         <div class="pg-stats">
-                            <span style="color: #22c55e; font-family:var(--font-mono); font-size:0.8rem">
-                                {{ $t('common.actual') }}: {{ (group.actual_total_kwh || 0).toFixed(3) }} kWh
+                            <span class="pg-badge actual">
+                                {{ (group.actual_total_kwh || 0).toFixed(2) }} kWh
                             </span>
-                            <span style="color: #a855f7; font-family:var(--font-mono); font-size:0.8rem">
-                                {{ $t('common.forecast') }}: {{ ((group.prediction_day_kwh ?? group.prediction_total_kwh) || 0).toFixed(3) }} kWh
+                            <span class="pg-badge forecast">
+                                {{ ((group.prediction_day_kwh ?? group.prediction_total_kwh) || 0).toFixed(2) }} kWh
                             </span>
-                            <span :style="{color: group.accuracy_percent != null ? forecastBandColorFromAccuracy(group.accuracy_percent) : '#8b949e', fontFamily:'var(--font-mono)', fontSize:'0.8rem', fontWeight:700}">
-                                {{ group.accuracy_percent ? group.accuracy_percent.toFixed(0) + '%' : '—' }}
+                            <span v-if="group.accuracy_percent != null" class="pg-badge accuracy" :style="{ color: forecastBandColorFromAccuracy(group.accuracy_percent), borderColor: forecastBandColorFromAccuracy(group.accuracy_percent) + '22' }">
+                                {{ group.accuracy_percent.toFixed(0) }}%
                             </span>
                         </div>
                     </div>
@@ -671,6 +604,9 @@ const _HomePage = {
                     <div class="panel-live-power">
                         {{ panel.power != null ? panel.power.toFixed(0) : '0' }}<span class="panel-live-unit"> W</span>
                     </div>
+                    <div class="panel-live-peak" v-if="panel.max_today != null" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
+                        Peak: {{ panel.max_today.toFixed(0) }} W
+                    </div>
                 </div>
             </div>
         </div>
@@ -705,6 +641,12 @@ const _HomePage = {
             grid_to_battery: 0,
         });
 
+        const consumers = reactive({
+            wallbox: null,
+            heatpump: null,
+            heatingrod: null,
+        });
+
         const panels = ref([]);
         const panelHistory = reactive({});
 
@@ -717,6 +659,117 @@ const _HomePage = {
         const powerData = ref([]);
         const dailyForecasts = ref([]);
         const hubble = ref(null);
+
+
+        const localText = (key) => {
+            const lang = locale.value;
+            const dict = STATUS_TRANSLATIONS[lang] || STATUS_TRANSLATIONS['en'];
+            return dict[key] || key;
+        };
+
+        const batteryPowerText = computed(() => {
+            const p = Number(flow.battery_power) || 0;
+            if (p === 0) return '0 W';
+            return fmtW(Math.abs(p));
+        });
+
+        const batteryStateTextLocal = computed(() => {
+            const p = Number(flow.battery_power) || 0;
+            if (p > 10) return localText('charging');
+            if (p < -10) return localText('discharging');
+            return localText('standby');
+        });
+
+        const batteryStateClass = computed(() => {
+            const p = Number(flow.battery_power) || 0;
+            if (p > 10) return 'charging';
+            if (p < -10) return 'discharging';
+            return 'idle';
+        });
+
+        const gridPowerAbsText = computed(() => {
+            const importW = Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0);
+            const exportW = Number(flow.house_to_grid || 0);
+            if (exportW > 10) return fmtW(exportW);
+            if (importW > 10) return fmtW(importW);
+            return '0 W';
+        });
+
+        const gridStateTextLocal = computed(() => {
+            const importW = Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0);
+            const exportW = Number(flow.house_to_grid || 0);
+            if (exportW > 10) return localText('grid_export');
+            if (importW > 10) return localText('grid_import');
+            return localText('grid_neutral');
+        });
+
+        const gridStateColorClass = computed(() => {
+            const importW = Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0);
+            const exportW = Number(flow.house_to_grid || 0);
+            if (exportW > 10) return 'export';
+            if (importW > 10) return 'import';
+            return 'idle';
+        });
+
+        const routes = computed(() => {
+            const routeList = [
+                // 1. Solar to Inverter
+                {
+                    id: 'solar-inverter',
+                    d: 'M 414 171 L 437 185 L 437 354',
+                    power: flow.solar_power,
+                    theme: 'solar',
+                },
+                // 2. Inverter to Battery (charging/discharging)
+                {
+                    id: 'inverter-battery',
+                    d: flow.battery_power >= 0 
+                        ? 'M 437 398 L 437 448 L 645 448 L 645 415' 
+                        : 'M 645 415 L 645 448 L 437 448 L 437 398',
+                    power: Math.abs(flow.battery_power),
+                    theme: 'battery',
+                },
+                // 3. Inverter to EV Car (via wallbox)
+                {
+                    id: 'inverter-car',
+                    d: (consumers.wallbox?.power || 0) > 10
+                        ? 'M 430 376 L 276 376 L 276 400 L 235 400 L 235 415'
+                        : 'M 235 415 L 235 400 L 276 400 L 276 376 L 430 376',
+                    power: consumers.wallbox?.power || 0,
+                    theme: 'car',
+                },
+                // 4. Inverter to House Load
+                {
+                    id: 'inverter-house',
+                    d: 'M 475 376 L 515 376',
+                    power: flow.home_consumption,
+                    theme: 'house',
+                },
+                // 5. Grid Connections
+                {
+                    id: 'grid-inverter',
+                    d: (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0) > 10 
+                        ? 'M 378 492 L 378 460 L 437 460 L 437 398' 
+                        : 'M 437 398 L 437 460 L 378 460 L 378 492',
+                    power: (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0) > 10
+                        ? (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0)
+                        : flow.house_to_grid,
+                    theme: (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0) > 10 ? 'grid' : 'export',
+                }
+            ];
+
+            return routeList.map((route) => {
+                const power = Math.max(0, Number(route.power) || 0);
+                return {
+                    ...route,
+                    active: power > 10,
+                    width: pathWidth(power),
+                    particles: particleCount(power),
+                    duration: particleDuration(power),
+                };
+            });
+        });
+
         const hubbleExpanded = ref(false);
         const hubbleQuestion = ref(null);
         const currentTime = ref('');
@@ -756,6 +809,10 @@ const _HomePage = {
             sunrise: null,
             sunset: null,
             outdoorTemperatureLabel: null,
+            outdoorTemp: null,
+            outdoorClouds: null,
+            outdoorCondition: null,
+            outdoorSource: null,
         });
         const FORECAST_LEGEND_STORAGE_KEY = 'sfml_stats_home_forecast_legend_selected';
         const forecastLegendSelected = reactive({
@@ -955,25 +1012,13 @@ const _HomePage = {
             const declineHour = metrics.decline_hour != null
                 ? String(metrics.decline_hour).padStart(2, '0') + ':00'
                 : t('home.hubble.noDecline');
-
-            const leadKey = {
-                morning: 'home.hubble.lead.morning',
-                midday: metrics.forecast_quality_percent != null
-                    ? 'home.hubble.lead.middayQuality'
-                    : 'home.hubble.lead.midday',
-                evening: 'home.hubble.lead.evening',
-            }[moment] || 'home.hubble.lead.midday';
-
-            const chips = [
-                { key: 'yield', label: t('home.hubble.chip.yield'), value: metrics.solar_yield_kwh != null ? `${solarYield} kWh` : `${forecast} kWh`, title: t('home.hubble.chip.yieldTitle') },
-                { key: 'autarky', label: t('energy.autarky'), value: metrics.autarky_percent != null ? `${autarky}%` : t('common.noData') },
-                { key: 'quality', label: t('home.hubble.chip.quality'), value: metrics.forecast_quality_percent != null ? `${quality}%` : t('common.noData') },
-                { key: 'window', label: t('home.hubble.chip.window'), value: windowLabel },
-            ];
+            const variantSeed = payload.variant_seed != null ? payload.variant_seed : 0;
+            const yesterday = payload.yesterday || null;
 
             const storyParams = {
                 hasWindow: Boolean(bestWindow),
                 forecast,
+                forecastTomorrow: formatHubbleNumber(metrics.forecast_tomorrow_kwh, 1),
                 solar: solarYield,
                 consumption: formatHubbleNumber(metrics.home_consumption_kwh, 1),
                 grid: gridImport,
@@ -1006,7 +1051,25 @@ const _HomePage = {
                 price: currentPrice,
                 priceAverage: avgPrice,
             };
-            const story = buildHubbleStory(moment, storyParams);
+
+            const leadKeySpec = `home.hubble.lead.${moment}_v${variantSeed}`;
+            const leadKeyBase = {
+                morning: 'home.hubble.lead.morning',
+                midday: metrics.forecast_quality_percent != null
+                    ? 'home.hubble.lead.middayQuality'
+                    : 'home.hubble.lead.midday',
+                evening: 'home.hubble.lead.evening',
+            }[moment] || 'home.hubble.lead.midday';
+            const leadKey = t(leadKeySpec, storyParams) !== leadKeySpec ? leadKeySpec : leadKeyBase;
+
+            const chips = [
+                { key: 'yield', label: t('home.hubble.chip.yield'), value: metrics.solar_yield_kwh != null ? `${solarYield} kWh` : `${forecast} kWh`, title: t('home.hubble.chip.yieldTitle') },
+                { key: 'autarky', label: t('energy.autarky'), value: metrics.autarky_percent != null ? `${autarky}%` : t('common.noData') },
+                { key: 'quality', label: t('home.hubble.chip.quality'), value: metrics.forecast_quality_percent != null ? `${quality}%` : t('common.noData') },
+                { key: 'window', label: t('home.hubble.chip.window'), value: windowLabel },
+            ];
+
+            const story = buildHubbleStory(moment, storyParams, variantSeed, yesterday);
             const hasMemory = payload.memory?.available === true
                 && Array.isArray(payload.memory.matches)
                 && payload.memory.matches.length >= 2;
@@ -1014,6 +1077,7 @@ const _HomePage = {
                 ? ['now', 'load', 'confidence', 'battery']
                 : ['now', 'load', 'confidence'];
             if (hasMemory) quickActionKeys.push('memory');
+            quickActionKeys.push('helpers');
             const quickActions = quickActionKeys.map(key => ({
                 key,
                 label: t(`home.hubble.quick.${key}`),
@@ -1023,16 +1087,10 @@ const _HomePage = {
             return {
                 title: t('home.hubble.title'),
                 moment: t(`home.hubble.moment.${moment}`),
+                moment_key: moment,
+                is_pulsing: moment !== 'evening',
                 chips,
-                lead: t(leadKey, {
-                    forecast,
-                    solar: solarYield,
-                    autarky,
-                    quality,
-                    error,
-                    window: windowLabel,
-                    grid: gridImport,
-                }),
+                lead: t(leadKey, storyParams),
                 tip: buildHubbleTip(payload, windowLabel),
                 quickActions,
                 answer,
@@ -1265,6 +1323,20 @@ const _HomePage = {
                         ...memory.matches.map(match => match.text),
                     ],
                 };
+            } else if (question === 'helpers') {
+                const consumersList = payload.configured_consumers || [];
+                if (consumersList.length === 0) {
+                    return {
+                        label: t('home.hubble.quick.helpers') || 'Sensoren-Status',
+                        text: t('home.hubble.answer.helpersNoneConfigured') || "Es sind keine Großverbraucher (Wärmepumpe, Heizstab oder Wallbox) konfiguriert."
+                    };
+                }
+                return {
+                    label: t('home.hubble.quick.helpers') || 'Sensoren-Status',
+                    isHelpers: true,
+                    text: t('home.hubble.answer.helpersText') || "Status der konfigurierten Großverbraucher:",
+                    consumers: consumersList
+                };
             }
 
             if (!answerKey) return null;
@@ -1274,26 +1346,105 @@ const _HomePage = {
             };
         }
 
-        function buildHubbleStory(moment, params) {
+        function buildHubbleStory(moment, params, variantSeed, yesterday) {
             const storyMoment = ['morning', 'midday', 'evening'].includes(moment) ? moment : 'midday';
-            const keys = [
-                ['intro', 'paragraph'],
-                ['status', 'paragraph'],
-                ['forecast', 'paragraph'],
-                ['outlook', 'paragraph'],
-                ['proTipTitle', 'heading'],
-                ['proTip', 'paragraph'],
-                ['simpleTitle', 'heading'],
-                ['simple', 'paragraph'],
-                ['closing', 'paragraph'],
-            ];
-            return keys
-                .filter(([name]) => name !== 'outlook' || params.hasWindow)
-                .map(([name, type]) => ({
-                    key: name,
-                    type,
-                    text: t(`home.hubble.story.${storyMoment}.${name}`, params),
-                }));
+            
+            const getVar = (name) => {
+                const specKey = `home.hubble.story.${storyMoment}.${name}_v${variantSeed}`;
+                const baseKey = `home.hubble.story.${storyMoment}.${name}`;
+                return t(specKey, params) !== specKey ? t(specKey, params) : t(baseKey, params);
+            };
+
+            const tiles = [];
+
+            // 1. Status-Kachel
+            const statusParas = [];
+            statusParas.push(getVar('intro'));
+            statusParas.push(t(`home.hubble.story.${storyMoment}.status`, params));
+            statusParas.push(t(`home.hubble.story.${storyMoment}.forecast`, params));
+            tiles.push({
+                key: 'status-tile',
+                type: 'tile',
+                icon: '🌤️',
+                title: t('home.dayForecastVsActual'),
+                paragraphs: statusParas.filter(p => p && !p.startsWith('home.hubble.story.')),
+            });
+
+            // 2. Ratschlag-Kachel
+            const adviceParas = [];
+            if (params.hasWindow) {
+                adviceParas.push(t(`home.hubble.story.${storyMoment}.outlook`, params));
+            }
+            adviceParas.push(getVar('proTip'));
+            tiles.push({
+                key: 'advice-tile',
+                type: 'tile',
+                icon: '💡',
+                title: t('home.hubble.story.morning.proTipTitle'),
+                paragraphs: adviceParas.filter(p => p && !p.startsWith('home.hubble.story.')),
+            });
+
+            // 3. Gestern-Report-Kachel (falls vorhanden)
+            if (yesterday) {
+                const yesterdayParas = [];
+                const repKey = `home.yesterdayReport.v${variantSeed}`;
+                
+                const yParams = {
+                    solar: formatHubbleNumber(yesterday.solar_yield_kwh, 1),
+                    consumption: formatHubbleNumber(yesterday.home_consumption_kwh, 1),
+                    grid: formatHubbleNumber(yesterday.grid_import_kwh, 1),
+                    autarky: formatHubbleNumber(yesterday.autarky_percent, 0),
+                    savings: formatHubbleNumber(yesterday.savings_eur, 2),
+                    quality: formatHubbleNumber(yesterday.accuracy_percent, 0),
+                    error: formatHubbleNumber(yesterday.error_percent, 0),
+                    batterySentence: '',
+                };
+
+                if (yesterday.solar_to_battery_kwh != null && yesterday.grid_to_battery_kwh != null) {
+                    yParams.batterySentence = t('home.hubble.text.batterySentence', {
+                        battery: formatHubbleNumber(yesterday.solar_to_battery_kwh, 2),
+                        average: formatHubbleNumber(yesterday.solar_to_battery_kwh, 1),
+                    });
+                }
+
+                yesterdayParas.push(t(repKey, yParams));
+
+                if (yesterday.hp_kwh > 0.1 && yesterday.hp_pv_percent != null) {
+                    yesterdayParas.push(t('home.hubble.text.hpSentence', {
+                        hpPvPercent: formatHubbleNumber(yesterday.hp_pv_percent, 0),
+                        hpPv: formatHubbleNumber(yesterday.hp_pv_kwh, 1),
+                        hp: formatHubbleNumber(yesterday.hp_kwh, 1),
+                    }));
+                }
+
+                if (yesterday.wallbox_kwh > 0.1) {
+                    yesterdayParas.push(t('home.hubble.text.wallboxSentence', {
+                        wallbox: formatHubbleNumber(yesterday.wallbox_kwh, 1),
+                    }));
+                }
+
+                tiles.push({
+                    key: 'yesterday-tile',
+                    type: 'tile',
+                    icon: '🌱',
+                    title: t('home.yesterdayReportTitle'),
+                    paragraphs: yesterdayParas.filter(p => p && !p.startsWith('home.yesterdayReport.')),
+                });
+            }
+
+            // 4. Einfach gesagt
+            const simpleParas = [];
+            simpleParas.push(t(`home.hubble.story.${storyMoment}.simple`, params));
+            simpleParas.push(getVar('closing'));
+            tiles.push({
+                key: 'simple-tile',
+                type: 'tile',
+                icon: '⚖️',
+                title: t(`home.hubble.story.${storyMoment}.simpleTitle`),
+                paragraphs: simpleParas.filter(p => p && !p.startsWith('home.hubble.story.')),
+            });
+
+            return tiles;
         }
 
         function parseTimeToMinutes(value) {
@@ -1381,6 +1532,10 @@ const _HomePage = {
                 flow.house_to_grid = f.house_to_grid || 0;
                 flow.grid_to_battery = f.grid_to_battery || 0;
 
+                if (data.consumers) {
+                    Object.assign(consumers, data.consumers);
+                }
+
                 // Panel data
                 if (data.panels && Array.isArray(data.panels)) {
                     panels.value = data.panels;
@@ -1458,6 +1613,11 @@ const _HomePage = {
                 } else {
                     infoData.outdoorTemperatureLabel = null;
                 }
+
+                infoData.outdoorTemp = outdoorTemperature;
+                infoData.outdoorClouds = cloudCover;
+                infoData.outdoorCondition = condition;
+                infoData.outdoorSource = outdoor.source || null;
 
                 // Peak heute
                 const ds = data.daily_stats;
@@ -1700,48 +1860,68 @@ const _HomePage = {
 
                     chart.setOption({
                         backgroundColor: 'transparent',
-                        grid: { top: 25, right: 15, bottom: 30, left: 50 },
+                        grid: { top: 30, right: 15, bottom: 30, left: 45 },
                         tooltip: {
                             trigger: 'axis',
-                            backgroundColor: 'rgba(10,14,20,0.95)',
-                            borderColor: 'rgba(255,255,255,0.1)',
-                            textStyle: { color: '#f0f6fc', fontSize: 11 },
+                            backgroundColor: getThemeColor('--bg-card', 'rgba(21, 28, 44, 0.85)'),
+                            borderColor: 'rgba(255, 255, 255, 0.08)',
+                            borderWidth: 1,
+                            borderRadius: 8,
+                            padding: [8, 12],
+                            extraCssText: 'backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05)',
+                            textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 11, fontFamily: 'var(--font-sans)' },
+                            formatter: function(params) {
+                                let s = '<div style="font-family:var(--font-sans)">';
+                                s += '<div style="font-weight:700;font-size:11px;margin-bottom:4px">' + params[0].axisValue + '</div>';
+                                params.forEach(p => {
+                                    const dot = p.seriesName === t('common.actual')
+                                        ? '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:#22c55e;"></span>'
+                                        : '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:#fbbf24;"></span>';
+                                    s += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;gap:12px">'
+                                      + '<span>' + dot + p.seriesName + ':</span>'
+                                      + '<span style="font-weight:700;font-family:var(--font-mono)">' + p.value.toFixed(3) + ' kWh</span></div>';
+                                });
+                                s += '</div>';
+                                return s;
+                            }
                         },
-                        legend: { data: [t('common.actual'), t('common.forecast')], textStyle: { color: '#8b949e', fontSize: 10 }, top: 0, right: 5 },
+                        legend: { data: [t('common.actual'), t('common.forecast')], textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 }, top: 0, right: 5 },
                         xAxis: {
                             type: 'category',
                             data: hours.map(h => String(h).padStart(2, '0') + ':00'),
-                            axisLabel: { color: '#8b949e', fontSize: 10, interval: 3 },
-                            axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
+                            axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10, interval: 3 },
+                            axisLine: { show: false },
+                            axisTick: { show: false },
                         },
                         yAxis: {
-                            type: 'value', name: 'kWh',
-                            nameTextStyle: { color: '#8b949e', fontSize: 9 },
-                            axisLabel: { color: '#8b949e', fontSize: 10, formatter: v => v.toFixed(2) },
-                            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+                            type: 'value',
+                            axisLine: { show: false },
+                            axisTick: { show: false },
+                            axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10, formatter: v => v.toFixed(2) },
+                            splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.02)'), type: 'dashed' } },
                         },
                         series: [
                             {
                                 name: t('common.actual'), type: 'line', data: actualData,
                                 smooth: true, connectNulls: false,
-                                lineStyle: { color: '#22c55e', width: 2.5 },
+                                lineStyle: { color: '#22c55e', width: 2.5, shadowColor: 'rgba(34,197,94,0.25)', shadowBlur: 8, shadowOffsetY: 2 },
                                 itemStyle: { color: '#22c55e' },
-                                symbol: 'circle', symbolSize: 4,
+                                symbol: 'none',
                                 areaStyle: {
-                                    color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                                        colorStops: [
-                                            { offset: 0, color: 'rgba(34,197,94,0.35)' },
-                                            { offset: 1, color: 'rgba(34,197,94,0.02)' }
-                                        ]
-                                    }
+                                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                        { offset: 0, color: 'rgba(34,197,94,0.12)' },
+                                        { offset: 1, color: 'rgba(34,197,94,0)' }
+                                    ])
                                 },
+                                z: 6,
                             },
                             {
                                 name: t('common.forecast'), type: 'line', data: forecastD,
                                 smooth: true, connectNulls: false,
-                                lineStyle: { color: '#a855f7', width: 2, type: 'dashed' },
-                                itemStyle: { color: '#a855f7' },
+                                lineStyle: { color: '#fbbf24', width: 2.5, shadowColor: 'rgba(251,191,36,0.2)', shadowBlur: 8, shadowOffsetY: 2 },
+                                itemStyle: { color: '#fbbf24' },
                                 symbol: 'none',
+                                z: 5,
                             },
                         ],
                         animationDuration: 1000,
@@ -1847,13 +2027,16 @@ const _HomePage = {
 
             forecastChartInstance.setOption({
                 backgroundColor: 'transparent',
-                grid: { top: 30, right: 20, bottom: 40, left: 55 },
+                grid: { top: 40, right: 20, bottom: 40, left: 50 },
                 tooltip: {
                     trigger: 'axis',
-                    backgroundColor: 'rgba(10,14,20,0.95)',
-                    borderColor: 'rgba(255,255,255,0.1)',
+                    backgroundColor: getThemeColor('--bg-card', 'rgba(21, 28, 44, 0.85)'),
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
                     borderWidth: 1,
-                    textStyle: { color: '#f0f6fc', fontSize: 12, fontFamily: 'var(--font-mono)' },
+                    borderRadius: 12,
+                    padding: [10, 14],
+                    extraCssText: 'backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 8px 32px 0 rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06)',
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-sans)' },
                     formatter: function(params) {
                         const idx = params[0]?.dataIndex;
                         if (idx == null) return '';
@@ -1912,16 +2095,17 @@ const _HomePage = {
                 xAxis: {
                     type: 'category',
                     data: forecastData.hours.map(h => String(h).padStart(2, '0')),
-                    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
-                    axisLabel: { color: '#8b949e', fontSize: 11 },
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, margin: 12 },
                 },
                 yAxis: {
                     type: 'value',
                     name: 'kWh',
-                    nameTextStyle: { color: '#8b949e', fontSize: 10 },
+                    nameTextStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 },
                     axisLine: { show: false },
-                    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
-                    axisLabel: { color: '#8b949e', fontSize: 11 },
+                    splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.025)'), type: 'dashed' } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                 },
                 series: [
                     // P10 lower boundary (invisible, stacked base)
@@ -1946,14 +2130,14 @@ const _HomePage = {
                         symbol: 'none',
                         smooth: true, connectNulls: false,
                         stack: 'band',
-                        areaStyle: { color: 'rgba(251,191,36,0.1)' },
+                        areaStyle: { color: 'rgba(251,191,36,0.06)' },
                         z: 1,
                     },
                     {
                         name: 'Prognose',
                         type: 'line',
                         data: forecastData.forecast,
-                        lineStyle: { color: '#fbbf24', width: 2.5 },
+                        lineStyle: { color: '#fbbf24', width: 3, shadowColor: 'rgba(251,191,36,0.25)', shadowBlur: 10, shadowOffsetY: 3 },
                         itemStyle: { color: '#fbbf24' },
                         symbol: 'none',
                         smooth: true, connectNulls: false,
@@ -1963,7 +2147,7 @@ const _HomePage = {
                         name: 'Hybrid',
                         type: 'line',
                         data: forecastData.hybrid,
-                        lineStyle: { color: '#38bdf8', width: 2.5, type: 'dashed' },
+                        lineStyle: { color: '#38bdf8', width: 2, type: 'dashed', shadowColor: 'rgba(56,189,248,0.2)', shadowBlur: 6 },
                         itemStyle: { color: '#38bdf8' },
                         symbol: 'none',
                         smooth: true,
@@ -1980,19 +2164,16 @@ const _HomePage = {
                             if (h > nowHour) return null;
                             return v;
                         }),
-                        lineStyle: { color: '#22c55e', width: 2.5 },
+                        lineStyle: { color: '#22c55e', width: 3, shadowColor: 'rgba(34,197,94,0.3)', shadowBlur: 12, shadowOffsetY: 3 },
                         itemStyle: { color: '#22c55e' },
                         symbol: 'none',
                         smooth: true,
                         connectNulls: false,
                         areaStyle: {
-                            color: {
-                                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                                colorStops: [
-                                    { offset: 0, color: 'rgba(34,197,94,0.25)' },
-                                    { offset: 1, color: 'rgba(34,197,94,0)' }
-                                ]
-                            }
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(34,197,94,0.18)' },
+                                { offset: 1, color: 'rgba(34,197,94,0)' }
+                            ])
                         },
                         z: 6,
                     },
@@ -2001,7 +2182,7 @@ const _HomePage = {
                         name: 'TFS',
                         type: 'line',
                         data: forecastData.tfs,
-                        lineStyle: { color: '#a78bfa', width: 2, type: 'dashed' },
+                        lineStyle: { color: '#a78bfa', width: 2, type: 'dashed', shadowColor: 'rgba(167,139,250,0.15)', shadowBlur: 6 },
                         itemStyle: { color: '#a78bfa' },
                         symbol: 'none',
                         smooth: true,
@@ -2014,8 +2195,8 @@ const _HomePage = {
                         markLine: {
                             silent: true,
                             symbol: 'none',
-                            lineStyle: { color: 'rgba(255,255,255,0.5)', width: 1.5, type: 'dashed' },
-                            label: { show: true, formatter: t('home.now'), color: '#f0f6fc', fontSize: 11, position: 'start' },
+                            lineStyle: { color: getThemeColor('--text-muted', 'rgba(255,255,255,0.25)'), width: 1, type: 'dashed' },
+                            label: { show: true, formatter: t('home.now'), color: getThemeColor('--text-secondary', '#f0f6fc'), fontSize: 10, position: 'start', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.85)'), padding: [2, 4], borderRadius: 4 },
                             data: [{ xAxis: String(nowHour).padStart(2, '0') }],
                         },
                         data: [],
@@ -2025,7 +2206,7 @@ const _HomePage = {
                     show: true,
                     top: 0,
                     right: 10,
-                    textStyle: { color: '#8b949e', fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                     // Series names are stable internal identifiers ("Prognose"/"IST"/…)
                     // so legend selection state survives across locale changes;
                     // formatter renders the localized label.
@@ -2063,53 +2244,60 @@ const _HomePage = {
 
             powerChartInstance.setOption({
                 backgroundColor: 'transparent',
-                grid: { top: 20, right: 20, bottom: 30, left: 55 },
+                grid: { top: 30, right: 20, bottom: 30, left: 50 },
                 tooltip: {
                     trigger: 'axis',
-                    backgroundColor: 'rgba(10,14,20,0.95)',
-                    borderColor: 'rgba(251,191,36,0.3)',
-                    textStyle: { color: '#f0f6fc', fontSize: 12, fontFamily: 'var(--font-mono)' },
+                    backgroundColor: getThemeColor('--bg-card', 'rgba(21, 28, 44, 0.85)'),
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    padding: [10, 14],
+                    extraCssText: 'backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 8px 32px 0 rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06)',
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-sans)' },
                     formatter: function(params) {
                         const val = params[0]?.value || 0;
-                        return '<b>' + params[0].axisValue + '</b><br/>'
-                             + '<span style="color:#fbbf24">\u25CF ' + t('home.pvPower') + ':</span> '
-                             + (val >= 1000 ? (val/1000).toFixed(1) + ' kW' : Math.round(val) + ' W');
+                        const formattedVal = val >= 1000 ? (val/1000).toFixed(2) + ' kW' : Math.round(val) + ' W';
+                        return '<div style="font-family:var(--font-sans)">'
+                             + '<div style="font-weight:700;font-size:12px;margin-bottom:4px">' + params[0].axisValue + '</div>'
+                             + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;gap:12px">'
+                             + '<span><span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:#fbbf24;"></span>' + t('home.pvPower') + ':</span>'
+                             + '<span style="font-weight:700;font-family:var(--font-mono)">' + formattedVal + '</span></div>'
+                             + '</div>';
                     }
                 },
                 xAxis: {
                     type: 'category',
                     data: times,
-                    axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+                    axisLine: { show: false },
+                    axisTick: { show: false },
                     axisLabel: {
-                        color: '#8b949e',
+                        color: getThemeColor('--text-secondary', '#8b949e'),
                         fontSize: 10,
                         interval: Math.max(0, Math.floor(times.length / 12) - 1),
+                        margin: 10
                     },
                 },
                 yAxis: {
                     type: 'value',
                     axisLine: { show: false },
-                    splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
-                    axisLabel: { color: '#8b949e', fontSize: 11, formatter: v => v >= 1000 ? (v/1000).toFixed(1)+' kW' : v + ' W' },
+                    axisTick: { show: false },
+                    splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.02)'), type: 'dashed' } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, formatter: v => v >= 1000 ? (v/1000).toFixed(1)+' kW' : v + ' W' },
                 },
                 series: [
                     {
                         name: 'PV-Leistung',
                         type: 'line',
                         data: solarPower,
-                        lineStyle: { color: '#fbbf24', width: 2 },
+                        lineStyle: { color: '#fbbf24', width: 3, shadowColor: 'rgba(251,191,36,0.3)', shadowBlur: 10, shadowOffsetY: 3 },
                         itemStyle: { color: '#fbbf24' },
                         symbol: 'none',
                         smooth: true,
                         areaStyle: {
-                            color: {
-                                type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-                                colorStops: [
-                                    { offset: 0, color: 'rgba(251,191,36,0.4)' },
-                                    { offset: 0.5, color: 'rgba(251,191,36,0.15)' },
-                                    { offset: 1, color: 'rgba(251,191,36,0.02)' }
-                                ]
-                            }
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(251,191,36,0.18)' },
+                                { offset: 1, color: 'rgba(251,191,36,0)' }
+                            ])
                         },
                     },
                 ],
@@ -2117,7 +2305,7 @@ const _HomePage = {
                     show: true,
                     data: ['PV-Leistung'],
                     formatter: (name) => name === 'PV-Leistung' ? t('home.pvPower') : name,
-                    top: 0, right: 10, textStyle: { color: '#8b949e', fontSize: 11 },
+                    top: 0, right: 10, textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
                 },
             });
         }
@@ -2135,6 +2323,18 @@ const _HomePage = {
             if (ld.house_to_grid != null) flow.house_to_grid = ld.house_to_grid;
             if (ld.grid_to_battery != null) flow.grid_to_battery = ld.grid_to_battery;
         }, { deep: true });
+
+        watch(() => props.config?.theme, () => {
+            nextTick(() => {
+                updateForecastChart();
+                updatePowerChart();
+                for (const chart of Object.values(pgChartInstances)) {
+                    if (chart) chart.dispose();
+                }
+                pgChartInstances = {};
+                loadPanelGroups();
+            });
+        });
 
         // Lifecycle
         let clockTimer = null;
@@ -2189,6 +2389,15 @@ const _HomePage = {
             setInterval(loadInfoPanel, 60000); // Info panel refresh every 60s
         });
 
+        const getConsumerName = (key) => {
+            const names = {
+                heatpump: t('flow.consumer.heatpump') || 'Wärmepumpe',
+                heatingrod: t('flow.consumer.heatingrod') || 'Heizstab',
+                wallbox: t('flow.consumer.wallbox') || 'Wallbox',
+            };
+            return names[key] || key;
+        };
+
         onUnmounted(() => {
             if (clockTimer) clearInterval(clockTimer);
             if (flowTimer) clearInterval(flowTimer);
@@ -2198,6 +2407,12 @@ const _HomePage = {
             if (powerChartInstance) { powerChartInstance.dispose(); powerChartInstance = null; }
             if (resizeHandler) window.removeEventListener('resize', resizeHandler);
         });
+
+        const getWeatherSymbol = (condition, cloudCover) => {
+            return WEATHER_SYMBOLS[condition] || (cloudCover != null
+                ? (cloudCover >= 80 ? '☁' : cloudCover >= 35 ? '⛅' : '☀')
+                : '☀️');
+        };
 
         return {
             forecastChartEl, powerChartEl, sparklineRefs,
@@ -2215,6 +2430,11 @@ const _HomePage = {
             getGridPower, getGridLabel, fmtKw, fmtW,
             forecastBandColor, forecastBandColorFromAccuracy,
             getSparklinePath, getSparklineAreaPath,
+            getWeatherSymbol,
+            consumers, routes, batteryPowerText, batteryStateTextLocal,
+            batteryStateClass, gridPowerAbsText, gridStateTextLocal,
+            gridStateColorClass, localText,
+            getConsumerName,
         };
     }
 };
@@ -2228,28 +2448,112 @@ const _HomePage = {
         .hubble-card {
             margin-top: var(--space-lg);
             padding: var(--space-lg);
-            border: 1px solid rgba(56, 189, 248, 0.24);
-            border-left: 4px solid #38bdf8;
-            border-radius: var(--radius-md);
-            background: linear-gradient(135deg, rgba(56, 189, 248, 0.10), rgba(251, 191, 36, 0.05));
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-lg);
+            background: var(--bg-card);
             backdrop-filter: var(--glass-blur);
             -webkit-backdrop-filter: var(--glass-blur);
+            transition: border-color var(--transition-normal);
+        }
+        .hubble-card:hover {
+            border-color: var(--border-hover);
         }
         .hubble-header {
             display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
+            align-items: center;
+            justify-content: flex-start;
             gap: var(--space-md);
             margin-bottom: var(--space-md);
         }
+        
+        .hubble-sensor-ring-container {
+            width: 48px;
+            height: 48px;
+            flex: 0 0 auto;
+        }
+        .hubble-sensor-ring {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .hubble-sensor-ring .ring-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.08);
+            stroke-width: 6px;
+        }
+        .hubble-sensor-ring .ring-active {
+            fill: none;
+            stroke-width: 6px;
+            stroke-linecap: round;
+            transform-origin: center;
+            stroke-dasharray: 200;
+            stroke-dashoffset: 80;
+            animation: hubble-ring-rotate 6s linear infinite;
+        }
+        .hubble-sensor-ring .ring-active.morning {
+            stroke: #f59e0b;
+        }
+        .hubble-sensor-ring .ring-active.midday {
+            stroke: #10b981;
+        }
+        .hubble-sensor-ring .ring-active.evening {
+            stroke: #8b5cf6;
+        }
+        
+        .hubble-sensor-ring .hubble-face {
+            transform-origin: center;
+            transition: color 0.5s ease;
+        }
+        .hubble-sensor-ring .hubble-face.morning {
+            color: #f59e0b;
+        }
+        .hubble-sensor-ring .hubble-face.midday {
+            color: #10b981;
+        }
+        .hubble-sensor-ring .hubble-face.evening {
+            color: #8b5cf6;
+        }
+        .hubble-sensor-ring .hubble-face.pulse {
+            animation: hubble-core-pulse 2s ease-in-out infinite;
+        }
+        .hubble-sensor-ring .hubble-eye {
+            fill: currentColor;
+            animation: hubble-blink 4s ease-in-out infinite;
+        }
+        .hubble-sensor-ring .hubble-eye.left {
+            transform-origin: 37px 48px;
+        }
+        .hubble-sensor-ring .hubble-eye.right {
+            transform-origin: 63px 48px;
+        }
+        .hubble-sensor-ring .hubble-mouth {
+            stroke: currentColor;
+            opacity: 0.85;
+        }
+        
+        @keyframes hubble-blink {
+            0%, 90%, 100% { transform: scaleY(1); }
+            95% { transform: scaleY(0.1); }
+        }
+        
+        @keyframes hubble-ring-rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes hubble-core-pulse {
+            0%, 100% { transform: scale(1); opacity: 0.95; }
+            50% { transform: scale(1.15); opacity: 0.70; }
+        }
+
         .hubble-heading {
             display: flex;
             flex-direction: column;
-            gap: 3px;
+            gap: 2px;
             min-width: 0;
+            flex-grow: 1;
         }
         .hubble-kicker {
-            color: #38bdf8;
+            color: var(--accent);
             font-size: 0.72rem;
             font-weight: 700;
             letter-spacing: 0.08em;
@@ -2257,16 +2561,18 @@ const _HomePage = {
         }
         .hubble-toggle {
             flex: 0 0 auto;
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: var(--radius-sm);
-            background: rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-primary);
-            padding: 6px 10px;
+            padding: 6px 12px;
             font-size: 0.8rem;
             cursor: pointer;
+            transition: background 0.2s ease, border-color 0.2s ease;
         }
         .hubble-toggle:hover {
-            background: rgba(255, 255, 255, 0.10);
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.25);
         }
         .hubble-chip-row {
             display: flex;
@@ -2278,38 +2584,46 @@ const _HomePage = {
             display: inline-flex;
             align-items: baseline;
             gap: 6px;
-            min-height: 30px;
-            padding: 5px 9px;
-            border: 1px solid rgba(255, 255, 255, 0.10);
+            min-height: 28px;
+            padding: 4px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: var(--radius-sm);
-            background: rgba(0, 0, 0, 0.16);
+            background: rgba(255, 255, 255, 0.03);
         }
         .hubble-chip-label {
             color: var(--text-muted);
-            font-size: 0.72rem;
+            font-size: 0.70rem;
         }
         .hubble-chip-value {
             color: var(--text-primary);
             font-family: var(--font-mono);
-            font-size: 0.82rem;
+            font-size: 0.80rem;
             font-weight: 700;
         }
+        
+        .hubble-speech-bubble {
+            position: relative;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            margin-bottom: var(--space-md);
+        }
         .hubble-lead,
-        .hubble-tip,
-        .hubble-details p {
+        .hubble-tip {
             margin: 0;
-            color: var(--text-secondary);
             line-height: 1.55;
-            font-size: 0.92rem;
+            font-size: 0.94rem;
         }
         .hubble-lead {
             color: var(--text-primary);
         }
         .hubble-tip {
-            margin-top: var(--space-sm);
-            color: #f8d66d;
+            margin-top: var(--space-xs);
+            color: #fbbf24;
             font-weight: 600;
         }
+        
         .hubble-actions {
             display: flex;
             flex-wrap: wrap;
@@ -2317,135 +2631,301 @@ const _HomePage = {
             margin-top: var(--space-md);
         }
         .hubble-action {
-            border: 1px solid rgba(56, 189, 248, 0.22);
+            border: 1px solid var(--border-default);
             border-radius: var(--radius-sm);
-            background: rgba(56, 189, 248, 0.08);
+            background: rgba(255, 255, 255, 0.03);
             color: var(--text-secondary);
             min-height: 32px;
-            padding: 6px 10px;
+            padding: 6px 12px;
             font-size: 0.8rem;
             font-weight: 600;
             cursor: pointer;
             transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
         }
-        .hubble-action:hover,
+        .hubble-action:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--border-hover);
+            color: var(--text-primary);
+        }
         .hubble-action.active {
-            background: rgba(56, 189, 248, 0.18);
-            border-color: rgba(56, 189, 248, 0.42);
+            background: rgba(0, 212, 255, 0.08);
+            border-color: var(--accent);
             color: var(--text-primary);
         }
         .hubble-answer {
-            margin-top: var(--space-sm);
+            margin-top: var(--space-md);
             padding: var(--space-md);
-            border: 1px solid rgba(251, 191, 36, 0.18);
-            border-radius: var(--radius-sm);
-            background: rgba(0, 0, 0, 0.14);
+            border: 1px solid rgba(251, 191, 36, 0.15);
+            border-radius: var(--radius-md);
+            background: rgba(251, 191, 36, 0.03);
         }
         .hubble-answer-label {
             display: block;
-            margin-bottom: 4px;
-            color: #f8d66d;
+            margin-bottom: 6px;
+            color: #fbbf24;
             font-size: 0.75rem;
             font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         .hubble-answer p {
             margin: 0;
             color: var(--text-primary);
-            line-height: 1.5;
-            font-size: 0.9rem;
+            line-height: 1.55;
+            font-size: 0.90rem;
         }
-        .hubble-details {
-            display: grid;
-            gap: var(--space-sm);
-            margin-top: var(--space-md);
-            padding-top: var(--space-md);
-            border-top: 1px solid rgba(255, 255, 255, 0.10);
-        }
-        .hubble-details .hubble-story-heading {
+        .hubble-answer p + p {
             margin-top: var(--space-xs);
-            color: var(--text-primary);
-            font-weight: 700;
         }
-        .hubble-details .hubble-updated {
+        .hubble-helpers-quick-create {
+            margin-top: var(--space-sm);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+        .hubble-helper-action-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-md);
+            padding: var(--space-xs) 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .hubble-helper-action-row:last-child {
+            border-bottom: none;
+        }
+        .hubble-helper-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .hubble-helper-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .hubble-helper-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .hubble-create-helper-btn {
+            padding: 4px 10px;
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px solid var(--warning);
+            color: var(--warning);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+        .hubble-create-helper-btn:hover:not(:disabled) {
+            background: rgba(234, 179, 8, 0.2);
+            color: var(--text-primary);
+        }
+        .hubble-create-helper-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .hubble-helper-status {
+            margin-top: var(--space-xs);
+            padding: 6px var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 0.75rem;
+            text-align: center;
+        }
+        .hubble-helper-status.success {
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+        }
+        .hubble-helper-status.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .hubble-details {
+            margin-top: var(--space-lg);
+            padding-top: var(--space-md);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .hubble-story-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--space-md);
+            margin-bottom: var(--space-md);
+        }
+        .hubble-story-tile {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            transition: transform var(--transition-fast), border-color var(--transition-fast);
+        }
+        .hubble-story-tile:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+        }
+        .hubble-tile-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: var(--space-xs);
+        }
+        .hubble-tile-icon {
+            font-size: 1.1rem;
+        }
+        .hubble-tile-title {
+            font-weight: 700;
+            font-size: 0.88rem;
+            color: var(--text-primary);
+        }
+        .hubble-tile-body p {
+            margin: 0;
+            color: var(--text-secondary);
+            font-size: 0.86rem;
+            line-height: 1.5;
+        }
+        .hubble-tile-body p + p {
+            margin-top: 6px;
+        }
+        .hubble-updated {
             color: var(--text-muted);
             font-family: var(--font-mono);
-            font-size: 0.78rem;
+            font-size: 0.76rem;
+            margin-top: var(--space-md);
         }
-        /* ===== Isometric Energy Flow ===== */
-        .isometric-energy-flow {
-            display: block;
-            cursor: default;
+        /* ===== Photorealistic Twilight Energy Flow ===== */
+        .flow-subtle-axis {
+            stroke: rgba(255, 255, 255, 0.04);
+            stroke-width: 1px;
+            stroke-dasharray: 4 12;
         }
-        .iso-element-clickable {
-            cursor: pointer;
-            transition: opacity 0.2s ease;
-        }
-        .iso-element-clickable:hover {
-            opacity: 0.85;
+        [data-theme="light"] .flow-subtle-axis {
+            stroke: rgba(15, 23, 42, 0.04);
         }
 
-        /* Star twinkling */
-        .star-twinkle-1 {
-            animation: twinkle1 3s ease-in-out infinite;
+        /* ===== Leader Lines for Annotation ===== */
+        .leader-line {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.25);
+            stroke-width: 1px;
+            stroke-dasharray: 2 3;
         }
-        .star-twinkle-2 {
-            animation: twinkle2 4s ease-in-out infinite;
+        [data-theme="light"] .leader-line {
+            stroke: rgba(15, 23, 42, 0.25);
         }
-        .star-twinkle-3 {
-            animation: twinkle3 5s ease-in-out infinite;
+        .leader-line-separator {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.15);
+            stroke-width: 1px;
         }
-        @keyframes twinkle1 {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
+        [data-theme="light"] .leader-line-separator {
+            stroke: rgba(15, 23, 42, 0.15);
         }
-        @keyframes twinkle2 {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 0.2; }
+        .leader-dot-circle {
+            fill: rgba(255, 255, 255, 0.4);
         }
-        @keyframes twinkle3 {
-            0%, 100% { opacity: 0.2; }
-            50% { opacity: 0.8; }
-        }
-
-        /* Sun rays rotation */
-        .sun-rays {
-            animation: sunRotate 20s linear infinite;
-            transform-origin: 820px 60px;
-        }
-        @keyframes sunRotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+        [data-theme="light"] .leader-dot-circle {
+            fill: rgba(15, 23, 42, 0.4);
         }
 
-        /* Flow lines animation */
-        .flow-line-animated {
-            stroke-dasharray: 12 6;
-            animation: flowDash 1.5s linear infinite;
+        /* Route Paths and Glow */
+        .flow-route-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.08);
+            stroke-linecap: round;
         }
-        .flow-line-animated-reverse {
-            stroke-dasharray: 12 6;
-            animation: flowDashReverse 1.5s linear infinite;
+        [data-theme="light"] .flow-route-bg {
+            stroke: rgba(15, 23, 42, 0.06);
         }
-        @keyframes flowDash {
-            to { stroke-dashoffset: -18; }
+        .flow-route {
+            fill: none;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 2px currentColor);
         }
-        @keyframes flowDashReverse {
-            to { stroke-dashoffset: 18; }
+        .flow-route-glow {
+            fill: none;
+            stroke-linecap: round;
+            filter: url(#flowSoftGlow);
+            opacity: 0.35;
         }
 
-        /* Flow glow effects */
-        .flow-glow-yellow {
-            filter: drop-shadow(0 0 6px rgba(255,221,0,0.5));
+        /* Route Theme Colors */
+        .route-solar { stroke: #fbbf24; color: #fbbf24; }
+        .route-battery { stroke: #22c55e; color: #22c55e; }
+        .route-grid { stroke: #a855f7; color: #a855f7; }
+        .route-export { stroke: #06b6d4; color: #06b6d4; }
+        .route-house { stroke: #22d3ee; color: #22d3ee; }
+        .route-car { stroke: #38bdf8; color: #38bdf8; }
+
+        /* Particles */
+        .flow-particle {
+            filter: url(#flowSoftGlow);
         }
-        .flow-glow-green {
-            filter: drop-shadow(0 0 6px rgba(34,197,94,0.5));
+        .particle-solar { fill: #fde047; }
+        .particle-battery { fill: #4ade80; }
+        .particle-grid { fill: #c084fc; }
+        .particle-export { fill: #22d3ee; }
+        .particle-house { fill: #67e8f9; }
+        .particle-car { fill: #7dd3fc; }
+
+        /* Text Blocks */
+        .val-main {
+            font-family: var(--font-family);
+            font-size: 24px;
+            font-weight: 700;
+            fill: #ffffff;
+            letter-spacing: -0.02em;
         }
-        .flow-glow-purple {
-            filter: drop-shadow(0 0 6px rgba(139,92,246,0.5));
+        [data-theme="light"] .val-main {
+            fill: #0f172a;
         }
-        .flow-glow-cyan {
-            filter: drop-shadow(0 0 6px rgba(0,255,255,0.5));
+        .label-sub {
+            font-family: var(--font-family);
+            font-size: 11px;
+            font-weight: 600;
+            fill: #94a3b8;
+            letter-spacing: 0.08em;
         }
+        [data-theme="light"] .label-sub {
+            fill: #64748b;
+        }
+        .status-sub {
+            font-family: var(--font-family);
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-sub.producing { fill: #fbbf24; }
+        .status-sub.charging { fill: #22c55e; }
+        .status-sub.discharging { fill: #38bdf8; }
+        .status-sub.export { fill: #06b6d4; }
+        .status-sub.import { fill: #a855f7; }
+        .status-sub.idle { fill: #94a3b8; }
+        .status-sub.neutral { fill: #94a3b8; }
+
+        /* Extra Consumer info under home load */
+        .val-extra {
+            font-family: var(--font-family);
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .val-extra.heatpump { fill: #fb7185; }
+        .val-extra.heatingrod { fill: #f97316; }
+
+        /* Text Alignment Left Overrides */
+        .text-block-left text {
+            text-anchor: end;
+        }
+        
+        /* Subtle glow filters on text values */
+        .val-main.solar { filter: drop-shadow(0 0 1px rgba(251,191,36,0.3)); }
+        .val-main.home { filter: drop-shadow(0 0 1px rgba(34,211,238,0.3)); }
+        .val-main.battery { filter: drop-shadow(0 0 1px rgba(34,197,94,0.3)); }
+        .val-main.car { filter: drop-shadow(0 0 1px rgba(56,189,248,0.3)); }
+        .val-main.grid.import { filter: drop-shadow(0 0 1px rgba(168,85,247,0.3)); }
+        .val-main.grid.export { filter: drop-shadow(0 0 1px rgba(6,182,212,0.3)); }
 
         /* ===== Panel Groups ===== */
         .panel-groups-grid {
@@ -2503,89 +2983,124 @@ const _HomePage = {
 
         .pg-stats {
             display: flex;
-            gap: var(--space-md);
+            gap: 6px;
             align-items: center;
             flex-wrap: wrap;
         }
 
+        .pg-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        .pg-badge.actual {
+            color: #22c55e;
+            background: rgba(34, 197, 94, 0.08);
+        }
+
+        .pg-badge.forecast {
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.08);
+        }
+
+        .pg-badge.accuracy {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
         .forecast-card-title-row {
-            margin-bottom: 6px;
+            margin-bottom: 12px;
         }
 
-        .forecast-summary-grid {
+        .forecast-metrics-wrapper {
             display: grid;
-            grid-template-columns: minmax(260px, 1fr) minmax(280px, auto);
-            gap: 14px 24px;
-            align-items: start;
-            margin-top: 4px;
-            margin-bottom: 10px;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-md);
+            margin-top: var(--space-sm);
+            margin-bottom: var(--space-md);
         }
 
-        .forecast-eval-list,
-        .forecast-kpi-list {
+        .forecast-metrics-column {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: var(--space-sm);
+        }
+
+        .metric-badge-card {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: var(--radius-md);
+            padding: var(--space-xs) var(--space-sm);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: all var(--transition-normal);
+        }
+
+        .metric-badge-card:hover {
+            background: rgba(255, 255, 255, 0.035);
+            border-color: rgba(255, 255, 255, 0.08);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .metric-badge-icon {
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .metric-badge-info {
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            font-family: var(--font-mono);
-            font-size: 0.8rem;
         }
 
-        .forecast-eval-list {
-            color: var(--text-muted);
-        }
-
-        .forecast-kpi-list {
-            justify-self: end;
-            min-width: 280px;
-        }
-
-        .forecast-kpi-row {
-            display: grid;
-            grid-template-columns: 110px minmax(140px, auto);
-            gap: 10px;
-            align-items: baseline;
-        }
-
-        .forecast-kpi-label {
-            color: var(--text-muted);
-        }
-
-        .forecast-kpi-value {
-            justify-self: end;
-            font-size: 0.85rem;
+        .metric-badge-value {
+            font-size: 1rem;
             font-weight: 700;
-            white-space: nowrap;
+            font-family: var(--font-mono);
+            line-height: 1.2;
         }
 
-        .forecast-kpi-percent {
-            font-weight: 600;
-            color: inherit;
+        .metric-badge-value .unit {
+            font-size: 0.75rem;
+            font-weight: 500;
+            opacity: 0.7;
         }
 
-        /* ===== Responsive: stack forecast summary on phones ===== */
-        @media (max-width: 768px) {
-            .panel-groups-grid {
+        .metric-badge-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-top: 1px;
+        }
+
+        /* Responsive: stack forecast metrics on tablets and phones */
+        @media (max-width: 900px) {
+            .forecast-metrics-wrapper {
+                grid-template-columns: 1fr;
+                gap: var(--space-sm);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .forecast-metrics-column {
                 grid-template-columns: 1fr;
             }
-
-            .forecast-summary-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .forecast-kpi-list {
-                justify-self: stretch;
-                min-width: 0;
-            }
-
-            .forecast-kpi-row {
-                grid-template-columns: minmax(98px, auto) 1fr;
-            }
-
-            .forecast-kpi-value {
-                justify-self: start;
-            }
         }
 
+        /* ===== Weather Trace Glassmorphism ===== */
         .weather-trace {
             display: grid;
             grid-template-columns: auto 1fr;
@@ -2593,29 +3108,31 @@ const _HomePage = {
             align-items: start;
             margin-top: 12px;
             margin-bottom: 6px;
-            padding: 10px 12px;
-            border: 1px solid rgba(148, 163, 184, 0.14);
+            padding: 8px 10px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
             border-radius: var(--radius-md);
-            background:
-                linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(251, 191, 36, 0.04)),
-                rgba(255, 255, 255, 0.018);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0.005));
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
 
         .weather-trace-labels {
             display: grid;
-            grid-template-rows: 16px 28px 28px 24px;
+            grid-template-rows: 16px 28px 28px 20px;
             gap: 6px;
             color: var(--text-muted);
-            font-family: var(--font-mono);
-            font-size: 0.68rem;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
+            font-size: 0.75rem;
             padding-top: 1px;
+            align-items: center;
+            justify-items: center;
+            width: 24px;
         }
 
         .weather-trace-labels span {
             display: flex;
             align-items: center;
+            justify-content: center;
+            cursor: default;
         }
 
         .weather-trace-labels span:first-child {
@@ -2634,10 +3151,15 @@ const _HomePage = {
             display: grid;
             grid-auto-flow: column;
             grid-auto-columns: minmax(28px, 1fr);
-            grid-template-rows: 16px 28px 28px 24px;
+            grid-template-rows: 16px 28px 28px 20px;
             gap: 6px 4px;
             overflow-x: auto;
             padding-bottom: 2px;
+            scrollbar-width: none; /* Hide scrollbar for clean look */
+        }
+
+        .weather-trace-grid::-webkit-scrollbar {
+            display: none;
         }
 
         .weather-trace-cell {
@@ -2656,73 +3178,92 @@ const _HomePage = {
         .weather-trace-icon {
             flex-direction: column;
             gap: 2px;
-            min-height: 30px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.025);
+            min-height: 28px;
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            transition: all var(--transition-normal);
+        }
+
+        .weather-trace-icon:hover {
+            background: rgba(255, 255, 255, 0.035);
+            border-color: rgba(255, 255, 255, 0.05);
         }
 
         .weather-trace-visual {
-            font-size: 1.08rem;
+            font-size: 1rem;
             line-height: 1;
         }
 
         .weather-trace-indicators {
             display: flex;
-            gap: 3px;
-            font-size: 0.58rem;
+            gap: 2px;
+            font-size: 0.55rem;
             line-height: 1;
-            letter-spacing: 0.02em;
         }
 
         .weather-trace-indicator {
-            opacity: 0.2;
-            transition: opacity 120ms ease, color 120ms ease;
+            opacity: 0.25;
+            font-weight: 700;
         }
 
         .weather-trace-indicator.level-low {
             opacity: 0.45;
-            color: rgba(226, 232, 240, 0.85);
+            color: var(--text-muted);
         }
 
         .weather-trace-indicator.level-medium {
-            opacity: 0.8;
-            color: #f8fafc;
+            opacity: 0.75;
+            color: var(--text-secondary);
         }
 
         .weather-trace-indicator.level-high {
             opacity: 1;
-            color: #fbbf24;
+            color: var(--solar);
         }
 
         .weather-trace-icon.muted {
-            color: rgba(148, 163, 184, 0.45);
+            color: rgba(148, 163, 184, 0.35);
+            opacity: 0.5;
         }
 
-        .weather-trace-match {
-            font-size: 0.86rem;
-            font-weight: 700;
-            border-radius: 999px;
-            min-height: 24px;
+        .weather-trace-match-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: var(--radius-sm);
+            min-height: 20px;
+            width: 20px;
+            margin: auto;
+            font-size: 0.75rem;
+            transition: all var(--transition-normal);
         }
 
-        .weather-trace-match.match-good {
+        .weather-trace-match-badge .match-icon {
+            line-height: 1;
+        }
+
+        .weather-trace-match-badge.match-good {
             color: #22c55e;
-            background: rgba(34, 197, 94, 0.10);
+            background: rgba(34, 197, 94, 0.15);
+            box-shadow: 0 0 6px rgba(34, 197, 94, 0.05);
         }
 
-        .weather-trace-match.match-mixed {
+        .weather-trace-match-badge.match-mixed {
             color: #eab308;
-            background: rgba(234, 179, 8, 0.10);
+            background: rgba(234, 179, 8, 0.15);
+            box-shadow: 0 0 6px rgba(234, 179, 8, 0.05);
         }
 
-        .weather-trace-match.match-bad {
+        .weather-trace-match-badge.match-bad {
             color: #f87171;
-            background: rgba(248, 113, 113, 0.10);
+            background: rgba(248, 113, 113, 0.15);
+            box-shadow: 0 0 6px rgba(248, 113, 113, 0.05);
         }
 
-        .weather-trace-match.match-missing {
-            color: rgba(148, 163, 184, 0.45);
-            background: rgba(148, 163, 184, 0.06);
+        .weather-trace-match-badge.match-missing {
+            color: rgba(148, 163, 184, 0.35);
+            background: rgba(148, 163, 184, 0.05);
         }
 
         /* === Panel Live Cards (unter PV-Chart) === */
@@ -2733,38 +3274,53 @@ const _HomePage = {
         }
 
         .panel-live-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(251, 191, 36, 0.15);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid rgba(255, 255, 255, 0.04);
             border-radius: var(--radius-md);
             padding: var(--space-sm) var(--space-md);
             text-align: center;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             transition: all var(--transition-normal);
         }
 
         .panel-live-card:hover {
-            background: rgba(251, 191, 36, 0.06);
-            border-color: rgba(251, 191, 36, 0.3);
+            background: rgba(255, 255, 255, 0.035);
+            border-color: rgba(251, 191, 36, 0.25);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        .panel-live-icon { font-size: 1rem; margin-bottom: 2px; }
+        .panel-live-icon {
+            font-size: 1.1rem;
+            margin-bottom: 4px;
+            color: var(--solar);
+            filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.3));
+        }
 
         .panel-live-name {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
+            margin-bottom: 2px;
         }
 
         .panel-live-power {
-            font-size: 1.5rem;
+            font-size: 1.4rem;
             font-weight: 700;
             font-family: var(--font-mono);
             color: var(--solar);
+            line-height: 1.1;
         }
 
         .panel-live-unit {
-            font-size: 0.8rem;
-            font-weight: 400;
+            font-size: 0.75rem;
+            font-weight: 500;
             color: var(--text-secondary);
         }
 
@@ -2773,78 +3329,151 @@ const _HomePage = {
             border: 1px solid var(--border-default);
             border-radius: var(--radius-lg);
             padding: var(--space-md);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            transition: border-color var(--transition-normal);
         }
 
-        /* === FLOW LAYOUT (SVG + Info Panel side by side) === */
+        .panel-group-chart-card:hover {
+            border-color: var(--border-hover);
+        }
+
+        .chart-card {
+            transition: border-color var(--transition-normal);
+        }
+        .chart-card:hover {
+            border-color: var(--border-hover);
+        }
+
+        /* === FLOW LAYOUT (SVG + Info Panel under SVG) === */
         .flow-layout {
             display: flex;
-            gap: var(--space-lg);
+            flex-direction: column;
             align-items: stretch;
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-default);
+            overflow: hidden;
         }
 
         .flow-layout > svg {
-            flex: 1;
-            min-width: 0;
+            width: 100%;
+            height: auto;
+            max-height: 70vh;
+            display: block;
         }
 
         .flow-info-panel {
-            flex: 0 0 180px;
-            display: flex;
-            flex-direction: column;
-            gap: var(--space-sm);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: var(--space-md);
             padding: var(--space-md);
-            background: rgba(255, 255, 255, 0.02);
-            border-left: 1px solid var(--border-default);
-            border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+            background: rgba(255, 255, 255, 0.015);
+            border-top: 1px solid var(--border-default);
+        }
+
+        [data-theme="light"] .flow-info-panel {
+            background: rgba(15, 23, 42, 0.01);
         }
 
         .info-item {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            align-items: center;
+            text-align: center;
+            gap: 4px;
         }
 
         .info-label {
-            font-size: 0.7rem;
+            font-size: 0.72rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.06em;
+            font-weight: 600;
         }
 
         .info-value {
-            font-size: 1.1rem;
+            font-size: 1.25rem;
             font-weight: 700;
             font-family: var(--font-mono);
             color: var(--text-primary);
         }
 
         .info-value.info-small {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-top: -2px;
         }
 
-        .info-divider {
-            height: 1px;
-            background: var(--border-default);
-            margin: var(--space-xs) 0;
+        .flow-inverter-box {
+            fill: rgba(34, 211, 238, 0.1);
+            stroke: var(--accent);
+            stroke-width: 1.5px;
+            backdrop-filter: blur(4px);
         }
 
-        @media (max-width: 768px) {
-            .flow-layout {
-                flex-direction: column;
-            }
-            .flow-info-panel {
-                flex: none;
-                flex-direction: row;
-                flex-wrap: wrap;
-                gap: var(--space-md);
-                border-left: none;
-                border-top: 1px solid var(--border-default);
-                border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-            }
-            .info-item {
-                flex: 1;
-                min-width: 80px;
-            }
+        .inverter-text {
+            font-family: var(--font-family);
+            font-size: 10px;
+            font-weight: 700;
+            fill: var(--accent);
+            text-anchor: middle;
+        }
+
+        .weather-badges {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-left: var(--space-md);
+        }
+        .weather-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-default);
+            border-radius: 999px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease;
+        }
+        [data-theme="light"] .weather-badge {
+            background: rgba(15, 23, 42, 0.02);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+        }
+        .weather-badge.temp-badge {
+            border-color: rgba(251, 191, 36, 0.25);
+            color: var(--solar);
+        }
+        .weather-badge.clouds-badge {
+            border-color: rgba(6, 182, 212, 0.25);
+            color: var(--battery);
+        }
+        .weather-badge.source-badge {
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        .time-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-default);
+            border-radius: 999px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+        [data-theme="light"] .time-badge {
+            background: rgba(15, 23, 42, 0.02);
         }
     `;
     document.head.appendChild(style);

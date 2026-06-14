@@ -581,6 +581,10 @@
     }
   },
   "issues": {
+    "hubble_issue": {
+      "title": "{title}",
+      "description": "{description}"
+    },
     "model_training_failed": {
       "title": "Entrenamiento del modelo ML fallido",
       "description": "Entrenamiento fallido: {error}\nConsulte los logs para mas detalles."
