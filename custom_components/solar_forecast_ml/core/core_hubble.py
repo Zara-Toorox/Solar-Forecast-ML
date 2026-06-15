@@ -10,6 +10,7 @@ Handles user-friendly logging, persistent notifications, and native HA Repairs.
 @zara
 """
 
+import asyncio
 import logging
 from typing import Any, Dict, Optional
 from homeassistant.core import HomeAssistant
@@ -37,7 +38,7 @@ class Hubble:
         _LOGGER.error("[Hubble] Fehler: %s", message)
 
     @staticmethod
-    def async_create_issue(
+    async def async_create_issue(
         hass: HomeAssistant,
         issue_id: str,
         title: str,
@@ -45,7 +46,7 @@ class Hubble:
         severity: Severity = Severity.WARNING,
     ) -> None:
         """Create or update a native HA Repairs issue via Hubble. @zara"""
-        try:
+        def _create() -> None:
             async_create_issue(
                 hass,
                 domain="solar_forecast_ml",
@@ -58,15 +59,37 @@ class Hubble:
                     "description": description,
                 },
             )
+
+        try:
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop == hass.loop:
+                _create()
+            else:
+                hass.loop.call_soon_threadsafe(_create)
             _LOGGER.debug("[Hubble] Created repairs issue '%s': %s", issue_id, title)
         except Exception as e:
             _LOGGER.debug("Failed to create repairs issue: %s", e)
 
     @staticmethod
-    def async_dismiss_issue(hass: HomeAssistant, issue_id: str) -> None:
+    async def async_dismiss_issue(hass: HomeAssistant, issue_id: str) -> None:
         """Remove a Repairs issue since the problem is resolved. @zara"""
-        try:
+        def _delete() -> None:
             async_delete_issue(hass, domain="solar_forecast_ml", issue_id=issue_id)
+
+        try:
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop == hass.loop:
+                _delete()
+            else:
+                hass.loop.call_soon_threadsafe(_delete)
             _LOGGER.debug("[Hubble] Dismissed repairs issue '%s'", issue_id)
         except Exception as e:
             _LOGGER.debug("Failed to dismiss repairs issue: %s", e)

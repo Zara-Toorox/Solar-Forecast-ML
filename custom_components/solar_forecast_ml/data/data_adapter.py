@@ -26,7 +26,7 @@ from ..const import (
     ML_MODEL_VERSION,
 )
 from ..core.core_helpers import SafeDateTimeUtil as dt_util
-from ..ai import (
+from ..ai.ai_types import (
     HourlyProfile,
     LearnedWeights,
     PredictionRecord,

@@ -49,9 +49,14 @@ from .const import (
     CONF_MAX_PRICE,
     CONF_SMART_CHARGING_ENABLED,
     CONF_SMART_CHARGING_SWITCH,
+    CONF_SENSOR_HOME_CONSUMPTION,
+    CONF_SENSOR_SOLAR_TO_HOUSE,
+    CONF_FORCE_CHARGE_PRICE,
+    DEFAULT_FORCE_CHARGE_PRICE,
     CONF_SENSOR_PRICE_TOTAL,
     CONF_BATTERY_CAPACITY,
     CONF_BATTERY_SOC_SENSOR,
+    CONF_SENSOR_BATTERY_SOC,
     CONF_SENSOR_BATTERY_POWER,
     CONF_MAX_SOC,
     CONF_MIN_SOC,
@@ -116,16 +121,33 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         from .core.price_service import ElectricityPriceService
         from .core.price_calculator import PriceCalculator
 
-        entry_data = self._entry.data
-        country = entry_data.get(CONF_COUNTRY, DEFAULT_COUNTRY)
-        vat_rate = entry_data.get(CONF_VAT_RATE, DEFAULT_VAT_RATE_DE)
+        entry_data = {**self._entry.data, **self._entry.options}
+        country = entry_data.get(CONF_COUNTRY)
+        if country is None:
+            country = DEFAULT_COUNTRY
+
+        vat_rate = entry_data.get(CONF_VAT_RATE)
+        if vat_rate is None:
+            vat_rate = DEFAULT_VAT_RATE_DE
+
+        grid_fee = entry_data.get(CONF_GPM_GRID_FEE)
+        if grid_fee is None:
+            grid_fee = DEFAULT_GPM_GRID_FEE
+
+        taxes_fees = entry_data.get(CONF_TAXES_FEES)
+        if taxes_fees is None:
+            taxes_fees = DEFAULT_TAXES_FEES
+
+        provider_markup = entry_data.get(CONF_PROVIDER_MARKUP)
+        if provider_markup is None:
+            provider_markup = DEFAULT_PROVIDER_MARKUP
 
         self._price_service = ElectricityPriceService(country=country)
         self._price_calculator = PriceCalculator(
             vat_rate=vat_rate,
-            grid_fee=entry_data.get(CONF_GPM_GRID_FEE, DEFAULT_GPM_GRID_FEE),
-            taxes_fees=entry_data.get(CONF_TAXES_FEES, DEFAULT_TAXES_FEES),
-            provider_markup=entry_data.get(CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP),
+            grid_fee=grid_fee,
+            taxes_fees=taxes_fees,
+            provider_markup=provider_markup,
         )
 
 
@@ -153,21 +175,34 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if db:
                     self._forecast_reader = SolarForecastReader(db)
                     soc_sensor = entry_data.get(CONF_BATTERY_SOC_SENSOR, "")
+                    battery_capacity = entry_data.get(CONF_BATTERY_CAPACITY)
+                    if battery_capacity is None:
+                        battery_capacity = DEFAULT_BATTERY_CAPACITY
+
+                    max_soc = entry_data.get(CONF_MAX_SOC)
+                    if max_soc is None:
+                        max_soc = DEFAULT_MAX_SOC
+
+                    min_soc = entry_data.get(CONF_MIN_SOC)
+                    if min_soc is None:
+                        min_soc = DEFAULT_MIN_SOC
+
+                    force_charge_price = entry_data.get(CONF_FORCE_CHARGE_PRICE)
+                    if force_charge_price is None:
+                        force_charge_price = DEFAULT_FORCE_CHARGE_PRICE
+
                     self._smart_charging = SmartChargingManager(
                         hass=self.hass,
                         forecast_reader=self._forecast_reader,
-                        battery_capacity_kwh=entry_data.get(
-                            CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY
-                        ),
+                        battery_capacity_kwh=battery_capacity,
                         soc_sensor_entity=soc_sensor,
-                        max_soc=entry_data.get(CONF_MAX_SOC, DEFAULT_MAX_SOC),
-                        min_soc=entry_data.get(CONF_MIN_SOC, DEFAULT_MIN_SOC),
+                        max_soc=max_soc,
+                        min_soc=min_soc,
                         smart_charging_switch=entry_data.get(CONF_SMART_CHARGING_SWITCH),
                         home_consumption_sensor=entry_data.get(CONF_SENSOR_HOME_CONSUMPTION),
                         solar_power_sensor=entry_data.get(CONF_SENSOR_SOLAR_TO_HOUSE),
-                        force_charge_price=entry_data.get(
-                            CONF_FORCE_CHARGE_PRICE, DEFAULT_FORCE_CHARGE_PRICE
-                        ),
+                        force_charge_price=force_charge_price,
+                        main_soc_sensor_entity=entry_data.get(CONF_SENSOR_BATTERY_SOC, ""),
                     )
                     _LOGGER.info("Smart charging initialized")
             except Exception as err:
@@ -185,6 +220,7 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Fetch updated price data. @zara"""
         from datetime import timezone
         data: dict[str, Any] = {}
+        entry_config = {**self._entry.data, **self._entry.options}
 
         try:
             # Fetch prices (hourly)
@@ -200,7 +236,7 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             if self._price_service and self._price_service.has_data:
                 calc = self._price_calculator
-                max_price = self._entry.data.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
+                max_price = entry_config.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
 
                 spot_net = self._price_service.get_current_price()
                 next_spot = self._price_service.get_next_hour_price()
@@ -222,7 +258,7 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
 
             # Fallback: Read total price from external sensor if GPM price service is not available or has no data
-            price_sensor_id = self._entry.data.get(CONF_SENSOR_PRICE_TOTAL)
+            price_sensor_id = entry_config.get(CONF_SENSOR_PRICE_TOTAL)
             if price_sensor_id and data.get("total_price") is None:
                 state = self.hass.states.get(price_sensor_id)
                 if state is not None and state.state not in ("unknown", "unavailable", None):
@@ -241,7 +277,7 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             # Calculate is_cheap if not already done and total_price is available
             if data.get("total_price") is not None and not data.get("is_cheap", False):
-                max_price = self._entry.data.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
+                max_price = entry_config.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
                 data["is_cheap"] = data["total_price"] < max_price
 
             # Battery stats
@@ -334,7 +370,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # --- Config ---
     config_path = Path(hass.config.path())
-    entry_config = dict(entry.data)
+    entry_config = {**entry.data, **entry.options}
 
     # --- Core Services (from services → core) ---
     from .core.daily_aggregator import DailyEnergyAggregator
@@ -501,6 +537,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.data[DOMAIN][entry.entry_id]["_task_forecast"] = task_fc
 
+    # Trigger coordinator refresh once HA is fully started to ensure sensors are loaded
+    async def _async_ha_started(event):
+        _LOGGER.info("Home Assistant started, triggering dynamic GPM coordinator refresh")
+        try:
+            await gpm_coordinator.async_refresh()
+        except Exception as err:
+            _LOGGER.warning("Failed to refresh GPM Coordinator on HA start: %s", err)
+
+    entry.async_on_unload(
+        hass.bus.async_listen_once("homeassistant_started", _async_ha_started)
+    )
+
     _LOGGER.info("%s v%s successfully set up", NAME, VERSION)
     return True
 
@@ -576,7 +624,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
         return
 
     entry_data = hass.data[DOMAIN][entry.entry_id]
-    new_config = dict(entry.data)
+    new_config = {**entry.data, **entry.options}
     entry_data["config"] = new_config
 
     for key in ("billing_calculator", "monthly_tariff_manager"):
@@ -622,37 +670,62 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                     if db:
                         gpm_coordinator._forecast_reader = SolarForecastReader(db)
                         soc_sensor = new_config.get(CONF_BATTERY_SOC_SENSOR, "")
+                        battery_capacity = new_config.get(CONF_BATTERY_CAPACITY)
+                        if battery_capacity is None:
+                            battery_capacity = DEFAULT_BATTERY_CAPACITY
+
+                        max_soc = new_config.get(CONF_MAX_SOC)
+                        if max_soc is None:
+                            max_soc = DEFAULT_MAX_SOC
+
+                        min_soc = new_config.get(CONF_MIN_SOC)
+                        if min_soc is None:
+                            min_soc = DEFAULT_MIN_SOC
+
+                        force_charge_price = new_config.get(CONF_FORCE_CHARGE_PRICE)
+                        if force_charge_price is None:
+                            force_charge_price = DEFAULT_FORCE_CHARGE_PRICE
+
                         gpm_coordinator._smart_charging = SmartChargingManager(
                             hass=hass,
                             forecast_reader=gpm_coordinator._forecast_reader,
-                            battery_capacity_kwh=new_config.get(
-                                CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY
-                            ),
+                            battery_capacity_kwh=battery_capacity,
                             soc_sensor_entity=soc_sensor,
-                            max_soc=new_config.get(CONF_MAX_SOC, DEFAULT_MAX_SOC),
-                            min_soc=new_config.get(CONF_MIN_SOC, DEFAULT_MIN_SOC),
+                            max_soc=max_soc,
+                            min_soc=min_soc,
                             smart_charging_switch=new_config.get(CONF_SMART_CHARGING_SWITCH),
                             home_consumption_sensor=new_config.get(CONF_SENSOR_HOME_CONSUMPTION),
                             solar_power_sensor=new_config.get(CONF_SENSOR_SOLAR_TO_HOUSE),
-                            force_charge_price=new_config.get(
-                                CONF_FORCE_CHARGE_PRICE, DEFAULT_FORCE_CHARGE_PRICE
-                            ),
+                            force_charge_price=force_charge_price,
+                            main_soc_sensor_entity=new_config.get(CONF_SENSOR_BATTERY_SOC, ""),
                         )
                         _LOGGER.info("Smart charging initialized dynamically")
                 else:
+                    battery_capacity = new_config.get(CONF_BATTERY_CAPACITY)
+                    if battery_capacity is None:
+                        battery_capacity = DEFAULT_BATTERY_CAPACITY
+
+                    max_soc = new_config.get(CONF_MAX_SOC)
+                    if max_soc is None:
+                        max_soc = DEFAULT_MAX_SOC
+
+                    min_soc = new_config.get(CONF_MIN_SOC)
+                    if min_soc is None:
+                        min_soc = DEFAULT_MIN_SOC
+
+                    force_charge_price = new_config.get(CONF_FORCE_CHARGE_PRICE)
+                    if force_charge_price is None:
+                        force_charge_price = DEFAULT_FORCE_CHARGE_PRICE
+
                     gpm_coordinator._smart_charging.update_config(
-                        battery_capacity_kwh=new_config.get(
-                            CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY
-                        ),
+                        battery_capacity_kwh=battery_capacity,
                         soc_sensor_entity=new_config.get(CONF_BATTERY_SOC_SENSOR, ""),
-                        max_soc=new_config.get(CONF_MAX_SOC, DEFAULT_MAX_SOC),
-                        min_soc=new_config.get(CONF_MIN_SOC, DEFAULT_MIN_SOC),
+                        max_soc=max_soc,
+                        min_soc=min_soc,
                         smart_charging_switch=new_config.get(CONF_SMART_CHARGING_SWITCH),
                         home_consumption_sensor=new_config.get(CONF_SENSOR_HOME_CONSUMPTION),
                         solar_power_sensor=new_config.get(CONF_SENSOR_SOLAR_TO_HOUSE),
-                        force_charge_price=new_config.get(
-                            CONF_FORCE_CHARGE_PRICE, DEFAULT_FORCE_CHARGE_PRICE
-                        ),
+                        force_charge_price=force_charge_price,
                     )
                     _LOGGER.info("Smart charging configuration updated dynamically")
             else:

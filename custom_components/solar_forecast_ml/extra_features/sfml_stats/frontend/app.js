@@ -99,11 +99,12 @@ const App = {
         }
 
         const tabs = computed(() => [
-            { id: 'home',     label: t('nav.home'),     icon: '🏠' },
-            { id: 'solar',    label: t('nav.solar'),    icon: '☀' },
-            { id: 'weather',  label: t('nav.weather'),  icon: '🌤' },
-            { id: 'energy',   label: t('nav.energy'),   icon: '⚡' },
-            { id: 'settings', label: t('nav.settings'), icon: '⚙' },
+            { id: 'home',           label: t('nav.home'),           icon: '🏠' },
+            { id: 'solar',          label: t('nav.solar'),          icon: '☀' },
+            { id: 'weather',        label: t('nav.weather'),        icon: '🌤' },
+            { id: 'energy',         label: t('nav.energy'),         icon: '⚡' },
+            { id: 'smart_charging', label: t('nav.smartCharging'),  icon: '🔌' },
+            { id: 'settings',       label: t('nav.settings'),       icon: '⚙' },
         ]);
 
         // Pages (lazy loaded). Loading placeholders are intentionally minimal —
@@ -113,6 +114,7 @@ const App = {
             solar: window.SolarPage || { template: '<div class="page page-solar"><h2>Loading...</h2></div>' },
             weather: window.WeatherPage || { template: '<div class="page page-weather"><h2>Loading...</h2></div>' },
             energy: window.EnergyPage || { template: '<div class="page page-energy"><h2>⚡ ' + t('nav.energyAndFinances') + '</h2><p>Loading...</p></div>' },
+            smart_charging: window.SmartChargingPage || { template: '<div class="page page-smart-charging"><h2>🔌 ' + t('nav.smartCharging') + '</h2><p>Loading...</p></div>' },
             settings: window.SettingsPage || { template: '<div class="page page-settings"><h2>⚙ ' + t('nav.settings') + '</h2><p>Loading...</p></div>' },
         };
 

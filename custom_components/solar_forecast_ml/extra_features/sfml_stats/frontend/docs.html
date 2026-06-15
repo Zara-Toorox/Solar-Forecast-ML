@@ -1361,13 +1361,36 @@
 
                         <div class="config-item" onclick="toggleConfigItem(this)">
                             <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🤖</span> AI Algorithmus (Ridge vs. TinyLSTM)</span>
+                                <span class="config-item-title"><span class="config-item-icon">⚙️</span> Modus (AI Algorithmus)</span>
                                 <span class="config-item-arrow">▶</span>
                             </div>
                             <div class="config-item-body">
-                                <strong>Ridge Regression:</strong> Sehr robust und stabil, läuft schon ab wenigen Tagen Trainingsdaten.<br>
-                                <strong>Neural Network (TinyLSTM):</strong> Ein neuronales Netz für maximale Genauigkeit. Benötigt mindestens 100 aufgezeichnete Tage und ca. 200 MB freien RAM.<br>
-                                <em>Empfehlung:</em> Auf "Automatic" belassen, das System schaltet das neuronale Netz automatisch frei, sobald genügend fehlerfreie Daten aufgezeichnet wurden.
+                                Bestimmt, welcher mathematische Ansatz zur Ertragsberechnung verwendet wird:<br>
+                                <strong>Automatisch (Empfohlen):</strong> Das System entscheidet basierend auf der Menge der aufgezeichneten Daten selbstständig. Es startet mit Ridge und schaltet das Neuronale Netz frei, sobald ausreichend Daten vorhanden sind.<br>
+                                <strong>Ridge:</strong> Ein statistisches Modell (lineare Regression), das extrem schnell lernt, robust gegen Ausreißer ist und bereits ab wenigen Tagen Trainingsdaten stabile Ergebnisse liefert.<br>
+                                <strong>Neuronales Netz (TinyLSTM):</strong> Bietet eine um 5–10% höhere Vorhersagegenauigkeit. Benötigt mindestens 100 fehlerfreie Aufzeichnungstage und ca. 200 MB RAM auf dem Host-System.
+                            </div>
+                        </div>
+
+                        <div class="config-item" onclick="toggleConfigItem(this)">
+                            <div class="config-item-header">
+                                <span class="config-item-title"><span class="config-item-icon">🤖</span> KI aktivieren / deaktivieren</span>
+                                <span class="config-item-arrow">▶</span>
+                            </div>
+                            <div class="config-item-body">
+                                Erlaubt oder verbietet die Nutzung des Neuronalen Netzes (TinyLSTM).<br>
+                                <em>Auswirkung:</em> Ist diese Option aktiviert, nutzt das System bei erfüllten Mindestanforderungen (100+ Proben und genügend Arbeitsspeicher) das neuronale Netz. Falls die Kriterien nicht erfüllt sind oder die Option deaktiviert wird, fällt das System automatisch und nahtlos auf die Ridge-Regression zurück. <strong>Empfehlung: Aktiviert lassen.</strong>
+                            </div>
+                        </div>
+
+                        <div class="config-item" onclick="toggleConfigItem(this)">
+                            <div class="config-item-header">
+                                <span class="config-item-title"><span class="config-item-icon">🔄</span> Adaptive Prognose</span>
+                                <span class="config-item-arrow">▶</span>
+                            </div>
+                            <div class="config-item-body">
+                                Ermöglicht eine dynamische Anpassung der Prognose am Mittag.<br>
+                                <em>Funktionsweise:</em> Sollten am Vormittag starke Abweichungen (&gt;35%) zwischen der ursprünglichen Morgenprognose und der tatsächlichen PV-Produktion gemessen werden (z. B. durch unerwarteten Nebel oder plötzlichen Sonnenschein), korrigiert SFML um 12:30 Uhr die restliche Nachmittagsprognose automatisch auf Basis frischer Wetterdaten und objektiver Kriterien. <strong>Standardwert: AUS.</strong>
                             </div>
                         </div>
 
@@ -1377,30 +1400,94 @@
                                 <span class="config-item-arrow">▶</span>
                             </div>
                             <div class="config-item-body">
-                                Schaltet von November bis Februar Spezialalgorithmen für extrem flache Einstrahlungswinkel frei. Bewölkungseinflüsse werden in dieser Zeit empfindlicher gewichtet.<br>
-                                <em>Auswirkung:</em> Verhindert eine systematische Überprognose in den dunklen Wintermonaten. Standardmäßig eingeschaltet.
+                                Aktiviert verbesserte Algorithmen für die dunklen Wintermonate (November bis Februar).<br>
+                                <em>Auswirkung:</em> Bei niedrigen Sonnenständen wird der Einfluss von Bewölkung und Streulicht genauer in die Berechnung einbezogen. Dies verhindert eine systematische Überprognose im Winter und stabilisiert die Ladeplanung. <strong>Standardwert: AN.</strong>
                             </div>
                         </div>
 
                         <div class="config-item" onclick="toggleConfigItem(this)">
                             <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🛑</span> MPPT-Drosselungserkennung (Zero Export & Akku)</span>
+                                <span class="config-item-title"><span class="config-item-icon">🔌</span> Nulleinspeisung aktiv (MPPT-Drosselerkennung)</span>
                                 <span class="config-item-arrow">▶</span>
                             </div>
                             <div class="config-item-body">
-                                Schützt die KI vor "falschem Lernen". Wenn deine Solaranlage gedrosselt wird (weil der Akku voll ist oder kein Strom ins öffentliche Netz eingespeist werden darf), sinkt der Ertrag künstlich trotz strahlendem Sonnenschein. Die KI würde normalerweise lernen: "Ah, Sonne bringt heute keinen Strom".<br>
-                                <strong>Lösung:</strong> Wenn eingeschaltet, erkennt das System diese Phasen und schließt gedrosselte Stunden komplett vom Training aus.
+                                Muss aktiviert werden, wenn im Haushalt eine Nulleinspeise-Regelung (z. B. Shelly-gesteuert) im Einsatz ist.<br>
+                                <strong>Warum ist das wichtig?</strong> Bei einer Nulleinspeisung drosselt der Wechselrichter die PV-Produktion künstlich auf den aktuellen Hausbedarf herunter, wenn kein Strom ins Netz fließen darf. Ohne diese Option würde das maschinelle Lernen fälschlicherweise lernen: <em>"Sonnenschein um 12 Uhr bringt nur 200W"</em> (statt z. B. 1000W theoretisch möglicher Erzeugung). Mit dieser Option werden solche gedrosselten Stunden automatisch vom KI-Training ausgeschlossen.<br>
+                                <em>Hinweis:</em> Die Erkennung greift nur bei guten Wetterbedingungen (viel Sonne, wenig Wolken) und wenn die reale Erzeugung deutlich unter der physikalischen Vorhersage liegt.
                             </div>
                         </div>
 
                         <div class="config-item" onclick="toggleConfigItem(this)">
                             <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🔄</span> Adaptive Nachmittagskorrektur</span>
+                                <span class="config-item-title"><span class="config-item-icon">🔋</span> Batteriespeicher vorhanden</span>
                                 <span class="config-item-arrow">▶</span>
                             </div>
                             <div class="config-item-body">
-                                Weicht das echte Wetter am Vormittag massiv (>35%) von der Morgenprognose ab, korrigiert SFML selbstständig um 12:30 Uhr die restliche Nachmittagsprognose.<br>
-                                <em>Vorteil:</em> Deine Speicher- und Ladeplanung passt sich dynamisch an unvorhergesehene Wetteränderungen an.
+                                Aktiviert die erweiterte MPPT-Drosselerkennung für Systeme mit physischem Heimspeicher.<br>
+                                <strong>Warum ist das wichtig?</strong> Sobald der Akku voll aufgeladen ist und gleichzeitig eine Nulleinspeisung oder AC-Begrenzung greift, drosselt der Laderegler (MPPT) die Solarproduktion. Das System erkennt diese Drosselung daran, dass der Stromfluss in die Batterie unter 50W fällt.<br>
+                                <em>Wichtig:</em> Bei Aktivierung dieser Option **MUSS** zwingend auch der *Solar-zu-Akku Sensor* konfiguriert werden!
+                            </div>
+                        </div>
+
+                        <div class="config-item" onclick="toggleConfigItem(this)">
+                            <div class="config-item-header">
+                                <span class="config-item-title"><span class="config-item-icon">⚡</span> Solar-zu-Akku Sensor</span>
+                                <span class="config-item-arrow">▶</span>
+                            </div>
+                            <div class="config-item-body">
+                                Bestimmt den Leistungssensor (in Watt), der den direkten Energiefluss von den PV-Modulen in den Akku misst.<br>
+                                <strong>Typische Beispiele:</strong> <code>sensor.pv_to_battery_power</code>, <code>sensor.battery_charging_power</code> oder <code>sensor.solar_battery_flow</code>.<br>
+                                <strong>Wie funktioniert es?</strong> Fällt dieser Wert bei gutem Wetter unter 50W, weiß die Drosselungserkennung, dass die Batterie voll ist und keine Enegie mehr aufnehmen kann. Stunden, in denen der Akku gesättigt ist und gedrosselt wurde, werden so automatisch vom Training ausgeschlossen.
+                            </div>
+                        </div>
+
+                        <div class="config-item" onclick="toggleConfigItem(this)">
+                            <div class="config-item-header">
+                                <span class="config-item-title"><span class="config-item-icon">🔍</span> Diagnose-Modus</span>
+                                <span class="config-item-arrow">▶</span>
+                            </div>
+                            <div class="config-item-body">
+                                Schaltet zusätzliche interne System- und Diagnose-Sensoren in Home Assistant frei.<br>
+                                <em>Nutzen:</em> Dient der erweiterten Überwachung der Integration und hilft beim Debuggen von Berechnungs- oder Verbindungsfehlern.
+                            </div>
+                        </div>
+
+                        <div class="config-item" onclick="toggleConfigItem(this)">
+                            <div class="config-item-header">
+                                <span class="config-item-title"><span class="config-item-icon">⏱️</span> Stunden-Prognose Sensor</span>
+                                <span class="config-item-arrow">▶</span>
+                            </div>
+                            <div class="config-item-body">
+                                Richtet einen Sensor für die Solarprognose der jeweils nächsten Stunde ein (<code>sensor.next_hour_forecast</code>).<br>
+                                <em>Nutzen:</em> Ermöglicht ultrakurzfristige Steuerungen im Haus (z. B. Freigabe von kurzzeitigen Heizpatronen oder Verbrauchern).
+                            </div>
+                        </div>
+
+                        <div class="config-item" onclick="toggleConfigItem(this)">
+                            <div class="config-item-header">
+                                <span class="config-item-title"><span class="config-item-icon">🚘</span> evcc Solar-Prognose</span>
+                                <span class="config-item-arrow">▶</span>
+                            </div>
+                            <div class="config-item-body">
+                                Stellt einen Sensor mit stündlichen Prognosedaten im nativen evcc-Format als JSON-Payload bereit (<code>sensor.evcc_solar_forecast</code>).<br>
+                                <em>Vorteil:</em> Erlaubt das direkte Einbinden deiner Solarprognosen in evcc zum intelligenten Überschussladen deines E-Autos – ganz ohne komplizierte YAML-Template-Helfer. <strong>Standardwert: AUS.</strong>
+                            </div>
+                        </div>
+
+                        <div class="config-item" onclick="toggleConfigItem(this)">
+                            <div class="config-item-header">
+                                <span class="config-item-title"><span class="config-item-icon">🔔</span> Benachrichtigungs-Einstellungen</span>
+                                <span class="config-item-arrow">▶</span>
+                            </div>
+                            <div class="config-item-body">
+                                Steuert, welche Systemereignisse Benachrichtigungen in Home Assistant auslösen:<br>
+                                <ul>
+                                    <li><strong>Start-Benachrichtigung:</strong> Informiert dich per Systembenachrichtigung, wenn die Integration erfolgreich gestartet wurde.</li>
+                                    <li><strong>Prognose-Benachrichtigungen:</strong> Sendet Updates bei Aktualisierungen der Solarprognose.</li>
+                                    <li><strong>Trainings-Benachrichtigungen:</strong> Informiert dich, sobald das nächtliche KI-Modell-Training startet.</li>
+                                    <li><strong>Erfolgs-Benachrichtigungen:</strong> Benachrichtigt dich nach einem erfolgreich abgeschlossenem Trainingslauf.</li>
+                                    <li><strong>Schneebedeckung-Benachrichtigungen:</strong> Löst eine Warnung aus, wenn die Wettersensoren und Ertragsdaten eine anhaltende Schneebedeckung der Solarmodule nahelegen.</li>
+                                </ul>
                             </div>
                         </div>
                     </div>

@@ -34,6 +34,7 @@ from ..const import (
     CONF_NOTIFY_SUCCESSFUL_LEARNING,
     CONF_NOTIFY_WEATHER_ALERT,
     CONF_NOTIFY_SNOW_COVERED,
+    VERSION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -223,7 +224,7 @@ class NotificationService:
 
             await self._safe_create_notification(
                 message=message,
-                title="☀️ Solar Forecast ML V20 \"Transformer\" — Hubble AI Stack",
+                title=f"☀️ Solar Forecast ML V{VERSION} \"Transformer\" — Hubble AI Stack",
                 notification_id=NOTIFICATION_ID_STARTUP,
             )
 

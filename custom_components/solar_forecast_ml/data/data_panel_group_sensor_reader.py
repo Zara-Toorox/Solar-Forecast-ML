@@ -60,6 +60,7 @@ class PanelGroupSensorReader(DataManagerIO):
         self._group_learning_disabled_streak: int = 0
         self._consistency_mismatch_streak: int = 0
         self._recorder_backfill_negative_delta_counts: Dict[str, int] = {}
+        self._listener_removers: Dict[str, Any] = {}
 
         _LOGGER.debug(
             "PanelGroupSensorReader initialized with %d groups",
@@ -1046,13 +1047,57 @@ class PanelGroupSensorReader(DataManagerIO):
                     f"**Lösung:** Bitte überprüfe in den Einstellungen der Integration oder in deinen Home Assistant "
                     f"Entitäten, ob der Sensor existiert und kumulierte kWh-Werte liefert."
                 )
-                Hubble.async_create_issue(
+                await Hubble.async_create_issue(
                     self.hass,
                     issue_id=issue_id,
                     title=title,
                     description=description,
                     severity=Severity.ERROR,
                 )
+                self._setup_sensor_recovery_listener(group_name, entity_id)
             else:
                 # Sensor ist gültig: eventuell altes Problem löschen
-                Hubble.async_dismiss_issue(self.hass, issue_id)
+                await Hubble.async_dismiss_issue(self.hass, issue_id)
+                self._remove_sensor_recovery_listener(entity_id)
+
+    def _setup_sensor_recovery_listener(self, group_name: str, entity_id: str) -> None:
+        """Register a state change listener to automatically recover when sensor is back online."""
+        if entity_id in self._listener_removers:
+            return
+
+        from homeassistant.helpers.event import async_track_state_change_event
+
+        async def async_state_changed_listener(event: Any) -> None:
+            new_state = event.data.get("new_state")
+            if new_state is None or new_state.state in (None, "unavailable", "unknown"):
+                return
+
+            try:
+                float(new_state.state)
+            except (ValueError, TypeError):
+                return
+
+            _LOGGER.info(
+                "Sensor '%s' for panel group '%s' came online. Re-running sensor audit...",
+                entity_id,
+                group_name,
+            )
+            self.hass.add_job(self.async_perform_sensor_audit)
+
+        _LOGGER.debug("Registering recovery listener for sensor '%s'", entity_id)
+        remove_listener = async_track_state_change_event(
+            self.hass, [entity_id], async_state_changed_listener
+        )
+        self._listener_removers[entity_id] = remove_listener
+
+    def _remove_sensor_recovery_listener(self, entity_id: str) -> None:
+        """Remove recovery listener for a sensor if active."""
+        remove_listener = self._listener_removers.pop(entity_id, None)
+        if remove_listener:
+            _LOGGER.debug("Removing recovery listener for sensor '%s'", entity_id)
+            remove_listener()
+
+    def cleanup(self) -> None:
+        """Cleanup all active event listeners to prevent memory leaks."""
+        for entity_id in list(self._listener_removers.keys()):
+            self._remove_sensor_recovery_listener(entity_id)
