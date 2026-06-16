@@ -67,19 +67,19 @@ async def async_run_training_in_subprocess(
         )
 
         try:
-            # Enforce a 5-minute timeout on training execution
+            # Enforce a 30-minute timeout on training execution
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(input=input_str.encode('utf-8')),
-                timeout=300.0
+                timeout=1800.0
             )
         except asyncio.TimeoutError:
-            _LOGGER.warning("Training worker subprocess timed out after 300 seconds.")
+            _LOGGER.warning("Training worker subprocess timed out after 1800 seconds.")
             try:
                 process.kill()
                 await process.wait()
             except Exception:
                 pass
-            return {"success": False, "error_message": "Training worker timed out after 300 seconds"}
+            return {"success": False, "error_message": "Training worker timed out after 1800 seconds"}
         except asyncio.CancelledError:
             _LOGGER.info("Training worker subprocess cancelled, terminating process.")
             try:
