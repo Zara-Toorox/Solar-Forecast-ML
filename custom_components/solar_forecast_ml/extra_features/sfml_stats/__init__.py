@@ -460,18 +460,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.data[DOMAIN][entry.entry_id]["cancel_daily_job"] = cancel_daily
 
-    async def _forecast_morning_job(now: datetime) -> None:
-        """Collect morning forecasts. @zara"""
-        try:
-            await forecast_comparison_collector.async_collect_morning_forecasts()
-        except Exception as err:
-            _LOGGER.error("Morning forecast collection failed: %s", err)
-
-    cancel_morning = async_track_time_change(
-        hass, _forecast_morning_job,
-        hour=FORECAST_MORNING_HOUR, minute=FORECAST_MORNING_MINUTE, second=0,
-    )
+    # Start dynamic scheduler for morning forecast comparison collection
+    hass.async_create_task(forecast_comparison_collector.async_schedule_next_lock_job())
+    cancel_morning = forecast_comparison_collector.stop
     hass.data[DOMAIN][entry.entry_id]["cancel_forecast_morning_job"] = cancel_morning
+
+    # Start database self-healing migration for historical forecast comparison correction
+    hass.async_create_task(forecast_comparison_collector.async_migrate_historical_forecasts())
 
     async def _forecast_evening_job(now: datetime) -> None:
         """Collect evening actuals. @zara"""

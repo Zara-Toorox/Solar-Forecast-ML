@@ -1406,9 +1406,22 @@ const _SolarPage = {
                     textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-mono)' },
                     formatter: function(params) {
                         let s = '<b>' + params[0].axisValue + '</b><br/>';
+                        let actualVal = null;
+                        const actualName = t('solar.movement.actual') || 'Istwert';
+                        params.forEach(p => {
+                            if (p.seriesName === actualName) {
+                                actualVal = p.value;
+                            }
+                        });
                         params.forEach(p => {
                             if (p.value !== null && p.value !== undefined) {
-                                s += '<span style="color:' + p.color + '">● ' + p.seriesName + ':</span> ' + p.value.toFixed(2) + ' kWh<br/>';
+                                s += '<span style="color:' + p.color + '">● ' + p.seriesName + ':</span> ' + p.value.toFixed(2) + ' kWh';
+                                if (p.seriesName !== actualName && actualVal !== null && actualVal !== undefined && actualVal > 0) {
+                                    const diffPct = ((p.value - actualVal) / actualVal) * 100;
+                                    const diffSign = diffPct >= 0 ? '+' : '';
+                                    s += ' <span style="font-size: 0.8rem; opacity: 0.85;">(' + diffSign + diffPct.toFixed(1) + '%)</span>';
+                                }
+                                s += '<br/>';
                             }
                         });
                         return s;

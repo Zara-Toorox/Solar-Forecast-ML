@@ -653,15 +653,15 @@ class GridPriceMonitorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Calculate total price: (Spot x VAT) + Grid + Taxes + Provider
             enriched_entry["total_price"] = self.calculate_total_price(spot_net)
 
-            # Convert timestamp to LOCAL time for cache
+            # Convert timestamp to naive LOCAL time for cache
             # This is critical for automation triggers!
             ts = entry.get("timestamp")
             if ts is not None:
                 if isinstance(ts, str):
                     ts = datetime.fromisoformat(ts)
-                # Convert UTC to local timezone
+                # Convert UTC to local timezone and strip offset
                 local_ts = ts.astimezone()
-                enriched_entry["timestamp"] = local_ts.isoformat()
+                enriched_entry["timestamp"] = local_ts.replace(tzinfo=None).isoformat()
 
             enriched.append(enriched_entry)
         return enriched
@@ -698,19 +698,25 @@ class GridPriceMonitorCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def _find_next_cheap_hour(self) -> dict[str, Any] | None:
         """Find the next hour where total price is below max threshold @zara"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
 
         # Use public method instead of private _price_cache
         for entry in self._price_service.get_all_prices():
             entry_ts = entry["timestamp"]
             if isinstance(entry_ts, str):
                 entry_ts = datetime.fromisoformat(entry_ts)
-            if entry_ts >= now:
+            
+            if entry_ts.tzinfo is not None:
+                entry_ts_naive = entry_ts.astimezone().replace(tzinfo=None)
+            else:
+                entry_ts_naive = entry_ts
+
+            if entry_ts_naive >= now:
                 total = self.calculate_total_price(entry["price"])
                 if total < self._max_price:
                     return {
                         "hour": entry["hour"],
-                        "timestamp": entry_ts,
+                        "timestamp": entry_ts_naive,
                         "total_price": total,
                     }
         return None

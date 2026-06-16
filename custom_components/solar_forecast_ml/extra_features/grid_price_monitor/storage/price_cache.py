@@ -41,6 +41,11 @@ class PriceCache:
             True if cache was loaded successfully
         """
         try:
+            # Self-healing migration: prune legacy timezone-aware cached entries
+            await self._db.execute(
+                "DELETE FROM GPM_price_cache WHERE timestamp LIKE '%+%' OR timestamp LIKE '%Z%'"
+            )
+
             row = await self._db.fetchone(
                 "SELECT last_fetch, valid_until, country FROM GPM_price_cache_meta WHERE id = 1"
             )
@@ -100,7 +105,15 @@ class PriceCache:
             for entry in prices:
                 ts = entry.get("timestamp")
                 if isinstance(ts, datetime):
+                    if ts.tzinfo is not None:
+                        ts = ts.astimezone().replace(tzinfo=None)
                     ts = ts.isoformat()
+                elif isinstance(ts, str) and ("+" in ts or "Z" in ts):
+                    try:
+                        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                        ts = dt.astimezone().replace(tzinfo=None).isoformat()
+                    except Exception:
+                        pass
                 params.append((
                     str(ts),
                     entry.get("price", 0),

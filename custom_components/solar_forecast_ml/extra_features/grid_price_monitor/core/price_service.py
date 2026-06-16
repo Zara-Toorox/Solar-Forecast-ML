@@ -54,7 +54,8 @@ class ElectricityPriceService:
             List of price dictionaries or None on error
         """
         if start_date is None:
-            start_date = datetime.now(timezone.utc).replace(
+            local_now = datetime.now().astimezone()
+            start_date = local_now.replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
         if end_date is None:
@@ -156,21 +157,18 @@ class ElectricityPriceService:
                 if timestamp_ms is None or market_price is None:
                     continue
 
-                # Store timestamp in UTC for accurate time comparisons
-                timestamp_utc = datetime.fromtimestamp(
-                    timestamp_ms / 1000, tz=timezone.utc
-                )
-
-                # Convert to local timezone for display values
-                timestamp_local = timestamp_utc.astimezone()
+                # Convert to local timezone
+                timestamp_local = datetime.fromtimestamp(
+                    timestamp_ms / 1000
+                ).astimezone()
 
                 # Convert EUR/MWh to ct/kWh (divide by 10)
                 price_ct_kwh = round(market_price / 10, 2)
 
                 prices.append({
-                    "timestamp": timestamp_utc,  # Keep UTC for comparisons
+                    "timestamp": timestamp_local.replace(tzinfo=None),  # Naive local datetime
                     "price": price_ct_kwh,
-                    "hour": timestamp_local.hour,  # Local hour for display
+                    "hour": timestamp_local.hour,  # Local hour
                     "date": timestamp_local.date().isoformat(),  # Local date
                 })
 
@@ -191,7 +189,7 @@ class ElectricityPriceService:
 
     def get_current_price(self) -> float | None:
         """Get the current hour's spot price @zara"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
         current_hour = now.replace(minute=0, second=0, microsecond=0)
 
         for entry in self._price_cache:
@@ -205,7 +203,7 @@ class ElectricityPriceService:
 
     def get_next_hour_price(self) -> float | None:
         """Get the next hour's spot price @zara"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
         next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
 
         for entry in self._price_cache:
@@ -223,7 +221,7 @@ class ElectricityPriceService:
         The date comparison is done in the local timezone to match user expectations.
         """
         # Convert to local timezone for correct date comparison
-        if date.tzinfo is None or date.tzinfo == timezone.utc:
+        if date.tzinfo is not None:
             local_date = date.astimezone().date()
         else:
             local_date = date.date()
@@ -232,12 +230,15 @@ class ElectricityPriceService:
 
         result = []
         for p in self._price_cache:
-            # Convert UTC timestamp to local date for comparison
             entry_ts = p["timestamp"]
             if isinstance(entry_ts, str):
                 entry_ts = datetime.fromisoformat(entry_ts)
-            # Convert to local timezone and get date
-            entry_local_date = entry_ts.astimezone().date().isoformat()
+            
+            if entry_ts.tzinfo is not None:
+                entry_local_date = entry_ts.astimezone().date().isoformat()
+            else:
+                entry_local_date = entry_ts.date().isoformat()
+
             if entry_local_date == target_date:
                 result.append(p)
 
@@ -246,12 +247,12 @@ class ElectricityPriceService:
     def get_today_prices(self) -> list[dict[str, Any]]:
         """Get all prices for today (local timezone) @zara"""
         # Use local time for "today"
-        local_now = datetime.now().astimezone()
+        local_now = datetime.now()
         return self.get_prices_for_date(local_now)
 
     def get_tomorrow_prices(self) -> list[dict[str, Any]]:
         """Get all prices for tomorrow (local timezone) @zara"""
-        local_now = datetime.now().astimezone()
+        local_now = datetime.now()
         tomorrow = local_now + timedelta(days=1)
         return self.get_prices_for_date(tomorrow)
 
@@ -289,14 +290,20 @@ class ElectricityPriceService:
 
     def get_next_cheap_hour(self, max_price: float) -> dict[str, Any] | None:
         """Get the next hour where price is below max_price @zara"""
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
 
         future_cheap = []
         for p in self._price_cache:
             entry_ts = p["timestamp"]
             if isinstance(entry_ts, str):
                 entry_ts = datetime.fromisoformat(entry_ts)
-            if entry_ts >= now and p["price"] < max_price:
+            
+            if entry_ts.tzinfo is not None:
+                entry_ts_naive = entry_ts.astimezone().replace(tzinfo=None)
+            else:
+                entry_ts_naive = entry_ts
+
+            if entry_ts_naive >= now and p["price"] < max_price:
                 future_cheap.append(p)
 
         if not future_cheap:

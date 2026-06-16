@@ -44,6 +44,69 @@ class HistoryManager:
             True if history is ready
         """
         try:
+            # 1. Run database migration for timezone-aware timestamps (in a single transaction)
+            # Check if there are any timezone-aware entries
+            row = await self._db.fetchone(
+                "SELECT COUNT(*) as cnt FROM GPM_price_history WHERE timestamp LIKE '%+%' OR timestamp LIKE '%Z%'"
+            )
+            if row and row["cnt"] > 0:
+                _LOGGER.info("Starting database migration for GPM_price_history to naive local timestamps...")
+                
+                # Fetch all entries
+                all_rows = await self._db.fetchall(
+                    "SELECT timestamp, price_net, total_price, hour FROM GPM_price_history"
+                )
+                
+                # Process and deduplicate
+                migrated_entries = {}
+                for r in all_rows:
+                    ts_str = r["timestamp"]
+                    try:
+                        dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        if dt.tzinfo is not None:
+                            local_dt = dt.astimezone()  # Uses system timezone dynamically!
+                            naive_dt = local_dt.replace(tzinfo=None)
+                        else:
+                            naive_dt = dt
+                            
+                        key = naive_dt.isoformat()
+                        price_net = r["price_net"]
+                        total_price = r["total_price"]
+                        hour = r["hour"]
+                        
+                        if key in migrated_entries:
+                            existing = migrated_entries[key]
+                            if existing["total_price"] is None and total_price is not None:
+                                migrated_entries[key] = {
+                                    "price_net": price_net,
+                                    "total_price": total_price,
+                                    "hour": hour
+                                }
+                        else:
+                            migrated_entries[key] = {
+                                "price_net": price_net,
+                                "total_price": total_price,
+                                "hour": hour
+                            }
+                    except Exception as parse_err:
+                        _LOGGER.warning("Migration skipping invalid timestamp %s: %s", ts_str, parse_err)
+
+                # Delete and re-insert inside transaction
+                await self._db.execute("DELETE FROM GPM_price_history", auto_commit=False)
+                
+                insert_data = [
+                    (key, val["price_net"], val["total_price"], val["hour"])
+                    for key, val in migrated_entries.items()
+                ]
+                
+                await self._db.executemany(
+                    """INSERT INTO GPM_price_history (timestamp, price_net, total_price, hour)
+                       VALUES (?, ?, ?, ?)""",
+                    insert_data,
+                )
+                await self._db.commit()
+                _LOGGER.info("Successfully migrated %d price history entries to naive local timestamps", len(insert_data))
+
             row = await self._db.fetchone(
                 "SELECT COUNT(*) as cnt FROM GPM_price_history"
             )
@@ -118,8 +181,8 @@ class HistoryManager:
             Number of entries removed
         """
         try:
-            cutoff_date = datetime.now(timezone.utc) - timedelta(days=HISTORY_RETENTION_DAYS)
-            cutoff_str = cutoff_date.isoformat()
+            cutoff_date = datetime.now() - timedelta(days=HISTORY_RETENTION_DAYS)
+            cutoff_str = cutoff_date.replace(microsecond=0).isoformat()
 
             # Delete old entries
             await self._db.execute(
@@ -167,15 +230,15 @@ class HistoryManager:
         start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_of_day = start_of_day + timedelta(days=1)
 
-        start_of_day = start_of_day.astimezone()
-        end_of_day = end_of_day.astimezone()
+        start_str = start_of_day.replace(tzinfo=None).isoformat()
+        end_str = end_of_day.replace(tzinfo=None).isoformat()
 
         try:
             rows = await self._db.fetchall(
                 """SELECT timestamp, price_net, total_price, hour FROM GPM_price_history
                    WHERE timestamp >= ? AND timestamp < ?
                    ORDER BY timestamp""",
-                (start_of_day.isoformat(), end_of_day.isoformat()),
+                (start_str, end_str),
             )
             return [
                 {
@@ -209,15 +272,15 @@ class HistoryManager:
         Returns:
             List of price entries in range
         """
-        start_date = start_date.astimezone()
-        end_date = end_date.astimezone()
+        start_str = start_date.replace(tzinfo=None).isoformat()
+        end_str = end_date.replace(tzinfo=None).isoformat()
 
         try:
             rows = await self._db.fetchall(
                 """SELECT timestamp, price_net, total_price, hour FROM GPM_price_history
                    WHERE timestamp >= ? AND timestamp <= ?
                    ORDER BY timestamp""",
-                (start_date.isoformat(), end_date.isoformat()),
+                (start_str, end_str),
             )
             return [
                 {
