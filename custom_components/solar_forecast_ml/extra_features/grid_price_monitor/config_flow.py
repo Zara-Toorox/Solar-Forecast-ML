@@ -14,7 +14,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, SOURCE_RECONFIGURE
+from homeassistant.config_entries import ConfigEntry, OptionsFlowWithReload, SOURCE_RECONFIGURE
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
@@ -428,7 +428,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 # ============================================================================
 
 
-class GridPriceMonitorOptionsFlow(config_entries.OptionsFlow):
+class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
     """Handle options flow for Solar Forecast GPM @zara
 
     Options flow allows quick changes to pricing without changing country.
@@ -440,7 +440,7 @@ class GridPriceMonitorOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage the options @zara"""
         errors: dict[str, str] = {}
-        current_data = self.config_entry.data
+        current_data = {**self.config_entry.data, **self.config_entry.options}
 
         if user_input is not None:
             # Validate max_price
@@ -456,9 +456,8 @@ class GridPriceMonitorOptionsFlow(config_entries.OptionsFlow):
             vat_rate = int(vat_rate_str)
 
             if not errors:
-                # Merge with existing data (keep country)
-                new_data = {
-                    **self.config_entry.data,
+                new_options = {
+                    **self.config_entry.options,
                     CONF_VAT_RATE: vat_rate,
                     CONF_GRID_FEE: user_input.get(CONF_GRID_FEE),
                     CONF_TAXES_FEES: user_input.get(CONF_TAXES_FEES),
@@ -472,12 +471,7 @@ class GridPriceMonitorOptionsFlow(config_entries.OptionsFlow):
                     CONF_MIN_SOC: int(user_input.get(CONF_MIN_SOC, DEFAULT_MIN_SOC)),
                 }
 
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    data=new_data,
-                )
-
-                return self.async_create_entry(title="", data={})
+                return self.async_create_entry(title="", data=new_options)
 
         current_country = current_data.get(CONF_COUNTRY, DEFAULT_COUNTRY)
         current_vat = current_data.get(CONF_VAT_RATE, _get_default_vat_for_country(current_country))

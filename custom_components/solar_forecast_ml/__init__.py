@@ -1017,8 +1017,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await setup_file_logging(hass)
 
-    # Register update listener for option changes @zara
-    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
     # Check ML dependencies @zara
     dependency_handler = DependencyHandler()
@@ -1343,15 +1341,6 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         ent_reg.async_remove(entity_id)
 
     _LOGGER.info(f"Removed {len(entities_to_remove)} entities from registry")
-
-
-async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update - reload integration to apply changes. @zara
-
-    Called when the user changes options (diagnostic mode, etc.)
-    """
-    _LOGGER.info("Options updated, reloading integration to apply changes...")
-    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:

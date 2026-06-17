@@ -51,9 +51,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up platforms - they will show "unavailable" until data is ready
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Register update listener for options changes
-    entry.async_on_unload(entry.add_update_listener(async_update_options))
-
     # Background initialization to avoid blocking HA startup @zara
     async def _background_initialization() -> None:
         """Initialize coordinator in background to not block HA startup."""
@@ -83,7 +80,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.info(
                 "%s setup complete - monitoring %s electricity prices",
                 NAME,
-                entry.data.get("country", "DE"),
+                {**entry.data, **entry.options}.get("country", "DE"),
             )
         except Exception as err:
             _LOGGER.error("Solar Forecast GPM background init failed: %s", err)
@@ -115,9 +112,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
-
-
-async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update @zara"""
-    _LOGGER.debug("Options updated, reloading %s", NAME)
-    await hass.config_entries.async_reload(entry.entry_id)

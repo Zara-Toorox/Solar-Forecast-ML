@@ -257,9 +257,9 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     data.get("total_price"), data.get("total_price_next_hour")
                 )
 
-            # Fallback: Read total price from external sensor if GPM price service is not available or has no data
+            # Prioritize configured price sensor over GPM price service if available
             price_sensor_id = entry_config.get(CONF_SENSOR_PRICE_TOTAL)
-            if price_sensor_id and data.get("total_price") is None:
+            if price_sensor_id:
                 state = self.hass.states.get(price_sensor_id)
                 if state is not None and state.state not in ("unknown", "unavailable", None):
                     try:
@@ -360,6 +360,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     db_manager = None
     try:
         db_manager = await DatabaseConnectionManager.get_instance(hass)
+        await db_manager.ensure_gpm_tables()
         from .readers.solar_reader import SolarDataReader
         from .readers.weather_reader import WeatherDataReader
         SolarDataReader._db_manager = db_manager
@@ -721,6 +722,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                         home_consumption_sensor=new_config.get(CONF_SENSOR_HOME_CONSUMPTION),
                         solar_power_sensor=new_config.get(CONF_SENSOR_SOLAR_TO_HOUSE),
                         force_charge_price=force_charge_price,
+                        main_soc_sensor_entity=new_config.get(CONF_SENSOR_BATTERY_SOC, ""),
                     )
                     _LOGGER.info("Smart charging configuration updated dynamically")
             else:

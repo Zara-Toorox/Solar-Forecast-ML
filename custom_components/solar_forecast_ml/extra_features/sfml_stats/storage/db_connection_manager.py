@@ -42,12 +42,14 @@ class DatabaseConnectionManager:
     _instance: DatabaseConnectionManager | None = None
     _lock: asyncio.Lock = asyncio.Lock()
 
-    def __init__(self, config_path: Path) -> None:
+    def __init__(self, config_path: Path, hass: HomeAssistant | None = None) -> None:
         """Initialize the database connection manager. @zara"""
         self._config_path = config_path
         self._db_path = config_path / SOLAR_FORECAST_DB
+        self._hass = hass
         self._connection: aiosqlite.Connection | None = None
         self._is_connected = False
+        self._connect_lock = asyncio.Lock()
 
     @classmethod
     async def get_instance(cls, hass: HomeAssistant) -> DatabaseConnectionManager:
@@ -56,7 +58,7 @@ class DatabaseConnectionManager:
             async with cls._lock:
                 if cls._instance is None:
                     config_path = Path(hass.config.path())
-                    cls._instance = cls(config_path)
+                    cls._instance = cls(config_path, hass)
                     await cls._instance.connect()
         return cls._instance
 
@@ -86,37 +88,63 @@ class DatabaseConnectionManager:
 
     async def connect(self) -> bool:
         """Establish database connection. @zara"""
-        if self._is_connected and self._connection is not None:
-            _LOGGER.debug("Database already connected")
-            return True
+        async with self._connect_lock:
+            if self._is_connected and self._connection is not None:
+                _LOGGER.debug("Database already connected")
+                return True
 
-        if not self.is_available:
-            _LOGGER.warning("Database not found: %s", self._db_path)
-            return False
+            if not self.is_available:
+                _LOGGER.warning("Database not found: %s", self._db_path)
+                return False
 
-        try:
-            self._connection = await aiosqlite.connect(
-                str(self._db_path), timeout=60.0, isolation_level="IMMEDIATE"
-            )
-            self._connection.row_factory = aiosqlite.Row
-            # Match SFML PRAGMA settings for shared DB compatibility @zara
-            await self._connection.execute("PRAGMA foreign_keys = ON")
-            await self._connection.execute("PRAGMA journal_mode = DELETE")
-            await self._connection.execute("PRAGMA busy_timeout = 30000")
-            self._is_connected = True
-            _LOGGER.info("Database connection established (DELETE mode, 30s timeout): %s", self._db_path)
-            await self._ensure_gpm_tables()
-            return True
-        except Exception as err:
-            _LOGGER.error("Failed to connect to database: %s", err)
-            self._connection = None
-            self._is_connected = False
-            return False
+            conn: aiosqlite.Connection | None = None
+            try:
+                conn = await aiosqlite.connect(
+                    str(self._db_path), timeout=60.0, isolation_level="IMMEDIATE"
+                )
+                await self._configure_connection(conn, self._hass)
+                self._connection = conn
+                self._is_connected = True
+                _LOGGER.info("Database connection established (DELETE mode, 30s timeout): %s", self._db_path)
+                return True
+            except Exception as err:
+                _LOGGER.error("Failed to connect to database: %s", err)
+                if conn is not None:
+                    await conn.close()
+                self._connection = None
+                self._is_connected = False
+                return False
 
-    async def _ensure_gpm_tables(self) -> None:
+    @staticmethod
+    def _ha_localtime_converter(hass: HomeAssistant | None):
+        def to_ha_localtime(timestamp_str: str) -> str:
+            import zoneinfo
+            from datetime import datetime
+
+            if hass is None:
+                return timestamp_str
+            try:
+                dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                tz = zoneinfo.ZoneInfo(hass.config.time_zone)
+                return dt.astimezone(tz).isoformat()
+            except Exception:
+                return timestamp_str
+
+        return to_ha_localtime
+
+    @classmethod
+    async def _configure_connection(cls, conn: aiosqlite.Connection, hass: HomeAssistant | None = None) -> None:
+        """Apply shared SQLite connection settings before use. @zara"""
+        conn.row_factory = aiosqlite.Row
+        await conn.execute("PRAGMA foreign_keys = ON")
+        await conn.execute("PRAGMA journal_mode = DELETE")
+        await conn.execute("PRAGMA busy_timeout = 30000")
+        await conn.create_function("ha_localtime", 1, cls._ha_localtime_converter(hass))
+
+    async def ensure_gpm_tables(self) -> None:
         """Create GPM tables if they do not exist. @zara"""
-        if self._connection is None:
-            return
+        if not await self._ensure_connected():
+            raise RuntimeError("Database not available")
 
         try:
             await self._connection.executescript("""
@@ -205,9 +233,11 @@ class DatabaseConnectionManager:
                     CHECK (id = 1)
                 );
             """)
+            await self._connection.commit()
             _LOGGER.info("GPM tables ensured successfully")
         except Exception as err:
             _LOGGER.error("Failed to create GPM tables: %s", err)
+            raise
 
     async def close(self) -> None:
         """Close database connection. @zara"""
@@ -307,16 +337,15 @@ class DatabaseConnectionManager:
 
     @classmethod
     @asynccontextmanager
-    async def connect_direct_safe(cls, db_path: Path) -> AsyncIterator[aiosqlite.Connection]:
+    async def connect_direct_safe(
+        cls, db_path: Path, hass: HomeAssistant | None = None
+    ) -> AsyncIterator[aiosqlite.Connection]:
         """Establish a direct, robust SQLite connection with safe defaults. @zara"""
         conn = await aiosqlite.connect(
             str(db_path), timeout=60.0, isolation_level="IMMEDIATE"
         )
-        conn.row_factory = aiosqlite.Row
         try:
-            await conn.execute("PRAGMA foreign_keys = ON")
-            await conn.execute("PRAGMA journal_mode = DELETE")
-            await conn.execute("PRAGMA busy_timeout = 30000")
+            await cls._configure_connection(conn, hass)
             yield conn
         finally:
             await conn.close()

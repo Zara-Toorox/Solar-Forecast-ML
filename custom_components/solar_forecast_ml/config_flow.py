@@ -26,8 +26,8 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import (
+    OptionsFlowWithReload,
     SOURCE_RECONFIGURE,
-    OptionsFlow,
 )
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
@@ -700,7 +700,7 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
 
-class SolarForecastMLOptionsFlow(OptionsFlow):
+class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
     """Handles the options flow for Solar Forecast ML. @zara"""
 
     async def async_step_init(
