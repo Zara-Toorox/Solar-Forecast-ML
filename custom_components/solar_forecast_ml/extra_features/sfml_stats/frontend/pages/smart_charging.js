@@ -208,7 +208,7 @@ const SmartChargingPage = ((Vue) => {
                                         {{ dashboardData.advisor.has_battery ? fmtEur(dashboardData.advisor.potential_savings_eur) : localText('noBattery') }}
                                     </span>
                                 </div>
-                                <div class="metric-help-text" v-if="dashboardData.advisor.has_battery">{{ localText('potentialSavingsSub') }}</div>
+                                <div class="metric-help-text" v-if="dashboardData.advisor.has_battery">{{ formatPotentialSavingsSub() }}</div>
                                 
                                 <div class="advisor-recommendation-box">
                                     <span class="recommendation-badge">{{ localText('sizingRecommendation') }}</span>
@@ -531,9 +531,9 @@ const SmartChargingPage = ((Vue) => {
                         fullDays: "Vollladungs-Tage",
                         fullDaysSub: "Akku an {days} von {total} Tagen voll geladen ({pct}%)",
                         unboundPotential: "Ungenutzter Überschuss",
-                        unboundPotentialSub: "Eingespeist bei vollem Akku, das nachts bezogen wurde",
-                        potentialSavings: "Ersparnis-Potenzial",
-                        potentialSavingsSub: "Mögliche Mehrersparnis durch größeren Akku",
+                        unboundPotentialSub: "Speicherbarer Export bei vollem Akku, begrenzt auf späteren Netzbezug",
+                        potentialSavings: "Netto-Potenzial",
+                        potentialSavingsSub: "Bewertet mit {value} ct/kWh nach Einspeisevergütung ({feed} ct/kWh) und Speicherverlusten",
                         sizingRecommendation: "Empfehlung",
                         solarPerformance: "Solar-Jahresbilanz",
                         performanceDesc: "Solar-Kennzahlen seit Jahresbeginn",
@@ -551,8 +551,8 @@ const SmartChargingPage = ((Vue) => {
                         totalChargedSub: "Geladene Energie (PV: {pv}%, Netz: {grid}%)",
                         batteryCycles: "Vollzyklen-Äquivalent",
                         batteryCyclesSub: "Entspricht ca. {cycles} Zyklen pro Tag",
-                        sizingGood: "Dein Akku ({cap} kWh) ist optimal dimensioniert. Eine Vergrößerung hätte bisher nur {savings} zusätzliche Ersparnis gebracht.",
-                        sizingNeedMore: "Ein größerer Akku könnte sich lohnen! Du hättest in diesem Jahr bereits {savings} sparen können.",
+                        sizingGood: "Dein Akku ({cap} kWh) ist optimal dimensioniert. Eine Vergrößerung hätte bisher nur {savings} Netto-Ersparnis gebracht.",
+                        sizingNeedMore: "Ein größerer Akku könnte sich lohnen! Du hättest in diesem Jahr bereits {savings} netto sparen können.",
                         noBattery: "Kein Akku",
                         noBatteryDesc: "Keine Akku-Optimierung möglich, da kein Akku konfiguriert ist.",
                     },
@@ -563,9 +563,9 @@ const SmartChargingPage = ((Vue) => {
                         fullDays: "Full Charge Days",
                         fullDaysSub: "Battery fully charged on {days} of {total} days ({pct}%)",
                         unboundPotential: "Unused Solar Potential",
-                        unboundPotentialSub: "Exported while battery full and later imported",
-                        potentialSavings: "Potential Savings",
-                        potentialSavingsSub: "Possible additional savings with larger battery",
+                        unboundPotentialSub: "Storable export while battery was full, capped by later grid import",
+                        potentialSavings: "Net Potential",
+                        potentialSavingsSub: "Valued at {value} ct/kWh after feed-in tariff ({feed} ct/kWh) and storage losses",
                         sizingRecommendation: "Recommendation",
                         solarPerformance: "Annual Solar Yield",
                         performanceDesc: "Solar metrics since beginning of year",
@@ -583,8 +583,8 @@ const SmartChargingPage = ((Vue) => {
                         totalChargedSub: "Charged energy (PV: {pv}%, Netz: {grid}%)",
                         batteryCycles: "Full Cycle Equivalent",
                         batteryCyclesSub: "Equivalent to approx. {cycles} cycles per day",
-                        sizingGood: "Your battery ({cap} kWh) is optimally sized. A larger battery would have only saved an additional {savings} so far.",
-                        sizingNeedMore: "A larger battery could be worth it! You could have saved an additional {savings} so far this year.",
+                        sizingGood: "Your battery ({cap} kWh) is optimally sized. A larger battery would have only added {savings} net savings so far.",
+                        sizingNeedMore: "A larger battery could be worth it! You could have saved an additional {savings} net so far this year.",
                         noBattery: "No Battery",
                         noBatteryDesc: "No battery optimization possible because no battery is configured.",
                     }
@@ -605,6 +605,15 @@ const SmartChargingPage = ((Vue) => {
                     return localText('sizingNeedMore')
                         .replace('{savings}', fmtEur(potential_savings_eur));
                 }
+            }
+
+            function formatPotentialSavingsSub() {
+                if (!dashboardData.advisor) return localText('potentialSavingsSub');
+                const netValue = Number(dashboardData.advisor.net_value_ct_kwh || 0).toFixed(1);
+                const feedIn = Number(dashboardData.advisor.feed_in_tariff_ct || 0).toFixed(1);
+                return localText('potentialSavingsSub')
+                    .replace('{value}', netValue)
+                    .replace('{feed}', feedIn);
             }
 
             function getPvChargePercent() {
@@ -674,6 +683,7 @@ const SmartChargingPage = ((Vue) => {
                 fmtEur,
                 localText,
                 getSizingRecommendation,
+                formatPotentialSavingsSub,
                 getPvChargePercent,
                 getGridChargePercent,
             };
