@@ -142,7 +142,7 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if provider_markup is None:
             provider_markup = DEFAULT_PROVIDER_MARKUP
 
-        self._price_service = ElectricityPriceService(country=country)
+        self._price_service = ElectricityPriceService(country=country, hass=self.hass)
         self._price_calculator = PriceCalculator(
             vat_rate=vat_rate,
             grid_fee=grid_fee,
@@ -517,7 +517,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         import asyncio
         try:
             from .readers.forecast_comparison_reader import ForecastComparisonReader
-            reader = ForecastComparisonReader(config_path / SOLAR_FORECAST_DB)
+            reader = ForecastComparisonReader(config_path / SOLAR_FORECAST_DB, hass=hass)
             needs_historical = not reader.is_available
             if not needs_historical:
                 days = await reader.async_get_comparison_days(days=7)

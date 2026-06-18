@@ -395,8 +395,10 @@ const SmartChargingPage = ((Vue) => {
 
                 const data = dashboardData.history;
                 const times = data.map(h => {
-                    const dt = new Date(h.hour_key);
-                    return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + (h.is_future ? ' 🔮' : '');
+                    const label = typeof h.hour_key === 'string' && h.hour_key.length >= 16
+                        ? h.hour_key.slice(11, 16)
+                        : '';
+                    return label + (h.is_future ? ' 🔮' : '');
                 });
 
                 const prices = data.map(h => h.price_ct_kwh);

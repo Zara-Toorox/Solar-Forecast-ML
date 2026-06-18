@@ -24,6 +24,8 @@ from ..const import SOLAR_FORECAST_DB
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+from ..utils.time_utils import naive_ha_local
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -124,9 +126,7 @@ class DatabaseConnectionManager:
             if hass is None:
                 return timestamp_str
             try:
-                dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
-                tz = zoneinfo.ZoneInfo(hass.config.time_zone)
-                return dt.astimezone(tz).isoformat()
+                return naive_ha_local(timestamp_str, hass).isoformat()
             except Exception:
                 return timestamp_str
 
