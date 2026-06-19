@@ -136,9 +136,7 @@ async def async_setup_entry(
         actual_live_manager = ActualLiveStateManager(hass, coordinator, entry)
         coordinator.actual_live_state_manager = actual_live_manager
         await actual_live_manager.async_start()
-        entry.async_on_unload(
-            lambda: hass.async_create_task(actual_live_manager.async_stop())
-        )
+        entry.async_on_unload(actual_live_manager.async_stop)
 
     panel_group_sot_entities = []
     for idx, group in enumerate(getattr(coordinator, "panel_groups", []) or []):

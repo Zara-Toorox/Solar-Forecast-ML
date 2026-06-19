@@ -265,6 +265,14 @@ def _existing_panel_group(existing_groups: list[dict], index: int) -> dict:
     return {}
 
 
+def _panel_group_sensor_schema_key(index: int, sensor_key: str, sensor: str | None) -> vol.Marker:
+    if index == 1:
+        return vol.Required(sensor_key, default=sensor or "")
+    if sensor:
+        return vol.Optional(sensor_key, description={"suggested_value": sensor})
+    return vol.Optional(sensor_key)
+
+
 def _structured_panel_groups_schema(existing_groups: list[dict]) -> vol.Schema:
     fields = {}
 
@@ -280,7 +288,7 @@ def _structured_panel_groups_schema(existing_groups: list[dict]) -> vol.Schema:
         tilt_key = _panel_group_field(index, "tilt")
         kwp_key = _panel_group_field(index, "kwp")
 
-        sensor_schema_key = vol.Required(sensor_key, default=sensor or "") if index == 1 else vol.Optional(sensor_key, default=sensor or "")
+        sensor_schema_key = _panel_group_sensor_schema_key(index, sensor_key, sensor)
         fields[sensor_schema_key] = selector.EntitySelector(
             selector.EntitySelectorConfig(domain=["sensor"])
         )
@@ -340,6 +348,8 @@ def _build_structured_panel_groups(
         sensor = str(user_input.get(sensor_key) or "").strip()
         if not sensor:
             if index == 1:
+                errors[sensor_key] = "required"
+            elif user_input.get(kwp_key) not in (None, ""):
                 errors[sensor_key] = "required"
             continue
 
