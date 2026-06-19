@@ -897,6 +897,32 @@ CREATE TABLE IF NOT EXISTS yield_cache (
     date DATE
 );
 
+CREATE TABLE IF NOT EXISTS actual_live_state (
+    date DATE PRIMARY KEY,
+    total_power_w REAL,
+    total_actual_kwh REAL NOT NULL DEFAULT 0,
+    power_source TEXT,
+    actual_source TEXT NOT NULL,
+    groups_expected INTEGER NOT NULL DEFAULT 0,
+    groups_available INTEGER NOT NULL DEFAULT 0,
+    quality TEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS actual_live_panel_groups (
+    date DATE NOT NULL,
+    group_name TEXT NOT NULL,
+    power_w REAL,
+    actual_today_kwh REAL NOT NULL DEFAULT 0,
+    power_sensor TEXT,
+    quality TEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    PRIMARY KEY(date, group_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_actual_live_panel_groups_date
+ON actual_live_panel_groups(date);
+
 CREATE TABLE IF NOT EXISTS visibility_learning (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     version TEXT DEFAULT '1.0',

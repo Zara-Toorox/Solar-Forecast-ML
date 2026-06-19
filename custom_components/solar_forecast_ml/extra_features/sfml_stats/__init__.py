@@ -88,6 +88,8 @@ from .api import async_setup_views, async_setup_websocket
 
 _LOGGER = logging.getLogger(__name__)
 
+LOVELACE_CARD_URL = f"/api/sfml_stats/static/sfml-stats-card.js?v={VERSION}"
+
 
 # ---------------------------------------------------------------------------
 # GPM Coordinator (DataUpdateCoordinator for price updates)
@@ -310,6 +312,42 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 # Integration Setup
 # ---------------------------------------------------------------------------
 
+
+async def _async_register_lovelace_card(hass: HomeAssistant) -> None:
+    """Register the STATS Lovelace card resource when Lovelace storage mode is available. @zara"""
+    try:
+        lovelace = hass.data.get("lovelace")
+        resources = getattr(lovelace, "resources", None) if lovelace is not None else None
+        if resources is None:
+            _LOGGER.debug("Lovelace resources unavailable; STATS card can be added manually")
+            return
+
+        mode = getattr(lovelace, "mode", None)
+        if mode is not None and mode != "storage":
+            _LOGGER.debug("Lovelace is not in storage mode; skipping automatic STATS card resource")
+            return
+
+        info: dict[str, Any] = {}
+        async_get_info = getattr(resources, "async_get_info", None)
+        if callable(async_get_info):
+            info = await async_get_info()
+        existing = info.get("resources", []) if isinstance(info, dict) else []
+        base_url = LOVELACE_CARD_URL.split("?", 1)[0]
+        for item in existing:
+            url = item.get("url") if isinstance(item, dict) else None
+            if url and url.split("?", 1)[0] == base_url:
+                return
+
+        async_create_item = getattr(resources, "async_create_item", None)
+        if callable(async_create_item):
+            await async_create_item({
+                "res_type": "module",
+                "url": LOVELACE_CARD_URL,
+            })
+            _LOGGER.info("Registered STATS Lovelace card resource: %s", LOVELACE_CARD_URL)
+    except Exception as err:
+        _LOGGER.debug("Could not register STATS Lovelace card resource: %s", err)
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the SFML Stats component. @zara"""
     _LOGGER.info("Initializing %s v%s", NAME, VERSION)
@@ -441,6 +479,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # --- Forward sensor platforms ---
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await _async_register_lovelace_card(hass)
 
     # --- Update listener ---
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -482,7 +521,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.data[DOMAIN][entry.entry_id]["cancel_forecast_evening_job"] = cancel_evening
 
-    # --- Hourly Billing Job (every hour at :05) ---
+    # --- Hourly Billing Job (after SFML hourly actualization) ---
     async def _hourly_billing_job(now: datetime) -> None:
         """Run hourly billing aggregation — calculates cost per hour. @zara"""
         try:
@@ -496,10 +535,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     cancel_hourly_billing = async_track_time_change(
         hass, _hourly_billing_job,
-        minute=5, second=0,  # 5 Minuten nach jeder vollen Stunde
+        minute=7, second=0,
     )
     hass.data[DOMAIN][entry.entry_id]["cancel_hourly_billing_job"] = cancel_hourly_billing
-    _LOGGER.info("Hourly billing aggregation scheduled (every hour at :05)")
+    _LOGGER.info("Hourly billing aggregation scheduled (every hour at :07)")
 
     # --- Background Tasks ---
     async def _initial_aggregation() -> None:
@@ -544,6 +583,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(
         hass.bus.async_listen_once("homeassistant_started", _async_ha_started)
     )
+
+    # Lovelace Resources Auto-Registration
+    try:
+        lovelace = hass.data.get("lovelace")
+        if lovelace and getattr(lovelace, "mode", "storage") == "storage":
+            registered_urls = {res.get("url") for res in lovelace.resources.async_items()}
+            
+            sfml_url = f"/api/{DOMAIN}/static/sfml-card.js"
+            if sfml_url not in registered_urls:
+                await lovelace.resources.async_create_item({
+                    "res_type": "module",
+                    "url": sfml_url
+                })
+                _LOGGER.info("SFML Lovelace card registered successfully")
+
+            stats_url = f"/api/{DOMAIN}/static/stats-flow-card.js"
+            if stats_url not in registered_urls:
+                await lovelace.resources.async_create_item({
+                    "res_type": "module",
+                    "url": stats_url
+                })
+                _LOGGER.info("STATS Flow Lovelace card registered successfully")
+    except Exception as err:
+        _LOGGER.warning("Could not auto-register Lovelace resources: %s", err)
 
     _LOGGER.info("%s v%s successfully set up", NAME, VERSION)
     return True

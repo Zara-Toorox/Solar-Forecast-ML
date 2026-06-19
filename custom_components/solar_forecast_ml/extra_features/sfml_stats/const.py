@@ -15,7 +15,7 @@ from typing import Final
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "28.0.8"
+VERSION: Final = "30.0.0"
 
 from datetime import timedelta
 from homeassistant.const import Platform
@@ -285,7 +285,7 @@ RIEMANN_MAX_GAP_HOURS: Final = 4.0
 BILLING_CACHE_TTL_SECONDS: Final = 60
 LOG_BUFFER_MAX_SIZE: Final = 1000
 
-POWER_COLLECTION_INTERVAL_SECONDS: Final = 300
+POWER_COLLECTION_INTERVAL_SECONDS: Final = 60
 POWER_DATA_RETENTION_DAYS: Final = 730
 
 API_CACHE_TTL_SECONDS: Final = 30

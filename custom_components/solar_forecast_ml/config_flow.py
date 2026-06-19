@@ -53,19 +53,17 @@ from .const import (
     CONF_NOTIFY_SUCCESSFUL_LEARNING,
     CONF_NOTIFY_WEATHER_ALERT,
     CONF_PANEL_GROUP_AZIMUTH,
-    CONF_PANEL_GROUP_ENERGY_SENSOR,
     CONF_PANEL_GROUP_NAME,
     CONF_PANEL_GROUP_POWER,
+    CONF_PANEL_GROUP_POWER_SENSOR,
     CONF_PANEL_GROUP_TILT,
     CONF_PANEL_GROUPS,
     CONF_PIRATE_WEATHER_API_KEY,
-    CONF_POWER_ENTITY,
     CONF_PRESSURE_SENSOR,
     CONF_RAIN_SENSOR,
     CONF_SOLAR_CAPACITY,
     CONF_SOLAR_RADIATION_SENSOR,
     CONF_SOLAR_TO_BATTERY_SENSOR,
-    CONF_SOLAR_YIELD_TODAY,
     CONF_TEMP_SENSOR,
     CONF_TOTAL_CONSUMPTION_TODAY,
     CONF_UPDATE_INTERVAL,
@@ -119,13 +117,6 @@ def _get_base_schema(defaults: dict | None, is_reconfigure: bool = False) -> vol
 
     return vol.Schema(
         {
-            vol.Required(
-                CONF_POWER_ENTITY, default=_get_default(defaults, CONF_POWER_ENTITY, "")
-            ): selector.EntitySelector(selector.EntitySelectorConfig(domain=["sensor"])),
-            vol.Required(
-                CONF_SOLAR_YIELD_TODAY,
-                default=_get_default(defaults, CONF_SOLAR_YIELD_TODAY, ""),
-            ): selector.EntitySelector(selector.EntitySelectorConfig(domain=["sensor"])),
             optional_entity_key(CONF_TOTAL_CONSUMPTION_TODAY): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor"])
             ),
@@ -183,11 +174,10 @@ def _get_base_schema(defaults: dict | None, is_reconfigure: bool = False) -> vol
 def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
     """Parse panel groups from string format to list of dicts. @zara
 
-    Supported formats:
-    - Old: "power_wp/azimuth/tilt" (e.g., "1200/180/30, 900/270/10")
-    - New: "power_wp/azimuth/tilt/energy_sensor" (e.g., "870/180/47/sensor.pv_gruppe1_energy")
+    Supported format:
+    - "power_wp/azimuth/tilt/power_sensor"
 
-    The energy_sensor is optional and enables per-group learning.
+    Power sensors are required for every configured panel group.
     """
     if not panel_groups_str or not panel_groups_str.strip():
         return []
@@ -199,7 +189,7 @@ def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
 
     for idx, entry in enumerate(entries):
         parts = [p.strip() for p in entry.split("/")]
-        if len(parts) >= 3:
+        if len(parts) == 4:
             try:
                 power_wp = float(parts[0])
                 azimuth = float(parts[1])
@@ -220,11 +210,10 @@ def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
                     CONF_PANEL_GROUP_TILT: tilt,
                 }
 
-                # Optional: Parse energy sensor (4th parameter) @zara
-                if len(parts) >= 4 and parts[3]:
-                    energy_sensor = parts[3].strip()
-                    if "." in energy_sensor and len(energy_sensor) > 3:
-                        group_data[CONF_PANEL_GROUP_ENERGY_SENSOR] = energy_sensor
+                power_sensor = parts[3].strip()
+                if "." not in power_sensor or len(power_sensor) <= 3:
+                    continue
+                group_data[CONF_PANEL_GROUP_POWER_SENSOR] = power_sensor
 
                 groups.append(group_data)
             except (ValueError, TypeError):
@@ -236,7 +225,7 @@ def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
 def _format_panel_groups(panel_groups: list[dict]) -> str:
     """Format panel groups from list of dicts to string format. @zara
 
-    Includes energy_sensor if configured.
+    Includes required power sensors.
     """
     if not panel_groups:
         return ""
@@ -249,12 +238,8 @@ def _format_panel_groups(panel_groups: list[dict]) -> str:
         power = group.get(CONF_PANEL_GROUP_POWER, 0)
         azimuth = group.get(CONF_PANEL_GROUP_AZIMUTH, DEFAULT_PANEL_AZIMUTH)
         tilt = group.get(CONF_PANEL_GROUP_TILT, DEFAULT_PANEL_TILT)
-        energy_sensor = group.get(CONF_PANEL_GROUP_ENERGY_SENSOR)
-
-        if energy_sensor:
-            lines.append(f"{fmt(power)}/{fmt(azimuth)}/{fmt(tilt)}/{energy_sensor}")
-        else:
-            lines.append(f"{fmt(power)}/{fmt(azimuth)}/{fmt(tilt)}")
+        power_sensor = group.get(CONF_PANEL_GROUP_POWER_SENSOR)
+        lines.append(f"{fmt(power)}/{fmt(azimuth)}/{fmt(tilt)}/{power_sensor or ''}")
 
     return ", ".join(lines)
 
@@ -266,6 +251,140 @@ def _calculate_total_capacity_from_groups(panel_groups: list[dict]) -> float:
 
     total_wp = sum(g.get(CONF_PANEL_GROUP_POWER, 0) for g in panel_groups)
     return round(total_wp / 1000.0, 2)
+
+
+def _panel_group_field(index: int, field: str) -> str:
+    return f"group_{index}_{field}"
+
+
+def _existing_panel_group(existing_groups: list[dict], index: int) -> dict:
+    if index - 1 < len(existing_groups):
+        group = existing_groups[index - 1]
+        if isinstance(group, dict):
+            return group
+    return {}
+
+
+def _structured_panel_groups_schema(existing_groups: list[dict]) -> vol.Schema:
+    fields = {}
+
+    for index in range(1, 5):
+        group = _existing_panel_group(existing_groups, index)
+        sensor = group.get(CONF_PANEL_GROUP_POWER_SENSOR)
+        azimuth = group.get(CONF_PANEL_GROUP_AZIMUTH, DEFAULT_PANEL_AZIMUTH)
+        power_wp = group.get(CONF_PANEL_GROUP_POWER)
+        kwp_default = round(float(power_wp) / 1000.0, 3) if power_wp else None
+
+        sensor_key = _panel_group_field(index, "sensor")
+        azimuth_key = _panel_group_field(index, "azimuth")
+        tilt_key = _panel_group_field(index, "tilt")
+        kwp_key = _panel_group_field(index, "kwp")
+
+        sensor_schema_key = vol.Required(sensor_key, default=sensor or "") if index == 1 else vol.Optional(sensor_key, default=sensor or "")
+        fields[sensor_schema_key] = selector.EntitySelector(
+            selector.EntitySelectorConfig(domain=["sensor"])
+        )
+
+        fields[vol.Optional(azimuth_key, default=azimuth)] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.0,
+                max=360.0,
+                step=1.0,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="°",
+            )
+        )
+
+        tilt = group.get(CONF_PANEL_GROUP_TILT, DEFAULT_PANEL_TILT)
+        fields[vol.Optional(tilt_key, default=tilt)] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.0,
+                max=90.0,
+                step=1.0,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="°",
+            )
+        )
+
+        kwp_schema_key = (
+            vol.Optional(kwp_key, default=kwp_default)
+            if kwp_default is not None
+            else vol.Optional(kwp_key)
+        )
+        fields[kwp_schema_key] = selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.001,
+                max=100.0,
+                step=0.001,
+                mode=selector.NumberSelectorMode.BOX,
+                unit_of_measurement="kWp",
+            )
+        )
+
+    return vol.Schema(fields)
+
+
+def _build_structured_panel_groups(
+    user_input: dict[str, Any],
+    existing_groups: list[dict],
+) -> tuple[list[dict], dict[str, str]]:
+    groups = []
+    errors = {}
+
+    for index in range(1, 5):
+        sensor_key = _panel_group_field(index, "sensor")
+        azimuth_key = _panel_group_field(index, "azimuth")
+        tilt_key = _panel_group_field(index, "tilt")
+        kwp_key = _panel_group_field(index, "kwp")
+
+        sensor = str(user_input.get(sensor_key) or "").strip()
+        if not sensor:
+            if index == 1:
+                errors[sensor_key] = "required"
+            continue
+
+        try:
+            azimuth = float(user_input.get(azimuth_key))
+        except (TypeError, ValueError):
+            errors[azimuth_key] = "invalid_input"
+            continue
+
+        try:
+            tilt = float(user_input.get(tilt_key))
+        except (TypeError, ValueError):
+            errors[tilt_key] = "invalid_input"
+            continue
+
+        try:
+            kwp = float(user_input.get(kwp_key))
+        except (TypeError, ValueError):
+            errors[kwp_key] = "invalid_input"
+            continue
+
+        if not (0.0 <= azimuth <= 360.0):
+            errors[azimuth_key] = "invalid_input"
+            continue
+        if not (0.0 <= tilt <= 90.0):
+            errors[tilt_key] = "invalid_input"
+            continue
+        if not (0.001 <= kwp <= 100.0):
+            errors[kwp_key] = "invalid_capacity"
+            continue
+
+        group_data = {
+            CONF_PANEL_GROUP_NAME: f"Gruppe {index}",
+            CONF_PANEL_GROUP_POWER: round(kwp * 1000.0, 3),
+            CONF_PANEL_GROUP_AZIMUTH: azimuth,
+            CONF_PANEL_GROUP_TILT: tilt,
+            CONF_PANEL_GROUP_POWER_SENSOR: sensor,
+        }
+
+        groups.append(group_data)
+
+    if not groups and "group_1_sensor" not in errors:
+        errors["group_1_sensor"] = "panel_groups_required"
+
+    return groups, errors
 
 
 def _attr_value(value: Any) -> str:
@@ -302,11 +421,6 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         prefill_data = user_input if user_input is not None else {}
 
         if user_input is not None:
-            # Validate required fields @zara
-            if not user_input.get(CONF_POWER_ENTITY):
-                errors[CONF_POWER_ENTITY] = "required"
-            if not user_input.get(CONF_SOLAR_YIELD_TODAY):
-                errors[CONF_SOLAR_YIELD_TODAY] = "required"
             try:
                 capacity = user_input.get(CONF_SOLAR_CAPACITY)
                 if capacity is not None:
@@ -323,14 +437,17 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors=errors,
                 )
 
-            unique_id = f"solar_forecast_ml_{user_input.get(CONF_POWER_ENTITY, 'default')}"
+            if self._async_current_entries(include_ignore=False):
+                return self.async_abort(reason="already_configured")
+
+            unique_id = "solar_forecast_ml"
             await self.async_set_unique_id(unique_id)
             self._abort_if_unique_id_configured()
 
             # Clean data @zara
             cleaned_data = {}
             optional_sensor_keys = [
-                CONF_TOTAL_CONSUMPTION_TODAY,
+                                        CONF_TOTAL_CONSUMPTION_TODAY,
                 CONF_RAIN_SENSOR,
                 CONF_LUX_SENSOR,
                 CONF_TEMP_SENSOR,
@@ -392,127 +509,98 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle the panel groups configuration step. @zara
 
         Panel groups are required (min 1, max 4).
-        Format: power_wp/azimuth/tilt[/energy_sensor]
-        e.g. "1200/180/30/sensor.pv_today, 900/270/10/sensor.pv_west_today"
         """
         errors = {}
+        existing_groups = self._user_input.get(CONF_PANEL_GROUPS, [])
 
         if user_input is not None:
-            panel_groups_str = user_input.get("panel_groups_input", "").strip()
+            panel_groups, errors = _build_structured_panel_groups(
+                user_input,
+                existing_groups,
+            )
 
-            # Panel groups are REQUIRED @zara
-            if not panel_groups_str:
-                errors["panel_groups_input"] = "panel_groups_required"
-            else:
-                panel_groups = _parse_panel_groups(panel_groups_str)
-
-                if not panel_groups:
-                    errors["panel_groups_input"] = "invalid_panel_format"
-                elif len(panel_groups) > 4:
-                    errors["panel_groups_input"] = "too_many_panel_groups"
+            if not errors:
+                sensor_errors = await self._validate_panel_group_sensors(panel_groups)
+                if sensor_errors:
+                    errors["base"] = sensor_errors
                 else:
-                    sensor_errors = await self._validate_panel_group_sensors(panel_groups)
-                    if sensor_errors:
-                        errors["panel_groups_input"] = sensor_errors
-                    else:
-                        self._user_input[CONF_PANEL_GROUPS] = panel_groups
-                        total_capacity = _calculate_total_capacity_from_groups(panel_groups)
-                        self._user_input[CONF_SOLAR_CAPACITY] = total_capacity
+                    self._user_input[CONF_PANEL_GROUPS] = panel_groups
+                    total_capacity = _calculate_total_capacity_from_groups(panel_groups)
+                    self._user_input[CONF_SOLAR_CAPACITY] = total_capacity
 
-                        _LOGGER.info(
-                            "Panel groups configured: %d groups, total %.2f kWp",
-                            len(panel_groups),
-                            total_capacity,
-                        )
+                    _LOGGER.info(
+                        "Panel groups configured: %d groups, total %.2f kWp",
+                        len(panel_groups),
+                        total_capacity,
+                    )
 
             if not errors:
                 return self.async_create_entry(
                     title="Solar Forecast ML", data=self._user_input
                 )
 
-        existing_groups = self._user_input.get(CONF_PANEL_GROUPS, [])
-        default_value = _format_panel_groups(existing_groups) if existing_groups else ""
-
-        schema = vol.Schema(
-            {
-                vol.Required(
-                    "panel_groups_input", default=default_value
-                ): selector.TextSelector(
-                    selector.TextSelectorConfig(
-                        multiline=True,
-                        type=selector.TextSelectorType.TEXT,
-                    )
-                ),
-            }
-        )
-
         return self.async_show_form(
             step_id="panel_groups",
-            data_schema=schema,
+            data_schema=_structured_panel_groups_schema(existing_groups),
             errors=errors,
-            description_placeholders={
-                "example": "5000/180/30/sensor.pv_energy_today",
-                "format": "Power(Wp)/Azimuth(deg)/Tilt(deg)/Daily-kWh-Sensor",
-            },
         )
 
     async def _validate_panel_group_sensors(
         self, panel_groups: list[dict]
     ) -> str | None:
-        """Validate energy sensors configured for panel groups. @zara
+        """Validate sensors configured for panel groups. @zara
 
         Returns:
             Error string if validation fails, None if all sensors are valid
         """
         for group in panel_groups:
-            entity_id = group.get(CONF_PANEL_GROUP_ENERGY_SENSOR)
-            if not entity_id:
-                continue
+            power_entity_id = group.get(CONF_PANEL_GROUP_POWER_SENSOR)
+            if not power_entity_id:
+                return "power_sensor_required"
+            if power_entity_id:
+                power_error = self._validate_panel_group_power_sensor(power_entity_id)
+                if power_error:
+                    return power_error
 
-            state = self.hass.states.get(entity_id)
+        return None
 
-            if state is None:
-                _LOGGER.warning("Energy sensor not found: %s", entity_id)
-                return "energy_sensor_not_found"
+    def _validate_panel_group_power_sensor(self, entity_id: str) -> str | None:
+        state = self.hass.states.get(entity_id)
 
-            if state.state in ["unavailable", "unknown"]:
-                _LOGGER.warning(
-                    "Energy sensor %s is currently %s - will retry at runtime",
-                    entity_id,
-                    state.state,
-                )
-                continue
+        if state is None:
+            _LOGGER.warning("Power sensor not found: %s", entity_id)
+            return "power_sensor_not_found"
 
-            try:
-                float(state.state)
-            except (ValueError, TypeError):
-                _LOGGER.warning("Energy sensor not numeric: %s (state=%s)", entity_id, state.state)
-                return "energy_sensor_not_numeric"
+        if state.state in ["unavailable", "unknown"]:
+            _LOGGER.debug(
+                "Power sensor %s is currently %s - will retry at runtime",
+                entity_id,
+                state.state,
+            )
+            return None
 
-            unit = _attr_value(state.attributes.get("unit_of_measurement"))
-            device_class = _attr_value(state.attributes.get("device_class")).lower()
-            state_class = _attr_value(state.attributes.get("state_class")).lower()
+        try:
+            float(state.state)
+        except (ValueError, TypeError):
+            _LOGGER.warning("Power sensor not numeric: %s (state=%s)", entity_id, state.state)
+            return "power_sensor_not_numeric"
 
-            if unit.lower() != "kwh":
-                _LOGGER.warning(
-                    "Panel group sensor %s is not accepted: expected a cumulative DC energy sensor with unit kWh",
-                    entity_id,
-                )
-                return "energy_sensor_not_kwh"
+        unit = _attr_value(state.attributes.get("unit_of_measurement")).lower()
+        if unit not in {"w", "kw"}:
+            _LOGGER.warning(
+                "Panel group power sensor %s is not accepted: expected unit W or kW",
+                entity_id,
+            )
+            return "power_sensor_not_power_unit"
 
-            if device_class != "energy":
-                _LOGGER.warning(
-                    "Panel group sensor %s is not accepted: expected device_class=energy",
-                    entity_id,
-                )
-                return "energy_sensor_not_dc_energy"
-
-            if state_class not in {"total", "total_increasing"}:
-                _LOGGER.warning(
-                    "Panel group sensor %s is not accepted: expected state_class=total or total_increasing",
-                    entity_id,
-                )
-                return "energy_sensor_not_cumulative"
+        device_class = _attr_value(state.attributes.get("device_class")).lower()
+        if device_class and device_class != "power":
+            _LOGGER.info(
+                "Panel group power sensor %s uses device_class=%s with accepted power unit %s",
+                entity_id,
+                device_class,
+                unit,
+            )
 
         return None
 
@@ -532,17 +620,6 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             prefill_data.update(user_input)
 
-            power_entity = user_input.get(CONF_POWER_ENTITY, "")
-            if isinstance(power_entity, str):
-                power_entity = power_entity.strip()
-            if not power_entity:
-                errors[CONF_POWER_ENTITY] = "required"
-
-            yield_entity = user_input.get(CONF_SOLAR_YIELD_TODAY, "")
-            if isinstance(yield_entity, str):
-                yield_entity = yield_entity.strip()
-            if not yield_entity:
-                errors[CONF_SOLAR_YIELD_TODAY] = "required"
             try:
                 capacity = user_input.get(CONF_SOLAR_CAPACITY)
                 if capacity is not None and capacity != "":
@@ -559,28 +636,10 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     errors=errors,
                 )
 
-            new_unique_id = (
-                f"solar_forecast_ml_{user_input.get(CONF_POWER_ENTITY, 'default')}"
-            )
-            old_unique_id = entry.unique_id or ""
-            if new_unique_id != old_unique_id:
-                for existing_entry in self._async_current_entries(include_ignore=False):
-                    if (
-                        existing_entry.unique_id == new_unique_id
-                        and existing_entry.entry_id != entry.entry_id
-                    ):
-                        errors["base"] = "already_configured"
-                        return self.async_show_form(
-                            step_id="reconfigure",
-                            data_schema=_get_base_schema(prefill_data, is_reconfigure=True),
-                            errors=errors,
-                        )
-                await self.async_set_unique_id(new_unique_id)
-
             # Clean data @zara
             cleaned_data = {}
             optional_sensor_keys = [
-                CONF_TOTAL_CONSUMPTION_TODAY,
+                                        CONF_TOTAL_CONSUMPTION_TODAY,
                 CONF_RAIN_SENSOR,
                 CONF_LUX_SENSOR,
                 CONF_TEMP_SENSOR,
@@ -626,7 +685,6 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             # Preserve existing panel groups @zara
             if CONF_PANEL_GROUPS in entry.data and CONF_PANEL_GROUPS not in cleaned_data:
                 cleaned_data[CONF_PANEL_GROUPS] = entry.data[CONF_PANEL_GROUPS]
-
             self._user_input = cleaned_data
             self._reconfigure_entry = entry
             return await self.async_step_reconfigure_panel_groups()
@@ -646,57 +704,32 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if entry is None:
             return self.async_abort(reason="entry_not_found")
 
+        existing_groups = self._user_input.get(CONF_PANEL_GROUPS, [])
+
         if user_input is not None:
-            panel_groups_str = user_input.get("panel_groups_input", "").strip()
+            panel_groups, errors = _build_structured_panel_groups(
+                user_input,
+                existing_groups,
+            )
 
-            # Panel groups are REQUIRED @zara
-            if not panel_groups_str:
-                errors["panel_groups_input"] = "panel_groups_required"
-            else:
-                panel_groups = _parse_panel_groups(panel_groups_str)
-
-                if not panel_groups:
-                    errors["panel_groups_input"] = "invalid_panel_format"
-                elif len(panel_groups) > 4:
-                    errors["panel_groups_input"] = "too_many_panel_groups"
+            if not errors:
+                sensor_errors = await self._validate_panel_group_sensors(panel_groups)
+                if sensor_errors:
+                    errors["base"] = sensor_errors
                 else:
-                    sensor_errors = await self._validate_panel_group_sensors(panel_groups)
-                    if sensor_errors:
-                        errors["panel_groups_input"] = sensor_errors
-                    else:
-                        self._user_input[CONF_PANEL_GROUPS] = panel_groups
-                        total_capacity = _calculate_total_capacity_from_groups(panel_groups)
-                        self._user_input[CONF_SOLAR_CAPACITY] = total_capacity
+                    self._user_input[CONF_PANEL_GROUPS] = panel_groups
+                    total_capacity = _calculate_total_capacity_from_groups(panel_groups)
+                    self._user_input[CONF_SOLAR_CAPACITY] = total_capacity
 
             if not errors:
                 return self.async_update_reload_and_abort(
                     entry, data=self._user_input, reason="reconfigure_successful"
                 )
 
-        existing_groups = self._user_input.get(CONF_PANEL_GROUPS, [])
-        default_value = _format_panel_groups(existing_groups) if existing_groups else ""
-
-        schema = vol.Schema(
-            {
-                vol.Required(
-                    "panel_groups_input", default=default_value
-                ): selector.TextSelector(
-                    selector.TextSelectorConfig(
-                        multiline=True,
-                        type=selector.TextSelectorType.TEXT,
-                    )
-                ),
-            }
-        )
-
         return self.async_show_form(
             step_id="reconfigure_panel_groups",
-            data_schema=schema,
+            data_schema=_structured_panel_groups_schema(existing_groups),
             errors=errors,
-            description_placeholders={
-                "example": "5000/180/30/sensor.pv_energy_today",
-                "format": "Power(Wp)/Azimuth(deg)/Tilt(deg)/Daily-kWh-Sensor",
-            },
         )
 
 

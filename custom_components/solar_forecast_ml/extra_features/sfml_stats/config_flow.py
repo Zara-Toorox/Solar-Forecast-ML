@@ -54,14 +54,6 @@ from .const import (
     DEFAULT_MAX_SOC,
     DEFAULT_MAX_PRICE,
     DEFAULT_FORCE_CHARGE_PRICE,
-    CONF_SENSOR_PANEL1_POWER,
-    CONF_SENSOR_PANEL2_POWER,
-    CONF_SENSOR_PANEL3_POWER,
-    CONF_SENSOR_PANEL4_POWER,
-    CONF_PANEL1_NAME,
-    CONF_PANEL2_NAME,
-    CONF_PANEL3_NAME,
-    CONF_PANEL4_NAME,
     CONF_FORECAST_ENTITY_1,
     CONF_FORECAST_ENTITY_2,
     CONF_FORECAST_ENTITY_1_NAME,
@@ -75,10 +67,6 @@ from .const import (
     DEFAULT_FEED_IN_TARIFF,
     DEFAULT_FORECAST_ENTITY_1_NAME,
     DEFAULT_FORECAST_ENTITY_2_NAME,
-    DEFAULT_PANEL1_NAME,
-    DEFAULT_PANEL2_NAME,
-    DEFAULT_PANEL3_NAME,
-    DEFAULT_PANEL4_NAME,
     PRICE_MODE_DYNAMIC,
     PRICE_MODE_FIXED,
     PRICE_MODE_NONE,
@@ -753,15 +741,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     except (ValueError, TypeError):
                         new_data[key] = user_input[key]
 
-            # Panel names + sensors
-            panel_keys = [
-                CONF_PANEL1_NAME, CONF_SENSOR_PANEL1_POWER,
-                CONF_PANEL2_NAME, CONF_SENSOR_PANEL2_POWER,
-                CONF_PANEL3_NAME, CONF_SENSOR_PANEL3_POWER,
-                CONF_PANEL4_NAME, CONF_SENSOR_PANEL4_POWER,
-            ]
-            _store(new_data, user_input, panel_keys)
-
             # Panel group names
             raw = user_input.get("panel_group_names_input", "").strip()
             mapping: dict[str, str] = {}
@@ -817,14 +796,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 ): selector.BooleanSelector(),
 
                 # --- Panel Groups ---
-                vol.Optional(CONF_PANEL1_NAME, default=self._current(CONF_PANEL1_NAME, DEFAULT_PANEL1_NAME)): str,
-                vol.Optional(CONF_SENSOR_PANEL1_POWER, description=_sv(CONF_SENSOR_PANEL1_POWER)): _entity(device_class="power"),
-                vol.Optional(CONF_PANEL2_NAME, default=self._current(CONF_PANEL2_NAME, DEFAULT_PANEL2_NAME)): str,
-                vol.Optional(CONF_SENSOR_PANEL2_POWER, description=_sv(CONF_SENSOR_PANEL2_POWER)): _entity(device_class="power"),
-                vol.Optional(CONF_PANEL3_NAME, default=self._current(CONF_PANEL3_NAME, DEFAULT_PANEL3_NAME)): str,
-                vol.Optional(CONF_SENSOR_PANEL3_POWER, description=_sv(CONF_SENSOR_PANEL3_POWER)): _entity(device_class="power"),
-                vol.Optional(CONF_PANEL4_NAME, default=self._current(CONF_PANEL4_NAME, DEFAULT_PANEL4_NAME)): str,
-                vol.Optional(CONF_SENSOR_PANEL4_POWER, description=_sv(CONF_SENSOR_PANEL4_POWER)): _entity(device_class="power"),
                 vol.Optional("panel_group_names_input", default=mapping_default): selector.TextSelector(
                     selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT, multiline=True)
                 ),

@@ -3,10 +3,8 @@
     "step": {
       "user": {
         "title": "Solar Forecast ML",
-        "description": "Obligatorio: Sensor de potencia, Produccion diaria\nOpcional: Todos los demas campos\n\nLos datos meteorologicos se proporcionan automaticamente a traves de la API de Open-Meteo (no requiere configuracion)",
+        "description": "Obligatorio: grupos de paneles con sensores de potencia en vivo\nOpcional: sensores meteorologicos y de consumo\n\nSFML calcula automaticamente la potencia total y la produccion diaria desde los grupos de paneles.",
         "data": {
-          "power_entity": "⚡ Potencia solar actual (W)",
-          "solar_yield_today": "📊 Produccion del dia (kWh)",
           "total_consumption_today": "🏠 Consumo del hogar (kWh)",
           "solar_capacity": "☀️ Potencia de la instalacion (kWp)",
           "inverter_max_power": "⚙️ Limite AC del inversor (kW)",
@@ -19,8 +17,6 @@
           "solar_radiation_sensor": "🔆 Radiacion solar (W/m²)"
         },
         "data_description": {
-          "power_entity": "Unidad: Vatios (DC). Solo la generacion directa de las celulas, NO la potencia AC despues del inversor. (Obligatorio)",
-          "solar_yield_today": "Unidad: kWh (DC). Debe basarse en el sensor de potencia DC y reiniciarse a cero a medianoche. (Obligatorio)",
           "total_consumption_today": "Unidad: kWh. Consumo electrico total del hogar desde medianoche. Debe reiniciarse a cero a medianoche. (Opcional)",
           "solar_capacity": "Unidad: kWp (ej. 9.6). Solo necesario para instalaciones individuales; con grupos de paneles se calcula automaticamente. (Opcional)",
           "inverter_max_power": "Unidad: kW. Limita las previsiones al maximo del inversor (ej. 5.0). 0 = Desactivado. (Opcional)",
@@ -57,8 +53,6 @@
         "title": "Reconfigurar Solar Forecast ML",
         "description": "Actualizar configuracion\nLos campos opcionales vacios eliminan el valor actual\n\nLos datos meteorologicos se proporcionan automaticamente a traves de la API de Open-Meteo",
         "data": {
-          "power_entity": "⚡ Potencia solar actual (W)",
-          "solar_yield_today": "📊 Produccion del dia (kWh)",
           "total_consumption_today": "🏠 Consumo del hogar (kWh)",
           "solar_capacity": "☀️ Potencia de la instalacion (kWp)",
           "inverter_max_power": "⚙️ Limite AC del inversor (kW)",
@@ -71,8 +65,6 @@
           "solar_radiation_sensor": "🔆 Radiacion solar (W/m²)"
         },
         "data_description": {
-          "power_entity": "Unidad: Vatios (DC). Solo la generacion directa de las celulas, NO la potencia AC despues del inversor. (Obligatorio)",
-          "solar_yield_today": "Unidad: kWh (DC). Debe basarse en el sensor de potencia DC y reiniciarse a cero a medianoche. (Obligatorio)",
           "total_consumption_today": "Unidad: kWh. Consumo electrico total del hogar desde medianoche. Debe reiniciarse a cero a medianoche. (Opcional)",
           "solar_capacity": "Unidad: kWp (ej. 9.6). Solo necesario para instalaciones individuales; con grupos de paneles se calcula automaticamente. (Opcional)",
           "inverter_max_power": "Unidad: kW. Limita las previsiones al maximo del inversor (ej. 5.0). 0 = Desactivado. (Opcional)",
@@ -392,11 +384,8 @@
       "external_sensors_status": {
         "name": "Estado de sensores externos"
       },
-      "power_sensor_state": {
-        "name": "Estado del sensor de potencia"
-      },
-      "yield_sensor_state": {
-        "name": "Estado del sensor de produccion"
+      "total_yield": {
+        "name": "Rendimiento total de hoy"
       },
       "cloudiness_trend_1h": {
         "name": "Tendencia nubosa 1h",
@@ -544,6 +533,12 @@
           "recovering": "Recuperandose",
           "unknown": "Desconocido"
         }
+      },
+      "total_power": {
+        "name": "Potencia total"
+      },
+      "total_actual_today": {
+        "name": "Real hoy"
       }
     },
     "switch": {

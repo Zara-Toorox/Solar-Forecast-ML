@@ -3,10 +3,8 @@
     "step": {
       "user": {
         "title": "Solar Forecast ML",
-        "description": "Obligatoire : Capteur de puissance, Production journaliere\nOptionnel : Tous les autres champs\n\nLes donnees meteo sont fournies automatiquement via l'API Open-Meteo (aucune configuration requise)",
+        "description": "Obligatoire : groupes de panneaux avec capteurs de puissance en direct\nOptionnel : capteurs meteo et consommation\n\nSFML calcule automatiquement la puissance totale et la production journaliere depuis les groupes de panneaux.",
         "data": {
-          "power_entity": "⚡ Puissance solaire actuelle (W)",
-          "solar_yield_today": "📊 Production du jour (kWh)",
           "total_consumption_today": "🏠 Consommation du foyer (kWh)",
           "solar_capacity": "☀️ Puissance de l'installation (kWc)",
           "inverter_max_power": "⚙️ Limite AC onduleur (kW)",
@@ -19,8 +17,6 @@
           "solar_radiation_sensor": "🔆 Rayonnement solaire (W/m²)"
         },
         "data_description": {
-          "power_entity": "Unite : Watts (DC). Uniquement la production directe des cellules, PAS la puissance AC apres l'onduleur. (Obligatoire)",
-          "solar_yield_today": "Unite : kWh (DC). Doit etre base sur le capteur de puissance DC et se remettre a zero a minuit. (Obligatoire)",
           "total_consumption_today": "Unite : kWh. Consommation electrique totale du foyer depuis minuit. Doit se remettre a zero a minuit. (Optionnel)",
           "solar_capacity": "Unite : kWc (ex. 9.6). Necessaire uniquement pour les installations simples ; calcule automatiquement avec les groupes de panneaux. (Optionnel)",
           "inverter_max_power": "Unite : kW. Limite les previsions au maximum de l'onduleur (ex. 5.0). 0 = Desactive. (Optionnel)",
@@ -57,8 +53,6 @@
         "title": "Reconfigurer Solar Forecast ML",
         "description": "Mettre a jour la configuration\nLes champs optionnels vides suppriment la valeur actuelle\n\nLes donnees meteo sont fournies automatiquement via l'API Open-Meteo",
         "data": {
-          "power_entity": "⚡ Puissance solaire actuelle (W)",
-          "solar_yield_today": "📊 Production du jour (kWh)",
           "total_consumption_today": "🏠 Consommation du foyer (kWh)",
           "solar_capacity": "☀️ Puissance de l'installation (kWc)",
           "inverter_max_power": "⚙️ Limite AC onduleur (kW)",
@@ -71,8 +65,6 @@
           "solar_radiation_sensor": "🔆 Rayonnement solaire (W/m²)"
         },
         "data_description": {
-          "power_entity": "Unite : Watts (DC). Uniquement la production directe des cellules, PAS la puissance AC apres l'onduleur. (Obligatoire)",
-          "solar_yield_today": "Unite : kWh (DC). Doit etre base sur le capteur de puissance DC et se remettre a zero a minuit. (Obligatoire)",
           "total_consumption_today": "Unite : kWh. Consommation electrique totale du foyer depuis minuit. Doit se remettre a zero a minuit. (Optionnel)",
           "solar_capacity": "Unite : kWc (ex. 9.6). Necessaire uniquement pour les installations simples ; calcule automatiquement avec les groupes de panneaux. (Optionnel)",
           "inverter_max_power": "Unite : kW. Limite les previsions au maximum de l'onduleur (ex. 5.0). 0 = Desactive. (Optionnel)",
@@ -392,11 +384,8 @@
       "external_sensors_status": {
         "name": "Statut des capteurs externes"
       },
-      "power_sensor_state": {
-        "name": "Etat du capteur de puissance"
-      },
-      "yield_sensor_state": {
-        "name": "Etat du capteur de production"
+      "total_yield": {
+        "name": "Rendement total du jour"
       },
       "cloudiness_trend_1h": {
         "name": "Tendance nuageuse 1h",
@@ -544,6 +533,12 @@
           "recovering": "En recuperation",
           "unknown": "Inconnu"
         }
+      },
+      "total_power": {
+        "name": "Puissance totale"
+      },
+      "total_actual_today": {
+        "name": "Reel aujourd'hui"
       }
     },
     "switch": {

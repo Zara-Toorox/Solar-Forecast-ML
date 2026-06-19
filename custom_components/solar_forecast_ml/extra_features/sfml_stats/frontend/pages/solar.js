@@ -1011,6 +1011,15 @@ const _SolarPage = {
                 demand_limited_zero_export: t('solar.discarded.demandLimitedZeroExport'),
                 excluded_from_clean_evaluation: t('solar.discarded.excludedFromCleanEvaluation'),
                 excluded: t('solar.discarded.excluded'),
+                weather_alert: t('solar.discarded.weatherAlert'),
+                snow: t('solar.discarded.snow'),
+                fog: t('solar.discarded.fog'),
+                grid_failure: t('solar.discarded.gridFailure'),
+                external_limit: t('solar.discarded.externalLimit'),
+                inverter_limit: t('solar.discarded.inverterLimit'),
+                manual_limit: t('solar.discarded.manualLimit'),
+                battery_full: t('solar.discarded.batteryFull'),
+                curtailment: t('solar.discarded.curtailment'),
             };
             const breakdown = o.discarded_learning_reason_breakdown || {};
             const parts = Object.entries(breakdown)

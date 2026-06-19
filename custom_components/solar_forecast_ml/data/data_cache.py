@@ -10,8 +10,6 @@
 """
 Cache Management for Solar Forecast ML V16.2.0.
 Handles caching logic for weather and forecast data using database operations.
-Uses yield_cache table for persistent caching.
-
 @zara
 """
 
@@ -33,12 +31,10 @@ class DataCache(DataManagerIO):
 
     V16.0.0: Uses database for persistent cache storage.
     - In-memory cache for fast access during session
-    - Database persistence for yield_cache and other critical values
     - Automatic cache expiration based on max_age
 
     Cache Types:
     - Weather forecasts: In-memory with TTL
-    - Yield values: Database persisted via yield_cache table
     - Astronomy data: Database persisted via astronomy_cache table
     """
 
@@ -132,94 +128,6 @@ class DataCache(DataManagerIO):
                 max(self._cache_timestamps.values()) if self._cache_timestamps else None
             ),
         }
-
-    # =========================================================================
-    # Yield Cache (Database Persisted)
-    # =========================================================================
-
-    async def save_yield_cache(
-        self,
-        value: float,
-        timestamp: Optional[datetime] = None,
-        date_str: Optional[str] = None,
-    ) -> bool:
-        """Save yield value to database cache. @zara
-
-        Args:
-            value: Yield value in kWh
-            timestamp: Time of measurement (default: now)
-            date_str: Date string (default: today)
-
-        Returns:
-            True if saved successfully
-        """
-        try:
-            if timestamp is None:
-                timestamp = SafeDateTimeUtil.now()
-            if date_str is None:
-                date_str = timestamp.date().isoformat()
-
-            cache_data = {
-                "value": value,
-                "time": timestamp.isoformat(),
-                "date": date_str,
-            }
-            await self.db.save_yield_cache(cache_data)
-
-            # Also update in-memory cache
-            self._cache["yield_current"] = value
-            self._cache_timestamps["yield_current"] = timestamp
-
-            _LOGGER.debug("Saved yield cache: %.3f kWh at %s", value, timestamp)
-            return True
-
-        except Exception as e:
-            _LOGGER.error("Failed to save yield cache: %s", e)
-            return False
-
-    async def get_yield_cache(self) -> Optional[Dict[str, Any]]:
-        """Get yield cache from database. @zara
-
-        Returns:
-            Dict with yield cache data or None
-        """
-        try:
-            row = await self.fetch_one(
-                "SELECT value, time, date FROM yield_cache WHERE id = 1"
-            )
-
-            if not row:
-                return None
-
-            return {
-                "value": row[0],
-                "time": row[1],
-                "date": row[2],
-            }
-
-        except Exception as e:
-            _LOGGER.error("Failed to get yield cache: %s", e)
-            return None
-
-    async def get_yield_value(self) -> Optional[float]:
-        """Get current yield value from cache. @zara
-
-        First checks in-memory cache, then falls back to database.
-
-        Returns:
-            Yield value in kWh or None
-        """
-        # Try in-memory first
-        if "yield_current" in self._cache:
-            return self._cache["yield_current"]
-
-        # Fall back to database
-        cache_data = await self.get_yield_cache()
-        if cache_data:
-            self._cache["yield_current"] = cache_data["value"]
-            return cache_data["value"]
-
-        return None
 
     # =========================================================================
     # Weather Forecast Cache (Database)
@@ -567,9 +475,6 @@ class DataCache(DataManagerIO):
                 "SELECT COUNT(*), MIN(cache_date), MAX(cache_date) FROM astronomy_cache"
             )
 
-            # Yield cache
-            yield_cache = await self.get_yield_cache()
-
             return {
                 "in_memory": memory_stats,
                 "weather_forecast": {
@@ -582,7 +487,6 @@ class DataCache(DataManagerIO):
                     "oldest_date": astronomy_row[1] if astronomy_row else None,
                     "newest_date": astronomy_row[2] if astronomy_row else None,
                 },
-                "yield_cache": yield_cache,
             }
 
         except Exception as e:

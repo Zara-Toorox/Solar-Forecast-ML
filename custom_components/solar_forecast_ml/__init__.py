@@ -49,7 +49,6 @@ from homeassistant.helpers.typing import ConfigType
 
 from .const import (
     CONF_PANEL_GROUP_AZIMUTH,
-    CONF_PANEL_GROUP_ENERGY_SENSOR,
     CONF_PANEL_GROUP_NAME,
     CONF_PANEL_GROUP_POWER,
     CONF_PANEL_GROUP_TILT,
@@ -207,19 +206,28 @@ def _orientation_match(a: dict, b: dict, tol: float = 0.5) -> bool:
 
 
 def _get_power(g: dict) -> float:
-    if "power_wp" in g:
-        return g["power_wp"]
-    if CONF_PANEL_GROUP_POWER in g:
-        return g[CONF_PANEL_GROUP_POWER]
+    for key in (CONF_PANEL_GROUP_POWER, "power_wp", "capacity_wp", "peak_power_wp"):
+        try:
+            value = float(g.get(key) or 0.0)
+        except (TypeError, ValueError):
+            value = 0.0
+        if value > 0:
+            return value
+
+    for key in ("capacity_kwp", "kwp", "power_kwp"):
+        try:
+            value = float(g.get(key) or 0.0)
+        except (TypeError, ValueError):
+            value = 0.0
+        if value > 0:
+            return value * 1000.0
+
     return 0.0
 
 
 def _get_name(g: dict) -> str:
     return g.get("name", g.get(CONF_PANEL_GROUP_NAME, ""))
 
-
-def _get_sensor(g: dict) -> str:
-    return g.get("energy_sensor", g.get(CONF_PANEL_GROUP_ENERGY_SENSOR, ""))
 
 
 def _power_ratio(a: dict, b: dict) -> float | None:
@@ -263,8 +271,7 @@ def _match_score(old_group: dict, new_group: dict) -> tuple[float, float, float,
     tilt_diff = abs(old_tilt - new_tilt)
     ratio = _power_ratio(old_group, new_group)
     power_penalty = 1.0 - ratio if ratio is not None else 0.5
-    sensor_match = int(bool(_get_sensor(old_group)) and _get_sensor(old_group) == _get_sensor(new_group))
-    return (az_diff + tilt_diff, power_penalty, abs(_get_power(old_group) - _get_power(new_group)), -sensor_match)
+    return (az_diff + tilt_diff, power_penalty, abs(_get_power(old_group) - _get_power(new_group)), 0)
 
 
 def _requires_ai_invalidation(old_groups: list[dict], new_groups: list[dict]) -> bool:
@@ -284,13 +291,13 @@ def _requires_ai_invalidation(old_groups: list[dict], new_groups: list[dict]) ->
 async def _load_old_config_from_db(db) -> list[dict]:
     try:
         rows = await db.fetchall(
-            "SELECT group_name, power_wp, azimuth, tilt, energy_sensor "
+            "SELECT group_name, power_wp, azimuth, tilt "
             "FROM panel_group_config_snapshot ORDER BY group_name"
         )
         if rows:
             return [
                 {"name": r[0], "power_wp": r[1], "azimuth": r[2],
-                 "tilt": r[3], "energy_sensor": r[4] or ""}
+                 "tilt": r[3]}
                 for r in rows
             ]
     except Exception:
@@ -305,7 +312,7 @@ async def _load_old_config_from_db(db) -> list[dict]:
     if rows:
         return [
             {"name": r[0], "power_wp": r[1] * 1000.0, "azimuth": r[2],
-             "tilt": r[3], "energy_sensor": ""}
+             "tilt": r[3]}
             for r in rows
         ]
 
@@ -315,7 +322,7 @@ async def _load_old_config_from_db(db) -> list[dict]:
     if rows:
         return [
             {"name": r[0], "power_wp": 0.0, "azimuth": 0.0,
-             "tilt": 0.0, "energy_sensor": ""}
+             "tilt": 0.0}
             for r in rows
         ]
 
@@ -412,7 +419,6 @@ def _normalised_group_config(g: dict) -> dict:
         "power_wp": round(float(_get_power(g) or 0.0), 3),
         "azimuth": round(float(g.get("azimuth", g.get(CONF_PANEL_GROUP_AZIMUTH, 180.0)) or 180.0), 3),
         "tilt": round(float(g.get("tilt", g.get(CONF_PANEL_GROUP_TILT, 30.0)) or 30.0), 3),
-        "energy_sensor": str(_get_sensor(g) or ""),
     }
 
 
@@ -440,7 +446,6 @@ def _new_lineage_uid(g: dict) -> str:
         "name": cfg["name"],
         "azimuth": cfg["azimuth"],
         "tilt": cfg["tilt"],
-        "energy_sensor": cfg["energy_sensor"],
     }
     return _hash_payload("pgl", payload)
 
@@ -591,7 +596,7 @@ async def _save_config_epoch(
                     cfg["power_wp"],
                     cfg["azimuth"],
                     cfg["tilt"],
-                    cfg["energy_sensor"] or None,
+                    None,
                     _group_signature(group),
                 ),
                 auto_commit=False,
@@ -731,9 +736,102 @@ async def _save_config_snapshot(db, groups: list[dict]) -> None:
                 "INSERT INTO panel_group_config_snapshot "
                 "(group_name, power_wp, azimuth, tilt, energy_sensor) VALUES (?, ?, ?, ?, ?)",
                 (g["name"], g.get("power_wp", 0.0), g.get("azimuth", 180.0),
-                 g.get("tilt", 30.0), g.get("energy_sensor") or None),
+                 g.get("tilt", 30.0), None),
                 auto_commit=False,
             )
+
+
+async def _sync_current_panel_group_prediction_rows(db, groups: list[dict]) -> int:
+    normalized_groups = [_normalised_group_config(group) for group in groups]
+    normalized_groups = [group for group in normalized_groups if group["name"]]
+    if not normalized_groups:
+        return 0
+
+    total_power_wp = sum(group["power_wp"] for group in normalized_groups)
+    if total_power_wp <= 0:
+        return 0
+
+    today = dt_util.now().date()
+    end_date = today + timedelta(days=2)
+    expected_names = {group["name"] for group in normalized_groups}
+
+    rows = await db.fetchall(
+        """SELECT prediction_id, prediction_kwh
+           FROM hourly_predictions
+           WHERE target_date BETWEEN ? AND ?
+           ORDER BY target_date, target_hour""",
+        (today.isoformat(), end_date.isoformat()),
+    )
+    if not rows:
+        return 0
+
+    topology_by_group = {}
+    for group in normalized_groups:
+        topology_by_group[group["name"]] = await db.get_active_panel_group_topology_meta(
+            group["name"]
+        )
+
+    changed_rows = 0
+    async with db.transaction():
+        for prediction_id, prediction_kwh in rows:
+            existing_rows = await db.fetchall(
+                """SELECT group_name
+                   FROM prediction_panel_groups
+                   WHERE prediction_id = ?""",
+                (prediction_id,),
+            )
+            existing_names = {row[0] for row in existing_rows}
+            if existing_names == expected_names:
+                continue
+
+            prediction_total = float(prediction_kwh or 0.0)
+            for group in normalized_groups:
+                group_name = group["name"]
+                group_prediction = (
+                    prediction_total * group["power_wp"] / total_power_wp
+                    if prediction_total > 0
+                    else 0.0
+                )
+                topology = topology_by_group.get(group_name, {})
+                await db.execute(
+                    """INSERT INTO prediction_panel_groups
+                       (prediction_id, group_name, prediction_kwh,
+                        config_epoch_id, group_uid, group_lineage_uid, power_wp_at_prediction)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(prediction_id, group_name) DO UPDATE SET
+                           prediction_kwh = excluded.prediction_kwh,
+                           config_epoch_id = excluded.config_epoch_id,
+                           group_uid = excluded.group_uid,
+                           group_lineage_uid = excluded.group_lineage_uid,
+                           power_wp_at_prediction = excluded.power_wp_at_prediction""",
+                    (
+                        prediction_id,
+                        group_name,
+                        round(group_prediction, 4),
+                        topology.get("config_epoch_id"),
+                        topology.get("group_uid"),
+                        topology.get("group_lineage_uid"),
+                        topology.get("power_wp_at_prediction"),
+                    ),
+                    auto_commit=False,
+                )
+
+            await db.execute(
+                """UPDATE hourly_predictions
+                   SET has_panel_group_predictions = TRUE
+                   WHERE prediction_id = ?""",
+                (prediction_id,),
+                auto_commit=False,
+            )
+            changed_rows += 1
+
+    if changed_rows:
+        _LOGGER.info(
+            "Panel Group Topology: synchronized %d active forecast hours to %d configured groups",
+            changed_rows,
+            len(normalized_groups),
+        )
+    return changed_rows
 
 
 async def _ensure_snapshot_table(db) -> None:
@@ -827,10 +925,9 @@ async def _migrate_panel_groups(
         for g in panel_groups:
             new_config.append({
                 "name": g.get(CONF_PANEL_GROUP_NAME, ""),
-                "power_wp": g.get(CONF_PANEL_GROUP_POWER, 0.0),
+                "power_wp": _get_power(g),
                 "azimuth": g.get(CONF_PANEL_GROUP_AZIMUTH, 180.0),
                 "tilt": g.get(CONF_PANEL_GROUP_TILT, 30.0),
-                "energy_sensor": g.get(CONF_PANEL_GROUP_ENERGY_SENSOR, ""),
             })
 
         old_config = await _load_old_config_from_db(db)
@@ -845,6 +942,7 @@ async def _migrate_panel_groups(
                 result["new"].append(g["name"])
             await _save_config_epoch(db, new_config, None, "initial_setup")
             await _save_config_snapshot(db, new_config)
+            await _sync_current_panel_group_prediction_rows(db, new_config)
             return result
 
         plan = _match_groups(old_config, new_config)
@@ -853,6 +951,7 @@ async def _migrate_panel_groups(
             _LOGGER.debug("Panel Group Migration: no changes detected")
             await _save_config_epoch(db, new_config, None, "snapshot_bootstrap")
             await _save_config_snapshot(db, new_config)
+            await _sync_current_panel_group_prediction_rows(db, new_config)
             return result
 
         for r in plan.renames:
@@ -881,6 +980,7 @@ async def _migrate_panel_groups(
 
         await _save_config_epoch(db, new_config, plan, "configuration_changed")
         await _save_config_snapshot(db, new_config)
+        await _sync_current_panel_group_prediction_rows(db, new_config)
 
         result["renamed"] = [
             f"{r.old_name}→{r.new_name}"
@@ -1353,6 +1453,28 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     from homeassistant.helpers import entity_registry as er
 
     _LOGGER.debug(f"Migrating from version {config_entry.version}")
+
+    panel_groups = config_entry.data.get(CONF_PANEL_GROUPS, []) or []
+    if panel_groups:
+        normalized_groups = []
+        changed = False
+        for group in panel_groups:
+            if not isinstance(group, dict):
+                normalized_groups.append(group)
+                continue
+            normalized = dict(group)
+            power_wp = _get_power(normalized)
+            current_power_wp = _get_power({"power_wp": normalized.get(CONF_PANEL_GROUP_POWER)})
+            if power_wp > 0 and current_power_wp <= 0:
+                normalized[CONF_PANEL_GROUP_POWER] = power_wp
+                changed = True
+            normalized_groups.append(normalized)
+
+        if changed:
+            data = dict(config_entry.data)
+            data[CONF_PANEL_GROUPS] = normalized_groups
+            hass.config_entries.async_update_entry(config_entry, data=data)
+            _LOGGER.info("Migrated panel group power values to %s", CONF_PANEL_GROUP_POWER)
 
     ent_reg = er.async_get(hass)
 

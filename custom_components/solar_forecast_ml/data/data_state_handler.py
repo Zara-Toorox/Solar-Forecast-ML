@@ -202,53 +202,6 @@ class DataStateHandler(DataManagerIO):
             _LOGGER.error("Failed to load production time state: %s", e)
             return None
 
-    async def save_yield_cache(self, value: float, timestamp: datetime) -> bool:
-        """Save yield cache to database. @zara
-
-        Args:
-            value: Current yield value in kWh
-            timestamp: Timestamp of the value
-
-        Returns:
-            True if saved successfully
-        """
-        try:
-            cache = {
-                "value": value,
-                "time": timestamp.isoformat(),
-                "date": timestamp.date().isoformat(),
-            }
-            await self.db.save_yield_cache(cache)
-            return True
-
-        except Exception as e:
-            _LOGGER.error("Failed to save yield cache: %s", e)
-            return False
-
-    async def load_yield_cache(self) -> Optional[dict[str, Any]]:
-        """Load yield cache from database. @zara
-
-        Returns:
-            Yield cache dictionary or None
-        """
-        try:
-            row = await self.db.fetchone(
-                "SELECT value, time, date FROM yield_cache WHERE id = 1"
-            )
-
-            if row is None:
-                return None
-
-            return {
-                "value": float(row[0]) if row[0] is not None else None,
-                "time": str(row[1]) if row[1] else None,
-                "date": str(row[2]) if row[2] else None,
-            }
-
-        except Exception as e:
-            _LOGGER.error("Failed to load yield cache: %s", e)
-            return None
-
     async def save_panel_group_sensor_state(
         self,
         group_name: str,

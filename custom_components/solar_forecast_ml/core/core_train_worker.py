@@ -18,18 +18,80 @@ import asyncio
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _resolve_worker_threads() -> str:
+    configured = os.environ.get("SFML_TRAIN_WORKER_THREADS")
+    if configured:
+        try:
+            return str(max(1, int(configured)))
+        except ValueError:
+            return "2"
+
+    cpu_count = os.cpu_count() or 2
+    return str(max(2, min(4, cpu_count // 2 or 1)))
+
 # If running as script, save real stdout and redirect sys.stdout to sys.stderr
 # to prevent print statements or third-party logs from corrupting the JSON payload.
 if __name__ == "__main__":
-    # Limit NumPy/OpenBLAS to a single thread to prevent CPU core saturation
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-    os.environ["OPENBLAS_NUM_THREADS"] = "1"
-    os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-    os.environ["NUMEXPR_NUM_THREADS"] = "1"
+    worker_threads = _resolve_worker_threads()
+    for env_name in (
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "OPENBLAS_NUM_THREADS",
+        "VECLIB_MAXIMUM_THREADS",
+        "NUMEXPR_NUM_THREADS",
+    ):
+        os.environ.setdefault(env_name, worker_threads)
 
     _REAL_STDOUT = sys.stdout
     sys.stdout = sys.stderr
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(message)s",
+        stream=sys.stderr,
+        force=True,
+    )
+
+
+def _is_progress_line(line: str) -> bool:
+    return (
+        "Training V3.0:" in line
+        or "Epoch " in line
+        or "Early stopping" in line
+        or "Training complete:" in line
+    )
+
+
+async def _feed_worker_stdin(process: asyncio.subprocess.Process, input_bytes: bytes) -> None:
+    if process.stdin is None:
+        return
+    process.stdin.write(input_bytes)
+    await process.stdin.drain()
+    process.stdin.close()
+
+
+async def _read_worker_stdout(process: asyncio.subprocess.Process) -> bytes:
+    if process.stdout is None:
+        return b""
+    return await process.stdout.read()
+
+
+async def _stream_worker_stderr(process: asyncio.subprocess.Process) -> str:
+    if process.stderr is None:
+        return ""
+
+    lines: list[str] = []
+    while True:
+        raw_line = await process.stderr.readline()
+        if not raw_line:
+            break
+        line = raw_line.decode("utf-8", errors="ignore").rstrip()
+        lines.append(line)
+        if _is_progress_line(line):
+            _LOGGER.info("Training worker: %s", line)
+        else:
+            _LOGGER.debug("Training worker: %s", line)
+    return "\n".join(lines).strip()
 
 
 async def async_run_training_in_subprocess(
@@ -56,20 +118,27 @@ async def async_run_training_in_subprocess(
         }
 
         input_str = json.dumps(payload)
+        env = os.environ.copy()
+        env.setdefault("PYTHONUNBUFFERED", "1")
 
-        # Start python process pointing to this script
         process = await asyncio.create_subprocess_exec(
             sys.executable,
+            "-u",
             worker_path,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
+            env=env
         )
 
         try:
             # Enforce a 30-minute timeout on training execution
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(input=input_str.encode('utf-8')),
+            stdin_task = asyncio.create_task(_feed_worker_stdin(process, input_str.encode("utf-8")))
+            stdout_task = asyncio.create_task(_read_worker_stdout(process))
+            stderr_task = asyncio.create_task(_stream_worker_stderr(process))
+            wait_task = asyncio.create_task(process.wait())
+            stdout, stderr_text, _returncode, _stdin_result = await asyncio.wait_for(
+                asyncio.gather(stdout_task, stderr_task, wait_task, stdin_task),
                 timeout=1800.0
             )
         except asyncio.TimeoutError:
@@ -90,15 +159,12 @@ async def async_run_training_in_subprocess(
             raise
 
         if process.returncode != 0:
-            error_msg = stderr.decode('utf-8', errors='ignore').strip()
+            error_msg = stderr_text.strip()
             _LOGGER.warning("Training worker process returned non-zero code %d: %s", process.returncode, error_msg)
             return {"success": False, "error_message": f"Exit code {process.returncode}: {error_msg}"}
 
         try:
             result = json.loads(stdout.decode('utf-8'))
-            worker_stderr = stderr.decode('utf-8', errors='ignore').strip()
-            if worker_stderr:
-                _LOGGER.debug("Training worker stderr output:\n%s", worker_stderr)
             return result
         except json.JSONDecodeError as e:
             stdout_str = stdout.decode('utf-8', errors='ignore').strip()

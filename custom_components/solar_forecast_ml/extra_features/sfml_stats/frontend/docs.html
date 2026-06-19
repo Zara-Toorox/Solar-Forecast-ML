@@ -1065,37 +1065,47 @@
                         <tbody>
                             <!-- SFML Sektion -->
                             <tr>
-                                <td colspan="3" class="sensor-module-header">Solar Forecast ML (Basis-Setup)</td>
+                                <td colspan="3" class="sensor-module-header">Solar Forecast ML (SFML) Konfiguration</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name">Current Solar Power (W)</td>
+                                <td class="sensor-name">Panelgruppe 1-4: Live Power Sensor</td>
                                 <td><span class="sensor-unit">W</span></td>
-                                <td><strong>Reiner DC-Zellertrag.</strong> Die direkte Leistung der PV-Module vor dem Wechselrichter. Die Einspeisung von AC-Leistung verfälscht die Lernkurve.</td>
+                                <td><strong>Pflicht je aktiver Panelgruppe.</strong> Aktuelle DC-Leistung der jeweiligen Modulgruppe in Watt. Diese Gruppen-Power ist die neue Source of Truth: SFML summiert daraus Gesamtleistung, Tages-Ist und Gruppen-Ist. Nicht als kW-Sensor dokumentieren oder konfigurieren.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name">Daily Yield (kWh)</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Täglich kumulierter Ertrag (DC-Basis). <strong>Muss sich um exakt 00:00 Uhr auf 0 zurücksetzen.</strong></td>
+                                <td class="sensor-name">Panelgruppe 1-4: Azimuth</td>
+                                <td><span class="sensor-unit">°</span></td>
+                                <td>Ausrichtung der Gruppe: 0° Nord, 90° Ost, 180° Süd, 270° West. Wird für Physikprognose, Schattenlogik und Gruppengewichtung genutzt.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name">Household Consumption (kWh)</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Gesamtverbrauch des Haushalts seit Mitternacht. Reset um 00:00 Uhr. (Optional)</td>
+                                <td class="sensor-name">Panelgruppe 1-4: Tilt</td>
+                                <td><span class="sensor-unit">°</span></td>
+                                <td>Neigungswinkel der Module. 0° bedeutet horizontal, 90° vertikal.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name">System Capacity (kWp)</td>
+                                <td class="sensor-name">Panelgruppe 1-4: Installed DC Capacity</td>
                                 <td><span class="sensor-unit">kWp</span></td>
-                                <td>Nennleistung der PV-Module. Wird bei Panel-Gruppen automatisch berechnet. (Optional)</td>
+                                <td>Installierte DC-Nennleistung der Gruppe. Aus allen Gruppen wird die Anlagenkapazität abgeleitet.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name">Inverter AC Limit (kW)</td>
+                                <td class="sensor-name">Household Consumption Today</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Optionaler Tagesverbrauch des Haushalts seit Mitternacht. Muss um 00:00 Uhr auf 0 zurücksetzen.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name">Inverter AC Limit</td>
                                 <td><span class="sensor-unit">kW</span></td>
-                                <td>Begrenzt Prognosewerte auf die physikalische AC-Kapazität des Wechselrichters. (Optional)</td>
+                                <td>Optionales physikalisches AC-Limit des Wechselrichters. Begrenzt Prognosen auf die real mögliche AC-Ausgangsleistung.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name">Solar to Battery Sensor</td>
+                                <td><span class="sensor-unit">W</span></td>
+                                <td>Optionaler Leistungsfluss von PV in den Akku. Wird für MPPT-/Battery-Full-Drosselungserkennung genutzt, damit verfälschte Stunden nicht ins Lernen laufen.</td>
                             </tr>
                             <tr>
                                 <td class="sensor-name">Lokale Wettersensoren</td>
                                 <td><span class="sensor-unit">mm/h, lx, °C, m/s, %, hPa, W/m²</span></td>
-                                <td>Physische Außensensoren vor Ort (Precipitation, Helligkeit, Außentemperatur, Windgeschwindigkeit, Humidity, Luftdruck, Globalstrahlung). Keine simulierten Werte oder Internet-Wetterdienste! (Optional)</td>
+                                <td>Optionale reale Außensensoren vor Ort: Regen, Helligkeit/Lux, Temperatur, Wind, Luftfeuchte, Luftdruck und Globalstrahlung. Keine Indoorwerte, Templates oder Internet-Wetterdienste als Messwerte verwenden.</td>
                             </tr>
 
                             <!-- STATS Sektion -->
@@ -1352,10 +1362,11 @@
                                 <span class="config-item-arrow">▶</span>
                             </div>
                             <div class="config-item-body">
-                                Bestimmt das physikalische Layout deiner Solarmodule. Das Format ist <code>Leistung(Wp)/Ausrichtung(°)/Neigung(°)/Energiesensor</code>.<br>
+                                Bestimmt das physikalische Layout und die Messquelle deiner Solarmodule. Jede aktive Gruppe braucht <strong>kWp, Ausrichtung, Neigung und einen Live-Power-Sensor in Watt</strong>.<br>
+                                <strong>Power-Sensor:</strong> aktuelle DC-Leistung der Gruppe in <code>W</code>. Diese Werte werden zur Gesamtleistung summiert und bilden die IST-Quelle für Gruppen- und Tagesertrag.<br>
                                 <strong>Ausrichtung (Azimut):</strong> 0° ist Norden, 90° Osten, 180° Süden, 270° Westen.<br>
                                 <strong>Neigung (Tilt):</strong> 0° ist flach auf dem Boden liegend, 90° ist senkrecht an der Wand montiert.<br>
-                                <em>Auswirkung:</em> Das System berechnet anhand des Winkels den Sonnenlauf und verknüpft das mit dem Ertragsmodell für maximale Prognosepräzision.
+                                <em>Auswirkung:</em> SFML verbindet Geometrie, Gruppenleistung und Wettermodell zur Prognose und zur späteren Lernbewertung.
                             </div>
                         </div>
 
@@ -1635,49 +1646,346 @@
                         <tbody>
                             <!-- SFML Ausgaben -->
                             <tr>
-                                <td colspan="4" class="sensor-module-header">Solar Forecast ML (SFML) Ausgänge</td>
+                                <td colspan="4" class="sensor-module-header">Solar Forecast ML (SFML) bereitgestellte Sensoren</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name"><code>sensor.forecast_today_remaining</code></td>
+                                <td colspan="4" style="color: var(--text-secondary); font-size: 0.86rem;">Hinweis: Entitäts-IDs können bei Altinstallationen durch Home Assistant leicht abweichen. Fachlich maßgeblich sind Name, Einheit und Quelle. Die Gruppen-Power-Sensoren arbeiten in Watt.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_system_status</code></td>
+                                <td>Status</td>
+                                <td><span class="sensor-unit">Text</span></td>
+                                <td>Gesamtzustand der SFML-Integration und Start-/Runtime-Status.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_sfml_total_power</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">W</span></td>
+                                <td>Aktuelle Gesamtleistung als Summe der Panelgruppen-Power.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_sfml_total_actual_today</code></td>
                                 <td>Sensor</td>
                                 <td><span class="sensor-unit">kWh</span></td>
-                                <td>Verbleibender prognostizierter Solarertrag für den heutigen Tag.</td>
+                                <td>Aktueller Tages-Ist-Ertrag der gesamten Anlage.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name"><code>sensor.forecast_tomorrow</code></td>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_sfml_total_yield</code></td>
                                 <td>Sensor</td>
                                 <td><span class="sensor-unit">kWh</span></td>
-                                <td>Gesamt-Solarprognose für den morgigen Tag.</td>
+                                <td>Tagesertrag aus SFML-SOT; setzt nach Mitternacht wieder bei 0 an.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name"><code>sensor.next_hour_forecast</code></td>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_1_power</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">W</span></td>
+                                <td>Live-Leistung von Panelgruppe 1.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_1_actual_today</code></td>
                                 <td>Sensor</td>
                                 <td><span class="sensor-unit">kWh</span></td>
-                                <td>Erwartete PV-Erzeugung in der kommenden Stunde.</td>
+                                <td>Tages-Ist-Ertrag von Panelgruppe 1.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name"><code>sensor.best_hour_for_consumption</code></td>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_2_power</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">W</span></td>
+                                <td>Live-Leistung von Panelgruppe 2.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_2_actual_today</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Tages-Ist-Ertrag von Panelgruppe 2.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_3_power</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">W</span></td>
+                                <td>Live-Leistung von Panelgruppe 3.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_3_actual_today</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Tages-Ist-Ertrag von Panelgruppe 3.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_4_power</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">W</span></td>
+                                <td>Live-Leistung von Panelgruppe 4.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_4_actual_today</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Tages-Ist-Ertrag von Panelgruppe 4.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_heute</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Gesamtprognose für heute.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_heute_verbleibend</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Noch verbleibende Prognose für den restlichen heutigen Tag.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_morgen</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Gesamtprognose für morgen.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_ubermorgen</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Gesamtprognose für übermorgen.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_nachste_stunde</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Erwartete Erzeugung in der nächsten Stunde.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_planungsprognose_p10_blend</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Konservative P10-Planungsprognose für vorsichtige Verbraucher-/Akkuplanung.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_hybrid_forecast</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Operative Hybrid-Prognose aus dem Intraday-/OPS-Sidecar.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_beste_stunde</code></td>
                                 <td>Sensor</td>
                                 <td><span class="sensor-unit">Uhrzeit</span></td>
-                                <td>Beste Stunde für Verbraucher (mit der höchsten prognostizierten Peak-Leistung).</td>
+                                <td>Beste Stunde für steuerbare Verbraucher nach erwarteter PV-Produktion.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name"><code>sensor.planning_forecast_p10_blend</code></td>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_produktionszeit_heute</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">h</span></td>
+                                <td>Bisherige PV-Produktionszeit des aktuellen Tages.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_max_peak_heute</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">W</span></td>
+                                <td>Höchster heute gemessener SFML-SOT-Leistungspeak.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_max_peak_rekord</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">W</span></td>
+                                <td>Höchster jemals gemessener SFML-SOT-Leistungspeak.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_durchschnittlicher_monatsertrag</code></td>
                                 <td>Sensor</td>
                                 <td><span class="sensor-unit">kWh</span></td>
-                                <td>Konservative Planungsprognose (P10) für bewölkte/schattige Bedingungen.</td>
+                                <td>Durchschnittlicher Tagesertrag im aktuellen Monatskontext.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name"><code>sensor.shadow_current</code></td>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_o_ertrag_7_tage</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Durchschnittlicher Tagesertrag der letzten 7 Tage.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_o_ertrag_30_tage</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Durchschnittlicher Tagesertrag der letzten 30 Tage.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_wochenertrag</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Kumulierter PV-Ertrag der aktuellen Woche.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_wochenverbrauch</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Kumulierter Verbrauch der aktuellen Woche, sofern Verbrauchsdaten vorhanden sind.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_monatsertrag</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Kumulierter PV-Ertrag des aktuellen Monats.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_monatsverbrauch</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Kumulierter Verbrauch des aktuellen Monats, sofern Verbrauchsdaten vorhanden sind.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_o_genauigkeit_30_tage</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">%</span></td>
+                                <td>Durchschnittliche Prognosegenauigkeit der letzten 30 Tage.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_bewertungsabdeckung_7_tage</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">%</span></td>
+                                <td>Anteil bewertbarer Produktionsstunden der letzten 7 Tage.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_bewertungsabdeckung_30_tage</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">%</span></td>
+                                <td>Anteil bewertbarer Produktionsstunden der letzten 30 Tage.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_mppt_ausschluss_7_tage</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">h</span></td>
+                                <td>Aus Lern-/Clean-Evaluation ausgeschlossene MPPT-/Curtailment-Stunden der letzten 7 Tage.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_mppt_ausschluss_30_tage</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">h</span></td>
+                                <td>Aus Lern-/Clean-Evaluation ausgeschlossene MPPT-/Curtailment-Stunden der letzten 30 Tage.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_shadow_current</code></td>
                                 <td>Sensor</td>
                                 <td><span class="sensor-unit">Zustand</span></td>
-                                <td>Aktueller Schattenzustand: Clear, Light/Moderate/Heavy Shadow.</td>
+                                <td>Aktueller Schattenzustand der Anlage.</td>
                             </tr>
                             <tr>
-                                <td class="sensor-name"><code>sensor.evcc_solar_forecast</code></td>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_shadow_today</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">h</span></td>
+                                <td>Heute erkannte oder erwartete Schattenstunden.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_performance_loss_today</code></td>
+                                <td>Sensor</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Heute geschätzter Leistungsverlust durch Schatten oder vergleichbare Ertragsminderung.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_evcc_solar_prognose</code></td>
                                 <td>Sensor</td>
                                 <td><span class="sensor-unit">JSON</span></td>
-                                <td>Stündliche Solarprognose im evcc-JSON-Format für direktes Überschussladen.</td>
+                                <td>Optionale stündliche Prognose im evcc-kompatiblen Format.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Zustand</span></td>
+                                <td>Drift-Status des Lernsystems.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_active_prediction_model</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Text</span></td>
+                                <td>Aktuell bevorzugtes Prognosemodell bzw. Modellmix.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_ai_rmse</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>RMSE des AI-Anteils als Qualitätsmaß.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_ml_metrics</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Text</span></td>
+                                <td>Zusammenfassung wichtiger Modellmetriken.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_physics_samples</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Anzahl</span></td>
+                                <td>Verfügbare Lern-/Physik-Samples.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_yesterday_deviation</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">kWh</span></td>
+                                <td>Abweichung zwischen Prognose und Ist-Ertrag von gestern.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_cloudiness_trend_1h</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Trend</span></td>
+                                <td>Kurzfristiger Wolkentrend über eine Stunde.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_cloudiness_trend_3h</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Trend</span></td>
+                                <td>Wolkentrend über drei Stunden.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_cloudiness_volatility</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">%</span></td>
+                                <td>Wetterstabilität bzw. Schwankung der Bewölkung.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_coordinator_health</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Text</span></td>
+                                <td>Gesundheitszustand des Coordinators.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_data_files_status</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Text</span></td>
+                                <td>Status der SFML-Datenbank-/Dateibasis.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_external_sensors_status</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Text</span></td>
+                                <td>Status der eingebundenen externen Sensoren.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_last_update</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Zeit</span></td>
+                                <td>Zeitpunkt des letzten Coordinator-Updates.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_last_ai_training</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Zeit</span></td>
+                                <td>Zeitpunkt des letzten AI-Trainings.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_next_scheduled_update</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Zeit</span></td>
+                                <td>Nächstes geplantes Update.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_next_production_start</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">Zeit</span></td>
+                                <td>Erwarteter nächster Produktionsstart.</td>
+                            </tr>
+                            <tr>
+                                <td class="sensor-name"><code>sensor.solar_forecast_ml_end_of_day_duration</code></td>
+                                <td>Diagnose</td>
+                                <td><span class="sensor-unit">s</span></td>
+                                <td>Dauer des letzten End-of-Day-Workflows.</td>
                             </tr>
 
                             <!-- GPM & STATS Preise -->
@@ -1714,8 +2022,27 @@
                                 <td><span class="sensor-unit">ON/OFF</span></td>
                                 <td>Schaltet auf ON, wenn der Speicher aktuell aktiv aus dem Netz geladen wird.</td>
                             </tr>
+                            <tr>
+                                <td class="sensor-name"><code>binary_sensor.solar_forecast_stats_pv_surplus_available</code></td>
+                                <td>Binär</td>
+                                <td><span class="sensor-unit">ON/OFF</span></td>
+                                <td>Schaltet nach 5 Minuten stabiler Einspeisung auf ON und sofort wieder auf OFF, wenn keine Einspeisung mehr anliegt oder der Hausbedarf größer als die Solarleistung ist.</td>
+                            </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 1.15rem; color: #fff;">STATS Lovelace Card</h3>
+                <div class="example-card">
+                    <div class="example-title">Dashboard-Karte für Home Assistant</div>
+                    <p class="example-desc">STATS liefert eine eigene Lovelace-Karte aus. In Installationen mit Lovelace Storage-Modus wird die Ressource automatisch registriert. Falls du Ressourcen manuell verwaltest, füge diese Modul-URL hinzu:</p>
+                    <pre class="code-box">/api/sfml_stats/static/sfml-stats-card.js?v=30.0.0</pre>
+                    <p class="example-desc">Danach kannst du die Karte als <code>custom:sfml-stats-card</code> verwenden. Sie zeigt PV-Liveleistung, Tagesertrag, Prognosegüte, Autarkie, Eigenverbrauch, Panelgruppen und den STATS-Überschuss-Binärsensor an, sofern die jeweiligen Daten im System vorhanden sind.</p>
+                    <pre class="code-box">type: custom:sfml-stats-card
+title: Solar Forecast STATS
+show_panels: true
+show_price: true
+show_surplus: true</pre>
                 </div>
 
                 <!-- PRAXISBEISPIELE -->
@@ -1802,7 +2129,7 @@ action:
 
                     <div class="setup-step">
                         <h3 class="setup-step-title">Schritt 2: Solar Forecast ML (SFML) anlegen</h3>
-                        <p class="setup-step-desc">Trage deine DC-Solarleistung und den DC-Tagesertragssensor ein. Richte danach deine Panelgruppen mit den genauen Ausrichtungen (Winkel) und Neigungen ein. Aktiviere in den Optionen die MPPT-Drosselungserkennung, um die KI vor verfälschten Messwerten durch volle Batterien zu schützen.</p>
+                        <p class="setup-step-desc">Richte deine Panelgruppen ein: je Gruppe Live-Power-Sensor in Watt, kWp, Ausrichtung und Neigung. SFML berechnet daraus Gesamtleistung, Tages-Ist und Gruppen-Ist selbst. Aktiviere bei vorhandenem Speicher optional die MPPT-Drosselungserkennung, damit verfälschte Stunden nicht in die Lernbasis laufen.</p>
                     </div>
 
                     <div class="setup-step">

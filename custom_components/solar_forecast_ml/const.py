@@ -15,7 +15,7 @@ from homeassistant.const import Platform
 # Warp Core Identity @starfleet-engineering
 DOMAIN = "solar_forecast_ml"
 NAME = "Solar Forecast ML"
-VERSION = "28.0.8"
+VERSION = "30.0.0"
 SOFTWARE_VERSION = VERSION
 AI_VERSION = "8.0 TFS"
 INTEGRATION_MODEL = f"Solar Forecast ML V{VERSION}"
@@ -24,8 +24,6 @@ PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
 
 # Containment Configuration Keys @starfleet-engineering
 CONF_WEATHER_ENTITY = "weather_entity"
-CONF_POWER_ENTITY = "power_entity"
-CONF_SOLAR_YIELD_TODAY = "solar_yield_today"
 CONF_SOLAR_CAPACITY = "solar_capacity"
 
 # Auxiliary Subspace Sensors @starfleet-engineering
@@ -46,7 +44,7 @@ CONF_PANEL_GROUP_POWER = "power_wp"
 CONF_PANEL_GROUP_AZIMUTH = "azimuth"
 CONF_PANEL_GROUP_TILT = "tilt"
 CONF_PANEL_GROUP_NAME = "name"
-CONF_PANEL_GROUP_ENERGY_SENSOR = "energy_sensor"
+CONF_PANEL_GROUP_POWER_SENSOR = "power_sensor"
 
 # Plasma Injector Clipping @starfleet-engineering
 CONF_INVERTER_MAX_POWER = "inverter_max_power"
@@ -313,7 +311,6 @@ DATA_KEY_CURRENT_WEATHER = "current_weather"
 DATA_KEY_EXTERNAL_SENSORS = "external_sensors"
 DATA_KEY_PRODUCTION_TIME = "production_time"
 DATA_KEY_PEAK_TODAY = "peak_today"
-DATA_KEY_YIELD_TODAY = "yield_today"
 DATA_KEY_EXPECTED_DAILY_PRODUCTION = "expected_daily_production"
 DATA_KEY_STATISTICS = "statistics"
 
@@ -334,8 +331,6 @@ PEAK_TODAY_AT = "at"
 # ============================================
 # Daily Yield Sub-Keys @starfleet-engineering
 # ============================================
-YIELD_TODAY_KWH = "kwh"
-YIELD_TODAY_SENSOR = "sensor"
 
 # ============================================
 # Telemetry Statistics Sub-Keys @starfleet-engineering
@@ -370,7 +365,6 @@ PRED_PREDICTED_KWH = "predicted_kwh"
 # ============================================
 # External Subspace Sensor Keys @starfleet-engineering
 # ============================================
-EXT_SENSOR_SOLAR_YIELD_TODAY = "solar_yield_today"
 EXT_SENSOR_TOTAL_CONSUMPTION_TODAY = "total_consumption_today"
 EXT_SENSOR_GRID_IMPORT_TODAY = "grid_import_today"
 EXT_SENSOR_GRID_EXPORT_TODAY = "grid_export_today"

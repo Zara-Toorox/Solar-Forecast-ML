@@ -75,10 +75,10 @@ const STATUS_TRANSLATIONS = {
         grid_neutral: 'Neutral',
         home_desc: 'House Consumption',
         solar: 'SOLAR',
-        home: 'BEDARF',
-        battery: 'AKKU',
-        grid: 'NETZ',
-        car: 'AUTO',
+        home: 'DEMAND',
+        battery: 'BATTERY',
+        grid: 'GRID',
+        car: 'CAR',
         peakToday: 'PEAK TODAY',
         alltime: 'ALLTIME',
     },
@@ -93,9 +93,9 @@ const STATUS_TRANSLATIONS = {
         grid_neutral: 'Neutralny',
         home_desc: 'Zużycie domu',
         solar: 'SOLAR',
-        home: 'BEDARF',
-        battery: 'AKKU',
-        grid: 'NETZ',
+        home: 'POBÓR',
+        battery: 'AKU',
+        grid: 'SIEĆ',
         car: 'AUTO',
         peakToday: 'SZCZYT DZIŚ',
         alltime: 'ALLTIME',
@@ -372,7 +372,7 @@ const _HomePage = {
                     {{ action.label }}
                 </button>
                 <a
-                    href="/api/sfml_stats/static/docs.html?v=28.0.6"
+                    href="/api/sfml_stats/static/docs.html?v=30.0.0"
                     target="_blank"
                     class="hubble-action docs-link"
                     style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;"
@@ -465,7 +465,7 @@ const _HomePage = {
                     <div class="metric-badge-card" :title="$t('home.forecastActualKpiTitle')">
                         <span class="metric-badge-icon">📈</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" style="color: #22c55e">{{ actualTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-value" style="color: #22c55e">{{ actualComparisonTotal }} <span class="unit">kWh</span></span>
                             <span class="metric-badge-label">{{ $t('home.forecastActualKpi') }}</span>
                         </div>
                     </div>
@@ -473,14 +473,21 @@ const _HomePage = {
                         <span class="metric-badge-icon">📉</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" style="color: #fbbf24">{{ forecastTotal }} <span class="unit">kWh</span></span>
-                            <span class="metric-badge-label">{{ $t('common.forecast') }}</span>
+                            <span class="metric-badge-label">{{ $t('home.forecastDayKpi') }}</span>
+                        </div>
+                    </div>
+                    <div class="metric-badge-card" :title="$t('home.forecastUntilNowKpiTitle')">
+                        <span class="metric-badge-icon">⏳</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" style="color: #fbbf24">{{ forecastComparisonTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-label">{{ $t('home.forecastUntilNowKpi') }}</span>
                         </div>
                     </div>
                     <div v-if="hasHybridForecast" class="metric-badge-card">
                         <span class="metric-badge-icon">🔀</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" style="color: #38bdf8">{{ hybridForecastTotal }} <span class="unit">kWh</span></span>
-                            <span class="metric-badge-label">{{ $t('home.hybrid') }}</span>
+                            <span class="metric-badge-label">{{ $t('home.hybridDayKpi') }}</span>
                         </div>
                     </div>
                     <div class="metric-badge-card">
@@ -654,7 +661,7 @@ const _HomePage = {
         const panelGroupsData = reactive({ available: false, groups: {} });
         const pgChartRefs = reactive({});
         const pgChartInstances = {};
-        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], actual: [], actualRaw: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
+        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], actual: [], actualRaw: [], cleanEligible: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
         const weatherTrace = ref([]);
         const powerData = ref([]);
         const dailyForecasts = ref([]);
@@ -813,6 +820,7 @@ const _HomePage = {
             outdoorClouds: null,
             outdoorCondition: null,
             outdoorSource: null,
+            solarYieldToday: null,
         });
         const FORECAST_LEGEND_STORAGE_KEY = 'sfml_stats_home_forecast_legend_selected';
         const forecastLegendSelected = reactive({
@@ -829,6 +837,35 @@ const _HomePage = {
             return h < 6 || h > 20;
         });
 
+        function actualRowsWithLiveDelta() {
+            const rows = (forecastData.actualRaw || []).slice();
+            const liveYield = Number(infoData.solarYieldToday);
+            if (!Number.isFinite(liveYield) || liveYield <= 0 || !forecastData.hours.length) {
+                return rows;
+            }
+
+            const knownYield = rows.reduce((sum, value) => sum + (Number(value) || 0), 0);
+            const delta = liveYield - knownYield;
+            if (delta <= 0.01) {
+                return rows;
+            }
+
+            const nowHour = new Date().getHours();
+            let idx = forecastData.hours.findIndex(hour => Number(hour) === nowHour);
+            if (idx < 0) {
+                for (let i = rows.length - 1; i >= 0; i--) {
+                    if (rows[i] != null) {
+                        idx = i;
+                        break;
+                    }
+                }
+            }
+            if (idx >= 0) {
+                rows[idx] = (Number(rows[idx]) || 0) + delta;
+            }
+            return rows;
+        }
+
         const forecastTotal = computed(() => {
             const source = forecastData.forecastRaw.length ? forecastData.forecastRaw : forecastData.forecast;
             const sum = source.reduce((s, v) => s + (v || 0), 0);
@@ -836,10 +873,25 @@ const _HomePage = {
         });
 
         const actualTotal = computed(() => {
-            const source = forecastData.actualRaw.length ? forecastData.actualRaw : forecastData.actual;
+            const source = forecastData.actualRaw.length ? actualRowsWithLiveDelta() : forecastData.actual;
             const sum = source.reduce((s, v) => s + (v || 0), 0);
             return sum.toFixed(1);
         });
+
+        const forecastComparisonTotal = computed(() => {
+            if (cleanEvalStats.today.evaluationPredicted != null) {
+                return Number(cleanEvalStats.today.evaluationPredicted).toFixed(1);
+            }
+            const actualRows = forecastData.actualRaw.length ? actualRowsWithLiveDelta() : forecastData.actual;
+            const forecastRows = forecastData.forecastRaw.length ? forecastData.forecastRaw : forecastData.forecast;
+            const sum = forecastRows.reduce((total, value, idx) => {
+                if (actualRows[idx] == null) return total;
+                return total + (value || 0);
+            }, 0);
+            return sum.toFixed(1);
+        });
+
+        const actualComparisonTotal = computed(() => actualTotal.value);
 
         const hybridForecastTotal = computed(() => {
             const sum = forecastData.hybrid.reduce((s, v) => s + (v || 0), 0);
@@ -853,8 +905,8 @@ const _HomePage = {
         const hasWeatherTrace = computed(() => weatherTrace.value.length > 0);
 
         const deviationPercent = computed(() => {
-            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualTotal.value);
-            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastTotal.value);
+            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualComparisonTotal.value);
+            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastComparisonTotal.value);
             if (pred === 0) return 0;
             return ((act - pred) / pred) * 100;
         });
@@ -874,8 +926,8 @@ const _HomePage = {
             if (cleanEvalStats.today.forecastError != null) {
                 return cleanEvalStats.today.forecastError;
             }
-            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualTotal.value);
-            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastTotal.value);
+            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualComparisonTotal.value);
+            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastComparisonTotal.value);
             if (!act || act <= 0) return null;
             return ((pred - act) / act) * 100;
         });
@@ -897,8 +949,8 @@ const _HomePage = {
         });
 
         const forecastDeviationKwh = computed(() => {
-            const act = parseFloat(actualTotal.value);
-            const pred = parseFloat(forecastTotal.value);
+            const act = parseFloat(actualComparisonTotal.value);
+            const pred = parseFloat(forecastComparisonTotal.value);
             if (Number.isNaN(act) || Number.isNaN(pred)) return null;
             return act - pred;
         });
@@ -910,24 +962,30 @@ const _HomePage = {
         });
 
         const hybridDeviationPercent = computed(() => {
-            const actualRows = forecastData.actualRaw || [];
+            const actualRows = actualRowsWithLiveDelta();
             const hybridRows = forecastData.hybrid || [];
+            const cleanEligible = forecastData.cleanEligible || [];
             const evaluated = actualRows
-                .map((actual, idx) => ({ actual, hybrid: hybridRows[idx] }))
-                .filter(row => row.actual != null && (row.actual > 0.01 || (row.hybrid || 0) > 0.01));
-            const act = evaluated.length
-                ? evaluated.reduce((sum, row) => sum + (row.actual || 0), 0)
-                : parseFloat(actualTotal.value);
-            const pred = evaluated.length
-                ? evaluated.reduce((sum, row) => sum + (row.hybrid || 0), 0)
-                : parseFloat(hybridForecastTotal.value);
-            if (pred === 0) return 0;
+                .map((actual, idx) => ({
+                    actual,
+                    hybrid: hybridRows[idx],
+                    clean: cleanEligible[idx],
+                }))
+                .filter(row => row.clean !== false)
+                .filter(row => row.actual != null && row.hybrid != null)
+                .filter(row => (Number(row.actual) || 0) > 0.01 || (Number(row.hybrid) || 0) > 0.01);
+            if (!evaluated.length) return null;
+            const act = evaluated.reduce((sum, row) => sum + (Number(row.actual) || 0), 0);
+            const pred = evaluated.reduce((sum, row) => sum + (Number(row.hybrid) || 0), 0);
+            if (pred <= 0) return null;
             return ((act - pred) / pred) * 100;
         });
 
         const hybridDeviationLabel = computed(() => {
+            const value = hybridDeviationPercent.value;
+            if (value == null || Number.isNaN(value)) return '--';
             const prefix = isTodayPartial.value ? (t('common.live') + ' ') : '';
-            return `${prefix}${hybridDeviationPercent.value >= 0 ? '+' : ''}${hybridDeviationPercent.value.toFixed(0)}%`;
+            return `${prefix}${value >= 0 ? '+' : ''}${value.toFixed(0)}%`;
         });
 
         const todayLearningBasisLabel = computed(() => {
@@ -950,6 +1008,15 @@ const _HomePage = {
                 demand_limited_zero_export: t('solar.discarded.demandLimitedZeroExport'),
                 excluded_from_clean_evaluation: t('solar.discarded.excludedFromCleanEvaluation'),
                 excluded: t('solar.discarded.excluded'),
+                weather_alert: t('solar.discarded.weatherAlert'),
+                snow: t('solar.discarded.snow'),
+                fog: t('solar.discarded.fog'),
+                grid_failure: t('solar.discarded.gridFailure'),
+                external_limit: t('solar.discarded.externalLimit'),
+                inverter_limit: t('solar.discarded.inverterLimit'),
+                manual_limit: t('solar.discarded.manualLimit'),
+                battery_full: t('solar.discarded.batteryFull'),
+                curtailment: t('solar.discarded.curtailment'),
             };
             const breakdown = cleanEvalStats.today.discardedLearningReasonBreakdown || {};
             const parts = Object.entries(breakdown)
@@ -1069,7 +1136,7 @@ const _HomePage = {
                 { key: 'window', label: t('home.hubble.chip.window'), value: windowLabel },
             ];
 
-            const story = buildHubbleStory(moment, storyParams, variantSeed, yesterday);
+            const story = buildHubbleStory(moment, storyParams, variantSeed, yesterday, payload.signals || {});
             const hasMemory = payload.memory?.available === true
                 && Array.isArray(payload.memory.matches)
                 && payload.memory.matches.length >= 2;
@@ -1346,7 +1413,7 @@ const _HomePage = {
             };
         }
 
-        function buildHubbleStory(moment, params, variantSeed, yesterday) {
+        function buildHubbleStory(moment, params, variantSeed, yesterday, signals = {}) {
             const storyMoment = ['morning', 'midday', 'evening'].includes(moment) ? moment : 'midday';
             
             const getVar = (name) => {
@@ -1356,6 +1423,44 @@ const _HomePage = {
             };
 
             const tiles = [];
+
+            const insightParas = [];
+            const recordSignal = signals.record_signal || null;
+            if (recordSignal) {
+                insightParas.push(t(`home.hubble.special.record.${recordSignal.level}`, {
+                    solar: formatHubbleNumber(recordSignal.solar_kwh, 1),
+                    record: formatHubbleNumber(recordSignal.record_kwh, 1),
+                }));
+            }
+            const forecastIssue = signals.forecast_issue || null;
+            if (forecastIssue) {
+                insightParas.push(t('home.hubble.special.forecastIssue', {
+                    error: formatHubbleSigned(forecastIssue.error_percent, 0),
+                    reason: forecastIssue.reason || t('home.hubble.special.unknownReason'),
+                }));
+            }
+            const helperFeedback = signals.helper_feedback || null;
+            if (helperFeedback) {
+                insightParas.push(t(`home.hubble.special.${helperFeedback.type}`, {
+                    hpPvPercent: formatHubbleNumber(helperFeedback.hp_pv_percent, 0),
+                    window: formatHubbleWindow(helperFeedback.window),
+                }));
+            }
+            const negativePrice = signals.negative_price_signal || null;
+            if (negativePrice) {
+                insightParas.push(t('home.hubble.special.negativePrice', {
+                    price: formatHubbleNumber(negativePrice.price_ct, 2),
+                }));
+            }
+            if (insightParas.length) {
+                tiles.push({
+                    key: 'special-tile',
+                    type: 'tile',
+                    icon: '✨',
+                    title: t('home.hubble.special.title'),
+                    paragraphs: insightParas.filter(p => p && !p.startsWith('home.hubble.special.')),
+                });
+            }
 
             // 1. Status-Kachel
             const statusParas = [];
@@ -1554,9 +1659,19 @@ const _HomePage = {
             }
         }
 
+        let summaryRequest = null;
+
+        async function loadSummaryData() {
+            if (!summaryRequest) {
+                summaryRequest = SFMLApi.fetch('/api/sfml_stats/summary')
+                    .finally(() => { summaryRequest = null; });
+            }
+            return summaryRequest;
+        }
+
         async function loadInfoPanel() {
             try {
-                const data = await SFMLApi.fetch('/api/sfml_stats/summary');
+                const data = await loadSummaryData();
                 if (!data) return;
 
                 // Produktionszeit
@@ -1624,6 +1739,7 @@ const _HomePage = {
                 if (ds) {
                     infoData.peakTodayW = ds.peak_solar_w || null;
                     infoData.peakTodayTime = ds.peak_solar_time || null;
+                    infoData.solarYieldToday = ds.solar_yield_kwh ?? null;
                 }
 
                 hubble.value = data.hubble || null;
@@ -1818,7 +1934,7 @@ const _HomePage = {
 
         async function loadPanelGroups() {
             try {
-                const res = await SFMLApi.fetch('/api/sfml_stats/statistics');
+                const res = await loadSummaryData();
                 const stats = res?.statistics || {};
                 const last7 = stats.last_7_days || {};
                 const last30 = stats.last_30_days || {};
@@ -1828,7 +1944,7 @@ const _HomePage = {
                 cleanEvalStats.last30.accuracy = last30.avg_accuracy ?? null;
                 cleanEvalStats.last30.coverage = last30.avg_evaluation_coverage_percent ?? null;
                 cleanEvalStats.last30.excludedMppt = last30.avg_excluded_mppt_hours ?? null;
-                const pg = res?.data?.panel_groups || res?.panel_groups;
+                const pg = res?.panel_groups || res?.data?.panel_groups;
                 if (!pg || !pg.available) return;
 
                 panelGroupsData.available = true;
@@ -1963,6 +2079,7 @@ const _HomePage = {
                         ? hybridByHour.get(Number(h.target_hour))
                         : null
                 ));
+                forecastData.cleanEligible = todayData.map(h => h.clean_evaluation_eligible !== false);
                 forecastData.confidence = todayData.map(h => h.confidence || 50);
                 forecastData.ml_pct = todayData.map(h => h.ml_contribution_percent || 0);
                 forecastData.method = todayData.map(h => h.prediction_method || '');
@@ -2043,7 +2160,8 @@ const _HomePage = {
                         const hour = forecastData.hours[idx];
                         const pred = forecastData.forecast[idx] || 0;
                         const hybrid = forecastData.hybrid[idx];
-                        const act = forecastData.actual[idx] || 0;
+                        const liveActualRows = actualRowsWithLiveDelta();
+                        const act = liveActualRows[idx] ?? forecastData.actual[idx] ?? 0;
                         const conf = forecastData.confidence[idx] || 0;
                         const mlPct = forecastData.ml_pct[idx] || 0;
                         const method = forecastData.method[idx] || '--';
@@ -2158,7 +2276,8 @@ const _HomePage = {
                     {
                         name: 'IST',
                         type: 'line',
-                        data: forecastData.actual.map((v, i) => {
+                        data: actualRowsWithLiveDelta().map((value, i) => {
+                            const v = value ?? forecastData.actual[i];
                             if (v == null) return null;
                             const h = forecastData.hours[i];
                             if (h > nowHour) return null;
@@ -2341,6 +2460,7 @@ const _HomePage = {
         let flowTimer = null;
         let powerTimer = null;
         let forecastTimer = null;
+        let infoTimer = null;
 
         onMounted(async () => {
             updateClock();
@@ -2386,7 +2506,7 @@ const _HomePage = {
             flowTimer = setInterval(loadEnergyFlow, 15000);
             powerTimer = setInterval(loadPowerHistory, 60000);
             forecastTimer = setInterval(loadForecastData, 60000);
-            setInterval(loadInfoPanel, 60000); // Info panel refresh every 60s
+            infoTimer = setInterval(loadInfoPanel, 60000);
         });
 
         const getConsumerName = (key) => {
@@ -2403,8 +2523,13 @@ const _HomePage = {
             if (flowTimer) clearInterval(flowTimer);
             if (powerTimer) clearInterval(powerTimer);
             if (forecastTimer) clearInterval(forecastTimer);
+            if (infoTimer) clearInterval(infoTimer);
             if (forecastChartInstance) { forecastChartInstance.dispose(); forecastChartInstance = null; }
             if (powerChartInstance) { powerChartInstance.dispose(); powerChartInstance = null; }
+            for (const chart of Object.values(pgChartInstances)) {
+                if (chart) chart.dispose();
+            }
+            pgChartInstances = {};
             if (resizeHandler) window.removeEventListener('resize', resizeHandler);
         });
 
@@ -2421,6 +2546,7 @@ const _HomePage = {
             weatherTrace, hasWeatherTrace,
             currentTime, lastPowerUpdate,
             isNightTime, forecastTotal, hybridForecastTotal, hasHybridForecast,
+            forecastComparisonTotal, actualComparisonTotal,
             actualTotal, deviationPercent, deviationLabel, hybridDeviationPercent,
             hybridDeviationLabel, cleanEvalStats, todayLearningBasisLabel,
             todayDiscardedLearningLabel, todayCoverageExplanation,

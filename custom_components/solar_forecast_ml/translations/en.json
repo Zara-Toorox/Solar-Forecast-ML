@@ -3,10 +3,8 @@
     "step": {
       "user": {
         "title": "Solar Forecast ML",
-        "description": "Required: Power Sensor, Daily Yield\nOptional: All other fields\n\nWeather data is provided automatically via Open-Meteo API (no configuration needed)",
+        "description": "Required: panel groups with live power sensors\nOptional: weather and consumption sensors\n\nSFML calculates total power and daily yield from the panel groups automatically.",
         "data": {
-          "power_entity": "⚡ Current Solar Power (W)",
-          "solar_yield_today": "📊 Daily Yield (kWh)",
           "total_consumption_today": "🏠 Household Consumption (kWh)",
           "solar_capacity": "☀️ System Capacity (kWp)",
           "inverter_max_power": "⚙️ Inverter AC Limit (kW)",
@@ -19,8 +17,6 @@
           "solar_radiation_sensor": "🔆 Solar Radiation (W/m²)"
         },
         "data_description": {
-          "power_entity": "Unit: Watts (DC). Only the direct cell output, NOT the AC power after the inverter. (Required)",
-          "solar_yield_today": "Unit: kWh (DC). Must be based on the DC power sensor and reset to 0 at midnight. (Required)",
           "total_consumption_today": "Unit: kWh. Total household electricity consumption since midnight. Must reset to 0 at midnight. (Optional)",
           "solar_capacity": "Unit: kWp (e.g. 9.6). Only needed for single systems; with panel groups this is calculated automatically. (Optional)",
           "inverter_max_power": "Unit: kW. Caps forecasts at the inverter maximum (e.g. 5.0). 0 = Disabled. (Optional)",
@@ -57,8 +53,6 @@
         "title": "Reconfigure Solar Forecast ML",
         "description": "Update configuration\nEmpty optional fields will clear their value\n\nWeather data is provided automatically via Open-Meteo API",
         "data": {
-          "power_entity": "⚡ Current Solar Power (W)",
-          "solar_yield_today": "📊 Daily Yield (kWh)",
           "total_consumption_today": "🏠 Household Consumption (kWh)",
           "solar_capacity": "☀️ System Capacity (kWp)",
           "inverter_max_power": "⚙️ Inverter AC Limit (kW)",
@@ -71,8 +65,6 @@
           "solar_radiation_sensor": "🔆 Solar Radiation (W/m²)"
         },
         "data_description": {
-          "power_entity": "Unit: Watts (DC). Only the direct cell output, NOT the AC power after the inverter. (Required)",
-          "solar_yield_today": "Unit: kWh (DC). Must be based on the DC power sensor and reset to 0 at midnight. (Required)",
           "total_consumption_today": "Unit: kWh. Total household electricity consumption since midnight. Must reset to 0 at midnight. (Optional)",
           "solar_capacity": "Unit: kWp (e.g. 9.6). Only needed for single systems; with panel groups this is calculated automatically. (Optional)",
           "inverter_max_power": "Unit: kW. Caps forecasts at the inverter maximum (e.g. 5.0). 0 = Disabled. (Optional)",
@@ -392,11 +384,8 @@
       "external_sensors_status": {
         "name": "External Sensors Status"
       },
-      "power_sensor_state": {
-        "name": "Power Sensor State"
-      },
-      "yield_sensor_state": {
-        "name": "Yield Sensor State"
+      "total_yield": {
+        "name": "Total Yield Today"
       },
       "cloudiness_trend_1h": {
         "name": "Cloud Trend 1h",
@@ -544,6 +533,12 @@
           "recovering": "Recovering",
           "unknown": "Unknown"
         }
+      },
+      "total_power": {
+        "name": "Total Power"
+      },
+      "total_actual_today": {
+        "name": "Actual Today"
       }
     },
     "switch": {

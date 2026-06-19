@@ -3,10 +3,8 @@
     "step": {
       "user": {
         "title": "Solar Forecast ML",
-        "description": "Pflicht: Leistungs-Sensor, Tagesertrag\nOptional: Alle anderen Felder\n\nWetterdaten werden automatisch via Open-Meteo API bereitgestellt (keine Konfiguration erforderlich)",
+        "description": "Pflicht: Panel-Gruppen mit Live-Leistungssensoren\nOptional: Wetter- und Verbrauchssensoren\n\nGesamtleistung und Tagesertrag berechnet SFML automatisch aus den Panel-Gruppen.",
         "data": {
-          "power_entity": "⚡ Aktuelle Solarleistung (W)",
-          "solar_yield_today": "📊 Ertrag heute (kWh)",
           "total_consumption_today": "🏠 Hausverbrauch heute (kWh)",
           "solar_capacity": "☀️ Anlagenleistung (kWp)",
           "inverter_max_power": "⚙️ AC-Limit Wechselrichter (kW)",
@@ -19,8 +17,6 @@
           "solar_radiation_sensor": "🔆 Solarstrahlung (W/m²)"
         },
         "data_description": {
-          "power_entity": "Einheit: Watt (DC). Nur die direkte Erzeugung der Zellen, NICHT die AC-Leistung nach dem Wechselrichter. (Pflicht)",
-          "solar_yield_today": "Einheit: kWh (DC). Muss auf dem DC-Leistungssensor basieren und sich um 0:00 Uhr auf Null zurücksetzen. (Pflicht)",
           "total_consumption_today": "Einheit: kWh. Gesamter Stromverbrauch des Haushalts seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. (Optional)",
           "solar_capacity": "Einheit: kWp (z.B. 9.6). Nur bei Einzelanlagen nötig; bei Panel-Gruppen wird dies automatisch berechnet. (Optional)",
           "inverter_max_power": "Einheit: kW. Begrenzt Prognosen auf das Maximum des Wechselrichters (z.B. 5.0). 0 = Deaktiviert. (Optional)",
@@ -35,30 +31,88 @@
       },
       "panel_groups": {
         "title": "Panel-Gruppen konfigurieren (Pflicht)",
-        "description": "⚠️ PFLICHTFELD: Mindestens 1 Panel-Gruppe erforderlich (max. 4)\n\nFormat: Leistung(Wp)/Azimut(°)/Neigung(°)/Tages-kWh-Sensor\n\nBeispiel Süd-Anlage:\n5000/180/30/sensor.pv_energy_today\n\nBeispiel Ost-West:\n2500/90/15/sensor.pv_ost_today, 2500/270/15/sensor.pv_west_today\n\nAzimut: 0°=Nord, 90°=Ost, 180°=Süd, 270°=West\nNeigung: 0°=horizontal, 90°=vertikal\n\nTages-kWh-Sensor: Home-Assistant-Entity-ID eines täglichen Energie-Sensors für diese Gruppe. Der Sensor sollte sich um Mitternacht zurücksetzen. Der Sensor-Teil im Format ist optional, für korrektes gruppenspezifisches Lernen aber dringend empfohlen.",
+        "description": "Bis zu 4 Panel-Gruppen konfigurieren. Sensor ist der Live-Leistungssensor der Gruppe (W oder kW). Azimut: 0°=Nord, 90°=Ost, 180°=Süd, 270°=West. Winkel ist die Modulneigung. kWp ist die installierte DC-Leistung der Gruppe.",
         "data": {
-          "panel_groups_input": "Panel-Gruppen"
+          "group_1_sensor": "Gruppe 1 Sensor",
+          "group_1_azimuth": "Gruppe 1 Azimut",
+          "group_1_tilt": "Gruppe 1 Winkel",
+          "group_1_kwp": "Gruppe 1 kWp",
+          "group_2_sensor": "Gruppe 2 Sensor",
+          "group_2_azimuth": "Gruppe 2 Azimut",
+          "group_2_tilt": "Gruppe 2 Winkel",
+          "group_2_kwp": "Gruppe 2 kWp",
+          "group_3_sensor": "Gruppe 3 Sensor",
+          "group_3_azimuth": "Gruppe 3 Azimut",
+          "group_3_tilt": "Gruppe 3 Winkel",
+          "group_3_kwp": "Gruppe 3 kWp",
+          "group_4_sensor": "Gruppe 4 Sensor",
+          "group_4_azimuth": "Gruppe 4 Azimut",
+          "group_4_tilt": "Gruppe 4 Winkel",
+          "group_4_kwp": "Gruppe 4 kWp"
         },
         "data_description": {
-          "panel_groups_input": "Format: Leistung/Azimut/Neigung/Tages-kWh-Sensor - kommagetrennt oder untereinander"
+          "group_1_sensor": "Live-Leistungssensor für Gruppe 1. Einheit muss W oder kW sein.",
+          "group_1_azimuth": "Ausrichtung der Module in Grad.",
+          "group_1_tilt": "Neigungswinkel der Module in Grad.",
+          "group_1_kwp": "Installierte DC-Leistung in kWp.",
+          "group_2_sensor": "Live-Leistungssensor für Gruppe 2. Leer lassen, wenn unbenutzt.",
+          "group_2_azimuth": "Ausrichtung der Module in Grad.",
+          "group_2_tilt": "Neigungswinkel der Module in Grad.",
+          "group_2_kwp": "Installierte DC-Leistung in kWp.",
+          "group_3_sensor": "Live-Leistungssensor für Gruppe 3. Leer lassen, wenn unbenutzt.",
+          "group_3_azimuth": "Ausrichtung der Module in Grad.",
+          "group_3_tilt": "Neigungswinkel der Module in Grad.",
+          "group_3_kwp": "Installierte DC-Leistung in kWp.",
+          "group_4_sensor": "Live-Leistungssensor für Gruppe 4. Leer lassen, wenn unbenutzt.",
+          "group_4_azimuth": "Ausrichtung der Module in Grad.",
+          "group_4_tilt": "Neigungswinkel der Module in Grad.",
+          "group_4_kwp": "Installierte DC-Leistung in kWp."
         }
       },
       "reconfigure_panel_groups": {
         "title": "Panel-Gruppen neu konfigurieren (Pflicht)",
-        "description": "⚠️ PFLICHTFELD: Mindestens 1 Panel-Gruppe erforderlich (max. 4)\n\nFormat: Leistung(Wp)/Azimut(°)/Neigung(°)/Tages-kWh-Sensor\n\nBeispiel: 5000/180/30/sensor.pv_energy_today\nOder: 2500/90/15/sensor.pv_ost, 2500/270/15/sensor.pv_west\n\nTages-kWh-Sensor: Home-Assistant-Entity-ID eines täglichen Energie-Sensors für diese Gruppe. Der Sensor sollte sich um Mitternacht zurücksetzen. Der Sensor-Teil im Format ist optional, für korrektes gruppenspezifisches Lernen aber dringend empfohlen.",
+        "description": "Bis zu 4 Panel-Gruppen konfigurieren. Sensor ist der Live-Leistungssensor der Gruppe (W oder kW). Azimut: 0°=Nord, 90°=Ost, 180°=Süd, 270°=West. Winkel ist die Modulneigung. kWp ist die installierte DC-Leistung der Gruppe.",
         "data": {
-          "panel_groups_input": "Panel-Gruppen"
+          "group_1_sensor": "Gruppe 1 Sensor",
+          "group_1_azimuth": "Gruppe 1 Azimut",
+          "group_1_tilt": "Gruppe 1 Winkel",
+          "group_1_kwp": "Gruppe 1 kWp",
+          "group_2_sensor": "Gruppe 2 Sensor",
+          "group_2_azimuth": "Gruppe 2 Azimut",
+          "group_2_tilt": "Gruppe 2 Winkel",
+          "group_2_kwp": "Gruppe 2 kWp",
+          "group_3_sensor": "Gruppe 3 Sensor",
+          "group_3_azimuth": "Gruppe 3 Azimut",
+          "group_3_tilt": "Gruppe 3 Winkel",
+          "group_3_kwp": "Gruppe 3 kWp",
+          "group_4_sensor": "Gruppe 4 Sensor",
+          "group_4_azimuth": "Gruppe 4 Azimut",
+          "group_4_tilt": "Gruppe 4 Winkel",
+          "group_4_kwp": "Gruppe 4 kWp"
         },
         "data_description": {
-          "panel_groups_input": "Format: Leistung/Azimut/Neigung/Tages-kWh-Sensor - kommagetrennt oder untereinander"
+          "group_1_sensor": "Live-Leistungssensor für Gruppe 1. Einheit muss W oder kW sein.",
+          "group_1_azimuth": "Ausrichtung der Module in Grad.",
+          "group_1_tilt": "Neigungswinkel der Module in Grad.",
+          "group_1_kwp": "Installierte DC-Leistung in kWp.",
+          "group_2_sensor": "Live-Leistungssensor für Gruppe 2. Leer lassen, wenn unbenutzt.",
+          "group_2_azimuth": "Ausrichtung der Module in Grad.",
+          "group_2_tilt": "Neigungswinkel der Module in Grad.",
+          "group_2_kwp": "Installierte DC-Leistung in kWp.",
+          "group_3_sensor": "Live-Leistungssensor für Gruppe 3. Leer lassen, wenn unbenutzt.",
+          "group_3_azimuth": "Ausrichtung der Module in Grad.",
+          "group_3_tilt": "Neigungswinkel der Module in Grad.",
+          "group_3_kwp": "Installierte DC-Leistung in kWp.",
+          "group_4_sensor": "Live-Leistungssensor für Gruppe 4. Leer lassen, wenn unbenutzt.",
+          "group_4_azimuth": "Ausrichtung der Module in Grad.",
+          "group_4_tilt": "Neigungswinkel der Module in Grad.",
+          "group_4_kwp": "Installierte DC-Leistung in kWp."
         }
       },
       "reconfigure": {
         "title": "Solar Forecast ML neu konfigurieren",
         "description": "Konfiguration aktualisieren\nLeere optionale Felder löschen den aktuellen Wert\n\nWetterdaten werden automatisch via Open-Meteo API bereitgestellt",
         "data": {
-          "power_entity": "⚡ Aktuelle Solarleistung (W)",
-          "solar_yield_today": "📊 Ertrag heute (kWh)",
           "total_consumption_today": "🏠 Hausverbrauch heute (kWh)",
           "solar_capacity": "☀️ Anlagenleistung (kWp)",
           "inverter_max_power": "⚙️ AC-Limit Wechselrichter (kW)",
@@ -71,8 +125,6 @@
           "solar_radiation_sensor": "🔆 Solarstrahlung (W/m²)"
         },
         "data_description": {
-          "power_entity": "Einheit: Watt (DC). Nur die direkte Erzeugung der Zellen, NICHT die AC-Leistung nach dem Wechselrichter. (Pflicht)",
-          "solar_yield_today": "Einheit: kWh (DC). Muss auf dem DC-Leistungssensor basieren und sich um 0:00 Uhr auf Null zurücksetzen. (Pflicht)",
           "total_consumption_today": "Einheit: kWh. Gesamter Stromverbrauch des Haushalts seit Mitternacht. Muss sich um 0:00 Uhr zurücksetzen. (Optional)",
           "solar_capacity": "Einheit: kWp (z.B. 9.6). Nur bei Einzelanlagen nötig; bei Panel-Gruppen wird dies automatisch berechnet. (Optional)",
           "inverter_max_power": "Einheit: kW. Begrenzt Prognosen auf das Maximum des Wechselrichters (z.B. 5.0). 0 = Deaktiviert. (Optional)",
@@ -103,7 +155,10 @@
       "energy_sensor_not_numeric": "Energie-Sensor Wert ist nicht numerisch. Bitte Sensor-Status prüfen.",
       "energy_sensor_not_kwh": "Panelgruppen-Sensor wird nicht akzeptiert. Bitte einen kumulativen DC-Energiesensor mit Einheit kWh verwenden.",
       "energy_sensor_not_dc_energy": "Panelgruppen-Sensor wird nicht akzeptiert. Erwartet wird device_class=energy.",
-      "energy_sensor_not_cumulative": "Panelgruppen-Sensor wird nicht akzeptiert. Erwartet wird state_class=total oder total_increasing."
+      "energy_sensor_not_cumulative": "Panelgruppen-Sensor wird nicht akzeptiert. Erwartet wird state_class=total oder total_increasing.",
+      "power_sensor_not_found": "Leistungssensor nicht in Home Assistant gefunden. Bitte Entity-ID prüfen.",
+      "power_sensor_not_numeric": "Leistungssensor-Wert ist nicht numerisch. Bitte Sensor-Status prüfen.",
+      "power_sensor_not_power_unit": "Leistungssensor muss die Einheit W oder kW verwenden."
     },
     "abort": {
       "already_configured": "Integration bereits konfiguriert",
@@ -392,11 +447,8 @@
       "external_sensors_status": {
         "name": "Externe Sensoren Status"
       },
-      "power_sensor_state": {
-        "name": "Leistungssensor Status"
-      },
-      "yield_sensor_state": {
-        "name": "Ertragssensor Status"
+      "total_yield": {
+        "name": "Gesamtertrag heute"
       },
       "cloudiness_trend_1h": {
         "name": "Wolken-Trend 1h",
@@ -544,6 +596,12 @@
           "recovering": "Erholung",
           "unknown": "Unbekannt"
         }
+      },
+      "total_power": {
+        "name": "Gesamtleistung"
+      },
+      "total_actual_today": {
+        "name": "Ist heute"
       }
     },
     "switch": {

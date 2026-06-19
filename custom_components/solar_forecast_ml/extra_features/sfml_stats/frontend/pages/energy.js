@@ -138,11 +138,14 @@ const _EnergyPage = {
                         <div class="eb-icon">💰</div>
                         <div class="eb-value" style="color: #ef4444;">{{ billing.finance.grid_cost_eur?.toFixed(2) || '0.00' }}</div>
                         <div class="eb-label">{{ $t('energy.electricityCosts') }}</div>
-                        <div class="eb-sub">Ø {{ billing.finance.avg_price_ct?.toFixed(1) || '35.0' }} ct/kWh</div>
+                        <div class="eb-sub">
+                            Ø {{ billing.finance.avg_price_ct?.toFixed(1) || '35.0' }} ct/kWh
+                            <template v-if="billing.finance.base_fee_eur"> · +{{ billing.finance.base_fee_eur.toFixed(2) }} €</template>
+                        </div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">💚</div>
-                        <div class="eb-value" style="color: #22c55e;">{{ billing.finance.savings_eur?.toFixed(2) || '0.00' }}</div>
+                        <div class="eb-value" style="color: #22c55e;">{{ (billing.finance.total_savings_eur ?? billing.finance.savings_eur)?.toFixed(2) || '0.00' }}</div>
                         <div class="eb-label">{{ $t('energy.saved') }}</div>
                         <div class="eb-sub">{{ $t('energy.savedSubtitle', { kwh: savedKwh }) }}</div>
                     </div>
@@ -474,21 +477,25 @@ const _EnergyPage = {
         const savedKwh = computed(() => {
             const b = billing.value;
             if (!b) return '0';
+            if (b.household?.self_supplied_kwh != null) {
+                return b.household.self_supplied_kwh.toFixed(0);
+            }
             return ((b.solar?.to_house_kwh || 0) + (b.household?.from_battery_kwh || 0)).toFixed(0);
         });
 
         const projectedSavings = computed(() => {
             const b = billing.value;
-            if (!b || !b.finance?.savings_eur || !b.period?.days_elapsed) return null;
+            const savings = b?.finance?.total_savings_eur ?? b?.finance?.savings_eur;
+            if (!b || !savings || !b.period?.days_elapsed) return null;
             const factor = b.period.days_total / b.period.days_elapsed;
-            return (b.finance.savings_eur * factor).toFixed(0);
+            return (savings * factor).toFixed(0);
         });
 
         const breakdownPct = computed(() => {
             const b = billing.value;
             if (!b || !b.household?.total_kwh) return { solar: 0, battery: 0, grid: 0 };
             const solarRaw = b.solar?.to_house_kwh || 0;
-            const batteryRaw = b.household?.from_battery_kwh || 0;
+            const batteryRaw = b.household?.from_own_battery_kwh ?? b.household?.from_battery_kwh ?? 0;
             const gridRaw = b.household?.from_grid_kwh || 0;
             const sum = solarRaw + batteryRaw + gridRaw;
             if (sum <= 0) return { solar: 0, battery: 0, grid: 0 };
@@ -551,9 +558,12 @@ const _EnergyPage = {
                         // Kosten: echte stündliche Kosten aus DB (dynamisch) oder Fallback
                         const cost = m.cost_eur || (gridImport * avgPrice / 100);
                         const priceUsed = m.avg_price_ct || avgPrice;
-                        const selfCons = (m.solar_to_house_kwh || 0) + (m.battery_to_house_kwh || 0);
-                        const saved = (selfCons * priceUsed / 100);
-                        const isDynamic = m.cost_source === 'dynamic';
+                        const selfCons = m.self_consumption_kwh ?? (
+                            (m.solar_to_house_kwh || 0)
+                            + Math.max(0, (m.battery_to_house_kwh || 0) - (m.grid_to_battery_kwh || 0))
+                        );
+                        const saved = m.total_savings_eur ?? m.savings_eur ?? (selfCons * priceUsed / 100);
+                        const isDynamic = m.cost_source === 'dynamic' || m.cost_source === 'hybrid';
 
                         return {
                             label: MONTH_NAMES[month - 1] + ' ' + year,
@@ -564,7 +574,7 @@ const _EnergyPage = {
                             selfCons,
                             cost: cost.toFixed(2),
                             avgPrice: priceUsed.toFixed(1),
-                            saved: saved.toFixed(2),
+                            saved: Number(saved || 0).toFixed(2),
                             isDynamic,
                             isCurrent: m.month === nowKey,
                         };
