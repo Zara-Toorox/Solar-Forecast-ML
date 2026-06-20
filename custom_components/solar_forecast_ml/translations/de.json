@@ -441,6 +441,9 @@
       "eod_duration": {
         "name": "Tagesabschluss-Dauer"
       },
+      "workflow_status": {
+        "name": "Workflow-Status"
+      },
       "data_files_status": {
         "name": "Dateien Status"
       },

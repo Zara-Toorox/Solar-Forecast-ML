@@ -378,6 +378,9 @@
       "eod_duration": {
         "name": "Duree de cloture journaliere"
       },
+      "workflow_status": {
+        "name": "Statut du workflow"
+      },
       "data_files_status": {
         "name": "Statut des fichiers"
       },

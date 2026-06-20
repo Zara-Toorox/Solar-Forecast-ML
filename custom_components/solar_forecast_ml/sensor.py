@@ -83,6 +83,7 @@ from .sensors.sensor_diagnostic import (
     NextProductionStartSensor,
     NextScheduledUpdateSensor,
     PhysicsSamplesSensor,
+    WorkflowStatusSensor,
     YesterdayDeviationSensor,
 )
 
@@ -190,6 +191,7 @@ async def async_setup_entry(
     # Essential diagnostic entities (always created) @zara
     essential_diagnostic_entities = [
         DataFilesStatusSensor(coordinator, entry),
+        WorkflowStatusSensor(coordinator, entry),
     ]
     entities_to_add.extend(essential_diagnostic_entities)
 
@@ -285,6 +287,7 @@ async def _cleanup_orphaned_entities(
         "coordinator_health",
         "ai_rmse",
         "eod_duration",
+        "workflow_status",
     ]
 
     entities_removed = 0

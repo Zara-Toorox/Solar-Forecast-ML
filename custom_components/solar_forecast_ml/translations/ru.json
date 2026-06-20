@@ -378,6 +378,9 @@
       "eod_duration": {
         "name": "Длительность закрытия дня"
       },
+      "workflow_status": {
+        "name": "Статус workflow"
+      },
       "data_files_status": {
         "name": "Статус файлов"
       },

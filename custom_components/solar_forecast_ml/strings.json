@@ -441,6 +441,9 @@
       "eod_duration": {
         "name": "End-of-Day Duration"
       },
+      "workflow_status": {
+        "name": "Workflow Status"
+      },
       "data_files_status": {
         "name": "Data Files Status"
       },
