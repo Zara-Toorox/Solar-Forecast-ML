@@ -52,6 +52,7 @@ class DatabaseConnectionManager:
         self._connection: aiosqlite.Connection | None = None
         self._is_connected = False
         self._connect_lock = asyncio.Lock()
+        self._write_lock = asyncio.Lock()
 
     @classmethod
     async def get_instance(cls, hass: HomeAssistant) -> DatabaseConnectionManager:
@@ -143,11 +144,12 @@ class DatabaseConnectionManager:
 
     async def ensure_gpm_tables(self) -> None:
         """Create GPM tables if they do not exist. @zara"""
-        if not await self._ensure_connected():
-            raise RuntimeError("Database not available")
+        async with self._write_lock:
+            if not await self._ensure_connected():
+                raise RuntimeError("Database not available")
 
-        try:
-            await self._connection.executescript("""
+            try:
+                await self._connection.executescript("""
                 CREATE TABLE IF NOT EXISTS GPM_price_cache_meta (
                     id INTEGER PRIMARY KEY DEFAULT 1,
                     last_fetch TEXT,
@@ -232,12 +234,13 @@ class DatabaseConnectionManager:
                     last_updated TEXT NOT NULL,
                     CHECK (id = 1)
                 );
-            """)
-            await self._connection.commit()
-            _LOGGER.info("GPM tables ensured successfully")
-        except Exception as err:
-            _LOGGER.error("Failed to create GPM tables: %s", err)
-            raise
+                """)
+                await self._connection.commit()
+                _LOGGER.info("GPM tables ensured successfully")
+            except Exception as err:
+                await self._rollback_after_failed_write()
+                _LOGGER.error("Failed to create GPM tables: %s", err)
+                raise
 
     async def close(self) -> None:
         """Close database connection. @zara"""
@@ -307,33 +310,59 @@ class DatabaseConnectionManager:
                     continue
                 raise
 
+    @staticmethod
+    def _is_locked_error(err: BaseException) -> bool:
+        err_str = str(err).lower()
+        return "database is locked" in err_str or "database is busy" in err_str
+
+    @staticmethod
+    def _retry_wait(attempt: int) -> float:
+        return (0.1 * (3 ** attempt)) + random.uniform(0, 0.05)
+
+    async def _rollback_after_failed_write(self) -> None:
+        if self._connection is None:
+            return
+        try:
+            await self._connection.rollback()
+        except Exception as rollback_err:
+            _LOGGER.debug(
+                "Stats DB rollback after failed write did not complete: %s", rollback_err
+            )
+
     async def execute_write(self, query: str, params: tuple | list | None = None) -> None:
-        """Execute a write query with retry on lock, auto-commit and auto-reconnect. @zara"""
+        """Execute a serialized write query with retry, auto-commit and auto-reconnect. @zara"""
         if params is None:
             params = []
 
-        for attempt in range(3):
-            if not await self._ensure_connected():
-                raise RuntimeError("Database not available")
-            try:
-                await self._connection.execute(query, params)
-                await self._connection.commit()
-                return
-            except aiosqlite.OperationalError as err:
-                if "database is locked" in str(err) and attempt < 2:
-                    wait = (0.1 * (3 ** attempt)) + random.uniform(0, 0.05)
-                    _LOGGER.warning(
-                        "Stats DB locked on write (attempt %d/3), retrying in %.2fs",
-                        attempt + 1, wait
-                    )
-                    await asyncio.sleep(wait)
-                    continue
-                if attempt == 0:
-                    _LOGGER.warning("Write query failed (attempt 1), reconnecting: %s", err)
-                    self._connection = None
-                    self._is_connected = False
-                    continue
-                raise
+        async with self._write_lock:
+            for attempt in range(3):
+                if not await self._ensure_connected():
+                    raise RuntimeError("Database not available")
+                try:
+                    await self._connection.execute(query, params)
+                    await self._connection.commit()
+                    return
+                except aiosqlite.OperationalError as err:
+                    if self._is_locked_error(err):
+                        await self._rollback_after_failed_write()
+                        if attempt < 2:
+                            wait = self._retry_wait(attempt)
+                            _LOGGER.debug(
+                                "Stats DB locked on write (attempt %d/3), retrying in %.2fs",
+                                attempt + 1, wait
+                            )
+                            await asyncio.sleep(wait)
+                            continue
+                        _LOGGER.warning("Stats DB write failed after 3 lock attempts: %s", err)
+                        raise
+                    if attempt == 0:
+                        await self._rollback_after_failed_write()
+                        _LOGGER.warning("Write query failed (attempt 1), reconnecting: %s", err)
+                        self._connection = None
+                        self._is_connected = False
+                        continue
+                    await self._rollback_after_failed_write()
+                    raise
 
     @classmethod
     @asynccontextmanager

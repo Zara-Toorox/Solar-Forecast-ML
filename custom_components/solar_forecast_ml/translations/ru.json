@@ -337,6 +337,19 @@
       "conservative_planning_forecast": {
         "name": "Плановый прогноз (смесь P10)"
       },
+      "hybrid_forecast_status": {
+        "name": "Hybrid Forecast Status",
+        "state": {
+          "disabled": "Disabled",
+          "standard": "Standard",
+          "standard_midday": "Standard + Midday",
+          "standard_midday_afternoon": "Standard + Midday + Afternoon",
+          "custom_time": "Standard + Custom Time"
+        }
+      },
+      "hybrid_forecast": {
+        "name": "Hybrid Forecast"
+      },
       "production_time": {
         "name": "Время выработки сегодня"
       },

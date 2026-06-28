@@ -400,6 +400,19 @@
       "conservative_planning_forecast": {
         "name": "Planungsprognose (P10-Blend)"
       },
+      "hybrid_forecast_status": {
+        "name": "Hybrid Forecast Status",
+        "state": {
+          "disabled": "Deaktiviert",
+          "standard": "Standard",
+          "standard_midday": "Standard + Mittag",
+          "standard_midday_afternoon": "Standard + Mittag + Nachmittag",
+          "custom_time": "Standard + Eigene Uhrzeit"
+        }
+      },
+      "hybrid_forecast": {
+        "name": "Hybrid Forecast"
+      },
       "production_time": {
         "name": "Produktionszeit Heute"
       },

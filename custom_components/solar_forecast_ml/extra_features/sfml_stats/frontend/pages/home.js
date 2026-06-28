@@ -75,10 +75,10 @@ const STATUS_TRANSLATIONS = {
         grid_neutral: 'Neutral',
         home_desc: 'House Consumption',
         solar: 'SOLAR',
-        home: 'DEMAND',
-        battery: 'BATTERY',
-        grid: 'GRID',
-        car: 'CAR',
+        home: 'BEDARF',
+        battery: 'AKKU',
+        grid: 'NETZ',
+        car: 'AUTO',
         peakToday: 'PEAK TODAY',
         alltime: 'ALLTIME',
     },
@@ -93,9 +93,9 @@ const STATUS_TRANSLATIONS = {
         grid_neutral: 'Neutralny',
         home_desc: 'Zużycie domu',
         solar: 'SOLAR',
-        home: 'POBÓR',
-        battery: 'AKU',
-        grid: 'SIEĆ',
+        home: 'BEDARF',
+        battery: 'AKKU',
+        grid: 'NETZ',
         car: 'AUTO',
         peakToday: 'SZCZYT DZIŚ',
         alltime: 'ALLTIME',
@@ -341,13 +341,8 @@ const _HomePage = {
                     </svg>
                 </div>
                 <div class="hubble-heading">
-                    <span class="hubble-kicker">{{ $t('home.hubble.agent') }}</span>
+                    <span class="hubble-kicker">{{ $t('home.hubble.agent') }} · {{ hubbleView.moment }}</span>
                     <span class="chart-title">{{ hubbleView.title }}</span>
-                    <span class="hubble-moment">{{ hubbleView.moment }}</span>
-                </div>
-                <div v-if="hubbleView.systemStatus" class="hubble-system-status" :class="hubbleView.systemStatus.variant">
-                    <span class="hubble-system-title">{{ hubbleView.systemStatus.title }}</span>
-                    <span class="hubble-system-meta">{{ hubbleView.systemStatus.meta }}</span>
                 </div>
                 <button type="button" class="hubble-toggle" @click="hubbleExpanded = !hubbleExpanded">
                     {{ hubbleExpanded ? $t('common.collapse') : $t('common.details') }}
@@ -377,7 +372,7 @@ const _HomePage = {
                     {{ action.label }}
                 </button>
                 <a
-                    href="/api/sfml_stats/static/docs.html?v=32.0.0"
+                    href="/api/sfml_stats/static/docs.html?v=28.0.6"
                     target="_blank"
                     class="hubble-action docs-link"
                     style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;"
@@ -478,14 +473,14 @@ const _HomePage = {
                         <span class="metric-badge-icon">📉</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" style="color: #fbbf24">{{ forecastTotal }} <span class="unit">kWh</span></span>
-                            <span class="metric-badge-label">{{ $t('home.forecastDayKpi') }}</span>
+                            <span class="metric-badge-label">{{ $t('common.forecast') }}</span>
                         </div>
                     </div>
                     <div v-if="hasHybridForecast" class="metric-badge-card">
                         <span class="metric-badge-icon">🔀</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" style="color: #38bdf8">{{ hybridForecastTotal }} <span class="unit">kWh</span></span>
-                            <span class="metric-badge-label">{{ $t('home.hybridDayKpi') }}</span>
+                            <span class="metric-badge-label">{{ $t('home.hybrid') }}</span>
                         </div>
                     </div>
                     <div class="metric-badge-card">
@@ -659,7 +654,7 @@ const _HomePage = {
         const panelGroupsData = reactive({ available: false, groups: {} });
         const pgChartRefs = reactive({});
         const pgChartInstances = {};
-        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], actual: [], actualRaw: [], cleanEligible: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
+        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], actual: [], actualRaw: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
         const weatherTrace = ref([]);
         const powerData = ref([]);
         const dailyForecasts = ref([]);
@@ -778,7 +773,6 @@ const _HomePage = {
         const hubbleExpanded = ref(false);
         const hubbleQuestion = ref(null);
         const currentTime = ref('');
-        const workflowClockNow = ref(Date.now());
         const lastPowerUpdate = ref('');
         const cleanEvalStats = reactive({
             today: {
@@ -790,7 +784,6 @@ const _HomePage = {
                 productionCandidates: null,
                 missingActualHours: null,
                 excludedWeatherAlertHours: null,
-                weatherAlertHours: null,
                 excludedInverterClippedHours: null,
                 learningHours: null,
                 learningCandidates: null,
@@ -820,7 +813,6 @@ const _HomePage = {
             outdoorClouds: null,
             outdoorCondition: null,
             outdoorSource: null,
-            solarYieldToday: null,
         });
         const FORECAST_LEGEND_STORAGE_KEY = 'sfml_stats_home_forecast_legend_selected';
         const forecastLegendSelected = reactive({
@@ -837,35 +829,6 @@ const _HomePage = {
             return h < 6 || h > 20;
         });
 
-        function actualRowsWithLiveDelta() {
-            const rows = (forecastData.actualRaw || []).slice();
-            const liveYield = Number(infoData.solarYieldToday);
-            if (!Number.isFinite(liveYield) || liveYield <= 0 || !forecastData.hours.length) {
-                return rows;
-            }
-
-            const knownYield = rows.reduce((sum, value) => sum + (Number(value) || 0), 0);
-            const delta = liveYield - knownYield;
-            if (delta <= 0.01) {
-                return rows;
-            }
-
-            const nowHour = new Date().getHours();
-            let idx = forecastData.hours.findIndex(hour => Number(hour) === nowHour);
-            if (idx < 0) {
-                for (let i = rows.length - 1; i >= 0; i--) {
-                    if (rows[i] != null) {
-                        idx = i;
-                        break;
-                    }
-                }
-            }
-            if (idx >= 0) {
-                rows[idx] = (Number(rows[idx]) || 0) + delta;
-            }
-            return rows;
-        }
-
         const forecastTotal = computed(() => {
             const source = forecastData.forecastRaw.length ? forecastData.forecastRaw : forecastData.forecast;
             const sum = source.reduce((s, v) => s + (v || 0), 0);
@@ -873,7 +836,7 @@ const _HomePage = {
         });
 
         const actualTotal = computed(() => {
-            const source = forecastData.actualRaw.length ? actualRowsWithLiveDelta() : forecastData.actual;
+            const source = forecastData.actualRaw.length ? forecastData.actualRaw : forecastData.actual;
             const sum = source.reduce((s, v) => s + (v || 0), 0);
             return sum.toFixed(1);
         });
@@ -947,30 +910,24 @@ const _HomePage = {
         });
 
         const hybridDeviationPercent = computed(() => {
-            const actualRows = actualRowsWithLiveDelta();
+            const actualRows = forecastData.actualRaw || [];
             const hybridRows = forecastData.hybrid || [];
-            const cleanEligible = forecastData.cleanEligible || [];
             const evaluated = actualRows
-                .map((actual, idx) => ({
-                    actual,
-                    hybrid: hybridRows[idx],
-                    clean: cleanEligible[idx],
-                }))
-                .filter(row => row.clean !== false)
-                .filter(row => row.actual != null && row.hybrid != null)
-                .filter(row => (Number(row.actual) || 0) > 0.01 || (Number(row.hybrid) || 0) > 0.01);
-            if (!evaluated.length) return null;
-            const act = evaluated.reduce((sum, row) => sum + (Number(row.actual) || 0), 0);
-            const pred = evaluated.reduce((sum, row) => sum + (Number(row.hybrid) || 0), 0);
-            if (pred <= 0) return null;
+                .map((actual, idx) => ({ actual, hybrid: hybridRows[idx] }))
+                .filter(row => row.actual != null && (row.actual > 0.01 || (row.hybrid || 0) > 0.01));
+            const act = evaluated.length
+                ? evaluated.reduce((sum, row) => sum + (row.actual || 0), 0)
+                : parseFloat(actualTotal.value);
+            const pred = evaluated.length
+                ? evaluated.reduce((sum, row) => sum + (row.hybrid || 0), 0)
+                : parseFloat(hybridForecastTotal.value);
+            if (pred === 0) return 0;
             return ((act - pred) / pred) * 100;
         });
 
         const hybridDeviationLabel = computed(() => {
-            const value = hybridDeviationPercent.value;
-            if (value == null || Number.isNaN(value)) return '--';
             const prefix = isTodayPartial.value ? (t('common.live') + ' ') : '';
-            return `${prefix}${value >= 0 ? '+' : ''}${value.toFixed(0)}%`;
+            return `${prefix}${hybridDeviationPercent.value >= 0 ? '+' : ''}${hybridDeviationPercent.value.toFixed(0)}%`;
         });
 
         const todayLearningBasisLabel = computed(() => {
@@ -993,15 +950,6 @@ const _HomePage = {
                 demand_limited_zero_export: t('solar.discarded.demandLimitedZeroExport'),
                 excluded_from_clean_evaluation: t('solar.discarded.excludedFromCleanEvaluation'),
                 excluded: t('solar.discarded.excluded'),
-                weather_alert: t('solar.discarded.weatherAlert'),
-                snow: t('solar.discarded.snow'),
-                fog: t('solar.discarded.fog'),
-                grid_failure: t('solar.discarded.gridFailure'),
-                external_limit: t('solar.discarded.externalLimit'),
-                inverter_limit: t('solar.discarded.inverterLimit'),
-                manual_limit: t('solar.discarded.manualLimit'),
-                battery_full: t('solar.discarded.batteryFull'),
-                curtailment: t('solar.discarded.curtailment'),
             };
             const breakdown = cleanEvalStats.today.discardedLearningReasonBreakdown || {};
             const parts = Object.entries(breakdown)
@@ -1019,12 +967,10 @@ const _HomePage = {
             const missingActual = cleanEvalStats.today.missingActualHours || 0;
             const excludedMppt = cleanEvalStats.today.excludedMppt || 0;
             const excludedClipped = cleanEvalStats.today.excludedInverterClippedHours || 0;
-            const weatherAlerts = cleanEvalStats.today.weatherAlertHours || 0;
             const parts = [];
             if (missingActual > 0) parts.push(t('home.coverage.missingActual', { hours: missingActual }));
             if (excludedMppt > 0) parts.push(t('home.coverage.excludedMppt', { hours: excludedMppt }));
             if (excludedClipped > 0) parts.push(t('home.coverage.excludedClipped', { hours: excludedClipped }));
-            if (weatherAlerts > 0) parts.push(t('home.coverage.weatherAlertsIncluded', { hours: weatherAlerts }));
 
             if (evaluated != null && candidates != null && candidates > 0) {
                 if (parts.length > 0) {
@@ -1068,7 +1014,6 @@ const _HomePage = {
                 : t('home.hubble.noDecline');
             const variantSeed = payload.variant_seed != null ? payload.variant_seed : 0;
             const yesterday = payload.yesterday || null;
-            const workflowStatus = payload.signals?.workflow_status || null;
 
             const storyParams = {
                 hasWindow: Boolean(bestWindow),
@@ -1123,17 +1068,8 @@ const _HomePage = {
                 { key: 'quality', label: t('home.hubble.chip.quality'), value: metrics.forecast_quality_percent != null ? `${quality}%` : t('common.noData') },
                 { key: 'window', label: t('home.hubble.chip.window'), value: windowLabel },
             ];
-            if (workflowStatus?.is_running) {
-                chips.unshift({
-                    key: 'workflow',
-                    label: t('home.hubble.chip.system'),
-                    value: t('home.hubble.state.active'),
-                    title: workflowStatus.current_step || null,
-                });
-            }
 
-            const systemStatus = buildHubbleSystemStatus(workflowStatus);
-            const story = buildHubbleStory(moment, storyParams, variantSeed, yesterday, payload.signals || {});
+            const story = buildHubbleStory(moment, storyParams, variantSeed, yesterday);
             const hasMemory = payload.memory?.available === true
                 && Array.isArray(payload.memory.matches)
                 && payload.memory.matches.length >= 2;
@@ -1149,11 +1085,10 @@ const _HomePage = {
             const answer = buildHubbleAnswer(hubbleQuestion.value, payload, storyParams);
 
             return {
-                title: systemStatus?.title || t('home.hubble.title'),
+                title: t('home.hubble.title'),
                 moment: t(`home.hubble.moment.${moment}`),
                 moment_key: moment,
                 is_pulsing: moment !== 'evening',
-                systemStatus,
                 chips,
                 lead: t(leadKey, storyParams),
                 tip: buildHubbleTip(payload, windowLabel),
@@ -1165,95 +1100,6 @@ const _HomePage = {
                 }),
             };
         });
-
-        function buildHubbleSystemStatus(workflowStatus) {
-            if (!workflowStatus) {
-                return {
-                    variant: 'ready',
-                    title: t('home.hubble.state.ready'),
-                    meta: t('home.hubble.system.readyMeta'),
-                };
-            }
-
-            const workflowName = formatWorkflowName(workflowStatus.workflow);
-            const step = formatWorkflowStepLabel(workflowStatus.current_step);
-            const progress = workflowStatus.progress || '--';
-            const duration = formatHubbleDuration(getLiveWorkflowDurationSeconds(workflowStatus));
-
-            if (workflowStatus.is_running) {
-                return {
-                    variant: 'active',
-                    title: t('home.hubble.state.active'),
-                    meta: t('home.hubble.system.runningMeta', { workflow: workflowName, step, progress, duration }),
-                };
-            }
-
-            if (workflowStatus.status === 'error' || workflowStatus.status === 'partial') {
-                return {
-                    variant: 'attention',
-                    title: t('home.hubble.state.attention'),
-                    meta: workflowStatus.last_error || t('home.hubble.system.attentionMeta', { workflow: workflowName }),
-                };
-            }
-
-            return null;
-        }
-
-        function formatWorkflowName(workflow) {
-            const key = `home.hubble.workflow.${workflow || 'idle'}`;
-            const translated = t(key);
-            return translated !== key ? translated : (workflow || t('home.hubble.workflow.idle'));
-        }
-
-        function getLiveWorkflowDurationSeconds(workflowStatus) {
-            if (!workflowStatus) return null;
-
-            const fallback = Number(workflowStatus.duration_seconds);
-            if (!workflowStatus.is_running || !workflowStatus.started_at) {
-                return Number.isFinite(fallback) ? fallback : null;
-            }
-
-            const startedAt = Date.parse(workflowStatus.started_at);
-            if (!Number.isFinite(startedAt)) {
-                return Number.isFinite(fallback) ? fallback : null;
-            }
-
-            const elapsed = Math.max(0, Math.floor((workflowClockNow.value - startedAt) / 1000));
-            return Number.isFinite(fallback) ? Math.max(fallback, elapsed) : elapsed;
-        }
-
-        function formatWorkflowStepLabel(step) {
-            if (!step) return t('home.hubble.workflowStep.unknown');
-
-            const normalized = String(step).toLowerCase();
-            const matchers = [
-                ['weather model', 'weatherModel'],
-                ['main ai model', 'forecastModel'],
-                ['drift detection', 'driftDetection'],
-                ['daily summary', 'dailySummary'],
-                ['archive', 'archive'],
-                ['weather precision', 'weatherPrecision'],
-                ['method performance', 'methodPerformance'],
-                ['panel-group efficiency', 'panelGroups'],
-                ['group method', 'panelGroups'],
-                ['physics engine', 'physicsCalibration'],
-                ['weather expert', 'weatherExpert'],
-                ['shadow patterns', 'shadowPatterns'],
-                ['night cleanup', 'cleanup'],
-                ['finalizing day', 'finalizeDay'],
-                ['completed with issues', 'completedWithIssues'],
-                ['completed', 'completed'],
-                ['failed', 'failed'],
-                ['preparing', 'preparing'],
-            ];
-
-            const found = matchers.find(([needle]) => normalized.includes(needle));
-            if (!found) return step;
-
-            const key = `home.hubble.workflowStep.${found[1]}`;
-            const translated = t(key);
-            return translated !== key ? translated : step;
-        }
 
         const hubbleMemoryView = computed(() => {
             const memory = hubble.value?.memory || null;
@@ -1409,14 +1255,6 @@ const _HomePage = {
             return bestWindow.start_hour === bestWindow.end_hour ? start : `${start}-${end}`;
         }
 
-        function formatHubbleDuration(seconds) {
-            const value = Number(seconds);
-            if (!Number.isFinite(value) || value < 0) return '--';
-            const minutes = Math.floor(value / 60);
-            const rest = Math.floor(value % 60);
-            return `${minutes}:${String(rest).padStart(2, '0')} min`;
-        }
-
         function buildHubbleTip(payload, windowLabel) {
             const metrics = payload.metrics || {};
             const hasBattery = metrics.battery_available === true;
@@ -1508,7 +1346,7 @@ const _HomePage = {
             };
         }
 
-        function buildHubbleStory(moment, params, variantSeed, yesterday, signals = {}) {
+        function buildHubbleStory(moment, params, variantSeed, yesterday) {
             const storyMoment = ['morning', 'midday', 'evening'].includes(moment) ? moment : 'midday';
             
             const getVar = (name) => {
@@ -1518,53 +1356,6 @@ const _HomePage = {
             };
 
             const tiles = [];
-
-            const insightParas = [];
-            const recordSignal = signals.record_signal || null;
-            if (recordSignal) {
-                insightParas.push(t(`home.hubble.special.record.${recordSignal.level}`, {
-                    solar: formatHubbleNumber(recordSignal.solar_kwh, 1),
-                    record: formatHubbleNumber(recordSignal.record_kwh, 1),
-                }));
-            }
-            const forecastIssue = signals.forecast_issue || null;
-            if (forecastIssue) {
-                insightParas.push(t('home.hubble.special.forecastIssue', {
-                    error: formatHubbleSigned(forecastIssue.error_percent, 0),
-                    reason: forecastIssue.reason || t('home.hubble.special.unknownReason'),
-                }));
-            }
-            const helperFeedback = signals.helper_feedback || null;
-            if (helperFeedback) {
-                insightParas.push(t(`home.hubble.special.${helperFeedback.type}`, {
-                    hpPvPercent: formatHubbleNumber(helperFeedback.hp_pv_percent, 0),
-                    window: formatHubbleWindow(helperFeedback.window),
-                }));
-            }
-            const negativePrice = signals.negative_price_signal || null;
-            if (negativePrice) {
-                insightParas.push(t('home.hubble.special.negativePrice', {
-                    price: formatHubbleNumber(negativePrice.price_ct, 2),
-                }));
-            }
-            const workflowStatus = signals.workflow_status || null;
-            if (workflowStatus?.is_running) {
-                insightParas.push(t('home.hubble.special.workflowRunning', {
-                    workflow: formatWorkflowName(workflowStatus.workflow),
-                    step: formatWorkflowStepLabel(workflowStatus.current_step),
-                    progress: workflowStatus.progress || '--',
-                    duration: formatHubbleDuration(getLiveWorkflowDurationSeconds(workflowStatus)),
-                }));
-            }
-            if (insightParas.length) {
-                tiles.push({
-                    key: 'special-tile',
-                    type: 'tile',
-                    icon: '◦',
-                    title: t('home.hubble.special.title'),
-                    paragraphs: insightParas.filter(p => p && !p.startsWith('home.hubble.special.')),
-                });
-            }
 
             // 1. Status-Kachel
             const statusParas = [];
@@ -1717,7 +1508,6 @@ const _HomePage = {
         function updateClock() {
             const d = new Date();
             currentTime.value = d.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            workflowClockNow.value = d.getTime();
         }
 
         // ========== DATA LOADING ==========
@@ -1764,19 +1554,9 @@ const _HomePage = {
             }
         }
 
-        let summaryRequest = null;
-
-        async function loadSummaryData() {
-            if (!summaryRequest) {
-                summaryRequest = SFMLApi.fetch('/api/sfml_stats/summary')
-                    .finally(() => { summaryRequest = null; });
-            }
-            return summaryRequest;
-        }
-
         async function loadInfoPanel() {
             try {
-                const data = await loadSummaryData();
+                const data = await SFMLApi.fetch('/api/sfml_stats/summary');
                 if (!data) return;
 
                 // Produktionszeit
@@ -1797,7 +1577,6 @@ const _HomePage = {
                 cleanEvalStats.today.productionCandidates = today?.production_candidate_hours_count ?? null;
                 cleanEvalStats.today.missingActualHours = today?.missing_actual_hours_count ?? null;
                 cleanEvalStats.today.excludedWeatherAlertHours = today?.excluded_weather_alert_hours_count ?? null;
-                cleanEvalStats.today.weatherAlertHours = today?.weather_alert_hours_count ?? null;
                 cleanEvalStats.today.excludedInverterClippedHours = today?.excluded_inverter_clipped_hours_count ?? null;
                 cleanEvalStats.today.learningHours = today?.learning_hours_count ?? null;
                 cleanEvalStats.today.learningCandidates = today?.learning_candidate_hours_count ?? null;
@@ -1845,7 +1624,6 @@ const _HomePage = {
                 if (ds) {
                     infoData.peakTodayW = ds.peak_solar_w || null;
                     infoData.peakTodayTime = ds.peak_solar_time || null;
-                    infoData.solarYieldToday = ds.solar_yield_kwh ?? null;
                 }
 
                 hubble.value = data.hubble || null;
@@ -2040,7 +1818,7 @@ const _HomePage = {
 
         async function loadPanelGroups() {
             try {
-                const res = await loadSummaryData();
+                const res = await SFMLApi.fetch('/api/sfml_stats/statistics');
                 const stats = res?.statistics || {};
                 const last7 = stats.last_7_days || {};
                 const last30 = stats.last_30_days || {};
@@ -2050,7 +1828,7 @@ const _HomePage = {
                 cleanEvalStats.last30.accuracy = last30.avg_accuracy ?? null;
                 cleanEvalStats.last30.coverage = last30.avg_evaluation_coverage_percent ?? null;
                 cleanEvalStats.last30.excludedMppt = last30.avg_excluded_mppt_hours ?? null;
-                const pg = res?.panel_groups || res?.data?.panel_groups;
+                const pg = res?.data?.panel_groups || res?.panel_groups;
                 if (!pg || !pg.available) return;
 
                 panelGroupsData.available = true;
@@ -2185,7 +1963,6 @@ const _HomePage = {
                         ? hybridByHour.get(Number(h.target_hour))
                         : null
                 ));
-                forecastData.cleanEligible = todayData.map(h => h.clean_evaluation_eligible !== false);
                 forecastData.confidence = todayData.map(h => h.confidence || 50);
                 forecastData.ml_pct = todayData.map(h => h.ml_contribution_percent || 0);
                 forecastData.method = todayData.map(h => h.prediction_method || '');
@@ -2266,8 +2043,7 @@ const _HomePage = {
                         const hour = forecastData.hours[idx];
                         const pred = forecastData.forecast[idx] || 0;
                         const hybrid = forecastData.hybrid[idx];
-                        const liveActualRows = actualRowsWithLiveDelta();
-                        const act = liveActualRows[idx] ?? forecastData.actual[idx] ?? 0;
+                        const act = forecastData.actual[idx] || 0;
                         const conf = forecastData.confidence[idx] || 0;
                         const mlPct = forecastData.ml_pct[idx] || 0;
                         const method = forecastData.method[idx] || '--';
@@ -2382,8 +2158,7 @@ const _HomePage = {
                     {
                         name: 'IST',
                         type: 'line',
-                        data: actualRowsWithLiveDelta().map((value, i) => {
-                            const v = value ?? forecastData.actual[i];
+                        data: forecastData.actual.map((v, i) => {
                             if (v == null) return null;
                             const h = forecastData.hours[i];
                             if (h > nowHour) return null;
@@ -2566,7 +2341,6 @@ const _HomePage = {
         let flowTimer = null;
         let powerTimer = null;
         let forecastTimer = null;
-        let infoTimer = null;
 
         onMounted(async () => {
             updateClock();
@@ -2612,7 +2386,7 @@ const _HomePage = {
             flowTimer = setInterval(loadEnergyFlow, 15000);
             powerTimer = setInterval(loadPowerHistory, 60000);
             forecastTimer = setInterval(loadForecastData, 60000);
-            infoTimer = setInterval(loadInfoPanel, 60000);
+            setInterval(loadInfoPanel, 60000); // Info panel refresh every 60s
         });
 
         const getConsumerName = (key) => {
@@ -2629,13 +2403,8 @@ const _HomePage = {
             if (flowTimer) clearInterval(flowTimer);
             if (powerTimer) clearInterval(powerTimer);
             if (forecastTimer) clearInterval(forecastTimer);
-            if (infoTimer) clearInterval(infoTimer);
             if (forecastChartInstance) { forecastChartInstance.dispose(); forecastChartInstance = null; }
             if (powerChartInstance) { powerChartInstance.dispose(); powerChartInstance = null; }
-            for (const chart of Object.values(pgChartInstances)) {
-                if (chart) chart.dispose();
-            }
-            pgChartInstances = {};
             if (resizeHandler) window.removeEventListener('resize', resizeHandler);
         });
 
@@ -2693,7 +2462,6 @@ const _HomePage = {
             display: flex;
             align-items: center;
             justify-content: flex-start;
-            flex-wrap: wrap;
             gap: var(--space-md);
             margin-bottom: var(--space-md);
         }
@@ -2722,20 +2490,28 @@ const _HomePage = {
             stroke-dashoffset: 80;
             animation: hubble-ring-rotate 6s linear infinite;
         }
-        .hubble-sensor-ring .ring-active.morning,
-        .hubble-sensor-ring .ring-active.midday,
+        .hubble-sensor-ring .ring-active.morning {
+            stroke: #f59e0b;
+        }
+        .hubble-sensor-ring .ring-active.midday {
+            stroke: #10b981;
+        }
         .hubble-sensor-ring .ring-active.evening {
-            stroke: var(--accent);
+            stroke: #8b5cf6;
         }
         
         .hubble-sensor-ring .hubble-face {
             transform-origin: center;
             transition: color 0.5s ease;
         }
-        .hubble-sensor-ring .hubble-face.morning,
-        .hubble-sensor-ring .hubble-face.midday,
+        .hubble-sensor-ring .hubble-face.morning {
+            color: #f59e0b;
+        }
+        .hubble-sensor-ring .hubble-face.midday {
+            color: #10b981;
+        }
         .hubble-sensor-ring .hubble-face.evening {
-            color: var(--text-primary);
+            color: #8b5cf6;
         }
         .hubble-sensor-ring .hubble-face.pulse {
             animation: hubble-core-pulse 2s ease-in-out infinite;
@@ -2782,47 +2558,6 @@ const _HomePage = {
             font-weight: 700;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-        }
-        .hubble-moment {
-            color: var(--text-muted);
-            font-size: 0.78rem;
-            font-weight: 600;
-        }
-        .hubble-system-status {
-            flex: 1 1 260px;
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            min-width: min(100%, 190px);
-            padding: 8px 12px;
-            border: 1px solid rgba(255, 255, 255, 0.10);
-            border-radius: var(--radius-md);
-            background: rgba(255, 255, 255, 0.03);
-        }
-        .hubble-system-status.ready {
-            border-color: rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.035);
-        }
-        .hubble-system-status.active {
-            border-color: rgba(0, 212, 255, 0.28);
-            background: rgba(0, 212, 255, 0.06);
-        }
-        .hubble-system-status.attention {
-            border-color: rgba(239, 68, 68, 0.30);
-            background: rgba(239, 68, 68, 0.06);
-        }
-        .hubble-system-title {
-            color: var(--text-primary);
-            font-size: 0.82rem;
-            font-weight: 800;
-        }
-        .hubble-system-meta {
-            color: var(--text-secondary);
-            font-size: 0.74rem;
-            line-height: 1.35;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
         .hubble-toggle {
             flex: 0 0 auto;
@@ -2885,7 +2620,7 @@ const _HomePage = {
         }
         .hubble-tip {
             margin-top: var(--space-xs);
-            color: var(--text-primary);
+            color: #fbbf24;
             font-weight: 600;
         }
         
@@ -2920,14 +2655,14 @@ const _HomePage = {
         .hubble-answer {
             margin-top: var(--space-md);
             padding: var(--space-md);
-            border: 1px solid rgba(255, 255, 255, 0.10);
+            border: 1px solid rgba(251, 191, 36, 0.15);
             border-radius: var(--radius-md);
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(251, 191, 36, 0.03);
         }
         .hubble-answer-label {
             display: block;
             margin-bottom: 6px;
-            color: var(--text-primary);
+            color: #fbbf24;
             font-size: 0.75rem;
             font-weight: 700;
             text-transform: uppercase;

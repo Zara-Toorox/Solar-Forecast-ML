@@ -15,7 +15,7 @@ from homeassistant.const import Platform
 # Warp Core Identity @starfleet-engineering
 DOMAIN = "solar_forecast_ml"
 NAME = "Solar Forecast ML"
-VERSION = "32.0.0"
+VERSION = "30.0.2"
 SOFTWARE_VERSION = VERSION
 AI_VERSION = "8.0 TFS"
 INTEGRATION_MODEL = f"Solar Forecast ML V{VERSION}"
@@ -223,6 +223,7 @@ MIN_GRID_SEARCH_INTERVAL_DAYS = 14
 
 # Red Alert Services @starfleet-engineering
 SERVICE_RUN_ALL_DAY_END_TASKS = "run_all_day_end_tasks"
+SERVICE_EMERGENCY_OUTAGE_QUARANTINE = "emergency_outage_quarantine"
 
 # Simulation Diagnostic Services @starfleet-engineering
 SERVICE_TEST_MORNING_ROUTINE = "test_morning_routine"

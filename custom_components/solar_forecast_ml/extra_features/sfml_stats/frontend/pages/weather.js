@@ -98,7 +98,7 @@ const _WeatherPage = {
             <!-- ================= CARD 2: 72h FORECAST ================= -->
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">\u{1F4C8} {{ forecastTitle }}</span>
+                    <span class="chart-title">\u{1F4C8} SFML AI Weather Forecast 72h</span>
                     <span class="chart-subtitle">{{ $t('weather.forecast72hSub') }}</span>
                 </div>
                 <div ref="forecastChartEl" class="weather-chart" style="height: 340px;"></div>
@@ -391,7 +391,6 @@ const _WeatherPage = {
             solar_potential: null, timestamp: null,
         });
         const forecast = ref([]);
-        const forecastMeta = reactive({ hours: 0, target_hours: 72, is_complete: false });
         const radiation = reactive({ actual: [], forecast: [], clear_sky: [] });
         const clothing = reactive({ available: false });
         const astronomy = reactive({ sunrise: null, sunset: null, day_length_min: null, day_length_delta_min: null, max_elevation_deg: null, moon_phase: null, moon_illumination: null });
@@ -480,18 +479,13 @@ const _WeatherPage = {
             return '\u{1F319}';
         });
         const radiationKpis = computed(() => {
-            const observed = radiation.actual.length ? radiation.actual : radiation.forecast;
-            if (!observed.length && !radiation.forecast.length) return null;
+            const src = radiation.forecast.length ? radiation.forecast : radiation.actual;
+            if (!src.length) return null;
             return {
-                ghi_peak: Math.round(Math.max(...observed.map(r => r.ghi || 0))),
+                ghi_peak: Math.round(Math.max(...src.map(r => r.ghi || 0))),
                 dni_peak: Math.round(Math.max(...(radiation.forecast.map(r => r.dni || 0) || [0]))),
                 dhi_peak: Math.round(Math.max(...(radiation.forecast.map(r => r.dhi || 0) || [0]))),
             };
-        });
-        const forecastTitle = computed(() => {
-            const hours = forecastMeta.hours || forecast.value.length || 0;
-            const target = forecastMeta.target_hours || 72;
-            return `SFML AI Weather Forecast ${Math.min(hours, target)}h`;
         });
 
         // Charts -------------------------------------------------------
@@ -674,11 +668,6 @@ const _WeatherPage = {
                 if (!res || !res.success) return;
                 Object.assign(current, res.current || {});
                 forecast.value = res.forecast || [];
-                Object.assign(forecastMeta, res.forecast_meta || {
-                    hours: forecast.value.length,
-                    target_hours: 72,
-                    is_complete: forecast.value.length >= 72,
-                });
                 Object.assign(radiation, res.radiation || {});
                 Object.assign(clothing, res.clothing || { available: false });
                 Object.assign(astronomy, res.astronomy || {});
@@ -767,7 +756,7 @@ const _WeatherPage = {
         });
 
         return {
-            current, forecast, forecastTitle, radiation, clothing, translateClothing, astronomy, history,
+            current, forecast, radiation, clothing, translateClothing, astronomy, history,
             historyTab, historyTabs, lastUpdated,
             forecastChartEl, radiationChartEl, historyChartEl,
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,

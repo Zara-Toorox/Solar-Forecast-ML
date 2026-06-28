@@ -434,8 +434,13 @@ CREATE TABLE IF NOT EXISTS hourly_predictions (
     tfs_weight REAL,
     exclude_from_learning BOOLEAN DEFAULT FALSE,
     exclude_from_clean_evaluation BOOLEAN DEFAULT FALSE,
+    actual_backfill_blocked BOOLEAN DEFAULT FALSE,
+    data_quarantine_reason TEXT,
+    data_quarantine_at TIMESTAMP,
     mppt_throttled BOOLEAN DEFAULT FALSE,
     mppt_throttle_reason TEXT,
+    weather_miss_class TEXT,
+    reforecast_trigger_eligible BOOLEAN DEFAULT FALSE,
     has_panel_group_actuals BOOLEAN DEFAULT FALSE,
     panel_group_predictions_backfilled BOOLEAN DEFAULT FALSE,
     adaptive_corrected BOOLEAN DEFAULT FALSE,
@@ -445,6 +450,35 @@ CREATE TABLE IF NOT EXISTS hourly_predictions (
 CREATE INDEX IF NOT EXISTS idx_hourly_predictions_target ON hourly_predictions(target_date, target_hour);
 CREATE INDEX IF NOT EXISTS idx_hourly_predictions_created ON hourly_predictions(prediction_created_at);
 CREATE INDEX IF NOT EXISTS idx_hourly_predictions_datetime ON hourly_predictions(target_datetime);
+
+CREATE TABLE IF NOT EXISTS emergency_outage_periods (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TIMESTAMP NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    start_hour INTEGER NOT NULL DEFAULT 0,
+    end_hour INTEGER NOT NULL DEFAULT 23,
+    reason TEXT NOT NULL,
+    action TEXT NOT NULL,
+    actual_policy TEXT NOT NULL,
+    backfill_policy TEXT NOT NULL DEFAULT 'block',
+    source TEXT NOT NULL DEFAULT 'emergency_service',
+    is_active BOOLEAN DEFAULT TRUE,
+    affected_hourly_rows INTEGER DEFAULT 0,
+    affected_panel_group_rows INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_emergency_outage_periods_range
+    ON emergency_outage_periods(start_date, end_date, is_active);
+
+CREATE TABLE IF NOT EXISTS emergency_outage_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TIMESTAMP NOT NULL,
+    operation TEXT NOT NULL,
+    dry_run BOOLEAN NOT NULL,
+    payload_json TEXT NOT NULL,
+    result_json TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS prediction_weather (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -607,6 +641,9 @@ CREATE INDEX IF NOT EXISTS idx_ops_hourly_forecasts_snapshot
     ON ops_hourly_forecasts(ops_track_date, snapshot_sequence);
 CREATE INDEX IF NOT EXISTS idx_ops_hourly_forecasts_prediction
     ON ops_hourly_forecasts(prediction_id, is_active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_hourly_forecasts_one_active
+    ON ops_hourly_forecasts(target_date, target_hour)
+    WHERE is_active = TRUE;
 
 CREATE TABLE IF NOT EXISTS ops_prediction_weather (
     ops_weather_row_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -640,6 +677,9 @@ CREATE INDEX IF NOT EXISTS idx_ops_prediction_weather_active
     ON ops_prediction_weather(target_date, target_hour, is_active);
 CREATE INDEX IF NOT EXISTS idx_ops_prediction_weather_prediction
     ON ops_prediction_weather(prediction_id, is_active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_prediction_weather_one_active
+    ON ops_prediction_weather(target_date, target_hour)
+    WHERE is_active = TRUE;
 
 CREATE TABLE IF NOT EXISTS ops_prediction_panel_groups (
     ops_group_row_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -667,6 +707,9 @@ CREATE INDEX IF NOT EXISTS idx_ops_prediction_panel_groups_active
     ON ops_prediction_panel_groups(target_date, target_hour, is_active);
 CREATE INDEX IF NOT EXISTS idx_ops_prediction_panel_groups_forecast_row
     ON ops_prediction_panel_groups(forecast_row_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_prediction_panel_groups_one_active
+    ON ops_prediction_panel_groups(target_date, target_hour, group_name)
+    WHERE is_active = TRUE;
 
 CREATE TABLE IF NOT EXISTS ops_daily_forecasts (
     ops_daily_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -688,6 +731,9 @@ CREATE TABLE IF NOT EXISTS ops_daily_forecasts (
 
 CREATE INDEX IF NOT EXISTS idx_ops_daily_forecasts_active
     ON ops_daily_forecasts(forecast_type, forecast_date, is_active);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_daily_forecasts_one_active
+    ON ops_daily_forecasts(forecast_type, forecast_date)
+    WHERE is_active = TRUE;
 
 CREATE TABLE IF NOT EXISTS ops_reforecast_settings (
     settings_id INTEGER PRIMARY KEY AUTOINCREMENT,

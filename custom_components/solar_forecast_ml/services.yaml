@@ -52,6 +52,126 @@ analyze_feature_importance:
 # Red Alert Services - Emergency Containment Procedures
 # ============================================================================
 
+emergency_outage_quarantine:
+  name: "🚨 EMERGENCY: Outage Quarantine"
+  description: >
+    EMERGENCY SERVICE. Quarantines an inverter, plant, meter, or sensor outage
+    period from learning and clean evaluation, blocks actual-value backfill for
+    that period, and can invalidate contaminated learning layers. Use dry_run
+    first. Live writes require explicit acknowledgement.
+  fields:
+    start_date:
+      name: Start Date
+      description: "First affected date in YYYY-MM-DD format."
+      required: true
+      example: "2026-06-20"
+      selector:
+        text:
+    end_date:
+      name: End Date
+      description: "Last affected date in YYYY-MM-DD format. Defaults to start_date."
+      required: false
+      example: "2026-06-27"
+      selector:
+        text:
+    start_hour:
+      name: Start Hour
+      description: "First affected hour on start_date. Defaults to 0."
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 23
+          mode: box
+    end_hour:
+      name: End Hour
+      description: "Last affected hour on end_date. Defaults to 23."
+      required: false
+      default: 23
+      selector:
+        number:
+          min: 0
+          max: 23
+          mode: box
+    reason:
+      name: Reason
+      description: "Emergency reason for audit and exclusion metadata."
+      required: true
+      default: lightning_damage
+      selector:
+        select:
+          options:
+            - label: "Lightning damage"
+              value: "lightning_damage"
+            - label: "Inverter failure"
+              value: "inverter_failure"
+            - label: "Sensor failure"
+              value: "sensor_failure"
+            - label: "Plant offline"
+              value: "plant_offline"
+            - label: "Meter failure"
+              value: "meter_failure"
+            - label: "Maintenance"
+              value: "maintenance"
+            - label: "Custom"
+              value: "custom"
+    custom_reason:
+      name: Custom Reason
+      description: "Optional custom reason when reason=custom."
+      required: false
+      selector:
+        text:
+    action:
+      name: Action
+      description: "Quarantine only, or also reset contaminated learned layers."
+      required: false
+      default: quarantine_only
+      selector:
+        select:
+          options:
+            - label: "Quarantine only"
+              value: "quarantine_only"
+            - label: "Quarantine and invalidate learning"
+              value: "quarantine_and_invalidate_learning"
+            - label: "Quarantine, invalidate, and retrain"
+              value: "quarantine_invalidate_and_retrain"
+    actual_policy:
+      name: Actual Policy
+      description: "Preserve existing actuals or null invalid zero/error actuals in the outage range."
+      required: false
+      default: preserve_actuals
+      selector:
+        select:
+          options:
+            - label: "Preserve actuals"
+              value: "preserve_actuals"
+            - label: "Null invalid actuals"
+              value: "null_invalid_actuals"
+    dry_run:
+      name: Dry Run
+      description: "Preview only. Defaults to true and does not write outage changes."
+      required: false
+      default: true
+      selector:
+        boolean:
+    create_backup:
+      name: Create Backup
+      description: "Create a database backup before live write. Defaults to true."
+      required: false
+      default: true
+      selector:
+        boolean:
+    acknowledge_emergency_risk:
+      name: Acknowledge Emergency Risk
+      description: >
+        Must be true when dry_run is false. Confirms this emergency service writes
+        directly to the SFML database and may reset learned model layers.
+      required: false
+      default: false
+      selector:
+        boolean:
+
 run_all_day_end_tasks:
   name: "🌙 Run All Day-End Tasks"
   description: "Developer only or on advice."
@@ -77,7 +197,7 @@ run_adaptive_forecast:
   fields: {}
 
 run_operational_reforecast:
-  name: "🔄 Run Operational Intraday Reforecast"
+  name: "🔄 MDC Re-Forecast-Test Dev-Only"
   description: "Developer only or on advice."
   fields:
     cutoff_hour:
@@ -92,18 +212,18 @@ run_operational_reforecast:
           mode: box
 
 set_operational_reforecast_mode:
-  name: Activate SFML Hybrid Mode
-  description: "Mit diesen Einstellungen bestimmen Sie, ob und in welcher Form Sie den Hybrid-Modus von SFML aktivieren möchten. Bitte beachten Sie: Die Standardeinstellung ist für die meisten Nutzer ausreichend und hardwareoptimiert. Jeder zusätzliche Forecast triggert die KI erneut und benötigt weitere Hardware-Ressourcen."
+  name: Configure SFML Hybrid Forecast
+  description: "Mit diesen Einstellungen bestimmen Sie restartfest, ob und zu welchen zusätzlichen Zeitpunkten SFML den Hybrid Forecast ausführen soll. Die Standardeinstellung nutzt nur die reguläre Morgenprognose und ist für die meisten Nutzer ausreichend und hardwareoptimiert. Jeder zusätzliche Forecast triggert die KI erneut und benötigt weitere Hardware-Ressourcen. Den aktiven Zustand sehen Sie im Sensor Hybrid Forecast Status."
   fields:
     mode:
       name: "Hybrid-Modus"
-      description: "Wählen Sie, ob zusätzliche operative Reforecasts geplant werden."
+      description: "Wählen Sie, ob zusätzliche future-only Hybrid-Forecasts geplant werden."
       required: true
       example: "standard_midday"
       selector:
         select:
           options:
-            - label: "1 = Standard (45 Min vor Sonnenaufgang)"
+            - label: "1 = Standard (nur reguläre Morgenprognose)"
               value: "standard"
             - label: "2 = Standard + Mittag (12:00)"
               value: "standard_midday"

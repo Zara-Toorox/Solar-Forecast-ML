@@ -15,11 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, CONF_SMART_CHARGING_ENABLED
-from .sensors.binary_sensors import (
-    CheapEnergyBinarySensor,
-    SmartChargingBinarySensor,
-    SurplusAvailableBinarySensor,
-)
+from .sensors.binary_sensors import CheapEnergyBinarySensor, SmartChargingBinarySensor
 
 
 async def async_setup_entry(
@@ -30,10 +26,10 @@ async def async_setup_entry(
     """Set up SFML Stats binary sensor entities from a config entry. @zara"""
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator = data.get("gpm_coordinator")
+    if coordinator is None:
+        return
 
-    entities = [SurplusAvailableBinarySensor(hass, entry)]
-    if coordinator is not None:
-        entities.append(CheapEnergyBinarySensor(coordinator, entry))
-        if entry.data.get(CONF_SMART_CHARGING_ENABLED):
-            entities.append(SmartChargingBinarySensor(coordinator, entry))
+    entities = [CheapEnergyBinarySensor(coordinator, entry)]
+    if entry.data.get(CONF_SMART_CHARGING_ENABLED):
+        entities.append(SmartChargingBinarySensor(coordinator, entry))
     async_add_entities(entities)
