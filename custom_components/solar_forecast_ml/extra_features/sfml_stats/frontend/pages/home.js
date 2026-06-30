@@ -152,6 +152,16 @@ const _HomePage = {
                         <div class="weather-badge source-badge" v-if="infoData.outdoorSource === 'forecast'">
                             <span class="badge-val">{{ $t('common.forecast') }}</span>
                         </div>
+                        <div
+                            v-for="chip in flowStatusChips"
+                            :key="chip.entity_id"
+                            class="weather-badge flow-status-chip"
+                            :class="statusChipClass(chip)"
+                            :title="statusChipTitle(chip)"
+                        >
+                            <span class="badge-val">{{ chip.label }}</span>
+                            <span class="badge-chip-value">{{ chip.display }}</span>
+                        </div>
                     </div>
                 </div>
                 <div class="time-badge">
@@ -559,7 +569,7 @@ const _HomePage = {
             <div class="chart-header" style="margin-bottom: var(--space-md);">
                 <span class="chart-title">☀ {{ $t('settings.panelGroups') }}</span>
             </div>
-            <div class="panel-groups-grid">
+            <div class="panel-groups-grid" :class="'count-' + Object.keys(panelGroupsData.groups || {}).length">
                 <div class="chart-card panel-group-chart-card" v-for="(group, groupName) in panelGroupsData.groups" :key="groupName">
                     <div class="chart-header" style="flex-wrap:wrap; gap:6px; margin-bottom: 8px;">
                         <span class="chart-title" style="font-size:0.92rem; font-weight: 700;">☀ {{ groupName }}</span>
@@ -578,7 +588,7 @@ const _HomePage = {
                             </span>
                         </div>
                     </div>
-                    <div v-if="groupHasHourly(group)" :ref="el => { if (el) pgChartRefs[groupName] = el }" style="height: 220px; width: 100%;"></div>
+                    <div v-if="groupHasHourly(group)" class="panel-group-chart" :ref="el => { if (el) pgChartRefs[groupName] = el }"></div>
                     <div v-else class="empty-state">{{ $t('home.panelGroups.liveOnlyText') }}</div>
                 </div>
             </div>
@@ -658,6 +668,7 @@ const _HomePage = {
 
         const panels = ref([]);
         const panelHistory = reactive({});
+        const flowStatusChips = ref([]);
 
         // Panel Groups (IST vs Prognose pro Gruppe)
         const panelGroupsData = reactive({ available: false, groups: {} });
@@ -731,6 +742,17 @@ const _HomePage = {
         const valueOrZero = (value) => value ?? 0;
         const fmtKwh = (value, digits = 2) => Number(valueOrZero(value)).toFixed(digits);
         const groupHasHourly = (group) => Array.isArray(group?.hourly) && group.hourly.length > 0;
+        const statusChipClass = (chip) => {
+            if (!chip?.available) return 'unavailable';
+            if (chip.active === true) return 'active';
+            if (chip.active === false) return 'inactive';
+            return chip.source === 'SFML' ? 'sfml' : 'stats';
+        };
+        const statusChipTitle = (chip) => {
+            if (!chip) return '';
+            const parts = [chip.label, chip.source, chip.entity_id].filter(Boolean);
+            return parts.join(' · ');
+        };
 
         const batteryPowerText = computed(() => {
             const p = Number(flow.battery_power) || 0;
@@ -848,6 +870,8 @@ const _HomePage = {
                 excludedHours: null,
                 evaluationHours: null,
                 productionCandidates: null,
+                completedCandidates: null,
+                pendingCandidates: null,
                 missingActualHours: null,
                 excludedWeatherAlertHours: null,
                 weatherAlertHours: null,
@@ -858,7 +882,10 @@ const _HomePage = {
                 discardedLearningReasonBreakdown: null,
                 evaluationActual: null,
                 evaluationPredicted: null,
+                evaluationCutoffHour: null,
+                evaluationScope: null,
                 yieldDelta: null,
+                liveDayYieldDelta: null,
                 forecastError: null,
                 forecastAccuracy: null,
             },
@@ -897,8 +924,11 @@ const _HomePage = {
             return h < 6 || h > 20;
         });
 
-        function actualRowsWithLiveDelta() {
+        function actualRowsWithLiveDelta({ includeCurrentPartial = false } = {}) {
             const rows = (forecastData.actualRaw || []).slice();
+            if (!includeCurrentPartial) {
+                return rows;
+            }
             const liveYield = Number(infoData.solarYieldToday);
             if (!Number.isFinite(liveYield) || liveYield <= 0 || !forecastData.hours.length) {
                 return rows;
@@ -936,6 +966,10 @@ const _HomePage = {
         });
 
         const actualTotal = computed(() => {
+            const liveYield = Number(infoData.solarYieldToday);
+            if (Number.isFinite(liveYield) && liveYield >= 0) {
+                return liveYield.toFixed(1);
+            }
             const source = forecastData.actualRaw.length ? actualRowsWithLiveDelta() : forecastData.actual;
             const sum = source.reduce((s, v) => s + valueOrZero(v), 0);
             return sum.toFixed(1);
@@ -971,20 +1005,15 @@ const _HomePage = {
         });
 
         const todayForecastErrorPercent = computed(() => {
-            const act = parseFloat(actualTotal.value);
-            const pred = parseFloat(forecastTotal.value);
-            if (Number.isFinite(act) && Number.isFinite(pred) && pred > 0) {
-                return ((act - pred) / pred) * 100;
-            }
             return cleanEvalStats.today.forecastError;
         });
 
         const todayForecastAccuracyPercent = computed(() => {
-            if (todayForecastErrorPercent.value != null) {
-                return Math.max(0, 100 - Math.abs(todayForecastErrorPercent.value));
-            }
             if (cleanEvalStats.today.forecastAccuracy != null) {
                 return cleanEvalStats.today.forecastAccuracy;
+            }
+            if (todayForecastErrorPercent.value != null) {
+                return Math.max(0, 100 - Math.abs(todayForecastErrorPercent.value));
             }
             return cleanEvalStats.today.accuracy;
         });
@@ -1817,6 +1846,9 @@ const _HomePage = {
                 if (data.consumers) {
                     Object.assign(consumers, data.consumers);
                 }
+                flowStatusChips.value = Array.isArray(data.status_chips)
+                    ? data.status_chips.filter(chip => chip && chip.label)
+                    : [];
 
                 // Panel data
                 if (data.panels && Array.isArray(data.panels)) {
@@ -1868,6 +1900,8 @@ const _HomePage = {
                 cleanEvalStats.today.excludedHours = today?.excluded_hours_count ?? null;
                 cleanEvalStats.today.evaluationHours = today?.evaluation_hours_count ?? null;
                 cleanEvalStats.today.productionCandidates = today?.production_candidate_hours_count ?? null;
+                cleanEvalStats.today.completedCandidates = today?.completed_candidate_hours_count ?? null;
+                cleanEvalStats.today.pendingCandidates = today?.pending_candidate_hours_count ?? null;
                 cleanEvalStats.today.missingActualHours = today?.missing_actual_hours_count ?? null;
                 cleanEvalStats.today.excludedWeatherAlertHours = today?.excluded_weather_alert_hours_count ?? null;
                 cleanEvalStats.today.weatherAlertHours = today?.weather_alert_hours_count ?? null;
@@ -1878,7 +1912,10 @@ const _HomePage = {
                 cleanEvalStats.today.discardedLearningReasonBreakdown = today?.discarded_learning_reason_breakdown ?? null;
                 cleanEvalStats.today.evaluationActual = today?.evaluation_actual_kwh ?? null;
                 cleanEvalStats.today.evaluationPredicted = today?.evaluation_predicted_kwh ?? null;
+                cleanEvalStats.today.evaluationCutoffHour = today?.evaluation_cutoff_hour ?? null;
+                cleanEvalStats.today.evaluationScope = today?.evaluation_scope ?? null;
                 cleanEvalStats.today.yieldDelta = today?.yield_delta_vs_forecast_percent ?? null;
+                cleanEvalStats.today.liveDayYieldDelta = today?.live_day_yield_delta_vs_forecast_percent ?? null;
                 cleanEvalStats.today.forecastError = (
                     today?.forecast_error_vs_sot_percent
                     ?? today?.yield_delta_vs_forecast_percent
@@ -2189,7 +2226,15 @@ const _HomePage = {
                                 return s;
                             }
                         },
-                        legend: { data: [t('common.actual'), t('common.forecast')], textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 }, top: 0, right: 5 },
+                        legend: {
+                            data: [t('common.actual'), t('common.forecast')],
+                            textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 },
+                            top: 0,
+                            right: 0,
+                            itemGap: 12,
+                            itemWidth: 22,
+                            itemHeight: 10,
+                        },
                         xAxis: {
                             type: 'category',
                             data: hours.map(h => String(h).padStart(2, '0') + ':00'),
@@ -2252,10 +2297,10 @@ const _HomePage = {
 
                 forecastData.hours = todayData.map(h => h.target_hour);
                 const rawFc = todayData.map(h => h.prediction_kwh ?? 0);
-                const rawAc = todayData.map(h => h.actual_kwh ?? 0);
+                const rawAc = todayData.map(h => h.actual_kwh ?? null);
                 const trimmed = trimSolarWindow(rawAc, rawFc);
                 forecastData.forecastRaw = rawFc;
-                forecastData.actualRaw = todayData.map(h => h.actual_kwh ?? null);
+                forecastData.actualRaw = rawAc;
                 forecastData.forecast = trimmed.forecast;
                 forecastData.actual = trimmed.actual;
                 const hybridPayload = res.data.hybrid || {};
@@ -2354,23 +2399,24 @@ const _HomePage = {
                         const pred = forecastData.forecast[idx] ?? 0;
                         const hybrid = forecastData.hybrid[idx];
                         const liveActualRows = actualRowsWithLiveDelta();
-                        const act = liveActualRows[idx] ?? forecastData.actual[idx] ?? 0;
+                        const actValue = liveActualRows[idx] ?? forecastData.actual[idx] ?? null;
+                        const act = actValue == null ? null : Number(actValue);
                         const conf = forecastData.confidence[idx] ?? 0;
                         const mlPct = forecastData.ml_pct[idx] ?? 0;
                         const method = forecastData.method[idx] || '--';
                         const temp = forecastData.temperature[idx];
                         const rad = forecastData.radiation[idx];
                         const clouds = forecastData.clouds[idx];
-                        const delta = pred > 0 ? (((act - pred) / pred) * 100).toFixed(1) : '0.0';
-                        const forecastError = pred > 0 ? (((act - pred) / pred) * 100).toFixed(1) : null;
+                        const delta = act != null && pred > 0 ? (((act - pred) / pred) * 100).toFixed(1) : null;
+                        const forecastError = delta;
 
                         let s = '<div style="min-width:180px">';
                         s += '<div style="font-weight:700;font-size:13px;margin-bottom:6px">' + String(hour).padStart(2,'0') + ':00 ' + t('home.oClock') + '</div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:4px 0 6px"></div>';
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">' + t('common.forecast') + ':</span><span>' + pred.toFixed(2) + ' kWh</span></div>';
                         if (hybrid != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#38bdf8">' + t('home.hybrid') + ':</span><span>' + hybrid.toFixed(2) + ' kWh</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">' + t('common.actual') + ':</span><span>' + act.toFixed(2) + ' kWh</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('common.yield') + ' &Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">' + t('common.actual') + ':</span><span>' + (act == null ? '--' : act.toFixed(2) + ' kWh') + '</span></div>';
+                        if (delta != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('common.yield') + ' &Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
                         if (forecastError != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('solar.weeklyTable.forecastError') + ':</span><span style="color:' + forecastBandColor(parseFloat(forecastError)) + '">' + (parseFloat(forecastError) >= 0 ? '+' : '') + forecastError + '%</span></div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
                         s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">AI Stack:</div>';
@@ -2736,7 +2782,7 @@ const _HomePage = {
 
         return {
             forecastChartEl, powerChartEl, sparklineRefs,
-            flow, panels, panelHistory, infoData, panelGroupsData, pgChartRefs,
+            flow, panels, panelHistory, infoData, flowStatusChips, panelGroupsData, pgChartRefs,
             forecastData, powerData, dailyForecasts,
             fmtKwh, groupHasHourly,
             weatherTrace, hasWeatherTrace,
@@ -2751,7 +2797,7 @@ const _HomePage = {
             getGridPower, getGridLabel, fmtKw, fmtW,
             forecastBandColor, forecastBandColorFromAccuracy,
             getSparklinePath, getSparklineAreaPath,
-            getWeatherSymbol,
+            getWeatherSymbol, statusChipClass, statusChipTitle,
             consumers, routes, batteryPowerText, batteryStateTextLocal,
             batteryStateClass, gridPowerAbsText, gridStateTextLocal,
             gridStateColorClass, localText,
@@ -3285,8 +3331,23 @@ const _HomePage = {
         /* ===== Panel Groups ===== */
         .panel-groups-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: var(--space-md);
+            align-items: stretch;
+        }
+        .panel-groups-grid.count-4 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .panel-groups-grid.count-2 {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .panel-groups-grid.count-1 {
+            grid-template-columns: minmax(0, 720px);
+        }
+        .panel-group-chart {
+            height: 220px;
+            width: 100%;
+            min-width: 0;
         }
         .panel-group-card {
             background: var(--card-bg, rgba(255,255,255,0.03));
@@ -3684,6 +3745,8 @@ const _HomePage = {
             border: 1px solid var(--border-default);
             border-radius: var(--radius-lg);
             padding: var(--space-md);
+            min-width: 0;
+            overflow: hidden;
             backdrop-filter: var(--glass-blur);
             -webkit-backdrop-filter: var(--glass-blur);
             transition: border-color var(--transition-normal);
@@ -3698,6 +3761,20 @@ const _HomePage = {
         }
         .chart-card:hover {
             border-color: var(--border-hover);
+        }
+
+        @media (max-width: 1180px) {
+            .panel-groups-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 760px) {
+            .panel-groups-grid,
+            .panel-groups-grid.count-4,
+            .panel-groups-grid.count-2 {
+                grid-template-columns: minmax(0, 1fr);
+            }
         }
 
         /* === FLOW LAYOUT (SVG + Info Panel under SVG) === */
@@ -3780,6 +3857,7 @@ const _HomePage = {
             align-items: center;
             gap: var(--space-sm);
             margin-left: var(--space-md);
+            flex-wrap: wrap;
         }
         .weather-badge {
             display: inline-flex;
@@ -3814,6 +3892,49 @@ const _HomePage = {
             letter-spacing: 0.05em;
             font-weight: 600;
             color: var(--text-muted);
+        }
+        .flow-status-chip {
+            gap: 6px;
+            white-space: nowrap;
+            max-width: 180px;
+        }
+        .flow-status-chip.sfml {
+            border-color: rgba(56, 189, 248, 0.24);
+            color: #38bdf8;
+        }
+        .flow-status-chip.stats {
+            border-color: rgba(168, 85, 247, 0.24);
+            color: #a855f7;
+        }
+        .flow-status-chip.active {
+            border-color: rgba(34, 197, 94, 0.32);
+            background: rgba(34, 197, 94, 0.11);
+            color: #22c55e;
+        }
+        .flow-status-chip.inactive {
+            border-color: rgba(148, 163, 184, 0.18);
+            color: var(--text-muted);
+        }
+        .flow-status-chip.unavailable {
+            border-color: rgba(239, 68, 68, 0.24);
+            color: #ef4444;
+            opacity: 0.82;
+        }
+        .badge-chip-value {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .flow-status-chip.active .badge-chip-value {
+            color: #22c55e;
+        }
+        .flow-status-chip.inactive .badge-chip-value {
+            color: var(--text-muted);
+        }
+        .flow-status-chip.unavailable .badge-chip-value {
+            color: #ef4444;
         }
         .time-badge {
             display: inline-flex;
