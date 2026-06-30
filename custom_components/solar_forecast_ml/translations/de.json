@@ -193,7 +193,8 @@
           "learning_backup_protection": "Lerndaten-Schutz",
           "zero_export_mode": "Nulleinspeisung aktiv",
           "has_battery": "Batteriespeicher vorhanden",
-          "solar_to_battery_sensor": "Solar-zu-Akku Sensor"
+          "solar_to_battery_sensor": "Solar-zu-Akku Sensor",
+          "max_grid_export_w": "Max. erlaubte Netzeinspeisung"
         },
         "data_description": {
           "update_interval": "Prognose-Update-Intervall (300-86400s, Standard: 3600)",
@@ -216,7 +217,8 @@
           "learning_backup_protection": "Synchronisiert Lerndaten automatisch nach /share/ zum Schutz vor Backup-Restore. Bei aktivierter Option bleibt der Lernfortschritt auch nach einem HA Backup-Restore erhalten. Standard: AN",
           "zero_export_mode": "⚡ MPPT-DROSSELERKENNUNG\n\nAktiviere diese Option wenn du eine Nulleinspeise-Regelung hast (z.B. Shelly).\n\n📌 WARUM IST DAS WICHTIG?\nBei Nulleinspeisung drosselt der Wechselrichter die Produktion auf den Hausbedarf. Das ML würde dann lernen: 'Sonnenschein = 200W' statt 'Sonnenschein = 1000W (aber gedrosselt)'.\n\n✅ Mit aktivierter Option werden gedrosselte Stunden vom ML-Training ausgeschlossen.\n\n⚠️ Funktioniert nur bei guten Wetterbedingungen (Sonne, wenig Wolken) UND wenn die Produktion deutlich unter der Physik-Vorhersage liegt.",
           "has_battery": "⚡ MPPT-DROSSELERKENNUNG (Erweiterung)\n\nAktiviere diese Option wenn du einen Batteriespeicher hast.\n\n📌 WARUM IST DAS WICHTIG?\nWenn der Akku voll ist UND Nulleinspeisung aktiv ist, drosselt der MPPT die Produktion. SFML erkennt das wenn der 'Solar-zu-Akku' Wert unter 50W fällt.\n\n⚠️ Bei Aktivierung MUSS der 'Solar-zu-Akku Sensor' konfiguriert werden!",
-          "solar_to_battery_sensor": "⚡ MPPT-DROSSELERKENNUNG (Sensor)\n\nLeistungs-Sensor der den Energiefluss von PV zur Batterie misst (in Watt).\n\n📌 BEISPIELE:\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 WIE FUNKTIONIERT ES?\nWenn dieser Wert bei gutem Wetter unter 50W fällt, nimmt der Akku keine Energie mehr auf → Akku ist voll → MPPT drosselt → Stunde wird vom Training ausgeschlossen.\n\n⚠️ Nur relevant wenn 'Batteriespeicher vorhanden' aktiviert ist!"
+          "solar_to_battery_sensor": "⚡ MPPT-DROSSELERKENNUNG (Sensor)\n\nLeistungs-Sensor der den Energiefluss von PV zur Batterie misst (in Watt).\n\n📌 BEISPIELE:\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 WIE FUNKTIONIERT ES?\nWenn dieser Wert bei gutem Wetter unter 50W fällt, nimmt der Akku keine Energie mehr auf → Akku ist voll → MPPT drosselt → Stunde wird vom Training ausgeschlossen.\n\n⚠️ Nur relevant wenn 'Batteriespeicher vorhanden' aktiviert ist!",
+          "max_grid_export_w": "Optionales Einspeise- oder AC-Ausgangslimit in Watt. Standard: 800 W. Bei aktiver Nulleinspeisung verwendet SFML intern 0 W. Der Wert hilft, Drosselung bei vollem Akku zu erkennen, wenn der Hausbedarf gedeckt ist und die Produktion trotzdem am Limit hängt."
         }
       }
     },

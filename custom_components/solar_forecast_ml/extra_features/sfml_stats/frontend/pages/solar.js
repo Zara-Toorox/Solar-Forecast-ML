@@ -253,10 +253,16 @@ const _SolarPage = {
                             <div class="sm-scene-title">{{ $t('solar.movement.dailyByGroup') }}</div>
                             <div class="sm-scene-subtitle">{{ smSceneModeLabel }}</div>
                         </div>
-                        <div class="sm-scene-badges">
-                            <span class="sm-badge">{{ shadowMovement.hourData.panels.length }} {{ $t('settings.groupsSuffix') }}</span>
-                            <span class="sm-badge" :class="smCauseBadgeClass">{{ shadowMovement.hourData.shadowPct }}% {{ $t('solar.movement.shadowShort') }}</span>
-                        </div>
+	                    <div class="sm-scene-badges">
+	                        <span class="sm-badge">{{ shadowMovement.hourData.panels.length }} {{ $t('settings.groupsSuffix') }}</span>
+	                        <span class="sm-badge" :class="smCauseBadgeClass">{{ shadowMovement.hourData.shadowPct }}% {{ $t('solar.movement.shadowShort') }}</span>
+	                        <span class="sm-badge severity-throttled" v-if="shadowMovement.hourData.throttledPanelsCount > 0">
+	                            {{ shadowMovement.hourData.throttledPanelsCount }} {{ $t('solar.movement.throttledShort') }}
+	                        </span>
+	                        <span class="sm-badge severity-nodata" v-if="shadowMovement.hourData.excludedPanelsCount > shadowMovement.hourData.throttledPanelsCount">
+	                            {{ shadowMovement.hourData.excludedPanelsCount - shadowMovement.hourData.throttledPanelsCount }} {{ $t('solar.movement.excludedShort') }}
+	                        </span>
+	                    </div>
                     </div>
 
                     <div class="sm-sun-track">
@@ -287,8 +293,9 @@ const _SolarPage = {
                                 <span>{{ panel.shadowLabel }}</span>
                                 <span>{{ panel.sourceLabel }}</span>
                             </div>
-                            <div class="sm-panel-shadow-overlay"
-                                 :style="{ opacity: (panel.shadowPct || 0) / 100 }"></div>
+	                            <div class="sm-panel-shadow-overlay"
+	                                 :class="{ 'is-excluded': panel.excluded }"
+	                                 :style="{ opacity: panel.excluded ? 0.12 : (panel.shadowPct || 0) / 100 }"></div>
                         </div>
                     </div>
 
@@ -648,13 +655,13 @@ const _SolarPage = {
             playing: false,
             groupNames: [],
             availableDates: [],
-            allDates: {},
-            hourData: {
-                shadowPct: 0, efficiency: 100, cause: '--', lossKwh: 0,
-                panels: [],
-            },
-            typicalData: {},
-        });
+	            allDates: {},
+	            hourData: {
+	                shadowPct: 0, efficiency: 100, cause: '--', lossKwh: 0,
+	                panels: [], validPanelsCount: 0, excludedPanelsCount: 0, throttledPanelsCount: 0,
+	            },
+	            typicalData: {},
+	        });
 
         const smSunPosition = computed(() => ((shadowMovement.currentHour - 6) / 14) * 100);
 
@@ -668,10 +675,14 @@ const _SolarPage = {
         const smSceneModeLabel = computed(() => shadowMovement.selectedDate === 'typical'
             ? t('solar.movement.sceneTypical')
             : t('solar.movement.sceneHourly'));
-        const smCauseBadgeClass = computed(() => {
-            const p = shadowMovement.hourData.shadowPct || 0;
-            if (p >= 60) return 'severity-heavy';
-            if (p >= 30) return 'severity-medium';
+	        const smCauseBadgeClass = computed(() => {
+	            if ((shadowMovement.hourData.excludedPanelsCount || 0) > 0
+	                && (shadowMovement.hourData.validPanelsCount || 0) === 0) {
+	                return 'severity-throttled';
+	            }
+	            const p = shadowMovement.hourData.shadowPct || 0;
+	            if (p >= 60) return 'severity-heavy';
+	            if (p >= 30) return 'severity-medium';
             if (p > 5) return 'severity-light';
             return 'severity-clear';
         });
@@ -687,50 +698,162 @@ const _SolarPage = {
             if (hasData === 'forecast_only') return 'forecast';
             if (shadowPct >= 60) return 'heavy';
             if (shadowPct >= 30) return 'medium';
-            if (shadowPct > 5) return 'light';
-            return 'clear';
-        }
-        function smShadowStatusLabel(shadowPct, hasData) {
-            const severity = smShadowSeverity(shadowPct, hasData);
-            if (severity === 'nodata') return t('common.noData');
-            if (severity === 'forecast') return t('solar.movement.forecastOnly');
+	            if (shadowPct > 5) return 'light';
+	            return 'clear';
+	        }
+	        function smDiscardReasonLabel(reason) {
+	            const reasonLabels = {
+	                mppt_throttled: 'MPPT',
+	                inverter_clipped: 'Clipping',
+	                missing_data: t('solar.discarded.missingData'),
+	                manual_pause: t('solar.discarded.manualPause'),
+	                suspected_battery_curtailment: t('solar.discarded.suspectedBatteryCurtailment'),
+	                demand_limited_zero_export: t('solar.discarded.demandLimitedZeroExport'),
+	                excluded_from_clean_evaluation: t('solar.discarded.excludedFromCleanEvaluation'),
+	                excluded: t('solar.discarded.excluded'),
+	                weather_alert: t('solar.discarded.weatherAlert'),
+	                snow: t('solar.discarded.snow'),
+	                snow_covered_group: t('solar.discarded.snow'),
+	                fog: t('solar.discarded.fog'),
+	                grid_failure: t('solar.discarded.gridFailure'),
+	                external_limit: t('solar.discarded.externalLimit'),
+	                inverter_limit: t('solar.discarded.inverterLimit'),
+	                manual_limit: t('solar.discarded.manualLimit'),
+	                battery_full: t('solar.discarded.batteryFull'),
+	                curtailment: t('solar.discarded.curtailment'),
+	                group_excluded_from_learning: t('solar.movement.excluded'),
+	                topology_incompatible: t('solar.movement.excluded'),
+	            };
+	            return reasonLabels[reason] || reason || t('solar.movement.excluded');
+	        }
+	        function smIsThrottleReason(reason) {
+	            return [
+	                'mppt_throttled', 'inverter_clipped', 'suspected_battery_curtailment',
+	                'demand_limited_zero_export', 'external_limit', 'inverter_limit',
+	                'manual_limit', 'battery_full', 'curtailment',
+	            ].includes(reason);
+	        }
+	        function smPanelExclusionStatus(reason) {
+	            return smIsThrottleReason(reason) ? t('solar.movement.throttled') : smDiscardReasonLabel(reason);
+	        }
+	        function smShadowStatusLabel(shadowPct, hasData, reason = null) {
+	            if (hasData === 'excluded') return smPanelExclusionStatus(reason);
+	            const severity = smShadowSeverity(shadowPct, hasData);
+	            if (severity === 'nodata') return t('common.noData');
+	            if (severity === 'forecast') return t('solar.movement.forecastOnly');
             if (severity === 'heavy') return t('solar.movement.heavyShaded');
             if (severity === 'medium') return t('solar.movement.partiallyShaded');
             if (severity === 'light') return t('solar.movement.lightlyShaded');
             return t('solar.movement.clear');
         }
-        function smPanelBg(eff) {
-            const a = 0.15 * (eff / 100);
-            const b = 0.05 * (eff / 100);
-            return { background: 'linear-gradient(180deg, rgba(251,191,36,' + a + '), rgba(251,191,36,' + b + '))' };
-        }
+	        function smPanelBg(eff) {
+	            const a = 0.15 * (eff / 100);
+	            const b = 0.05 * (eff / 100);
+	            return { background: 'linear-gradient(180deg, rgba(251,191,36,' + a + '), rgba(251,191,36,' + b + '))' };
+	        }
+	        function smNumber(value) {
+	            if (value === null || value === undefined || value === '') return null;
+	            const num = Number(value);
+	            return Number.isFinite(num) ? num : null;
+	        }
+	        function smRoundPct(value) {
+	            const num = smNumber(value);
+	            if (num == null) return 0;
+	            return Math.round(Math.max(0, Math.min(100, num)));
+	        }
+	        function smDominantExclusionLabel(panels) {
+	            const reasons = {};
+	            panels.forEach(panel => {
+	                const reason = panel.exclusionReason || 'excluded';
+	                reasons[reason] = (reasons[reason] || 0) + 1;
+	            });
+	            const dominant = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0]?.[0];
+	            return smPanelExclusionStatus(dominant);
+	        }
+	        function smSummarizePanels(panels, cleanShadow = null, fallbackShadow = {}) {
+	            const validPanels = panels.filter(panel => !panel.excluded && typeof panel.shadowPct === 'number');
+	            const excludedPanels = panels.filter(panel => panel.excluded);
+	            const throttledPanels = excludedPanels.filter(panel => smIsThrottleReason(panel.exclusionReason));
+	            const cleanPct = smNumber(cleanShadow?.pct);
+	            const cleanEfficiency = smNumber(cleanShadow?.efficiency);
+	            const cleanLoss = smNumber(cleanShadow?.loss);
+	            const panelEfficiencies = validPanels
+	                .map(panel => panel.efficiencyValue)
+	                .filter(value => typeof value === 'number' && value >= 0);
+	            const panelLoss = validPanels.reduce((sum, panel) => sum + (panel.lossKwh || 0), 0);
+	            const hasBackendClean = cleanShadow && (cleanShadow.valid_groups || validPanels.length);
+	            const shadowPct = hasBackendClean && cleanPct != null
+	                ? smRoundPct(cleanPct)
+	                : (validPanels.length
+	                    ? smRoundPct(validPanels.reduce((sum, panel) => sum + panel.shadowPct, 0) / validPanels.length)
+	                    : 0);
+	            const efficiency = cleanEfficiency != null
+	                ? smRoundPct(cleanEfficiency)
+	                : (panelEfficiencies.length
+	                    ? smRoundPct(panelEfficiencies.reduce((sum, value) => sum + value, 0) / panelEfficiencies.length)
+	                    : (validPanels.length ? Math.max(0, 100 - shadowPct) : 0));
+	            const lossKwh = cleanLoss != null
+	                ? cleanLoss.toFixed(3)
+	                : (panelLoss > 0 ? panelLoss.toFixed(3) : (excludedPanels.length ? 0 : (fallbackShadow.loss || 0)));
+	            const cause = validPanels.length
+	                ? (SHADOW_CAUSE_LABELS[fallbackShadow.cause] || fallbackShadow.cause || t('solar.movement.noShadow'))
+	                : (excludedPanels.length ? smDominantExclusionLabel(excludedPanels) : t('solar.movement.noShadow'));
+	            return {
+	                shadowPct,
+	                efficiency,
+	                cause,
+	                lossKwh,
+	                validPanelsCount: validPanels.length,
+	                excludedPanelsCount: excludedPanels.length,
+	                throttledPanelsCount: throttledPanels.length,
+	            };
+	        }
 
-        function smFormatPanel(panelName, rawPanel, fallbackShadowPct = 0) {
-            const panel = rawPanel || {};
-            const hasActual = panel.actual != null && panel.actual > 0;
-            const hasPrediction = panel.prediction != null && panel.prediction > 0;
-            const hasAnySignal = hasActual || hasPrediction || fallbackShadowPct > 0;
-            const statusMode = hasActual ? true : (hasPrediction ? 'forecast_only' : hasAnySignal);
-            const efficiencyValue = hasActual && typeof panel.efficiency === 'number'
-                ? panel.efficiency
-                : null;
-            const shadowPct = hasActual ? (panel.shadow_pct || 0) : (hasPrediction ? null : fallbackShadowPct);
-            return {
-                name: panelName,
-                efficiencyValue,
-                efficiencyLabel: hasActual && typeof panel.efficiency === 'number'
-                    ? `${panel.efficiency}%`
-                    : '--',
-                shadowPct,
-                shadowLabel: shadowPct == null ? t('solar.movement.shadowUnknown') : `${Math.round(shadowPct || 0)}% ${t('solar.movement.shadowShort')}`,
-                actualLabel: hasActual
-                    ? panel.actual.toFixed(3)
-                    : (hasPrediction ? `~${panel.prediction.toFixed(3)}` : '--'),
-                sourceLabel: hasActual ? t('solar.movement.actual') : (hasPrediction ? t('solar.movement.forecastValue') : t('common.noData')),
-                severity: smShadowSeverity(shadowPct || 0, statusMode),
-                statusLabel: smShadowStatusLabel(shadowPct || 0, statusMode),
-            };
-        }
+	        function smFormatPanel(panelName, rawPanel, fallbackShadowPct = 0) {
+	            const panel = rawPanel || {};
+	            const actualValue = smNumber(panel.actual);
+	            const predictionValue = smNumber(panel.prediction);
+	            const theoreticalValue = smNumber(panel.theoretical);
+	            const hasActual = actualValue != null;
+	            const hasPrediction = predictionValue != null && predictionValue > 0;
+	            const isExcluded = panel.excluded === true || Boolean(panel.exclusion_reason);
+	            const exclusionReason = panel.exclusion_reason || (isExcluded ? 'excluded' : null);
+	            const hasAnySignal = hasActual || hasPrediction || fallbackShadowPct > 0;
+	            const statusMode = isExcluded ? 'excluded' : (hasActual ? true : (hasPrediction ? 'forecast_only' : hasAnySignal));
+	            const rawEfficiency = smNumber(panel.efficiency);
+	            const efficiencyValue = !isExcluded && hasActual && rawEfficiency != null
+	                ? rawEfficiency
+	                : null;
+	            const rawShadowPct = smNumber(panel.shadow_pct);
+	            const shadowPct = isExcluded
+	                ? null
+	                : (hasActual && rawShadowPct != null ? rawShadowPct : (hasPrediction ? null : fallbackShadowPct));
+	            const lossKwh = !isExcluded && hasActual && theoreticalValue != null && theoreticalValue > actualValue
+	                ? Math.max(0, theoreticalValue - actualValue)
+	                : 0;
+	            return {
+	                name: panelName,
+	                efficiencyValue,
+	                efficiencyLabel: efficiencyValue != null
+	                    ? `${efficiencyValue}%`
+	                    : '--',
+	                shadowPct,
+	                shadowLabel: isExcluded
+	                    ? t('solar.movement.notShadow')
+	                    : (shadowPct == null ? t('solar.movement.shadowUnknown') : `${Math.round(shadowPct || 0)}% ${t('solar.movement.shadowShort')}`),
+	                actualLabel: hasActual
+	                    ? actualValue.toFixed(3)
+	                    : (hasPrediction ? `~${predictionValue.toFixed(3)}` : '--'),
+	                sourceLabel: isExcluded
+	                    ? t('solar.movement.excluded')
+	                    : (hasActual ? t('solar.movement.actual') : (hasPrediction ? t('solar.movement.forecastValue') : t('common.noData'))),
+	                severity: isExcluded ? 'throttled' : smShadowSeverity(shadowPct || 0, statusMode),
+	                statusLabel: smShadowStatusLabel(shadowPct || 0, statusMode, exclusionReason),
+	                excluded: isExcluded,
+	                exclusionReason,
+	                lossKwh,
+	            };
+	        }
 
         function smBuildPanelsFromGroups(groups, fallbackShadowPct = 0) {
             const orderedNames = shadowMovement.groupNames.length
@@ -742,24 +865,29 @@ const _SolarPage = {
             });
         }
 
-        function smPanelStyle(panel) {
-            return smPanelBg(panel?.efficiencyValue || 0);
-        }
-        function smPanelMeterStyle(panel) {
-            const width = typeof panel?.efficiencyValue === 'number'
+	        function smPanelStyle(panel) {
+	            if (panel?.excluded) {
+	                return { background: 'linear-gradient(180deg, rgba(59,130,246,0.10), rgba(15,23,42,0.08))' };
+	            }
+	            return smPanelBg(panel?.efficiencyValue || 0);
+	        }
+	        function smPanelMeterStyle(panel) {
+	            const width = typeof panel?.efficiencyValue === 'number'
                 ? Math.max(0, Math.min(100, panel.efficiencyValue))
                 : 0;
             return {
-                width: `${width}%`,
-                background: typeof panel?.efficiencyValue !== 'number'
-                    ? 'linear-gradient(90deg, rgba(148,163,184,0.45), rgba(148,163,184,0.2))'
-                    : width >= 85
-                        ? 'linear-gradient(90deg, rgba(34,197,94,0.95), rgba(74,222,128,0.85))'
-                        : width >= 60
-                            ? 'linear-gradient(90deg, rgba(234,179,8,0.95), rgba(251,191,36,0.85))'
-                            : 'linear-gradient(90deg, rgba(239,68,68,0.95), rgba(248,113,113,0.85))',
-            };
-        }
+	                width: `${width}%`,
+	                background: panel?.excluded
+	                    ? 'linear-gradient(90deg, rgba(59,130,246,0.65), rgba(96,165,250,0.35))'
+	                    : typeof panel?.efficiencyValue !== 'number'
+	                    ? 'linear-gradient(90deg, rgba(148,163,184,0.45), rgba(148,163,184,0.2))'
+	                    : width >= 85
+	                        ? 'linear-gradient(90deg, rgba(34,197,94,0.95), rgba(74,222,128,0.85))'
+	                        : width >= 60
+	                            ? 'linear-gradient(90deg, rgba(234,179,8,0.95), rgba(251,191,36,0.85))'
+	                            : 'linear-gradient(90deg, rgba(239,68,68,0.95), rgba(248,113,113,0.85))',
+	            };
+	        }
 
         async function loadShadowMovement() {
             try {
@@ -824,45 +952,48 @@ const _SolarPage = {
                 const dateData = smGetCurrentDateData();
                 const hd = dateData ? dateData[h] : null;
                 if (hd) {
-                    const groups = hd.groups || {};
-                    const sh = hd.shadow || {};
-                    const panels = smBuildPanelsFromGroups(groups);
-                    const panelEfficiencies = panels
-                        .map(panel => panel.efficiencyValue)
-                        .filter(value => typeof value === 'number' && value > 0);
-                    shadowMovement.hourData = {
-                        shadowPct: sh.pct || 0,
-                        efficiency: sh.efficiency || (panelEfficiencies.length
-                            ? Math.round(panelEfficiencies.reduce((sum, value) => sum + value, 0) / panelEfficiencies.length)
-                            : 100),
-                        cause: SHADOW_CAUSE_LABELS[sh.cause] || sh.cause || t('solar.movement.noShadow'),
-                        lossKwh: sh.loss || 0,
-                        panels,
-                    };
-                } else {
-                    shadowMovement.hourData = {
-                        shadowPct: 0, efficiency: 0, cause: t('common.noData'), lossKwh: 0,
-                        panels: smBuildPanelsFromGroups({}, 0),
-                    };
-                }
-            } else {
-                const d = shadowMovement.typicalData[parseInt(h)] || {};
-                const eff = d.shadowPct ? Math.max(0, 100 - d.shadowPct) : 100;
+	                    const groups = hd.groups || {};
+	                    const sh = hd.shadow || {};
+	                    const cleanShadow = hd.clean_shadow || null;
+	                    const panels = smBuildPanelsFromGroups(groups);
+	                    const summary = smSummarizePanels(panels, cleanShadow, sh);
+	                    shadowMovement.hourData = {
+	                        ...summary,
+	                        panels,
+	                    };
+	                } else {
+	                    shadowMovement.hourData = {
+	                        shadowPct: 0, efficiency: 0, cause: t('common.noData'), lossKwh: 0,
+	                        panels: smBuildPanelsFromGroups({}, 0),
+	                        validPanelsCount: 0, excludedPanelsCount: 0, throttledPanelsCount: 0,
+	                    };
+	                }
+	            } else {
+	                const d = shadowMovement.typicalData[parseInt(h)] || {};
+	                const eff = d.shadowPct ? Math.max(0, 100 - d.shadowPct) : 100;
                 shadowMovement.hourData = {
-                    shadowPct: d.shadowPct || 0,
-                    efficiency: eff,
-                    cause: d.cause || t('solar.movement.noShadow'),
-                    lossKwh: 0,
-                    panels: (shadowMovement.groupNames.length ? shadowMovement.groupNames : ['Gruppe 1']).map((name, index) => ({
-                        name: name || `Gruppe ${index + 1}`,
-                        efficiencyValue: eff,
-                        efficiencyLabel: `${eff}%`,
-                        shadowPct: d.shadowPct || 0,
-                        actualLabel: '--',
-                    })),
-                };
-            }
-        }
+	                    shadowPct: d.shadowPct || 0,
+	                    efficiency: eff,
+	                    cause: d.cause || t('solar.movement.noShadow'),
+	                    lossKwh: 0,
+	                    panels: (shadowMovement.groupNames.length ? shadowMovement.groupNames : ['Gruppe 1']).map((name, index) => ({
+	                        name: name || `Gruppe ${index + 1}`,
+	                        efficiencyValue: eff,
+	                        efficiencyLabel: `${eff}%`,
+	                        shadowPct: d.shadowPct || 0,
+	                        shadowLabel: `${Math.round(d.shadowPct || 0)}% ${t('solar.movement.shadowShort')}`,
+	                        actualLabel: '--',
+	                        sourceLabel: t('solar.movement.forecastValue'),
+	                        severity: smShadowSeverity(d.shadowPct || 0, true),
+	                        statusLabel: smShadowStatusLabel(d.shadowPct || 0, true),
+	                        excluded: false,
+	                    })),
+	                    validPanelsCount: shadowMovement.groupNames.length || 1,
+	                    excludedPanelsCount: 0,
+	                    throttledPanelsCount: 0,
+	                };
+	            }
+	        }
 
         function smOnSlider(val) {
             smUpdateHour(val);
@@ -893,17 +1024,26 @@ const _SolarPage = {
             if (!el) return;
             if (!smTimeline) smTimeline = echarts.init(el);
 
-            const data = smHourRange.map(h => {
-                if (shadowMovement.selectedDate !== 'typical') {
-                    const dateData = smGetCurrentDateData();
-                    if (dateData) {
-                        const hd = dateData[String(h)];
-                        return hd?.shadow?.pct || 0;
-                    }
-                    return 0;
-                }
-                return (shadowMovement.typicalData[h] || {}).shadowPct || 0;
-            });
+	            function smHourCleanShadowValue(hour) {
+	                if (shadowMovement.selectedDate !== 'typical') {
+	                    const dateData = smGetCurrentDateData();
+	                    if (dateData) {
+	                        const hd = dateData[String(hour)];
+	                        const clean = hd?.clean_shadow;
+	                        if (clean && smNumber(clean.pct) != null) {
+	                            return (clean.valid_groups || 0) > 0 ? smRoundPct(clean.pct) : 0;
+	                        }
+	                        if (hd?.groups) {
+	                            return smSummarizePanels(smBuildPanelsFromGroups(hd.groups), null, hd.shadow || {}).shadowPct;
+	                        }
+	                        return hd?.shadow?.pct || 0;
+	                    }
+	                    return 0;
+	                }
+	                return (shadowMovement.typicalData[hour] || {}).shadowPct || 0;
+	            }
+
+	            const data = smHourRange.map(h => smHourCleanShadowValue(h));
 
             smTimeline.setOption({
                 backgroundColor: 'transparent',
@@ -1829,11 +1969,17 @@ const _SolarPage = {
             background: rgba(239,68,68,0.14);
             border-color: rgba(239,68,68,0.28);
         }
-        .sm-panel-status.severity-forecast {
-            color: #bfdbfe;
-            background: rgba(59,130,246,0.14);
-            border-color: rgba(59,130,246,0.28);
-        }
+	        .sm-panel-status.severity-forecast {
+	            color: #bfdbfe;
+	            background: rgba(59,130,246,0.14);
+	            border-color: rgba(59,130,246,0.28);
+	        }
+	        .sm-panel-status.severity-throttled,
+	        .sm-badge.severity-throttled {
+	            color: #bfdbfe;
+	            background: rgba(59,130,246,0.16);
+	            border-color: rgba(59,130,246,0.32);
+	        }
         .sm-panel-status.severity-medium,
         .sm-badge.severity-medium {
             color: #fde68a;
@@ -1852,11 +1998,16 @@ const _SolarPage = {
             background: rgba(34,197,94,0.14);
             border-color: rgba(34,197,94,0.28);
         }
-        .sm-panel-status.severity-nodata {
-            color: #cbd5e1;
-            background: rgba(148,163,184,0.14);
-            border-color: rgba(148,163,184,0.24);
-        }
+	        .sm-panel-status.severity-nodata {
+	            color: #cbd5e1;
+	            background: rgba(148,163,184,0.14);
+	            border-color: rgba(148,163,184,0.24);
+	        }
+	        .sm-badge.severity-nodata {
+	            color: #cbd5e1;
+	            background: rgba(148,163,184,0.10);
+	            border-color: rgba(148,163,184,0.20);
+	        }
         .sm-panel-eff {
             font-size: 2rem;
             font-weight: 800;
@@ -1896,14 +2047,17 @@ const _SolarPage = {
             color: var(--text-muted);
             z-index: 1;
         }
-        .sm-panel-shadow-overlay {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, rgba(0,0,0,0.92), rgba(15,23,42,0.72));
-            transition: opacity 0.6s ease;
-            pointer-events: none;
-            z-index: 0;
-        }
+	        .sm-panel-shadow-overlay {
+	            position: absolute;
+	            inset: 0;
+	            background: linear-gradient(135deg, rgba(0,0,0,0.92), rgba(15,23,42,0.72));
+	            transition: opacity 0.6s ease;
+	            pointer-events: none;
+	            z-index: 0;
+	        }
+	        .sm-panel-shadow-overlay.is-excluded {
+	            background: linear-gradient(135deg, rgba(59,130,246,0.32), rgba(15,23,42,0.20));
+	        }
         .sm-loss-bar {
             text-align: center;
             font-size: 0.85rem;
@@ -2047,11 +2201,17 @@ const _SolarPage = {
             background: rgba(239,68,68,0.08);
             border-color: rgba(239,68,68,0.18);
         }
-        [data-theme="light"] .sm-panel-status.severity-forecast {
-            color: #1d4ed8;
-            background: rgba(59,130,246,0.08);
-            border-color: rgba(59,130,246,0.18);
-        }
+	        [data-theme="light"] .sm-panel-status.severity-forecast {
+	            color: #1d4ed8;
+	            background: rgba(59,130,246,0.08);
+	            border-color: rgba(59,130,246,0.18);
+	        }
+	        [data-theme="light"] .sm-panel-status.severity-throttled,
+	        [data-theme="light"] .sm-badge.severity-throttled {
+	            color: #1d4ed8;
+	            background: rgba(59,130,246,0.09);
+	            border-color: rgba(59,130,246,0.20);
+	        }
         [data-theme="light"] .sm-panel-status.severity-medium,
         [data-theme="light"] .sm-badge.severity-medium {
             color: #b45309;
@@ -2070,11 +2230,16 @@ const _SolarPage = {
             background: rgba(34,197,94,0.08);
             border-color: rgba(34,197,94,0.18);
         }
-        [data-theme="light"] .sm-panel-status.severity-nodata {
-            color: #475569;
-            background: rgba(148,163,184,0.08);
-            border-color: rgba(148,163,184,0.15);
-        }
+	        [data-theme="light"] .sm-panel-status.severity-nodata {
+	            color: #475569;
+	            background: rgba(148,163,184,0.08);
+	            border-color: rgba(148,163,184,0.15);
+	        }
+	        [data-theme="light"] .sm-badge.severity-nodata {
+	            color: #475569;
+	            background: rgba(148,163,184,0.06);
+	            border-color: rgba(148,163,184,0.14);
+	        }
 
         @media (max-width: 768px) {
             .annual-kpi-grid {

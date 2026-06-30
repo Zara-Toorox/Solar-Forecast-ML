@@ -130,7 +130,8 @@
           "learning_backup_protection": "Learning Data Protection",
           "zero_export_mode": "Zero Export Mode (MPPT Detection)",
           "has_battery": "Battery Storage System",
-          "solar_to_battery_sensor": "Solar-to-Battery Power Sensor"
+          "solar_to_battery_sensor": "Solar-to-Battery Power Sensor",
+          "max_grid_export_w": "Max Allowed Grid Export"
         },
         "data_description": {
           "update_interval": "Forecast update interval (300-86400s, default: 3600)",
@@ -153,7 +154,8 @@
           "learning_backup_protection": "Automatically syncs learning data to /share/ for protection against backup restore. When enabled, your learning progress survives HA backup restores. Default: ON",
           "zero_export_mode": "MPPT THROTTLE DETECTION: Enable if you have a zero-export regulation (e.g. Shelly). This prevents ML from learning incorrect values when your inverter throttles due to no grid export being allowed. When active and production is much lower than expected on sunny days, the hour is excluded from training.",
           "has_battery": "MPPT THROTTLE DETECTION: Enable if you have a battery storage system. When enabled, you must configure the Solar-to-Battery sensor below. This allows detection of throttling when the battery is full.",
-          "solar_to_battery_sensor": "MPPT THROTTLE DETECTION: Power sensor showing energy flow from PV to battery (in Watts). When this value drops below 50W during good weather conditions, the system assumes the battery is full and excludes the hour from ML training. Examples: sensor.pv_to_battery_power, sensor.battery_charging_power"
+          "solar_to_battery_sensor": "MPPT THROTTLE DETECTION: Power sensor showing energy flow from PV to battery (in Watts). When this value drops below 50W during good weather conditions, the system assumes the battery is full and excludes the hour from ML training. Examples: sensor.pv_to_battery_power, sensor.battery_charging_power",
+          "max_grid_export_w": "Optional export or AC output limit in Watt. Default: 800 W. When zero export mode is active, SFML internally uses 0 W. This helps detect full-battery curtailment when production is capped although house load is covered."
         }
       }
     },

@@ -130,7 +130,8 @@
           "learning_backup_protection": "Proteccion de datos de aprendizaje",
           "zero_export_mode": "Inyeccion cero activa",
           "has_battery": "Bateria de almacenamiento presente",
-          "solar_to_battery_sensor": "Sensor solar a bateria"
+          "solar_to_battery_sensor": "Sensor solar a bateria",
+          "max_grid_export_w": "Max allowed grid export"
         },
         "data_description": {
           "update_interval": "Intervalo de actualizacion de previsiones (300-86400s, predeterminado: 3600)",
@@ -153,7 +154,8 @@
           "learning_backup_protection": "Sincroniza automaticamente los datos de aprendizaje en /share/ para proteccion contra restauracion de copias de seguridad. Cuando esta activado, el progreso de aprendizaje sobrevive a las restauraciones de backup de HA. Predeterminado: ACTIVADO",
           "zero_export_mode": "⚡ DETECCION DE LIMITACION MPPT\n\nActive esta opcion si tiene una regulacion de inyeccion cero (ej. Shelly).\n\n📌 ¿POR QUE ES IMPORTANTE?\nCon inyeccion cero, el inversor limita la produccion al consumo del hogar. El ML aprenderia entonces: 'sol = 200W' en lugar de 'sol = 1000W (pero limitado)'.\n\n✅ Con esta opcion activada, las horas limitadas se excluyen del entrenamiento ML.\n\n⚠️ Funciona solo con buen tiempo (sol, pocas nubes) Y cuando la produccion es claramente inferior a la prevision fisica.",
           "has_battery": "⚡ DETECCION DE LIMITACION MPPT (Extension)\n\nActive esta opcion si tiene una bateria de almacenamiento.\n\n📌 ¿POR QUE ES IMPORTANTE?\nCuando la bateria esta llena Y la inyeccion cero esta activa, el MPPT limita la produccion. SFML lo detecta cuando el valor 'solar a bateria' cae por debajo de 50W.\n\n⚠️ Al activar, se DEBE configurar el 'Sensor solar a bateria'!",
-          "solar_to_battery_sensor": "⚡ DETECCION DE LIMITACION MPPT (Sensor)\n\nSensor de potencia que mide el flujo de energia del PV a la bateria (en Vatios).\n\n📌 EJEMPLOS:\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 ¿COMO FUNCIONA?\nCuando este valor cae por debajo de 50W con buen tiempo, la bateria ya no absorbe energia → bateria llena → MPPT limita → hora excluida del entrenamiento.\n\n⚠️ Solo relevante si 'Bateria de almacenamiento presente' esta activado!"
+          "solar_to_battery_sensor": "⚡ DETECCION DE LIMITACION MPPT (Sensor)\n\nSensor de potencia que mide el flujo de energia del PV a la bateria (en Vatios).\n\n📌 EJEMPLOS:\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 ¿COMO FUNCIONA?\nCuando este valor cae por debajo de 50W con buen tiempo, la bateria ya no absorbe energia → bateria llena → MPPT limita → hora excluida del entrenamiento.\n\n⚠️ Solo relevante si 'Bateria de almacenamiento presente' esta activado!",
+          "max_grid_export_w": "Optional export or AC output limit in Watt. Default: 800 W. With zero export mode active, SFML internally uses 0 W. Helps detect full-battery curtailment when house load is covered and production is capped."
         }
       }
     },

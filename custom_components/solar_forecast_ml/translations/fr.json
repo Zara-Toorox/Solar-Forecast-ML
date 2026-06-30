@@ -130,7 +130,8 @@
           "learning_backup_protection": "Protection des donnees d'apprentissage",
           "zero_export_mode": "Injection zero active",
           "has_battery": "Batterie de stockage presente",
-          "solar_to_battery_sensor": "Capteur solaire vers batterie"
+          "solar_to_battery_sensor": "Capteur solaire vers batterie",
+          "max_grid_export_w": "Max allowed grid export"
         },
         "data_description": {
           "update_interval": "Intervalle de mise a jour des previsions (300-86400s, defaut : 3600)",
@@ -153,7 +154,8 @@
           "learning_backup_protection": "Synchronise automatiquement les donnees d'apprentissage vers /share/ pour protection contre la restauration de sauvegarde. Lorsqu'elle est activee, la progression de l'apprentissage survit aux restaurations de sauvegarde HA. Defaut : ACTIVE",
           "zero_export_mode": "⚡ DETECTION DE BRIDAGE MPPT\n\nActivez cette option si vous avez une regulation d'injection zero (ex. Shelly).\n\n📌 POURQUOI EST-CE IMPORTANT ?\nAvec l'injection zero, l'onduleur bride la production au besoin du foyer. Le ML apprendrait alors : 'soleil = 200W' au lieu de 'soleil = 1000W (mais bride)'.\n\n✅ Avec cette option activee, les heures bridees sont exclues de l'entrainement ML.\n\n⚠️ Fonctionne uniquement par beau temps (soleil, peu de nuages) ET quand la production est nettement inferieure a la prevision physique.",
           "has_battery": "⚡ DETECTION DE BRIDAGE MPPT (Extension)\n\nActivez cette option si vous avez une batterie de stockage.\n\n📌 POURQUOI EST-CE IMPORTANT ?\nQuand la batterie est pleine ET que l'injection zero est active, le MPPT bride la production. SFML le detecte quand la valeur 'solaire vers batterie' tombe sous 50W.\n\n⚠️ En cas d'activation, le 'Capteur solaire vers batterie' DOIT etre configure !",
-          "solar_to_battery_sensor": "⚡ DETECTION DE BRIDAGE MPPT (Capteur)\n\nCapteur de puissance mesurant le flux d'energie du PV vers la batterie (en Watts).\n\n📌 EXEMPLES :\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 COMMENT CA FONCTIONNE ?\nQuand cette valeur tombe sous 50W par beau temps, la batterie n'absorbe plus d'energie → batterie pleine → MPPT bride → heure exclue de l'entrainement.\n\n⚠️ Pertinent uniquement si 'Batterie de stockage presente' est active !"
+          "solar_to_battery_sensor": "⚡ DETECTION DE BRIDAGE MPPT (Capteur)\n\nCapteur de puissance mesurant le flux d'energie du PV vers la batterie (en Watts).\n\n📌 EXEMPLES :\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 COMMENT CA FONCTIONNE ?\nQuand cette valeur tombe sous 50W par beau temps, la batterie n'absorbe plus d'energie → batterie pleine → MPPT bride → heure exclue de l'entrainement.\n\n⚠️ Pertinent uniquement si 'Batterie de stockage presente' est active !",
+          "max_grid_export_w": "Optional export or AC output limit in Watt. Default: 800 W. With zero export mode active, SFML internally uses 0 W. Helps detect full-battery curtailment when house load is covered and production is capped."
         }
       }
     },

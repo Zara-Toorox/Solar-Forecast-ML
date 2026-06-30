@@ -43,6 +43,7 @@ from .const import (
     CONF_HUMIDITY_SENSOR,
     CONF_INVERTER_MAX_POWER,
     CONF_LUX_SENSOR,
+    CONF_MAX_GRID_EXPORT_W,
     CONF_ML_ALGORITHM,
     CONF_NOTIFY_FORECAST,
     CONF_NOTIFY_FOG,
@@ -74,6 +75,7 @@ from .const import (
     DEFAULT_ENABLE_TINY_LSTM,
     DEFAULT_HAS_BATTERY,
     DEFAULT_INVERTER_MAX_POWER,
+    DEFAULT_MAX_GRID_EXPORT_W,
     DEFAULT_ML_ALGORITHM,
     DEFAULT_PANEL_AZIMUTH,
     DEFAULT_PANEL_TILT,
@@ -763,6 +765,19 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
             except (ValueError, TypeError):
                 errors[CONF_UPDATE_INTERVAL] = "invalid_input"
 
+            try:
+                max_grid_export_w = float(
+                    user_input.get(CONF_MAX_GRID_EXPORT_W, DEFAULT_MAX_GRID_EXPORT_W)
+                )
+                if not (0.0 <= max_grid_export_w <= 100000.0):
+                    errors[CONF_MAX_GRID_EXPORT_W] = "invalid_input"
+                elif user_input.get(CONF_ZERO_EXPORT_MODE, False):
+                    user_input[CONF_MAX_GRID_EXPORT_W] = 0.0
+                else:
+                    user_input[CONF_MAX_GRID_EXPORT_W] = max_grid_export_w
+            except (ValueError, TypeError):
+                errors[CONF_MAX_GRID_EXPORT_W] = "invalid_input"
+
             if errors:
                 return self.async_show_form(
                     step_id="init",
@@ -792,6 +807,7 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 CONF_ZERO_EXPORT_MODE,
                 CONF_HAS_BATTERY,
                 CONF_SOLAR_TO_BATTERY_SENSOR,
+                CONF_MAX_GRID_EXPORT_W,
             ]
             updated_options = {
                 **self.config_entry.options,
@@ -822,6 +838,12 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 update_interval = 1800
         except (ValueError, TypeError):
             update_interval = 1800
+
+        zero_export_mode = current_options.get(CONF_ZERO_EXPORT_MODE, DEFAULT_ZERO_EXPORT_MODE)
+        max_grid_export_w = current_options.get(
+            CONF_MAX_GRID_EXPORT_W,
+            0.0 if zero_export_mode else DEFAULT_MAX_GRID_EXPORT_W,
+        )
 
         return vol.Schema(
             {
@@ -937,6 +959,18 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                         domain=["sensor"],
                         device_class=["power"],
                         multiple=False,
+                    )
+                ),
+                vol.Optional(
+                    CONF_MAX_GRID_EXPORT_W,
+                    default=max_grid_export_w,
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=0.0,
+                        max=100000.0,
+                        step=10.0,
+                        mode=selector.NumberSelectorMode.BOX,
+                        unit_of_measurement="W",
                     )
                 ),
                 vol.Optional(
