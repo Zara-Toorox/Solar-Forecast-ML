@@ -194,19 +194,19 @@ const SettingsPage = {
                             <div class="settings-grid">
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.azimuth') }}</span>
-                                    <span class="settings-item-value">{{ pg.azimuth }}deg</span>
+                                    <span class="settings-item-value">{{ formatValue(pg.azimuth, 0, 'deg') }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.tilt') }}</span>
-                                    <span class="settings-item-value">{{ pg.tilt }}deg</span>
+                                    <span class="settings-item-value">{{ formatValue(pg.tilt, 0, 'deg') }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.power') }}</span>
-                                    <span class="settings-item-value">{{ pg.kwp }} kWp</span>
+                                    <span class="settings-item-value">{{ formatValue(pg.kwp, 3, ' kWp') }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.modules') }}</span>
-                                    <span class="settings-item-value">{{ pg.module_count || '--' }}</span>
+                                    <span class="settings-item-value">{{ pg.module_count ?? '--' }}</span>
                                 </div>
                                 <div class="settings-item" v-if="pg.factor != null">
                                     <span class="settings-item-label">{{ $t('settings.physicsFactor') }}</span>
@@ -334,6 +334,23 @@ const SettingsPage = {
         const currentLocale = vRef((window.SFMLI18n && window.SFMLI18n.current) || 'en');
         const locale = currentLocale;
         const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'en-US');
+        const timeContext = reactive({
+            timezone: null,
+            today: null,
+        });
+        function syncTimeContext(payload) {
+            const ctx = payload?.time_context;
+            if (!ctx || typeof ctx !== 'object') return;
+            Object.assign(timeContext, ctx);
+        }
+        const localDateKey = (date = null) => {
+            if (!date && timeContext.today) return timeContext.today;
+            date = date || new Date();
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
         const supportedLocales = (window.SFMLI18n && window.SFMLI18n.supported) || ['en'];
         const localeName = (code) => (window.SFMLI18n ? window.SFMLI18n.nameOf(code) : code);
         const changeLocale = (code) => {
@@ -477,8 +494,19 @@ const SettingsPage = {
             try {
                 const d = new Date(ts);
                 if (isNaN(d.getTime())) return String(ts);
-                return d.toLocaleString(bcp(locale.value), { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                return new Intl.DateTimeFormat(bcp(locale.value), {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: timeContext.timezone || undefined,
+                }).format(d);
             } catch (e) { return String(ts); }
+        }
+        function formatValue(value, digits = 0, suffix = '') {
+            if (value == null || Number.isNaN(Number(value))) return '--';
+            return Number(value).toFixed(digits) + suffix;
         }
 
         const haConfigUrl = computed(() => {
@@ -540,6 +568,7 @@ const SettingsPage = {
                 const dashboard = await SFMLApi.fetch('/api/sfml_stats/settings/dashboard', { forceRefresh: true });
 
                 if (dashboard) {
+                    syncTimeContext(dashboard);
                     // System block
                     const sys = dashboard.system || {};
                     systemInfo.stats_version = sys.stats_version || '';
@@ -608,10 +637,12 @@ const SettingsPage = {
                     // Panel groups
                     panelGroups.value = (dashboard.panel_groups || []).map(pg => ({
                         name: pg.name || '',
-                        azimuth: pg.azimuth ?? 0,
-                        tilt: pg.tilt ?? 0,
-                        kwp: pg.kwp ?? 0,
+                        azimuth: pg.azimuth ?? null,
+                        tilt: pg.tilt ?? null,
+                        kwp: pg.kwp ?? null,
                         module_count: pg.module_count ?? null,
+                        factor: pg.factor ?? null,
+                        confidence: pg.confidence ?? null,
                     }));
                 }
             } catch (e) {
@@ -637,7 +668,7 @@ const SettingsPage = {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'sfml_stats_export_' + new Date().toISOString().slice(0, 10) + '.csv';
+                a.download = 'sfml_stats_export_' + localDateKey() + '.csv';
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
@@ -658,7 +689,7 @@ const SettingsPage = {
             sensors, priceInfo, chargingInfo, panelGroups, systemInfo, aiInfo,
             haConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
-            toggle, exportCsv, formatDate, openIntegration,
+            toggle, exportCsv, formatDate, formatValue, openIntegration,
             translateSensorLabel, translateSensorState,
             currentLocale, supportedLocales, localeName, changeLocale, changeTheme,
             configuredConsumers, getConsumerName,

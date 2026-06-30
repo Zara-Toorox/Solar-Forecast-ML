@@ -404,22 +404,42 @@ const SmartChargingPage = ((Vue) => {
                 const prices = data.map(h => h.price_ct_kwh);
                 const charging = data.map(h => h.grid_to_battery_kwh);
                 const solar = data.map(h => h.solar_yield_kwh);
+                const priceLegend = t('smart_charging.chartLegendPrice');
+                const chargingLegend = t('smart_charging.chartLegendCharging');
+                const solarLegend = t('smart_charging.chartLegendSolar');
+                const recommendedLegend = t('smart_charging.chartLegendRecommended');
+                const recommendationPoints = data.map(h => h.grid_charge_recommended ? h.price_ct_kwh : null);
 
-                // Highlight active windows
-                const pieces = [];
+                const actualPieces = [];
+                const recommendationPieces = [];
                 let activeStart = null;
                 for (let i = 0; i < data.length; i++) {
                     if (data[i].grid_to_battery_kwh > 0.005) {
                         if (activeStart === null) activeStart = i;
                     } else {
                         if (activeStart !== null) {
-                            pieces.push({ gt: activeStart - 1, lte: i, color: 'rgba(34, 197, 94, 0.15)' });
+                            actualPieces.push({ gt: activeStart - 1, lte: i, color: 'rgba(34, 197, 94, 0.15)' });
                             activeStart = null;
                         }
                     }
                 }
                 if (activeStart !== null) {
-                    pieces.push({ gt: activeStart - 1, lte: data.length - 1, color: 'rgba(34, 197, 94, 0.15)' });
+                    actualPieces.push({ gt: activeStart - 1, lte: data.length - 1, color: 'rgba(34, 197, 94, 0.15)' });
+                }
+
+                activeStart = null;
+                for (let i = 0; i < data.length; i++) {
+                    if (data[i].grid_charge_recommended) {
+                        if (activeStart === null) activeStart = i;
+                    } else {
+                        if (activeStart !== null) {
+                            recommendationPieces.push({ gt: activeStart - 1, lte: i, color: 'rgba(168, 85, 247, 0.13)' });
+                            activeStart = null;
+                        }
+                    }
+                }
+                if (activeStart !== null) {
+                    recommendationPieces.push({ gt: activeStart - 1, lte: data.length - 1, color: 'rgba(168, 85, 247, 0.13)' });
                 }
 
                 const option = {
@@ -433,8 +453,16 @@ const SmartChargingPage = ((Vue) => {
                             let html = '<b>' + params[0].axisValue + '</b>';
                             params.forEach(function(p) {
                                 if (p.value != null) {
-                                    const valStr = p.seriesName.includes('Preis') ? p.value.toFixed(2) + ' ct/kWh' : p.value.toFixed(3) + ' kWh';
+                                    let valStr;
+                                    if (p.seriesName === priceLegend || p.seriesName === recommendedLegend) {
+                                        valStr = p.value.toFixed(2) + ' ct/kWh';
+                                    } else {
+                                        valStr = p.value.toFixed(3) + ' kWh';
+                                    }
                                     html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + valStr + '</b></span>';
+                                    if (p.seriesName === recommendedLegend) {
+                                        html += '<br/><span style="color: var(--text-muted);">' + t('smart_charging.chartTooltipRecommended') + '</span>';
+                                    }
                                 }
                             });
                             return html;
@@ -442,9 +470,10 @@ const SmartChargingPage = ((Vue) => {
                     },
                     legend: {
                         data: [
-                            { name: t('smart_charging.chartLegendPrice'), icon: 'line', itemStyle: { color: '#00d2ff' } },
-                            { name: t('smart_charging.chartLegendCharging'), icon: 'bar', itemStyle: { color: '#22c55e' } },
-                            { name: t('smart_charging.chartLegendSolar'), icon: 'bar', itemStyle: { color: '#f59e0b' } },
+                            { name: priceLegend, icon: 'line', itemStyle: { color: '#00d2ff' } },
+                            { name: chargingLegend, icon: 'bar', itemStyle: { color: '#22c55e' } },
+                            { name: solarLegend, icon: 'bar', itemStyle: { color: '#f59e0b' } },
+                            { name: recommendedLegend, icon: 'triangle', itemStyle: { color: '#a855f7' } },
                         ],
                         bottom: 0,
                         textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
@@ -474,7 +503,7 @@ const SmartChargingPage = ((Vue) => {
                     ],
                     series: [
                         {
-                            name: t('smart_charging.chartLegendPrice'),
+                            name: priceLegend,
                             type: 'line',
                             yAxisIndex: 1,
                             data: prices,
@@ -482,14 +511,14 @@ const SmartChargingPage = ((Vue) => {
                             showSymbol: false,
                             lineStyle: { width: 3, color: '#00d2ff' },
                             itemStyle: { color: '#00d2ff' },
-                            markArea: pieces.length > 0 ? {
+                            markArea: actualPieces.length > 0 ? {
                                 silent: true,
-                                data: pieces.map(p => [{ xAxis: times[p.gt >= 0 ? p.gt : 0] }, { xAxis: times[p.lte] }]),
+                                data: actualPieces.map(p => [{ xAxis: times[p.gt >= 0 ? p.gt : 0] }, { xAxis: times[p.lte] }]),
                                 itemStyle: { color: 'rgba(0, 210, 255, 0.06)' }
                             } : undefined
                         },
                         {
-                            name: t('smart_charging.chartLegendCharging'),
+                            name: chargingLegend,
                             type: 'bar',
                             data: charging,
                             stack: 'energy',
@@ -502,7 +531,7 @@ const SmartChargingPage = ((Vue) => {
                             }
                         },
                         {
-                            name: t('smart_charging.chartLegendSolar'),
+                            name: solarLegend,
                             type: 'bar',
                             data: solar,
                             stack: 'energy',
@@ -513,6 +542,20 @@ const SmartChargingPage = ((Vue) => {
                                 ]),
                                 borderRadius: [3, 3, 0, 0]
                             }
+                        },
+                        {
+                            name: recommendedLegend,
+                            type: 'scatter',
+                            yAxisIndex: 1,
+                            data: recommendationPoints,
+                            symbol: 'triangle',
+                            symbolSize: 12,
+                            itemStyle: { color: '#a855f7' },
+                            markArea: recommendationPieces.length > 0 ? {
+                                silent: true,
+                                data: recommendationPieces.map(p => [{ xAxis: times[p.gt >= 0 ? p.gt : 0] }, { xAxis: times[p.lte] }]),
+                                itemStyle: { color: 'rgba(168, 85, 247, 0.10)' }
+                            } : undefined
                         }
                     ]
                 };
@@ -649,17 +692,19 @@ const SmartChargingPage = ((Vue) => {
             }
 
             let pollInterval = null;
+            const handleResize = () => {
+                if (chartInstance) chartInstance.resize();
+            };
 
             onMounted(() => {
                 loadData();
                 pollInterval = setInterval(loadData, 5000);
-                window.addEventListener('resize', () => {
-                    if (chartInstance) chartInstance.resize();
-                });
+                window.addEventListener('resize', handleResize);
             });
 
             onUnmounted(() => {
                 if (pollInterval) clearInterval(pollInterval);
+                window.removeEventListener('resize', handleResize);
                 if (chartInstance) {
                     chartInstance.dispose();
                     chartInstance = null;

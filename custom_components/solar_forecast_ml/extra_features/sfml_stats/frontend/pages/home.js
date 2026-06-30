@@ -75,10 +75,10 @@ const STATUS_TRANSLATIONS = {
         grid_neutral: 'Neutral',
         home_desc: 'House Consumption',
         solar: 'SOLAR',
-        home: 'BEDARF',
-        battery: 'AKKU',
-        grid: 'NETZ',
-        car: 'AUTO',
+        home: 'DEMAND',
+        battery: 'BATTERY',
+        grid: 'GRID',
+        car: 'CAR',
         peakToday: 'PEAK TODAY',
         alltime: 'ALLTIME',
     },
@@ -93,9 +93,9 @@ const STATUS_TRANSLATIONS = {
         grid_neutral: 'Neutralny',
         home_desc: 'Zużycie domu',
         solar: 'SOLAR',
-        home: 'BEDARF',
-        battery: 'AKKU',
-        grid: 'NETZ',
+        home: 'POBÓR',
+        battery: 'AKU',
+        grid: 'SIEĆ',
         car: 'AUTO',
         peakToday: 'SZCZYT DZIŚ',
         alltime: 'ALLTIME',
@@ -341,8 +341,13 @@ const _HomePage = {
                     </svg>
                 </div>
                 <div class="hubble-heading">
-                    <span class="hubble-kicker">{{ $t('home.hubble.agent') }} · {{ hubbleView.moment }}</span>
+                    <span class="hubble-kicker">{{ $t('home.hubble.agent') }}</span>
                     <span class="chart-title">{{ hubbleView.title }}</span>
+                    <span class="hubble-moment">{{ hubbleView.moment }}</span>
+                </div>
+                <div v-if="hubbleView.systemStatus" class="hubble-system-status" :class="hubbleView.systemStatus.variant">
+                    <span class="hubble-system-title">{{ hubbleView.systemStatus.title }}</span>
+                    <span class="hubble-system-meta">{{ hubbleView.systemStatus.meta }}</span>
                 </div>
                 <button type="button" class="hubble-toggle" @click="hubbleExpanded = !hubbleExpanded">
                     {{ hubbleExpanded ? $t('common.collapse') : $t('common.details') }}
@@ -372,7 +377,7 @@ const _HomePage = {
                     {{ action.label }}
                 </button>
                 <a
-                    href="/api/sfml_stats/static/docs.html?v=28.0.6"
+                    href="/api/sfml_stats/static/docs.html?v=32.0.0"
                     target="_blank"
                     class="hubble-action docs-link"
                     style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;"
@@ -473,14 +478,14 @@ const _HomePage = {
                         <span class="metric-badge-icon">📉</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" style="color: #fbbf24">{{ forecastTotal }} <span class="unit">kWh</span></span>
-                            <span class="metric-badge-label">{{ $t('common.forecast') }}</span>
+                            <span class="metric-badge-label">{{ $t('home.forecastDayKpi') }}</span>
                         </div>
                     </div>
                     <div v-if="hasHybridForecast" class="metric-badge-card">
                         <span class="metric-badge-icon">🔀</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" style="color: #38bdf8">{{ hybridForecastTotal }} <span class="unit">kWh</span></span>
-                            <span class="metric-badge-label">{{ $t('home.hybrid') }}</span>
+                            <span class="metric-badge-label">{{ $t('home.hybridDayKpi') }}</span>
                         </div>
                     </div>
                     <div class="metric-badge-card">
@@ -560,17 +565,21 @@ const _HomePage = {
                         <span class="chart-title" style="font-size:0.92rem; font-weight: 700;">☀ {{ groupName }}</span>
                         <div class="pg-stats">
                             <span class="pg-badge actual">
-                                {{ (group.actual_total_kwh || 0).toFixed(2) }} kWh
+                                {{ fmtKwh(group.actual_total_kwh, 2) }} kWh
                             </span>
                             <span class="pg-badge forecast">
-                                {{ ((group.prediction_day_kwh ?? group.prediction_total_kwh) || 0).toFixed(2) }} kWh
+                                {{ fmtKwh(group.prediction_day_kwh ?? group.prediction_total_kwh, 2) }} kWh
+                            </span>
+                            <span v-if="group.live_only" class="pg-badge neutral">
+                                {{ $t('home.panelGroups.liveOnly') }}
                             </span>
                             <span v-if="group.accuracy_percent != null" class="pg-badge accuracy" :style="{ color: forecastBandColorFromAccuracy(group.accuracy_percent), borderColor: forecastBandColorFromAccuracy(group.accuracy_percent) + '22' }">
                                 {{ group.accuracy_percent.toFixed(0) }}%
                             </span>
                         </div>
                     </div>
-                    <div :ref="el => { if (el) pgChartRefs[groupName] = el }" style="height: 220px; width: 100%;"></div>
+                    <div v-if="groupHasHourly(group)" :ref="el => { if (el) pgChartRefs[groupName] = el }" style="height: 220px; width: 100%;"></div>
+                    <div v-else class="empty-state">{{ $t('home.panelGroups.liveOnlyText') }}</div>
                 </div>
             </div>
         </div>
@@ -654,7 +663,7 @@ const _HomePage = {
         const panelGroupsData = reactive({ available: false, groups: {} });
         const pgChartRefs = reactive({});
         const pgChartInstances = {};
-        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], actual: [], actualRaw: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
+        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], operationalTotal: null, actual: [], actualRaw: [], cleanEligible: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
         const weatherTrace = ref([]);
         const powerData = ref([]);
         const dailyForecasts = ref([]);
@@ -666,6 +675,62 @@ const _HomePage = {
             const dict = STATUS_TRANSLATIONS[lang] || STATUS_TRANSLATIONS['en'];
             return dict[key] || key;
         };
+        const timeContext = reactive({
+            timezone: null,
+            now: null,
+            today: null,
+            tomorrow: null,
+            current_hour: null,
+            current_minute: null,
+            current_month: null,
+            current_year: null,
+            syncedAt: 0,
+        });
+        function syncTimeContext(payload) {
+            const ctx = payload?.time_context;
+            if (!ctx) return;
+            Object.assign(timeContext, ctx, { syncedAt: Date.now() });
+        }
+        const localDateKey = (date = null) => {
+            if (!date && timeContext.today) return timeContext.today;
+            date = date || new Date();
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+        const haCurrentHour = () => {
+            const hour = Number(timeContext.current_hour);
+            return Number.isFinite(hour) ? hour : new Date().getHours();
+        };
+        function formatHaTime(value, options = { hour: '2-digit', minute: '2-digit' }) {
+            if (!value) return '';
+            const date = value instanceof Date ? value : new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            return new Intl.DateTimeFormat(bcp(locale.value), {
+                ...options,
+                timeZone: timeContext.timezone || undefined,
+            }).format(date);
+        }
+        function formatHaDateOnly(value, options = { day: '2-digit', month: '2-digit' }) {
+            if (!value) return '';
+            const date = value instanceof Date ? value : new Date(String(value).length === 10 ? `${value}T12:00:00` : value);
+            if (Number.isNaN(date.getTime())) return '';
+            return new Intl.DateTimeFormat(bcp(locale.value), {
+                ...options,
+                timeZone: timeContext.timezone || undefined,
+            }).format(date);
+        }
+        function currentHaInstant() {
+            if (!timeContext.now) return new Date();
+            const base = new Date(timeContext.now);
+            if (Number.isNaN(base.getTime())) return new Date();
+            const elapsed = timeContext.syncedAt ? Date.now() - timeContext.syncedAt : 0;
+            return new Date(base.getTime() + elapsed);
+        }
+        const valueOrZero = (value) => value ?? 0;
+        const fmtKwh = (value, digits = 2) => Number(valueOrZero(value)).toFixed(digits);
+        const groupHasHourly = (group) => Array.isArray(group?.hourly) && group.hourly.length > 0;
 
         const batteryPowerText = computed(() => {
             const p = Number(flow.battery_power) || 0;
@@ -773,6 +838,7 @@ const _HomePage = {
         const hubbleExpanded = ref(false);
         const hubbleQuestion = ref(null);
         const currentTime = ref('');
+        const workflowClockNow = ref(Date.now());
         const lastPowerUpdate = ref('');
         const cleanEvalStats = reactive({
             today: {
@@ -784,6 +850,7 @@ const _HomePage = {
                 productionCandidates: null,
                 missingActualHours: null,
                 excludedWeatherAlertHours: null,
+                weatherAlertHours: null,
                 excludedInverterClippedHours: null,
                 learningHours: null,
                 learningCandidates: null,
@@ -813,6 +880,7 @@ const _HomePage = {
             outdoorClouds: null,
             outdoorCondition: null,
             outdoorSource: null,
+            solarYieldToday: null,
         });
         const FORECAST_LEGEND_STORAGE_KEY = 'sfml_stats_home_forecast_legend_selected';
         const forecastLegendSelected = reactive({
@@ -825,24 +893,56 @@ const _HomePage = {
 
         // Computed
         const isNightTime = computed(() => {
-            const h = new Date().getHours();
+            const h = haCurrentHour();
             return h < 6 || h > 20;
         });
 
+        function actualRowsWithLiveDelta() {
+            const rows = (forecastData.actualRaw || []).slice();
+            const liveYield = Number(infoData.solarYieldToday);
+            if (!Number.isFinite(liveYield) || liveYield <= 0 || !forecastData.hours.length) {
+                return rows;
+            }
+
+            const knownYield = rows.reduce((sum, value) => sum + (Number(value) || 0), 0);
+            const delta = liveYield - knownYield;
+            if (delta <= 0.01) {
+                return rows;
+            }
+
+            const nowHour = haCurrentHour();
+            let idx = forecastData.hours.findIndex(hour => Number(hour) === nowHour);
+            if (idx < 0) {
+                for (let i = rows.length - 1; i >= 0; i--) {
+                    if (rows[i] != null) {
+                        idx = i;
+                        break;
+                    }
+                }
+            }
+            if (idx >= 0) {
+                rows[idx] = (Number(rows[idx]) || 0) + delta;
+            }
+            return rows;
+        }
+
         const forecastTotal = computed(() => {
+            if (Number.isFinite(forecastData.operationalTotal)) {
+                return forecastData.operationalTotal.toFixed(1);
+            }
             const source = forecastData.forecastRaw.length ? forecastData.forecastRaw : forecastData.forecast;
-            const sum = source.reduce((s, v) => s + (v || 0), 0);
+            const sum = source.reduce((s, v) => s + valueOrZero(v), 0);
             return sum.toFixed(1);
         });
 
         const actualTotal = computed(() => {
-            const source = forecastData.actualRaw.length ? forecastData.actualRaw : forecastData.actual;
-            const sum = source.reduce((s, v) => s + (v || 0), 0);
+            const source = forecastData.actualRaw.length ? actualRowsWithLiveDelta() : forecastData.actual;
+            const sum = source.reduce((s, v) => s + valueOrZero(v), 0);
             return sum.toFixed(1);
         });
 
         const hybridForecastTotal = computed(() => {
-            const sum = forecastData.hybrid.reduce((s, v) => s + (v || 0), 0);
+            const sum = forecastData.hybrid.reduce((s, v) => s + valueOrZero(v), 0);
             return sum.toFixed(1);
         });
 
@@ -853,8 +953,8 @@ const _HomePage = {
         const hasWeatherTrace = computed(() => weatherTrace.value.length > 0);
 
         const deviationPercent = computed(() => {
-            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualTotal.value);
-            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastTotal.value);
+            const act = parseFloat(actualTotal.value);
+            const pred = parseFloat(forecastTotal.value);
             if (pred === 0) return 0;
             return ((act - pred) / pred) * 100;
         });
@@ -871,21 +971,20 @@ const _HomePage = {
         });
 
         const todayForecastErrorPercent = computed(() => {
-            if (cleanEvalStats.today.forecastError != null) {
-                return cleanEvalStats.today.forecastError;
+            const act = parseFloat(actualTotal.value);
+            const pred = parseFloat(forecastTotal.value);
+            if (Number.isFinite(act) && Number.isFinite(pred) && pred > 0) {
+                return ((act - pred) / pred) * 100;
             }
-            const act = cleanEvalStats.today.evaluationActual ?? parseFloat(actualTotal.value);
-            const pred = cleanEvalStats.today.evaluationPredicted ?? parseFloat(forecastTotal.value);
-            if (!act || act <= 0) return null;
-            return ((pred - act) / act) * 100;
+            return cleanEvalStats.today.forecastError;
         });
 
         const todayForecastAccuracyPercent = computed(() => {
-            if (cleanEvalStats.today.forecastAccuracy != null) {
-                return cleanEvalStats.today.forecastAccuracy;
-            }
             if (todayForecastErrorPercent.value != null) {
                 return Math.max(0, 100 - Math.abs(todayForecastErrorPercent.value));
+            }
+            if (cleanEvalStats.today.forecastAccuracy != null) {
+                return cleanEvalStats.today.forecastAccuracy;
             }
             return cleanEvalStats.today.accuracy;
         });
@@ -910,24 +1009,30 @@ const _HomePage = {
         });
 
         const hybridDeviationPercent = computed(() => {
-            const actualRows = forecastData.actualRaw || [];
+            const actualRows = actualRowsWithLiveDelta();
             const hybridRows = forecastData.hybrid || [];
+            const cleanEligible = forecastData.cleanEligible || [];
             const evaluated = actualRows
-                .map((actual, idx) => ({ actual, hybrid: hybridRows[idx] }))
-                .filter(row => row.actual != null && (row.actual > 0.01 || (row.hybrid || 0) > 0.01));
-            const act = evaluated.length
-                ? evaluated.reduce((sum, row) => sum + (row.actual || 0), 0)
-                : parseFloat(actualTotal.value);
-            const pred = evaluated.length
-                ? evaluated.reduce((sum, row) => sum + (row.hybrid || 0), 0)
-                : parseFloat(hybridForecastTotal.value);
-            if (pred === 0) return 0;
+                .map((actual, idx) => ({
+                    actual,
+                    hybrid: hybridRows[idx],
+                    clean: cleanEligible[idx],
+                }))
+                .filter(row => row.clean !== false)
+                .filter(row => row.actual != null && row.hybrid != null)
+                .filter(row => (Number(row.actual) || 0) > 0.01 || (Number(row.hybrid) || 0) > 0.01);
+            if (!evaluated.length) return null;
+            const act = evaluated.reduce((sum, row) => sum + (Number(row.actual) || 0), 0);
+            const pred = evaluated.reduce((sum, row) => sum + (Number(row.hybrid) || 0), 0);
+            if (pred <= 0) return null;
             return ((act - pred) / pred) * 100;
         });
 
         const hybridDeviationLabel = computed(() => {
+            const value = hybridDeviationPercent.value;
+            if (value == null || Number.isNaN(value)) return '--';
             const prefix = isTodayPartial.value ? (t('common.live') + ' ') : '';
-            return `${prefix}${hybridDeviationPercent.value >= 0 ? '+' : ''}${hybridDeviationPercent.value.toFixed(0)}%`;
+            return `${prefix}${value >= 0 ? '+' : ''}${value.toFixed(0)}%`;
         });
 
         const todayLearningBasisLabel = computed(() => {
@@ -950,6 +1055,15 @@ const _HomePage = {
                 demand_limited_zero_export: t('solar.discarded.demandLimitedZeroExport'),
                 excluded_from_clean_evaluation: t('solar.discarded.excludedFromCleanEvaluation'),
                 excluded: t('solar.discarded.excluded'),
+                weather_alert: t('solar.discarded.weatherAlert'),
+                snow: t('solar.discarded.snow'),
+                fog: t('solar.discarded.fog'),
+                grid_failure: t('solar.discarded.gridFailure'),
+                external_limit: t('solar.discarded.externalLimit'),
+                inverter_limit: t('solar.discarded.inverterLimit'),
+                manual_limit: t('solar.discarded.manualLimit'),
+                battery_full: t('solar.discarded.batteryFull'),
+                curtailment: t('solar.discarded.curtailment'),
             };
             const breakdown = cleanEvalStats.today.discardedLearningReasonBreakdown || {};
             const parts = Object.entries(breakdown)
@@ -967,10 +1081,12 @@ const _HomePage = {
             const missingActual = cleanEvalStats.today.missingActualHours || 0;
             const excludedMppt = cleanEvalStats.today.excludedMppt || 0;
             const excludedClipped = cleanEvalStats.today.excludedInverterClippedHours || 0;
+            const weatherAlerts = cleanEvalStats.today.weatherAlertHours || 0;
             const parts = [];
             if (missingActual > 0) parts.push(t('home.coverage.missingActual', { hours: missingActual }));
             if (excludedMppt > 0) parts.push(t('home.coverage.excludedMppt', { hours: excludedMppt }));
             if (excludedClipped > 0) parts.push(t('home.coverage.excludedClipped', { hours: excludedClipped }));
+            if (weatherAlerts > 0) parts.push(t('home.coverage.weatherAlertsIncluded', { hours: weatherAlerts }));
 
             if (evaluated != null && candidates != null && candidates > 0) {
                 if (parts.length > 0) {
@@ -1014,6 +1130,7 @@ const _HomePage = {
                 : t('home.hubble.noDecline');
             const variantSeed = payload.variant_seed != null ? payload.variant_seed : 0;
             const yesterday = payload.yesterday || null;
+            const workflowStatus = payload.signals?.workflow_status || null;
 
             const storyParams = {
                 hasWindow: Boolean(bestWindow),
@@ -1068,8 +1185,17 @@ const _HomePage = {
                 { key: 'quality', label: t('home.hubble.chip.quality'), value: metrics.forecast_quality_percent != null ? `${quality}%` : t('common.noData') },
                 { key: 'window', label: t('home.hubble.chip.window'), value: windowLabel },
             ];
+            if (workflowStatus?.is_running) {
+                chips.unshift({
+                    key: 'workflow',
+                    label: t('home.hubble.chip.system'),
+                    value: t('home.hubble.state.active'),
+                    title: workflowStatus.current_step || null,
+                });
+            }
 
-            const story = buildHubbleStory(moment, storyParams, variantSeed, yesterday);
+            const systemStatus = buildHubbleSystemStatus(workflowStatus);
+            const story = buildHubbleStory(moment, storyParams, variantSeed, yesterday, payload.signals || {});
             const hasMemory = payload.memory?.available === true
                 && Array.isArray(payload.memory.matches)
                 && payload.memory.matches.length >= 2;
@@ -1085,10 +1211,11 @@ const _HomePage = {
             const answer = buildHubbleAnswer(hubbleQuestion.value, payload, storyParams);
 
             return {
-                title: t('home.hubble.title'),
+                title: systemStatus?.title || t('home.hubble.title'),
                 moment: t(`home.hubble.moment.${moment}`),
                 moment_key: moment,
                 is_pulsing: moment !== 'evening',
+                systemStatus,
                 chips,
                 lead: t(leadKey, storyParams),
                 tip: buildHubbleTip(payload, windowLabel),
@@ -1100,6 +1227,95 @@ const _HomePage = {
                 }),
             };
         });
+
+        function buildHubbleSystemStatus(workflowStatus) {
+            if (!workflowStatus) {
+                return {
+                    variant: 'ready',
+                    title: t('home.hubble.state.ready'),
+                    meta: t('home.hubble.system.readyMeta'),
+                };
+            }
+
+            const workflowName = formatWorkflowName(workflowStatus.workflow);
+            const step = formatWorkflowStepLabel(workflowStatus.current_step);
+            const progress = workflowStatus.progress || '--';
+            const duration = formatHubbleDuration(getLiveWorkflowDurationSeconds(workflowStatus));
+
+            if (workflowStatus.is_running) {
+                return {
+                    variant: 'active',
+                    title: t('home.hubble.state.active'),
+                    meta: t('home.hubble.system.runningMeta', { workflow: workflowName, step, progress, duration }),
+                };
+            }
+
+            if (workflowStatus.status === 'error' || workflowStatus.status === 'partial') {
+                return {
+                    variant: 'attention',
+                    title: t('home.hubble.state.attention'),
+                    meta: workflowStatus.last_error || t('home.hubble.system.attentionMeta', { workflow: workflowName }),
+                };
+            }
+
+            return null;
+        }
+
+        function formatWorkflowName(workflow) {
+            const key = `home.hubble.workflow.${workflow || 'idle'}`;
+            const translated = t(key);
+            return translated !== key ? translated : (workflow || t('home.hubble.workflow.idle'));
+        }
+
+        function getLiveWorkflowDurationSeconds(workflowStatus) {
+            if (!workflowStatus) return null;
+
+            const fallback = Number(workflowStatus.duration_seconds);
+            if (!workflowStatus.is_running || !workflowStatus.started_at) {
+                return Number.isFinite(fallback) ? fallback : null;
+            }
+
+            const startedAt = Date.parse(workflowStatus.started_at);
+            if (!Number.isFinite(startedAt)) {
+                return Number.isFinite(fallback) ? fallback : null;
+            }
+
+            const elapsed = Math.max(0, Math.floor((workflowClockNow.value - startedAt) / 1000));
+            return Number.isFinite(fallback) ? Math.max(fallback, elapsed) : elapsed;
+        }
+
+        function formatWorkflowStepLabel(step) {
+            if (!step) return t('home.hubble.workflowStep.unknown');
+
+            const normalized = String(step).toLowerCase();
+            const matchers = [
+                ['weather model', 'weatherModel'],
+                ['main ai model', 'forecastModel'],
+                ['drift detection', 'driftDetection'],
+                ['daily summary', 'dailySummary'],
+                ['archive', 'archive'],
+                ['weather precision', 'weatherPrecision'],
+                ['method performance', 'methodPerformance'],
+                ['panel-group efficiency', 'panelGroups'],
+                ['group method', 'panelGroups'],
+                ['physics engine', 'physicsCalibration'],
+                ['weather expert', 'weatherExpert'],
+                ['shadow patterns', 'shadowPatterns'],
+                ['night cleanup', 'cleanup'],
+                ['finalizing day', 'finalizeDay'],
+                ['completed with issues', 'completedWithIssues'],
+                ['completed', 'completed'],
+                ['failed', 'failed'],
+                ['preparing', 'preparing'],
+            ];
+
+            const found = matchers.find(([needle]) => normalized.includes(needle));
+            if (!found) return step;
+
+            const key = `home.hubble.workflowStep.${found[1]}`;
+            const translated = t(key);
+            return translated !== key ? translated : step;
+        }
 
         const hubbleMemoryView = computed(() => {
             const memory = hubble.value?.memory || null;
@@ -1236,16 +1452,12 @@ const _HomePage = {
 
         function formatHubbleTime(value) {
             if (!value) return currentTime.value || '--';
-            const dateValue = new Date(value);
-            if (Number.isNaN(dateValue.getTime())) return currentTime.value || '--';
-            return dateValue.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
+            return formatHaTime(value) || currentTime.value || '--';
         }
 
         function formatHubbleDate(value) {
             if (!value) return '--';
-            const dateValue = new Date(`${value}T00:00:00`);
-            if (Number.isNaN(dateValue.getTime())) return value;
-            return dateValue.toLocaleDateString(bcp(locale.value), { day: '2-digit', month: '2-digit' });
+            return formatHaDateOnly(value) || value;
         }
 
         function formatHubbleWindow(bestWindow) {
@@ -1253,6 +1465,14 @@ const _HomePage = {
             const start = String(bestWindow.start_hour).padStart(2, '0') + ':00';
             const end = String(bestWindow.end_hour).padStart(2, '0') + ':00';
             return bestWindow.start_hour === bestWindow.end_hour ? start : `${start}-${end}`;
+        }
+
+        function formatHubbleDuration(seconds) {
+            const value = Number(seconds);
+            if (!Number.isFinite(value) || value < 0) return '--';
+            const minutes = Math.floor(value / 60);
+            const rest = Math.floor(value % 60);
+            return `${minutes}:${String(rest).padStart(2, '0')} min`;
         }
 
         function buildHubbleTip(payload, windowLabel) {
@@ -1346,7 +1566,7 @@ const _HomePage = {
             };
         }
 
-        function buildHubbleStory(moment, params, variantSeed, yesterday) {
+        function buildHubbleStory(moment, params, variantSeed, yesterday, signals = {}) {
             const storyMoment = ['morning', 'midday', 'evening'].includes(moment) ? moment : 'midday';
             
             const getVar = (name) => {
@@ -1356,6 +1576,53 @@ const _HomePage = {
             };
 
             const tiles = [];
+
+            const insightParas = [];
+            const recordSignal = signals.record_signal || null;
+            if (recordSignal) {
+                insightParas.push(t(`home.hubble.special.record.${recordSignal.level}`, {
+                    solar: formatHubbleNumber(recordSignal.solar_kwh, 1),
+                    record: formatHubbleNumber(recordSignal.record_kwh, 1),
+                }));
+            }
+            const forecastIssue = signals.forecast_issue || null;
+            if (forecastIssue) {
+                insightParas.push(t('home.hubble.special.forecastIssue', {
+                    error: formatHubbleSigned(forecastIssue.error_percent, 0),
+                    reason: forecastIssue.reason || t('home.hubble.special.unknownReason'),
+                }));
+            }
+            const helperFeedback = signals.helper_feedback || null;
+            if (helperFeedback) {
+                insightParas.push(t(`home.hubble.special.${helperFeedback.type}`, {
+                    hpPvPercent: formatHubbleNumber(helperFeedback.hp_pv_percent, 0),
+                    window: formatHubbleWindow(helperFeedback.window),
+                }));
+            }
+            const negativePrice = signals.negative_price_signal || null;
+            if (negativePrice) {
+                insightParas.push(t('home.hubble.special.negativePrice', {
+                    price: formatHubbleNumber(negativePrice.price_ct, 2),
+                }));
+            }
+            const workflowStatus = signals.workflow_status || null;
+            if (workflowStatus?.is_running) {
+                insightParas.push(t('home.hubble.special.workflowRunning', {
+                    workflow: formatWorkflowName(workflowStatus.workflow),
+                    step: formatWorkflowStepLabel(workflowStatus.current_step),
+                    progress: workflowStatus.progress || '--',
+                    duration: formatHubbleDuration(getLiveWorkflowDurationSeconds(workflowStatus)),
+                }));
+            }
+            if (insightParas.length) {
+                tiles.push({
+                    key: 'special-tile',
+                    type: 'tile',
+                    icon: '◦',
+                    title: t('home.hubble.special.title'),
+                    paragraphs: insightParas.filter(p => p && !p.startsWith('home.hubble.special.')),
+                });
+            }
 
             // 1. Status-Kachel
             const statusParas = [];
@@ -1455,11 +1722,24 @@ const _HomePage = {
         }
 
         function getTimestampMinutes(entry) {
-            const ts = entry?.timestamp || entry?.time;
+            const hourKey = entry?.hour_key;
+            if (typeof hourKey === 'string' && hourKey.length >= 16) {
+                return parseTimeToMinutes(hourKey.slice(11, 16));
+            }
+            const ts = entry?.local_timestamp || entry?.timestamp || entry?.time;
             if (!ts) return null;
             const dt = new Date(ts);
             if (Number.isNaN(dt.getTime())) return null;
-            return (dt.getHours() * 60) + dt.getMinutes();
+            const parts = new Intl.DateTimeFormat('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false,
+                timeZone: timeContext.timezone || undefined,
+            }).formatToParts(dt);
+            const hh = Number(parts.find(part => part.type === 'hour')?.value);
+            const mm = Number(parts.find(part => part.type === 'minute')?.value);
+            if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+            return (hh * 60) + mm;
         }
 
         function getSolarWindowedPowerData(data) {
@@ -1506,8 +1786,9 @@ const _HomePage = {
 
         // Clock
         function updateClock() {
-            const d = new Date();
-            currentTime.value = d.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const d = currentHaInstant();
+            currentTime.value = formatHaTime(d, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            workflowClockNow.value = d.getTime();
         }
 
         // ========== DATA LOADING ==========
@@ -1516,21 +1797,22 @@ const _HomePage = {
             try {
                 const data = await SFMLApi.fetch('/api/sfml_stats/energy_flow');
                 if (!data) return;
+                syncTimeContext(data);
 
                 const f = data.flows || data;
                 const b = data.battery || {};
                 const h = data.home || {};
 
-                flow.solar_power = f.solar_power || 0;
-                flow.home_consumption = h.consumption || f.home_consumption || 0;
+                flow.solar_power = f.solar_power ?? 0;
+                flow.home_consumption = h.consumption ?? f.home_consumption ?? 0;
                 flow.battery_soc = b.soc ?? f.battery_soc ?? null;
                 flow.battery_power = b.power ?? f.battery_power ?? 0;
-                flow.solar_to_house = f.solar_to_house || 0;
-                flow.solar_to_battery = f.solar_to_battery || 0;
-                flow.battery_to_house = f.battery_to_house || 0;
-                flow.grid_to_house = f.grid_to_house || 0;
-                flow.house_to_grid = f.house_to_grid || 0;
-                flow.grid_to_battery = f.grid_to_battery || 0;
+                flow.solar_to_house = f.solar_to_house ?? 0;
+                flow.solar_to_battery = f.solar_to_battery ?? 0;
+                flow.battery_to_house = f.battery_to_house ?? 0;
+                flow.grid_to_house = f.grid_to_house ?? 0;
+                flow.house_to_grid = f.house_to_grid ?? 0;
+                flow.grid_to_battery = f.grid_to_battery ?? 0;
 
                 if (data.consumers) {
                     Object.assign(consumers, data.consumers);
@@ -1542,7 +1824,7 @@ const _HomePage = {
                     // Build sparkline history
                     data.panels.forEach(p => {
                         if (!panelHistory[p.id]) panelHistory[p.id] = [];
-                        panelHistory[p.id].push(p.power || 0);
+                        panelHistory[p.id].push(p.power ?? 0);
                         // Keep last 24 points (~2h at 5min intervals)
                         if (panelHistory[p.id].length > 24) {
                             panelHistory[p.id] = panelHistory[p.id].slice(-24);
@@ -1554,10 +1836,21 @@ const _HomePage = {
             }
         }
 
+        let summaryRequest = null;
+
+        async function loadSummaryData() {
+            if (!summaryRequest) {
+                summaryRequest = SFMLApi.fetch('/api/sfml_stats/summary')
+                    .finally(() => { summaryRequest = null; });
+            }
+            return summaryRequest;
+        }
+
         async function loadInfoPanel() {
             try {
-                const data = await SFMLApi.fetch('/api/sfml_stats/summary');
+                const data = await loadSummaryData();
                 if (!data) return;
+                syncTimeContext(data);
 
                 // Produktionszeit
                 if (data.sun_times) {
@@ -1577,6 +1870,7 @@ const _HomePage = {
                 cleanEvalStats.today.productionCandidates = today?.production_candidate_hours_count ?? null;
                 cleanEvalStats.today.missingActualHours = today?.missing_actual_hours_count ?? null;
                 cleanEvalStats.today.excludedWeatherAlertHours = today?.excluded_weather_alert_hours_count ?? null;
+                cleanEvalStats.today.weatherAlertHours = today?.weather_alert_hours_count ?? null;
                 cleanEvalStats.today.excludedInverterClippedHours = today?.excluded_inverter_clipped_hours_count ?? null;
                 cleanEvalStats.today.learningHours = today?.learning_hours_count ?? null;
                 cleanEvalStats.today.learningCandidates = today?.learning_candidate_hours_count ?? null;
@@ -1585,8 +1879,17 @@ const _HomePage = {
                 cleanEvalStats.today.evaluationActual = today?.evaluation_actual_kwh ?? null;
                 cleanEvalStats.today.evaluationPredicted = today?.evaluation_predicted_kwh ?? null;
                 cleanEvalStats.today.yieldDelta = today?.yield_delta_vs_forecast_percent ?? null;
-                cleanEvalStats.today.forecastError = today?.forecast_error_vs_actual_percent ?? null;
-                cleanEvalStats.today.forecastAccuracy = today?.forecast_accuracy_vs_actual_percent ?? null;
+                cleanEvalStats.today.forecastError = (
+                    today?.forecast_error_vs_sot_percent
+                    ?? today?.yield_delta_vs_forecast_percent
+                    ?? today?.forecast_error_vs_actual_percent
+                    ?? null
+                );
+                cleanEvalStats.today.forecastAccuracy = (
+                    today?.forecast_accuracy_vs_sot_percent
+                    ?? today?.forecast_accuracy_vs_actual_percent
+                    ?? null
+                );
 
                 const outdoor = data.outdoor_temperature || {};
                 const outdoorTemperature = outdoor.temperature_c;
@@ -1624,6 +1927,7 @@ const _HomePage = {
                 if (ds) {
                     infoData.peakTodayW = ds.peak_solar_w || null;
                     infoData.peakTodayTime = ds.peak_solar_time || null;
+                    infoData.solarYieldToday = ds.solar_yield_kwh ?? null;
                 }
 
                 hubble.value = data.hubble || null;
@@ -1641,10 +1945,9 @@ const _HomePage = {
                     const items = [];
                     for (const [type, val] of Object.entries(dfc)) {
                         if (type === 'today') continue;
-                        const d = new Date(val.date + 'T12:00:00');
                         const label = type === 'tomorrow'
                             ? t('common.tomorrow')
-                            : d.toLocaleDateString(bcp(locale.value), { weekday: 'short', day: '2-digit', month: '2-digit' });
+                            : formatHaDateOnly(val.date, { weekday: 'short', day: '2-digit', month: '2-digit' });
                         items.push({ type, kwh: val.kwh, date: val.date, label, sortDate: val.date });
                     }
                     items.sort((a, b) => a.sortDate.localeCompare(b.sortDate));
@@ -1818,7 +2121,7 @@ const _HomePage = {
 
         async function loadPanelGroups() {
             try {
-                const res = await SFMLApi.fetch('/api/sfml_stats/statistics');
+                const res = await loadSummaryData();
                 const stats = res?.statistics || {};
                 const last7 = stats.last_7_days || {};
                 const last30 = stats.last_30_days || {};
@@ -1828,7 +2131,7 @@ const _HomePage = {
                 cleanEvalStats.last30.accuracy = last30.avg_accuracy ?? null;
                 cleanEvalStats.last30.coverage = last30.avg_evaluation_coverage_percent ?? null;
                 cleanEvalStats.last30.excludedMppt = last30.avg_excluded_mppt_hours ?? null;
-                const pg = res?.data?.panel_groups || res?.panel_groups;
+                const pg = res?.panel_groups || res?.data?.panel_groups;
                 if (!pg || !pg.available) return;
 
                 panelGroupsData.available = true;
@@ -1836,7 +2139,7 @@ const _HomePage = {
 
                 // Render charts after Vue updates DOM
                 await nextTick();
-                const nowHour = new Date().getHours();
+                const nowHour = haCurrentHour();
 
                 for (const [groupName, groupData] of Object.entries(panelGroupsData.groups)) {
                     const chartEl = pgChartRefs[groupName];
@@ -1847,6 +2150,7 @@ const _HomePage = {
                     }
                     const chart = pgChartInstances[groupName];
                     const hourly = groupData.hourly || [];
+                    if (!hourly.length) continue;
                     const hours = hourly.map(h => h.hour);
                     const rawActual = hourly.map(h => h.actual_kwh ?? 0);
                     const rawForecast = hourly.map(h => h.prediction_kwh ?? 0);
@@ -1879,7 +2183,7 @@ const _HomePage = {
                                         : '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:#fbbf24;"></span>';
                                     s += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;gap:12px">'
                                       + '<span>' + dot + p.seriesName + ':</span>'
-                                      + '<span style="font-weight:700;font-family:var(--font-mono)">' + p.value.toFixed(3) + ' kWh</span></div>';
+                                      + '<span style="font-weight:700;font-family:var(--font-mono)">' + (p.value == null ? '--' : p.value.toFixed(3)) + ' kWh</span></div>';
                                 });
                                 s += '</div>';
                                 return s;
@@ -1936,24 +2240,29 @@ const _HomePage = {
             try {
                 const res = await SFMLApi.fetch('/api/sfml_stats/solar?days=1', { forceRefresh: true });
                 if (!res || !res.data) return;
+                syncTimeContext(res);
 
                 const hourly = res.data.hourly || [];
                 if (!hourly.length) return;
 
                 // Filter to today only
-                const today = new Date().toISOString().slice(0, 10);
+                const today = localDateKey();
                 const todayData = hourly.filter(h => h.target_date === today);
                 if (!todayData.length) return;
 
                 forecastData.hours = todayData.map(h => h.target_hour);
-                const rawFc = todayData.map(h => h.prediction_kwh || 0);
-                const rawAc = todayData.map(h => h.actual_kwh || 0);
+                const rawFc = todayData.map(h => h.prediction_kwh ?? 0);
+                const rawAc = todayData.map(h => h.actual_kwh ?? 0);
                 const trimmed = trimSolarWindow(rawAc, rawFc);
                 forecastData.forecastRaw = rawFc;
                 forecastData.actualRaw = todayData.map(h => h.actual_kwh ?? null);
                 forecastData.forecast = trimmed.forecast;
                 forecastData.actual = trimmed.actual;
                 const hybridPayload = res.data.hybrid || {};
+                const operationalTotal = Number(hybridPayload.total_kwh);
+                forecastData.operationalTotal = Number.isFinite(operationalTotal)
+                    ? operationalTotal
+                    : null;
                 const hybridHours = Array.isArray(hybridPayload.hourly) ? hybridPayload.hourly : [];
                 const hybridByHour = new Map(
                     hybridHours.map(h => [Number(h.target_hour), h.prediction_kwh ?? null])
@@ -1963,18 +2272,19 @@ const _HomePage = {
                         ? hybridByHour.get(Number(h.target_hour))
                         : null
                 ));
-                forecastData.confidence = todayData.map(h => h.confidence || 50);
-                forecastData.ml_pct = todayData.map(h => h.ml_contribution_percent || 0);
+                forecastData.cleanEligible = todayData.map(h => h.clean_evaluation_eligible !== false);
+                forecastData.confidence = todayData.map(h => h.confidence ?? 50);
+                forecastData.ml_pct = todayData.map(h => h.ml_contribution_percent ?? 0);
                 forecastData.method = todayData.map(h => h.prediction_method || '');
-                forecastData.temperature = todayData.map(h => h.temperature || null);
-                forecastData.radiation = todayData.map(h => h.solar_radiation || null);
-                forecastData.clouds = todayData.map(h => h.clouds || null);
-                forecastData.tfs = todayData.map(h => h.tfs_kwh || null);
-                forecastData.tfs_weight = todayData.map(h => h.tfs_weight || null);
-                forecastData.ai = todayData.map(h => h.ai_kwh || null);
-                forecastData.physics = todayData.map(h => h.physics_kwh || null);
-                forecastData.lstm = todayData.map(h => h.lstm_kwh || null);
-                forecastData.ridge = todayData.map(h => h.ridge_kwh || null);
+                forecastData.temperature = todayData.map(h => h.temperature ?? null);
+                forecastData.radiation = todayData.map(h => h.solar_radiation ?? null);
+                forecastData.clouds = todayData.map(h => h.clouds ?? null);
+                forecastData.tfs = todayData.map(h => h.tfs_kwh ?? null);
+                forecastData.tfs_weight = todayData.map(h => h.tfs_weight ?? null);
+                forecastData.ai = todayData.map(h => h.ai_kwh ?? null);
+                forecastData.physics = todayData.map(h => h.physics_kwh ?? null);
+                forecastData.lstm = todayData.map(h => h.lstm_kwh ?? null);
+                forecastData.ridge = todayData.map(h => h.ridge_kwh ?? null);
                 weatherTrace.value = buildWeatherTrace(
                     forecastData.hours,
                     today,
@@ -1991,16 +2301,16 @@ const _HomePage = {
 
         async function loadPowerHistory() {
             try {
-                const hoursToday = new Date().getHours() + 1;
-                const res = await SFMLApi.fetch('/api/sfml_stats/power_sources_history?hours=' + Math.max(hoursToday, 1));
+                const res = await SFMLApi.fetch('/api/sfml_stats/power_sources_history?today=true&hours=24');
                 if (!res || !res.data) return;
+                syncTimeContext(res);
 
-                const todayStr = new Date().toISOString().slice(0, 10);
+                const todayStr = localDateKey();
                 powerData.value = res.data.filter(d => {
-                    const ts = d.timestamp || d.time || '';
-                    return ts.startsWith(todayStr);
+                    const localDate = d.local_date || (typeof d.hour_key === 'string' ? d.hour_key.slice(0, 10) : null);
+                    return localDate === todayStr;
                 });
-                lastPowerUpdate.value = new Date().toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
+                lastPowerUpdate.value = formatHaTime(currentHaInstant(), { hour: '2-digit', minute: '2-digit' });
                 updatePowerChart();
             } catch (err) {
                 console.error('[Home] Power history error:', err);
@@ -2011,7 +2321,7 @@ const _HomePage = {
 
         function updateForecastChart() {
             if (!forecastChartInstance || !forecastData.hours.length) return;
-            const nowHour = new Date().getHours();
+            const nowHour = haCurrentHour();
 
             // Calculate P90 / P10 bands (respect null from trimming)
             const p90 = forecastData.forecast.map((v, i) => {
@@ -2041,17 +2351,18 @@ const _HomePage = {
                         const idx = params[0]?.dataIndex;
                         if (idx == null) return '';
                         const hour = forecastData.hours[idx];
-                        const pred = forecastData.forecast[idx] || 0;
+                        const pred = forecastData.forecast[idx] ?? 0;
                         const hybrid = forecastData.hybrid[idx];
-                        const act = forecastData.actual[idx] || 0;
-                        const conf = forecastData.confidence[idx] || 0;
-                        const mlPct = forecastData.ml_pct[idx] || 0;
+                        const liveActualRows = actualRowsWithLiveDelta();
+                        const act = liveActualRows[idx] ?? forecastData.actual[idx] ?? 0;
+                        const conf = forecastData.confidence[idx] ?? 0;
+                        const mlPct = forecastData.ml_pct[idx] ?? 0;
                         const method = forecastData.method[idx] || '--';
                         const temp = forecastData.temperature[idx];
                         const rad = forecastData.radiation[idx];
                         const clouds = forecastData.clouds[idx];
                         const delta = pred > 0 ? (((act - pred) / pred) * 100).toFixed(1) : '0.0';
-                        const forecastError = act > 0 ? (((pred - act) / act) * 100).toFixed(1) : null;
+                        const forecastError = pred > 0 ? (((act - pred) / pred) * 100).toFixed(1) : null;
 
                         let s = '<div style="min-width:180px">';
                         s += '<div style="font-weight:700;font-size:13px;margin-bottom:6px">' + String(hour).padStart(2,'0') + ':00 ' + t('home.oClock') + '</div>';
@@ -2158,7 +2469,8 @@ const _HomePage = {
                     {
                         name: 'IST',
                         type: 'line',
-                        data: forecastData.actual.map((v, i) => {
+                        data: actualRowsWithLiveDelta().map((value, i) => {
+                            const v = value ?? forecastData.actual[i];
                             if (v == null) return null;
                             const h = forecastData.hours[i];
                             if (h > nowHour) return null;
@@ -2236,11 +2548,13 @@ const _HomePage = {
 
             const data = getSolarWindowedPowerData(powerData.value);
             const times = data.map(d => {
-                const dt = new Date(d.timestamp || d.time);
-                return dt.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
+                if (typeof d.hour_key === 'string' && d.hour_key.length >= 16) {
+                    return d.hour_key.slice(11, 16);
+                }
+                return formatHaTime(d.local_timestamp || d.timestamp || d.time, { hour: '2-digit', minute: '2-digit' });
             });
 
-            const solarPower = data.map(d => d.solar_power || 0);
+            const solarPower = data.map(d => d.solar_power ?? 0);
 
             powerChartInstance.setOption({
                 backgroundColor: 'transparent',
@@ -2255,7 +2569,7 @@ const _HomePage = {
                     extraCssText: 'backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 8px 32px 0 rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06)',
                     textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-sans)' },
                     formatter: function(params) {
-                        const val = params[0]?.value || 0;
+                        const val = params[0]?.value ?? 0;
                         const formattedVal = val >= 1000 ? (val/1000).toFixed(2) + ' kW' : Math.round(val) + ' W';
                         return '<div style="font-family:var(--font-sans)">'
                              + '<div style="font-weight:700;font-size:12px;margin-bottom:4px">' + params[0].axisValue + '</div>'
@@ -2341,6 +2655,7 @@ const _HomePage = {
         let flowTimer = null;
         let powerTimer = null;
         let forecastTimer = null;
+        let infoTimer = null;
 
         onMounted(async () => {
             updateClock();
@@ -2386,7 +2701,7 @@ const _HomePage = {
             flowTimer = setInterval(loadEnergyFlow, 15000);
             powerTimer = setInterval(loadPowerHistory, 60000);
             forecastTimer = setInterval(loadForecastData, 60000);
-            setInterval(loadInfoPanel, 60000); // Info panel refresh every 60s
+            infoTimer = setInterval(loadInfoPanel, 60000);
         });
 
         const getConsumerName = (key) => {
@@ -2403,8 +2718,13 @@ const _HomePage = {
             if (flowTimer) clearInterval(flowTimer);
             if (powerTimer) clearInterval(powerTimer);
             if (forecastTimer) clearInterval(forecastTimer);
+            if (infoTimer) clearInterval(infoTimer);
             if (forecastChartInstance) { forecastChartInstance.dispose(); forecastChartInstance = null; }
             if (powerChartInstance) { powerChartInstance.dispose(); powerChartInstance = null; }
+            for (const chart of Object.values(pgChartInstances)) {
+                if (chart) chart.dispose();
+            }
+            pgChartInstances = {};
             if (resizeHandler) window.removeEventListener('resize', resizeHandler);
         });
 
@@ -2418,6 +2738,7 @@ const _HomePage = {
             forecastChartEl, powerChartEl, sparklineRefs,
             flow, panels, panelHistory, infoData, panelGroupsData, pgChartRefs,
             forecastData, powerData, dailyForecasts,
+            fmtKwh, groupHasHourly,
             weatherTrace, hasWeatherTrace,
             currentTime, lastPowerUpdate,
             isNightTime, forecastTotal, hybridForecastTotal, hasHybridForecast,
@@ -2462,6 +2783,7 @@ const _HomePage = {
             display: flex;
             align-items: center;
             justify-content: flex-start;
+            flex-wrap: wrap;
             gap: var(--space-md);
             margin-bottom: var(--space-md);
         }
@@ -2490,28 +2812,20 @@ const _HomePage = {
             stroke-dashoffset: 80;
             animation: hubble-ring-rotate 6s linear infinite;
         }
-        .hubble-sensor-ring .ring-active.morning {
-            stroke: #f59e0b;
-        }
-        .hubble-sensor-ring .ring-active.midday {
-            stroke: #10b981;
-        }
+        .hubble-sensor-ring .ring-active.morning,
+        .hubble-sensor-ring .ring-active.midday,
         .hubble-sensor-ring .ring-active.evening {
-            stroke: #8b5cf6;
+            stroke: var(--accent);
         }
         
         .hubble-sensor-ring .hubble-face {
             transform-origin: center;
             transition: color 0.5s ease;
         }
-        .hubble-sensor-ring .hubble-face.morning {
-            color: #f59e0b;
-        }
-        .hubble-sensor-ring .hubble-face.midday {
-            color: #10b981;
-        }
+        .hubble-sensor-ring .hubble-face.morning,
+        .hubble-sensor-ring .hubble-face.midday,
         .hubble-sensor-ring .hubble-face.evening {
-            color: #8b5cf6;
+            color: var(--text-primary);
         }
         .hubble-sensor-ring .hubble-face.pulse {
             animation: hubble-core-pulse 2s ease-in-out infinite;
@@ -2558,6 +2872,47 @@ const _HomePage = {
             font-weight: 700;
             letter-spacing: 0.08em;
             text-transform: uppercase;
+        }
+        .hubble-moment {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .hubble-system-status {
+            flex: 1 1 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            min-width: min(100%, 190px);
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .hubble-system-status.ready {
+            border-color: rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.035);
+        }
+        .hubble-system-status.active {
+            border-color: rgba(0, 212, 255, 0.28);
+            background: rgba(0, 212, 255, 0.06);
+        }
+        .hubble-system-status.attention {
+            border-color: rgba(239, 68, 68, 0.30);
+            background: rgba(239, 68, 68, 0.06);
+        }
+        .hubble-system-title {
+            color: var(--text-primary);
+            font-size: 0.82rem;
+            font-weight: 800;
+        }
+        .hubble-system-meta {
+            color: var(--text-secondary);
+            font-size: 0.74rem;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .hubble-toggle {
             flex: 0 0 auto;
@@ -2620,7 +2975,7 @@ const _HomePage = {
         }
         .hubble-tip {
             margin-top: var(--space-xs);
-            color: #fbbf24;
+            color: var(--text-primary);
             font-weight: 600;
         }
         
@@ -2655,14 +3010,14 @@ const _HomePage = {
         .hubble-answer {
             margin-top: var(--space-md);
             padding: var(--space-md);
-            border: 1px solid rgba(251, 191, 36, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.10);
             border-radius: var(--radius-md);
-            background: rgba(251, 191, 36, 0.03);
+            background: rgba(255, 255, 255, 0.03);
         }
         .hubble-answer-label {
             display: block;
             margin-bottom: 6px;
-            color: #fbbf24;
+            color: var(--text-primary);
             font-size: 0.75rem;
             font-weight: 700;
             text-transform: uppercase;

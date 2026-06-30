@@ -364,6 +364,42 @@ class DatabaseConnectionManager:
                     await self._rollback_after_failed_write()
                     raise
 
+    @asynccontextmanager
+    async def write_transaction(self) -> AsyncIterator[aiosqlite.Connection]:
+        """Run a multi-statement write under the shared writer lock."""
+        async with self._write_lock:
+            for attempt in range(3):
+                if not await self._ensure_connected():
+                    raise RuntimeError("Database not available")
+                try:
+                    await self._connection.execute("BEGIN IMMEDIATE")
+                    break
+                except aiosqlite.OperationalError as err:
+                    await self._rollback_after_failed_write()
+                    if self._is_locked_error(err) and attempt < 2:
+                        wait = self._retry_wait(attempt)
+                        _LOGGER.debug(
+                            "Stats DB locked when opening write transaction (attempt %d/3), retrying in %.2fs",
+                            attempt + 1, wait
+                        )
+                        await asyncio.sleep(wait)
+                        continue
+                    if attempt == 0 and not self._is_locked_error(err):
+                        _LOGGER.warning("Write transaction failed to open, reconnecting: %s", err)
+                        self._connection = None
+                        self._is_connected = False
+                        continue
+                    raise
+            else:
+                raise RuntimeError("Database write transaction could not be opened")
+
+            try:
+                yield self._connection
+                await self._connection.commit()
+            except Exception:
+                await self._rollback_after_failed_write()
+                raise
+
     @classmethod
     @asynccontextmanager
     async def connect_direct_safe(

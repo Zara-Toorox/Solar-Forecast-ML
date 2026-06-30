@@ -98,7 +98,7 @@ const _WeatherPage = {
             <!-- ================= CARD 2: 72h FORECAST ================= -->
             <div class="chart-card">
                 <div class="chart-header">
-                    <span class="chart-title">\u{1F4C8} SFML AI Weather Forecast 72h</span>
+                    <span class="chart-title">\u{1F4C8} {{ forecastTitle }}</span>
                     <span class="chart-subtitle">{{ $t('weather.forecast72hSub') }}</span>
                 </div>
                 <div ref="forecastChartEl" class="weather-chart" style="height: 340px;"></div>
@@ -108,13 +108,13 @@ const _WeatherPage = {
             <div class="chart-card">
                 <div class="chart-header">
                     <span class="chart-title">\u{2600} {{ $t('weather.solarRadiationToday') }}</span>
-                    <span class="chart-subtitle">GHI · DNI · DHI vs. Forecast</span>
+                    <span class="chart-subtitle">{{ $t('weather.radiationSubtitle') }}</span>
                 </div>
                 <div ref="radiationChartEl" class="weather-chart" style="height: 360px;"></div>
                 <div class="weather-legend" v-if="radiationKpis">
-                    <span class="legend-item"><span class="legend-dot" style="background:#fbbf24"></span> GHI Peak: {{ radiationKpis.ghi_peak }} W/m²</span>
-                    <span class="legend-item"><span class="legend-dot" style="background:#f97316"></span> DNI Peak: {{ radiationKpis.dni_peak }} W/m²</span>
-                    <span class="legend-item"><span class="legend-dot" style="background:#60a5fa"></span> DHI Peak: {{ radiationKpis.dhi_peak }} W/m²</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#fbbf24"></span> {{ $t('weather.ghiPeak') }}: {{ radiationKpis.ghi_peak }} W/m²</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#f97316"></span> {{ $t('weather.dniPeak') }}: {{ radiationKpis.dni_peak }} W/m²</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#60a5fa"></span> {{ $t('weather.dhiPeak') }}: {{ radiationKpis.dhi_peak }} W/m²</span>
                 </div>
             </div>
 
@@ -123,37 +123,37 @@ const _WeatherPage = {
                 <div class="chart-card">
                     <div class="chart-header">
                         <span class="chart-title">\u{1F455} {{ $t('weather.clothingRecommendation') }}</span>
-                        <span class="chart-subtitle">{{ translateClothing(clothing.label) || '' }}</span>
+                        <span class="chart-subtitle">{{ clothingText('label', 'label_key') || '' }}</span>
                     </div>
                     <div v-if="!clothing.available" class="empty-state">
                         {{ $t('weather.noCurrent') }}
                     </div>
                     <div v-else>
-                        <p class="clothing-text">{{ translateClothing(clothing.description) }}</p>
+                        <p class="clothing-text">{{ clothingText('description', 'description_key') }}</p>
                         <div class="clothing-grid">
-                            <div v-if="clothing.bottom" class="clothing-item">
+                            <div v-if="clothing.bottom || clothing.bottom_key" class="clothing-item">
                                 <div class="clothing-icon">\u{1F456}</div>
-                                <div class="clothing-name">{{ translateClothing(clothing.bottom) }}</div>
+                                <div class="clothing-name">{{ clothingText('bottom', 'bottom_key') }}</div>
                                 <div class="clothing-label">{{ $t('weather.clothing.bottom') }}</div>
                             </div>
-                            <div v-if="clothing.top" class="clothing-item">
+                            <div v-if="clothing.top || clothing.top_key" class="clothing-item">
                                 <div class="clothing-icon">\u{1F455}</div>
-                                <div class="clothing-name">{{ translateClothing(clothing.top) }}</div>
+                                <div class="clothing-name">{{ clothingText('top', 'top_key') }}</div>
                                 <div class="clothing-label">{{ $t('weather.clothing.top') }}</div>
                             </div>
-                            <div v-if="clothing.jacket" class="clothing-item">
+                            <div v-if="clothing.jacket || clothing.jacket_key" class="clothing-item">
                                 <div class="clothing-icon">\u{1F9E5}</div>
-                                <div class="clothing-name">{{ translateClothing(clothing.jacket) }}</div>
+                                <div class="clothing-name">{{ clothingText('jacket', 'jacket_key') }}</div>
                                 <div class="clothing-label">{{ $t('weather.clothing.jacket') }}</div>
                             </div>
-                            <div v-if="clothing.headwear" class="clothing-item">
+                            <div v-if="clothing.headwear || clothing.headwear_key" class="clothing-item">
                                 <div class="clothing-icon">\u{1F3A9}</div>
-                                <div class="clothing-name">{{ translateClothing(clothing.headwear) }}</div>
+                                <div class="clothing-name">{{ clothingText('headwear', 'headwear_key') }}</div>
                                 <div class="clothing-label">{{ $t('weather.clothing.head') }}</div>
                             </div>
                         </div>
-                        <div v-if="clothing.extras && clothing.extras.length" class="clothing-extras">
-                            <span v-for="x in clothing.extras" :key="x" class="clothing-extra-chip">{{ translateClothing(x) }}</span>
+                        <div v-if="clothingExtras.length" class="clothing-extras">
+                            <span v-for="x in clothingExtras" :key="x" class="clothing-extra-chip">{{ x }}</span>
                         </div>
                     </div>
                 </div>
@@ -382,6 +382,26 @@ const _WeatherPage = {
             if (!map) return value;
             return map[value] ?? value;
         };
+        const translateEnum = (group, key, fallback = '') => {
+            if (!key) return fallback;
+            const i18nKey = `weather.clothing.${group}.${key}`;
+            const translated = t(i18nKey);
+            return translated === i18nKey ? fallback : translated;
+        };
+        const clothingText = (field, keyField) => {
+            const fallback = translateClothing(clothing[field]);
+            const group = field === 'description' ? 'description' : 'items';
+            return translateEnum(group, clothing[keyField], fallback || '');
+        };
+        const clothingExtras = computed(() => {
+            const keys = Array.isArray(clothing.extras_keys) ? clothing.extras_keys : [];
+            const values = Array.isArray(clothing.extras) ? clothing.extras : [];
+            const max = Math.max(keys.length, values.length);
+            return Array.from({ length: max }, (_, index) => {
+                const fallback = translateClothing(values[index]);
+                return translateEnum('items', keys[index], fallback || '');
+            }).filter(Boolean);
+        });
 
         const current = reactive({
             temperature: null, feels_like: null, humidity: null,
@@ -391,6 +411,7 @@ const _WeatherPage = {
             solar_potential: null, timestamp: null,
         });
         const forecast = ref([]);
+        const forecastMeta = reactive({ hours: 0, target_hours: 72, is_complete: false });
         const radiation = reactive({ actual: [], forecast: [], clear_sky: [] });
         const clothing = reactive({ available: false });
         const astronomy = reactive({ sunrise: null, sunset: null, day_length_min: null, day_length_delta_min: null, max_elevation_deg: null, moon_phase: null, moon_illumination: null });
@@ -404,6 +425,12 @@ const _WeatherPage = {
             { id: 'year',  label: t('weather.tab.year') },
         ]);
         const lastUpdated = ref('');
+        const timeContext = reactive({
+            timezone: null,
+            now: null,
+            today: null,
+            current_hour: null,
+        });
 
         const forecastChartEl = ref(null);
         const radiationChartEl = ref(null);
@@ -423,13 +450,33 @@ const _WeatherPage = {
             if (v == null || v === '' || Number.isNaN(Number(v))) return '--';
             return Number(v).toFixed(digits);
         }
+        function syncTimeContext(payload) {
+            const ctx = payload?.time_context;
+            if (!ctx || typeof ctx !== 'object') return;
+            Object.assign(timeContext, ctx);
+        }
         function formatTime(iso) {
             if (!iso) return '--';
             try {
                 const d = new Date(iso);
                 if (Number.isNaN(d.getTime())) return String(iso);
-                return d.toLocaleTimeString(bcp(locale.value), { hour: '2-digit', minute: '2-digit' });
+                return new Intl.DateTimeFormat(bcp(locale.value), {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: timeContext.timezone || undefined,
+                }).format(d);
             } catch (e) { return String(iso); }
+        }
+        function formatDateOnly(dateStr, options) {
+            if (!dateStr) return '--';
+            try {
+                const d = new Date(dateStr + 'T12:00:00');
+                if (Number.isNaN(d.getTime())) return String(dateStr);
+                return new Intl.DateTimeFormat(bcp(locale.value), {
+                    ...options,
+                    timeZone: timeContext.timezone || undefined,
+                }).format(d);
+            } catch (e) { return String(dateStr); }
         }
         const weatherIcon = computed(() => WEATHER_ICONS[current.condition] || '\u{2601}');
         // Map HA condition strings to our weather.condition.* keys.
@@ -478,14 +525,26 @@ const _WeatherPage = {
             if (phase.includes('abnehmende sichel') || (phase.includes('waning') && phase.includes('crescent'))) return '\u{1F318}';
             return '\u{1F319}';
         });
+        const peakValue = (rows, field) => {
+            const values = rows
+                .map(row => row?.[field])
+                .filter(value => value != null && !Number.isNaN(Number(value)))
+                .map(Number);
+            return values.length ? Math.round(Math.max(...values)) : 0;
+        };
         const radiationKpis = computed(() => {
-            const src = radiation.forecast.length ? radiation.forecast : radiation.actual;
-            if (!src.length) return null;
+            const observed = radiation.actual.length ? radiation.actual : radiation.forecast;
+            if (!observed.length && !radiation.forecast.length) return null;
             return {
-                ghi_peak: Math.round(Math.max(...src.map(r => r.ghi || 0))),
-                dni_peak: Math.round(Math.max(...(radiation.forecast.map(r => r.dni || 0) || [0]))),
-                dhi_peak: Math.round(Math.max(...(radiation.forecast.map(r => r.dhi || 0) || [0]))),
+                ghi_peak: peakValue(observed, 'ghi'),
+                dni_peak: peakValue(radiation.forecast, 'dni'),
+                dhi_peak: peakValue(radiation.forecast, 'dhi'),
             };
+        });
+        const forecastTitle = computed(() => {
+            const hours = forecastMeta.hours || forecast.value.length || 0;
+            const target = forecastMeta.target_hours || 72;
+            return t('weather.forecastTitle', { hours: Math.min(hours, target) });
         });
 
         // Charts -------------------------------------------------------
@@ -502,8 +561,7 @@ const _WeatherPage = {
             // Add day separator
             const dayLabels = labels.map((h, i) => {
                 if (i === 0 || xDates[i] !== xDates[i - 1]) {
-                    const d = new Date(xDates[i]);
-                    return `${h}\n${d.toLocaleDateString(bcp(locale.value), { weekday: 'short' })}`;
+                    return `${h}\n${formatDateOnly(xDates[i], { weekday: 'short' })}`;
                 }
                 return h;
             });
@@ -585,26 +643,26 @@ const _WeatherPage = {
                     textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-family)', fontSize: 12 },
                     extraCssText: 'backdrop-filter: blur(8px);',
                 },
-                legend: { data: ['GHI Ist', 'GHI Forecast', 'DNI', 'DHI', 'Clear Sky'], top: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e') } },
+                legend: { data: [t('weather.ghiActual'), t('weather.ghiForecast'), 'DNI', 'DHI', t('weather.clearSky')], top: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e') } },
                 xAxis: { type: 'category', data: hours, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10, interval: 2 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
                 yAxis: { type: 'value', name: 'W/m²', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.06)') } } },
                 series: [
                     csMap.size > 0 ? {
-                        name: 'Clear Sky', type: 'line',
+                        name: t('weather.clearSky'), type: 'line',
                         data: hours.map((_, h) => csMap.get(h) ?? null),
                         smooth: true, symbol: 'none',
                         lineStyle: { color: '#6b7280', type: 'dotted', width: 1 },
                         itemStyle: { color: '#6b7280' },
                     } : null,
                     {
-                        name: 'GHI Forecast', type: 'line',
+                        name: t('weather.ghiForecast'), type: 'line',
                         data: hours.map((_, h) => fcMap.get(h)?.ghi ?? null),
                         smooth: true, symbol: 'none',
                         lineStyle: { color: '#fbbf24', width: 1, type: 'dashed' },
                         itemStyle: { color: '#fbbf24' },
                     },
                     {
-                        name: 'GHI Ist', type: 'line',
+                        name: t('weather.ghiActual'), type: 'line',
                         data: hours.map((_, h) => actualMap.get(h) ?? null),
                         smooth: true, symbol: 'circle', symbolSize: 5,
                         lineStyle: { color: '#fbbf24', width: 2 },
@@ -666,12 +724,18 @@ const _WeatherPage = {
             try {
                 const res = await SFMLApi.fetch('/api/sfml_stats/weather/dashboard', { forceRefresh: true });
                 if (!res || !res.success) return;
+                syncTimeContext(res);
                 Object.assign(current, res.current || {});
                 forecast.value = res.forecast || [];
+                Object.assign(forecastMeta, res.forecast_meta || {
+                    hours: forecast.value.length,
+                    target_hours: 72,
+                    is_complete: forecast.value.length >= 72,
+                });
                 Object.assign(radiation, res.radiation || {});
                 Object.assign(clothing, res.clothing || { available: false });
                 Object.assign(astronomy, res.astronomy || {});
-                lastUpdated.value = new Date().toLocaleTimeString(bcp(locale.value));
+                lastUpdated.value = formatTime(res.timestamp || timeContext.now);
 
                 await nextTick();
                 renderForecastChart();
@@ -686,6 +750,7 @@ const _WeatherPage = {
                 const days = historyRequestedDays.value;
                 const res = await SFMLApi.getWeatherHistory(days, true);
                 if (!res || !res.success) return;
+                syncTimeContext(res);
                 const all = (res.data || []).slice().sort((a, b) => a.date.localeCompare(b.date));
                 historyMeta.availableDays = res.available_days || all.length;
                 historyMeta.requestedDays = res.requested_days || days;
@@ -756,7 +821,7 @@ const _WeatherPage = {
         });
 
         return {
-            current, forecast, radiation, clothing, translateClothing, astronomy, history,
+            current, forecast, forecastTitle, radiation, clothing, translateClothing, clothingText, clothingExtras, astronomy, history,
             historyTab, historyTabs, lastUpdated,
             forecastChartEl, radiationChartEl, historyChartEl,
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,

@@ -414,6 +414,46 @@ const _SolarPage = {
         const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
         const locale = { value: window.SFMLI18n ? window.SFMLI18n.current : 'en' };
         const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'en-US');
+        const timeContext = reactive({
+            timezone: null,
+            today: null,
+            current_hour: null,
+            current_month: null,
+            current_year: null,
+        });
+        function syncTimeContext(payload) {
+            const ctx = payload?.time_context;
+            if (!ctx || typeof ctx !== 'object') return;
+            Object.assign(timeContext, ctx);
+        }
+        const localDateKey = (date = null) => {
+            if (!date && timeContext.today) return timeContext.today;
+            date = date || new Date();
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+        function haCurrentHour() {
+            const hour = Number(timeContext.current_hour);
+            return Number.isFinite(hour) ? hour : new Date().getHours();
+        }
+        function haCurrentMonth() {
+            const month = Number(timeContext.current_month);
+            return Number.isFinite(month) && month >= 1 && month <= 12 ? month : new Date().getMonth() + 1;
+        }
+        function smCurrentHourInRange() {
+            const hour = haCurrentHour();
+            return hour >= 6 && hour <= 20 ? hour : 12;
+        }
+        function formatDateOnly(dateStr, options) {
+            if (!dateStr) return '--';
+            const d = new Date(dateStr + 'T12:00:00');
+            return new Intl.DateTimeFormat(bcp(locale.value), {
+                ...options,
+                timeZone: timeContext.timezone || undefined,
+            }).format(d);
+        }
 
         // Localize month-short names at the active locale.
         MONTH_NAMES = ['shortJan','shortFeb','shortMar','shortApr','shortMay','shortJun',
@@ -597,14 +637,14 @@ const _SolarPage = {
 
         // === SCHATTEN-WANDERUNG ===
         const smHourRange = Array.from({ length: 15 }, (_, i) => i + 6);
-        const smCurrentMonthName = MONTH_NAMES[new Date().getMonth()];
+        const smCurrentMonthName = computed(() => MONTH_NAMES[haCurrentMonth() - 1]);
         let smTimeline = null;
         let smAutoPlayTimer = null;
 
         const shadowMovement = reactive({
             loaded: false,
             selectedDate: null,
-            currentHour: new Date().getHours() >= 6 && new Date().getHours() <= 20 ? new Date().getHours() : 12,
+            currentHour: smCurrentHourInRange(),
             playing: false,
             groupNames: [],
             availableDates: [],
@@ -727,22 +767,26 @@ const _SolarPage = {
                     SFMLApi.fetch('/api/sfml_stats/solar/shadow_movement?days=7', { forceRefresh: true }),
                     SFMLApi.fetch('/api/sfml_stats/solar/shadow_fingerprint', { forceRefresh: true }),
                 ]);
+                syncTimeContext(movement);
+                syncTimeContext(fingerprint);
+                shadowMovement.currentHour = smCurrentHourInRange();
 
                 if (movement?.success) {
                     shadowMovement.allDates = movement.dates || {};
                     shadowMovement.groupNames = movement.groups || [];
                     const avail = movement.available_dates || [];
-                    const weekdayFmt = new Intl.DateTimeFormat(bcp(locale.value), { weekday: 'short' });
                     shadowMovement.availableDates = avail.map(d => {
-                        const dt = new Date(d + 'T00:00:00');
-                        const today = new Date().toISOString().slice(0, 10);
-                        const label = d === today ? t('common.today') : weekdayFmt.format(dt) + ' ' + dt.getDate() + '.' + (dt.getMonth() + 1);
+                        const today = localDateKey();
+                        const parts = d.split('-').map(Number);
+                        const label = d === today
+                            ? t('common.today')
+                            : formatDateOnly(d, { weekday: 'short' }) + ' ' + parts[2] + '.' + parts[1];
                         return { key: d, label };
                     });
                     shadowMovement.selectedDate = movement.selected_date || avail[avail.length - 1] || null;
                 }
 
-                const month = new Date().getMonth() + 1;
+                const month = haCurrentMonth();
                 (fingerprint?.seasonal || []).filter(s => s.month === month).forEach(s => {
                     shadowMovement.typicalData[s.hour] = {
                         shadowPct: Math.round(s.avg_percent || s.intensity || 0),
@@ -955,9 +999,7 @@ const _SolarPage = {
         const SHADOW_CAUSE_LABELS = new Proxy({}, { get: (_, k) => shadowCauseLabel(k) });
 
         function formatDay(dateStr) {
-            if (!dateStr) return '--';
-            const d = new Date(dateStr + 'T00:00:00');
-            return d.toLocaleDateString(bcp(locale.value), { weekday: 'short', day: 'numeric', month: 'numeric' });
+            return formatDateOnly(dateStr, { weekday: 'short', day: 'numeric', month: 'numeric' });
         }
 
         async function loadData() {
@@ -970,6 +1012,11 @@ const _SolarPage = {
                     SFMLApi.fetch('/api/sfml_stats/forecast_comparison?days=7', { forceRefresh: true }),
                 ]);
                 annualData.value = annual;
+                syncTimeContext(annual);
+                syncTimeContext(summary);
+                syncTimeContext(shadow);
+                syncTimeContext(solar);
+                syncTimeContext(comparison);
                 shadowData.value = shadow;
                 solarDailyData.value = solar;
                 summaryData.value = summary;
@@ -1011,6 +1058,15 @@ const _SolarPage = {
                 demand_limited_zero_export: t('solar.discarded.demandLimitedZeroExport'),
                 excluded_from_clean_evaluation: t('solar.discarded.excludedFromCleanEvaluation'),
                 excluded: t('solar.discarded.excluded'),
+                weather_alert: t('solar.discarded.weatherAlert'),
+                snow: t('solar.discarded.snow'),
+                fog: t('solar.discarded.fog'),
+                grid_failure: t('solar.discarded.gridFailure'),
+                external_limit: t('solar.discarded.externalLimit'),
+                inverter_limit: t('solar.discarded.inverterLimit'),
+                manual_limit: t('solar.discarded.manualLimit'),
+                battery_full: t('solar.discarded.batteryFull'),
+                curtailment: t('solar.discarded.curtailment'),
             };
             const breakdown = o.discarded_learning_reason_breakdown || {};
             const parts = Object.entries(breakdown)
@@ -1028,12 +1084,18 @@ const _SolarPage = {
                 const actual = o.actual_total_kwh || 0;
                 const forecast = o.predicted_total_kwh || 0;
                 const delta = forecast > 0 ? (((actual - forecast) / forecast) * 100) : 0;
-                const forecastError = o.forecast_error_vs_actual_percent != null
-                    ? parseFloat(o.forecast_error_vs_actual_percent.toFixed(1))
-                    : (actual > 0 ? (((forecast - actual) / actual) * 100) : null);
-                const forecastAccuracy = o.forecast_accuracy_vs_actual_percent != null
-                    ? parseFloat(o.forecast_accuracy_vs_actual_percent.toFixed(1))
-                    : (forecastError != null ? Math.max(0, 100 - Math.abs(forecastError)) : null);
+                const forecastError = o.forecast_error_vs_sot_percent != null
+                    ? parseFloat(o.forecast_error_vs_sot_percent.toFixed(1))
+                    : o.yield_delta_vs_forecast_percent != null
+                        ? parseFloat(o.yield_delta_vs_forecast_percent.toFixed(1))
+                        : o.forecast_error_vs_actual_percent != null
+                            ? parseFloat(o.forecast_error_vs_actual_percent.toFixed(1))
+                            : (forecast > 0 ? (((actual - forecast) / forecast) * 100) : null);
+                const forecastAccuracy = o.forecast_accuracy_vs_sot_percent != null
+                    ? parseFloat(o.forecast_accuracy_vs_sot_percent.toFixed(1))
+                    : o.forecast_accuracy_vs_actual_percent != null
+                        ? parseFloat(o.forecast_accuracy_vs_actual_percent.toFixed(1))
+                        : (forecastError != null ? Math.max(0, 100 - Math.abs(forecastError)) : null);
                 const accuracyValue = forecastAccuracy != null
                     ? parseFloat(forecastAccuracy.toFixed(1))
                     : (o.accuracy_percent != null ? parseFloat(o.accuracy_percent.toFixed(1)) : null);
