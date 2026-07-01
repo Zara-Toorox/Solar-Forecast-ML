@@ -1453,6 +1453,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     from homeassistant.helpers import entity_registry as er
 
     _LOGGER.debug(f"Migrating from version {config_entry.version}")
+    target_version = 2
 
     panel_groups = config_entry.data.get(CONF_PANEL_GROUPS, []) or []
     if panel_groups:
@@ -1508,6 +1509,10 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
         if entities_removed > 0:
             _LOGGER.info(f"Removed {entities_removed} orphaned diagnostic entities")
+
+    if config_entry.version < target_version:
+        hass.config_entries.async_update_entry(config_entry, version=target_version)
+        _LOGGER.info("Migrated config entry schema to version %s", target_version)
 
     return True
 

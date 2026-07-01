@@ -177,7 +177,7 @@ const _WeatherPage = {
                         <div class="astro-item">
                             <div class="astro-icon">\u{2600}</div>
                             <div class="astro-value">{{ dayLengthText }}</div>
-                            <div class="astro-label">{{ $t('weather.dayLength') }} <span v-if="astronomy.day_length_delta_min != null" :class="astronomy.day_length_delta_min > 0 ? 'delta-up' : 'delta-down'">{{ astronomy.day_length_delta_min > 0 ? '+' : '' }}{{ astronomy.day_length_delta_min }} min</span></div>
+                            <div class="astro-label">{{ $t('weather.dayLength') }} <span v-if="dayLengthDeltaText" :class="dayLengthDeltaClass">{{ dayLengthDeltaText }}</span></div>
                         </div>
                         <div class="astro-item">
                             <div class="astro-icon">\u{1F31E}</div>
@@ -513,6 +513,18 @@ const _WeatherPage = {
             const m = Math.round(astronomy.day_length_min % 60);
             return `${h}h ${m}m`;
         });
+        const dayLengthDeltaValue = computed(() => {
+            if (astronomy.day_length_delta_min == null) return null;
+            const rounded = Math.round(Number(astronomy.day_length_delta_min));
+            return Math.abs(rounded) >= 1 ? rounded : null;
+        });
+        const dayLengthDeltaText = computed(() => {
+            if (dayLengthDeltaValue.value == null) return null;
+            return `${dayLengthDeltaValue.value > 0 ? '+' : ''}${dayLengthDeltaValue.value} min`;
+        });
+        const dayLengthDeltaClass = computed(() => (
+            dayLengthDeltaValue.value > 0 ? 'delta-up' : 'delta-down'
+        ));
         const moonIcon = computed(() => {
             const phase = (astronomy.moon_phase || '').toLowerCase();
             if (phase.includes('neumond') || phase.includes('new')) return '\u{1F311}';
@@ -825,7 +837,7 @@ const _WeatherPage = {
             historyTab, historyTabs, lastUpdated,
             forecastChartEl, radiationChartEl, historyChartEl,
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,
-            dayLengthText, moonIcon, radiationKpis,
+            dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis,
             fmt, formatTime,
             historyAvailabilityText,
             setHistoryTab,

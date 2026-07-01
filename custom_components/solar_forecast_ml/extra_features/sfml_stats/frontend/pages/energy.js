@@ -165,14 +165,27 @@ const _EnergyPage = {
                 <div class="breakdown-section" v-if="billing.household.total_kwh > 0" style="margin-top: var(--space-lg);">
                     <div class="eb-sub" style="margin-bottom: 6px;">{{ $t('energy.electricitySource') }}</div>
                     <div class="breakdown-bar">
-                        <div class="breakdown-seg solar" :style="{width: breakdownPct.solar + '%'}" v-if="breakdownPct.solar > 3">{{ breakdownPct.solar }}%</div>
-                        <div class="breakdown-seg battery" :style="{width: breakdownPct.battery + '%'}" v-if="breakdownPct.battery > 3">{{ breakdownPct.battery }}%</div>
-                        <div class="breakdown-seg grid" :style="{width: breakdownPct.grid + '%'}" v-if="breakdownPct.grid > 3">{{ breakdownPct.grid }}%</div>
+                        <div class="breakdown-seg solar" :style="{width: breakdownPct.solar + '%'}" v-if="breakdownPct.solar > 0">
+                            <span v-if="breakdownPct.solar >= 3">{{ breakdownPct.solar }}%</span>
+                        </div>
+                        <div class="breakdown-seg battery" :style="{width: breakdownPct.battery + '%'}" v-if="breakdownPct.battery > 0">
+                            <span v-if="breakdownPct.battery >= 3">{{ breakdownPct.battery }}%</span>
+                        </div>
+                        <div class="breakdown-seg grid" :style="{width: breakdownPct.grid + '%'}" v-if="breakdownPct.grid > 0">
+                            <span v-if="breakdownPct.grid >= 3">{{ breakdownPct.grid }}%</span>
+                        </div>
+                        <div class="breakdown-seg unknown" :style="{width: breakdownPct.unknown + '%'}" v-if="breakdownPct.unknown > 0">
+                            <span v-if="breakdownPct.unknown >= 3">{{ breakdownPct.unknown }}%</span>
+                        </div>
                     </div>
                     <div class="breakdown-legend">
                         <span><span class="breakdown-dot solar"></span> {{ $t('energy.solarDirect') }}</span>
                         <span><span class="breakdown-dot battery"></span> {{ $t('energy.viaBattery') }}</span>
                         <span><span class="breakdown-dot grid"></span> {{ $t('energy.fromGrid') }}</span>
+                        <span v-if="balanceUnknownKwh > 0.05"><span class="breakdown-dot unknown"></span> {{ $t('energy.fromUnknown') }}</span>
+                    </div>
+                    <div class="breakdown-warning" v-if="balanceUnknownKwh > 0.05">
+                        {{ $t('energy.unclassifiedEnergy', { kwh: fmt(balanceUnknownKwh) }) }}
                     </div>
                 </div>
 
@@ -199,6 +212,7 @@ const _EnergyPage = {
                             <th style="text-align:right">Ø ct/kWh</th>
                             <th style="text-align:right">{{ $t('energy.costs') }}</th>
                             <th style="text-align:right">{{ $t('energy.savedShort') }}</th>
+                            <th style="text-align:right"></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -224,6 +238,9 @@ const _EnergyPage = {
                             </td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ m.cost }} €</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ m.saved }} €</td>
+                            <td style="text-align:right;">
+                                <button v-if="m.canEditPrice" class="price-edit-btn" @click="openPriceModal(m)">Preis ändern</button>
+                            </td>
                         </tr>
                     </tbody>
                     <tfoot>
@@ -240,6 +257,7 @@ const _EnergyPage = {
                             <td></td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ monthlyTotals.cost }} €</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ monthlyTotals.saved }} €</td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -292,6 +310,52 @@ const _EnergyPage = {
                         <span class="consumer-kwh">{{ billing.consumers.wallbox.total_kwh.toFixed(1) }} kWh</span>
                         <span class="consumer-cost">{{ billing.consumers.wallbox.cost_eur.toFixed(2) }} €</span>
                         <span class="consumer-arrow">›</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== MONTHLY PRICE MODAL ========== -->
+            <div class="modal-overlay" v-if="priceModal" @click.self="closePriceModal">
+                <div class="modal-content price-modal">
+                    <button class="modal-close" @click="closePriceModal">✕</button>
+                    <h3 style="margin:0 0 var(--space-md);">Strompreis für {{ priceModal.label }}</h3>
+                    <p class="price-current">Aktuell verwendet: <strong>{{ formatCt(priceModal.currentPrice) }} ct/kWh</strong></p>
+                    <label class="price-input-label" for="monthly-price-input">Neuer Preis</label>
+                    <div class="price-input-row">
+                        <input
+                            id="monthly-price-input"
+                            type="number"
+                            min="0.01"
+                            max="200"
+                            step="0.01"
+                            v-model="priceInput"
+                            @input="previewPriceChange"
+                        >
+                        <span>ct/kWh</span>
+                    </div>
+                    <div v-if="priceError" class="price-error">{{ priceError }}</div>
+                    <div v-if="pricePreview" class="price-preview-grid">
+                        <div class="price-preview-item">
+                            <span>Bisherige Kosten</span>
+                            <strong>{{ formatEuro(pricePreview.before?.cost_eur) }} €</strong>
+                        </div>
+                        <div class="price-preview-item">
+                            <span>Neue Kosten</span>
+                            <strong>{{ formatEuro(pricePreview.after?.cost_eur) }} €</strong>
+                        </div>
+                        <div class="price-preview-item">
+                            <span>Stromkosten</span>
+                            <strong>{{ formatEuro(pricePreview.after?.energy_cost_eur) }} €</strong>
+                        </div>
+                        <div class="price-preview-item">
+                            <span>Anteilige Grundgebühr</span>
+                            <strong>{{ formatEuro(pricePreview.after?.base_fee_eur) }} €</strong>
+                        </div>
+                    </div>
+                    <div class="price-modal-actions">
+                        <button class="price-primary-btn" @click="savePriceChange" :disabled="priceSaving || !pricePreview">Speichern</button>
+                        <button class="price-secondary-btn" @click="resetMonthPrice" :disabled="priceSaving || !priceModal.canReset">Monatspreis zurücksetzen</button>
+                        <button class="price-cancel-btn" @click="closePriceModal" :disabled="priceSaving">Abbrechen</button>
                     </div>
                 </div>
             </div>
@@ -430,6 +494,11 @@ const _EnergyPage = {
         const priceData = ref(null);
         const sourcesData = ref(null);
         const monthlyData = ref([]);
+        const priceModal = ref(null);
+        const priceInput = ref('');
+        const pricePreview = ref(null);
+        const priceError = ref(null);
+        const priceSaving = ref(false);
         const consumerModal = ref(null);
         const consumerDetail = ref(null);
         const timeContext = reactive({
@@ -441,6 +510,7 @@ const _EnergyPage = {
         });
         let priceChart = null;
         let sourcesChart = null;
+        let pricePreviewTimer = null;
 
         // Localized via months.shortJan/shortFeb/... at use-site.
         const MONTH_SHORT_KEYS = [
@@ -452,6 +522,14 @@ const _EnergyPage = {
 
         function num(v, fallback = 0) { return v ?? fallback; }
         function fmt(v) { return v != null ? v.toFixed(1) : '0.0'; }
+        function formatEuro(v) {
+            const n = Number(v ?? 0);
+            return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+        }
+        function formatCt(v) {
+            const n = Number(v ?? 0);
+            return Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : '0,00';
+        }
         function syncTimeContext(payload) {
             const ctx = payload?.time_context;
             if (!ctx || typeof ctx !== 'object') return;
@@ -475,6 +553,35 @@ const _EnergyPage = {
                 minute: '2-digit',
                 timeZone: timeContext.timezone || undefined,
             }).format(date);
+        }
+        function priceEndpoint(monthRow, suffix = '') {
+            return `/api/sfml_stats/energy/monthly_price/${monthRow.year}/${monthRow.monthNumber}${suffix}`;
+        }
+        function validatePriceInput(value) {
+            const price = Number(String(value).replace(',', '.'));
+            if (!Number.isFinite(price)) return null;
+            if (price <= 0 || price > 200) return null;
+            return price;
+        }
+        async function postJson(url, body) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || payload?.success === false) {
+                throw new Error(payload?.error?.message || payload?.error || 'Der Vorgang konnte nicht ausgeführt werden.');
+            }
+            return payload;
+        }
+        async function deleteJson(url) {
+            const response = await fetch(url, { method: 'DELETE' });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || payload?.success === false) {
+                throw new Error(payload?.error?.message || payload?.error || 'Der Vorgang konnte nicht ausgeführt werden.');
+            }
+            return payload;
         }
 
         const monthlyTotals = computed(() => {
@@ -528,18 +635,61 @@ const _EnergyPage = {
             return (savings * factor).toFixed(0);
         });
 
+        const balanceUnknownKwh = computed(() => {
+            const value = Number(billing.value?.household?.from_unknown_kwh ?? 0);
+            return Number.isFinite(value) ? Math.max(0, value) : 0;
+        });
+
+        function wholePercentages(values) {
+            const cleaned = values.map(value => {
+                const number = Number(value ?? 0);
+                return Number.isFinite(number) ? Math.max(0, number) : 0;
+            });
+            const total = cleaned.reduce((sum, value) => sum + value, 0);
+            if (total <= 0) return cleaned.map(() => 0);
+            const raw = cleaned.map(value => value / total * 100);
+            const rounded = raw.map(value => Math.round(value));
+            let diff = 100 - rounded.reduce((sum, value) => sum + value, 0);
+            while (diff !== 0) {
+                const direction = diff > 0 ? 1 : -1;
+                let bestIndex = -1;
+                let bestScore = -Infinity;
+                raw.forEach((value, index) => {
+                    if (cleaned[index] <= 0) return;
+                    if (direction < 0 && rounded[index] <= 0) return;
+                    const score = direction > 0
+                        ? value - rounded[index]
+                        : rounded[index] - value;
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestIndex = index;
+                    }
+                });
+                if (bestIndex < 0) break;
+                rounded[bestIndex] += direction;
+                diff -= direction;
+            }
+            return rounded;
+        }
+
         const breakdownPct = computed(() => {
             const b = billing.value;
-            if (!b || !b.household?.total_kwh) return { solar: 0, battery: 0, grid: 0 };
-            const solarRaw = num(b.solar?.to_house_kwh);
-            const batteryRaw = b.household?.from_own_battery_kwh ?? b.household?.from_battery_kwh ?? 0;
-            const gridRaw = num(b.household?.from_grid_kwh);
-            const sum = solarRaw + batteryRaw + gridRaw;
-            if (sum <= 0) return { solar: 0, battery: 0, grid: 0 };
+            if (!b) return { solar: 0, battery: 0, grid: 0, unknown: 0 };
+            const solarRaw = Math.max(0, num(b.solar?.to_house_kwh));
+            const batteryRaw = Math.max(0, b.household?.from_battery_kwh ?? 0);
+            const gridRaw = Math.max(0, num(b.household?.from_grid_kwh));
+            const unknownRaw = balanceUnknownKwh.value;
+            const [solar, battery, grid, unknown] = wholePercentages([
+                solarRaw,
+                batteryRaw,
+                gridRaw,
+                unknownRaw,
+            ]);
             return {
-                solar: (solarRaw / sum * 100).toFixed(0),
-                battery: (batteryRaw / sum * 100).toFixed(0),
-                grid: (gridRaw / sum * 100).toFixed(0),
+                solar,
+                battery,
+                grid,
+                unknown,
             };
         });
 
@@ -617,8 +767,12 @@ const _EnergyPage = {
                         );
                         const saved = m.total_savings_eur ?? m.savings_eur ?? (selfCons * priceUsed / 100);
                         const isDynamic = m.cost_source === 'dynamic' || m.cost_source === 'hybrid';
+                        const priceMode = m.price_mode || (isDynamic ? 'dynamic' : null);
 
                         return {
+                            monthKey: m.month,
+                            year,
+                            monthNumber: month,
                             label: MONTH_NAMES[month - 1] + ' ' + year,
                             consumption: consumption.toFixed(0),
                             solar: solar.toFixed(0),
@@ -627,7 +781,13 @@ const _EnergyPage = {
                             selfCons,
                             cost: cost.toFixed(2),
                             avgPrice: priceUsed.toFixed(1),
+                            avgPriceValue: Number(priceUsed ?? 0),
+                            energyCost: Number(m.energy_cost_eur ?? 0),
+                            baseFee: Number(m.base_fee_eur ?? 0),
                             saved: Number(saved ?? 0).toFixed(2),
+                            priceMode,
+                            canEditPrice: m.price_mode === 'fixed',
+                            canReset: m.tariff_source === 'manual',
                             isDynamic,
                             isCurrent: m.month === nowKey,
                         };
@@ -773,6 +933,101 @@ const _EnergyPage = {
             return true;
         }
 
+        async function openPriceModal(monthRow) {
+            priceModal.value = {
+                ...monthRow,
+                currentPrice: monthRow.avgPriceValue,
+            };
+            priceInput.value = formatCt(monthRow.avgPriceValue).replace(',', '.');
+            pricePreview.value = null;
+            priceError.value = null;
+            priceSaving.value = false;
+            try {
+                const response = await fetch(priceEndpoint(monthRow), { cache: 'no-store' });
+                const payload = await response.json();
+                if (!response.ok || payload?.success === false) {
+                    throw new Error(payload?.error?.message || payload?.error || 'Der Preis konnte nicht geladen werden.');
+                }
+                priceModal.value = {
+                    ...priceModal.value,
+                    currentPrice: payload.current_price_ct,
+                    canReset: payload.can_reset,
+                };
+                priceInput.value = formatCt(payload.current_price_ct).replace(',', '.');
+                pricePreview.value = payload;
+            } catch (err) {
+                priceError.value = err?.message || 'Der Preis konnte nicht geladen werden.';
+            }
+        }
+
+        function closePriceModal() {
+            if (pricePreviewTimer) {
+                clearTimeout(pricePreviewTimer);
+                pricePreviewTimer = null;
+            }
+            priceModal.value = null;
+            priceInput.value = '';
+            pricePreview.value = null;
+            priceError.value = null;
+            priceSaving.value = false;
+        }
+
+        function previewPriceChange() {
+            if (!priceModal.value) return;
+            if (pricePreviewTimer) clearTimeout(pricePreviewTimer);
+            const price = validatePriceInput(priceInput.value);
+            if (price == null) {
+                pricePreview.value = null;
+                priceError.value = 'Bitte geben Sie einen Preis zwischen 0 und 200 ct/kWh ein.';
+                return;
+            }
+            priceError.value = null;
+            pricePreviewTimer = setTimeout(async () => {
+                try {
+                    pricePreview.value = await postJson(
+                        priceEndpoint(priceModal.value, '/preview'),
+                        { price_ct: price },
+                    );
+                } catch (err) {
+                    pricePreview.value = null;
+                    priceError.value = err?.message || 'Die Vorschau konnte nicht berechnet werden.';
+                }
+            }, 250);
+        }
+
+        async function savePriceChange() {
+            if (!priceModal.value) return;
+            const price = validatePriceInput(priceInput.value);
+            if (price == null) {
+                priceError.value = 'Bitte geben Sie einen Preis zwischen 0 und 200 ct/kWh ein.';
+                return;
+            }
+            priceSaving.value = true;
+            priceError.value = null;
+            try {
+                await postJson(priceEndpoint(priceModal.value), { price_ct: price });
+                closePriceModal();
+                await loadData();
+            } catch (err) {
+                priceError.value = err?.message || 'Der Preis konnte nicht gespeichert werden.';
+                priceSaving.value = false;
+            }
+        }
+
+        async function resetMonthPrice() {
+            if (!priceModal.value || !priceModal.value.canReset) return;
+            priceSaving.value = true;
+            priceError.value = null;
+            try {
+                await deleteJson(priceEndpoint(priceModal.value));
+                closePriceModal();
+                await loadData();
+            } catch (err) {
+                priceError.value = err?.message || 'Der Monatspreis konnte nicht zurückgesetzt werden.';
+                priceSaving.value = false;
+            }
+        }
+
         async function openConsumerModal(type) {
             consumerModal.value = type;
             try {
@@ -807,6 +1062,9 @@ const _EnergyPage = {
 
         return {
             billing, billingError, priceData, priceRanges, monthlyData, monthlyTotals, fmt,
+            priceModal, priceInput, pricePreview, priceError, priceSaving,
+            formatEuro, formatCt, openPriceModal, closePriceModal,
+            previewPriceChange, savePriceChange, resetMonthPrice,
             autarkieColor, avgDaily, savedKwh, projectedSavings,
             breakdownPct, hasConsumers,
             consumerModal, consumerDetail, openConsumerModal,
@@ -908,6 +1166,7 @@ const _EnergyPage = {
         .breakdown-seg.solar { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
         .breakdown-seg.battery { background: linear-gradient(90deg, #22c55e, #16a34a); }
         .breakdown-seg.grid { background: linear-gradient(90deg, #a855f7, #7c3aed); }
+        .breakdown-seg.unknown { background: linear-gradient(90deg, #94a3b8, #64748b); }
 
         .breakdown-legend {
             display: flex;
@@ -929,6 +1188,14 @@ const _EnergyPage = {
         .breakdown-dot.solar { background: #fbbf24; }
         .breakdown-dot.battery { background: #22c55e; }
         .breakdown-dot.grid { background: #a855f7; }
+        .breakdown-dot.unknown { background: #94a3b8; }
+
+        .breakdown-warning {
+            margin-top: 6px;
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
 
         /* Smart Charging Badge */
         .smart-badge {
@@ -967,6 +1234,22 @@ const _EnergyPage = {
         .consumer-kwh { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; color: var(--text-secondary); }
         .consumer-cost { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; color: #ef4444; }
 
+        .price-edit-btn {
+            background: rgba(0,212,255,0.12);
+            border: 1px solid rgba(0,212,255,0.35);
+            border-radius: var(--radius-sm);
+            color: var(--accent);
+            cursor: pointer;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 5px 9px;
+            white-space: nowrap;
+        }
+        .price-edit-btn:hover {
+            background: rgba(0,212,255,0.2);
+            border-color: var(--accent);
+        }
+
         /* Consumer Detail Modal */
         .modal-overlay {
             position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -987,6 +1270,104 @@ const _EnergyPage = {
             font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1;
         }
         .modal-close:hover { color: #ef4444; }
+
+        .price-modal { max-width: 520px; }
+        .price-current {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin: 0 0 var(--space-lg);
+        }
+        .price-current strong {
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+        .price-input-label {
+            color: var(--text-secondary);
+            display: block;
+            font-size: 0.78rem;
+            margin-bottom: 6px;
+        }
+        .price-input-row {
+            align-items: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            display: flex;
+            gap: 8px;
+            padding: 8px 10px;
+        }
+        .price-input-row input {
+            background: transparent;
+            border: 0;
+            color: var(--text-primary);
+            flex: 1;
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            min-width: 0;
+            outline: none;
+        }
+        .price-input-row span {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            white-space: nowrap;
+        }
+        .price-error {
+            color: #ef4444;
+            font-size: 0.78rem;
+            margin-top: 8px;
+        }
+        .price-preview-grid {
+            display: grid;
+            gap: var(--space-sm);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            margin-top: var(--space-lg);
+        }
+        .price-preview-item {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            padding: var(--space-md);
+        }
+        .price-preview-item span {
+            color: var(--text-secondary);
+            font-size: 0.72rem;
+        }
+        .price-preview-item strong {
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 1rem;
+        }
+        .price-modal-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            justify-content: flex-end;
+            margin-top: var(--space-lg);
+        }
+        .price-modal-actions button {
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 600;
+            padding: 8px 12px;
+        }
+        .price-modal-actions button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+        .price-primary-btn {
+            background: var(--accent);
+            border: 1px solid var(--accent);
+            color: #001018;
+        }
+        .price-secondary-btn,
+        .price-cancel-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            color: var(--text-primary);
+        }
 
         .cd-grid { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-lg); }
         .cd-badge {
@@ -1018,6 +1399,9 @@ const _EnergyPage = {
             .eb-value { font-size: 1.1rem; }
             .consumer-row { grid-template-columns: 30px 1fr 80px 60px 20px; }
             .cd-stats { grid-template-columns: repeat(2, 1fr); }
+            .price-preview-grid { grid-template-columns: 1fr; }
+            .price-modal-actions { justify-content: stretch; }
+            .price-modal-actions button { flex: 1 1 100%; }
         }
     `;
     document.head.appendChild(style);

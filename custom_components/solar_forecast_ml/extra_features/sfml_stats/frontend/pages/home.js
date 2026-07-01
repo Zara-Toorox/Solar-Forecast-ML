@@ -45,6 +45,12 @@ function forecastBandColorFromAccuracy(accuracyPercent) {
     return forecastBandColor(100 - accuracyPercent);
 }
 
+function yieldDeviationColor(deviation) {
+    if (deviation == null || Number.isNaN(deviation)) return '#8b949e';
+    if (deviation >= 0) return deviation > 0 ? '#22c55e' : '#38bdf8';
+    return forecastBandColor(deviation);
+}
+
 const STATUS_TRANSLATIONS = {
     de: {
         producing: 'Erzeugt',
@@ -454,9 +460,9 @@ const _HomePage = {
                         </div>
                     </div>
                     <div v-if="todayForecastErrorLabel" class="metric-badge-card">
-                        <span class="metric-badge-icon">⚠️</span>
+                        <span class="metric-badge-icon">{{ todayForecastErrorIcon }}</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ todayForecastErrorLabel }}</span>
+                            <span class="metric-badge-value" :style="{ color: yieldDeviationColor(todayForecastErrorPercent) }">{{ todayForecastErrorLabel }}</span>
                             <span class="metric-badge-label">{{ $t('home.todayError') }}</span>
                         </div>
                     </div>
@@ -501,7 +507,7 @@ const _HomePage = {
                     <div class="metric-badge-card">
                         <span class="metric-badge-icon">↕️</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" :style="{ color: forecastBandColor(todayForecastErrorPercent) }">{{ forecastDeviationKwhLabel }}</span>
+                            <span class="metric-badge-value" :style="{ color: yieldDeviationColor(forecastDeviationKwh) }">{{ forecastDeviationKwhLabel }}</span>
                             <span class="metric-badge-label">{{ $t('home.deviation') }}</span>
                         </div>
                     </div>
@@ -583,13 +589,16 @@ const _HomePage = {
                             <span v-if="group.live_only" class="pg-badge neutral">
                                 {{ $t('home.panelGroups.liveOnly') }}
                             </span>
-                            <span v-if="group.accuracy_percent != null" class="pg-badge accuracy" :style="{ color: forecastBandColorFromAccuracy(group.accuracy_percent), borderColor: forecastBandColorFromAccuracy(group.accuracy_percent) + '22' }">
-                                {{ group.accuracy_percent.toFixed(0) }}%
+                            <span v-if="panelDayProgressPercent(group) != null" class="pg-badge progress" :style="{ color: panelDayProgressColor(group), borderColor: panelDayProgressColor(group) + '33' }" :title="panelDayProgressTitle(group)">
+                                {{ panelDayProgressPercent(group).toFixed(0) }}%
                             </span>
                         </div>
                     </div>
                     <div v-if="groupHasHourly(group)" class="panel-group-chart" :ref="el => { if (el) pgChartRefs[groupName] = el }"></div>
                     <div v-else class="empty-state">{{ $t('home.panelGroups.liveOnlyText') }}</div>
+                    <div v-if="panelGroupMetaLine(group)" class="pg-meta-line" :title="panelGroupMetaTitle(group)">
+                        {{ panelGroupMetaLine(group) }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -630,6 +639,25 @@ const _HomePage = {
             </div>
         </div>
 
+        <div class="chart-card" v-show="hasBatteryChart" style="margin-top: var(--space-lg)">
+            <div class="chart-header" style="flex-wrap:wrap; gap:6px;">
+                <div style="display:flex; align-items:center; gap:var(--space-md)">
+                    <span class="chart-title">🔋 Akku-Ladestand</span>
+                    <span style="color:#38bdf8; font-size:1.3rem; font-weight:700; font-family:var(--font-mono)">
+                        {{ batteryChartStats.socText }}
+                    </span>
+                </div>
+                <div class="battery-chart-stats">
+                    <span>Tief <strong>{{ batteryChartStats.minSocText }}</strong></span>
+                    <span>Hoch <strong>{{ batteryChartStats.maxSocText }}</strong></span>
+                    <span>Laden <strong class="charge">{{ batteryChartStats.chargeKwh }}</strong></span>
+                    <span>Entladen <strong class="discharge">{{ batteryChartStats.dischargeKwh }}</strong></span>
+                    <span class="battery-mode" :class="batteryStateClass">{{ batteryStateTextLocal }}</span>
+                </div>
+            </div>
+            <div ref="batteryChartEl" class="chart-container battery-chart-container"></div>
+        </div>
+
     </div>
     `,
 
@@ -641,9 +669,11 @@ const _HomePage = {
         // Refs
         const forecastChartEl = ref(null);
         const powerChartEl = ref(null);
+        const batteryChartEl = ref(null);
         const sparklineRefs = reactive({});
         let forecastChartInstance = null;
         let powerChartInstance = null;
+        let batteryChartInstance = null;
         let resizeHandler = null;
 
         // Reactive state
@@ -677,6 +707,7 @@ const _HomePage = {
         const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], operationalTotal: null, actual: [], actualRaw: [], cleanEligible: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
         const weatherTrace = ref([]);
         const powerData = ref([]);
+        const batterySocSensorConfigured = ref(false);
         const dailyForecasts = ref([]);
         const hubble = ref(null);
 
@@ -742,6 +773,68 @@ const _HomePage = {
         const valueOrZero = (value) => value ?? 0;
         const fmtKwh = (value, digits = 2) => Number(valueOrZero(value)).toFixed(digits);
         const groupHasHourly = (group) => Array.isArray(group?.hourly) && group.hourly.length > 0;
+        const finiteNumber = (value) => {
+            const number = Number(value);
+            return Number.isFinite(number) ? number : null;
+        };
+        const formatPanelPercent = (value, digits = 0) => {
+            const number = finiteNumber(value);
+            return number == null ? null : number.toFixed(digits);
+        };
+        const panelDayProgressPercent = (group) => {
+            const provided = finiteNumber(group?.day_progress_percent);
+            if (provided != null) return provided;
+            const actual = finiteNumber(group?.actual_total_kwh);
+            const forecast = finiteNumber(group?.prediction_day_kwh ?? group?.prediction_total_kwh);
+            if (actual == null || forecast == null || forecast <= 0) return null;
+            return (actual / forecast) * 100;
+        };
+        const panelDayProgressColor = (group) => {
+            const progress = panelDayProgressPercent(group);
+            if (progress == null) return '#8b949e';
+            if (progress >= 100) return '#22c55e';
+            if (progress >= 70) return '#fbbf24';
+            if (progress >= 35) return '#38bdf8';
+            return '#8b949e';
+        };
+        const panelDayProgressTitle = (group) => {
+            const actual = fmtKwh(group?.actual_total_kwh, 2);
+            const forecast = fmtKwh(group?.prediction_day_kwh ?? group?.prediction_total_kwh, 2);
+            return t('home.panelGroups.dayProgressTitle', { actual, forecast });
+        };
+        const panelGroupMetaParts = (group) => {
+            if (!group || group.live_only) return [];
+            const parts = [];
+            const forecastUntilNow = finiteNumber(group.prediction_until_now_kwh);
+            if (forecastUntilNow != null && forecastUntilNow > 0) {
+                parts.push(t('home.panelGroups.forecastSoFarShort', {
+                    value: fmtKwh(forecastUntilNow, 2),
+                }));
+            }
+            const hitUntilNow = formatPanelPercent(group.forecast_until_now_accuracy_percent);
+            if (hitUntilNow != null) {
+                parts.push(t('home.panelGroups.hitSoFarShort', { value: hitUntilNow }));
+            }
+            const cleanAccuracy = formatPanelPercent(group.clean_accuracy_percent ?? group.accuracy_percent);
+            if (cleanAccuracy != null) {
+                parts.push(t('home.panelGroups.cleanAccuracyShort', { value: cleanAccuracy }));
+            }
+            const cleanHours = finiteNumber(group.clean_hours_count);
+            const elapsedHours = finiteNumber(group.elapsed_hours_count);
+            if (cleanHours != null && elapsedHours != null && elapsedHours > 0) {
+                parts.push(t('home.panelGroups.learningBasisShort', {
+                    clean: cleanHours.toFixed(0),
+                    elapsed: elapsedHours.toFixed(0),
+                }));
+            }
+            const excludedHours = finiteNumber(group.excluded_hours_count);
+            if (excludedHours != null && excludedHours > 0) {
+                parts.push(t('home.panelGroups.discardedShort', { value: excludedHours.toFixed(0) }));
+            }
+            return parts;
+        };
+        const panelGroupMetaLine = (group) => panelGroupMetaParts(group).join(' · ');
+        const panelGroupMetaTitle = (group) => panelGroupMetaLine(group);
         const statusChipClass = (chip) => {
             if (!chip?.available) return 'unavailable';
             if (chip.active === true) return 'active';
@@ -772,6 +865,63 @@ const _HomePage = {
             if (p > 10) return 'charging';
             if (p < -10) return 'discharging';
             return 'idle';
+        });
+
+        const hasBatteryChart = computed(() => (
+            batterySocSensorConfigured.value
+            && (
+                flow.battery_soc != null
+                || powerData.value.some((point) => point.battery_soc != null)
+            )
+        ));
+
+        function powerPointTimeMs(point) {
+            const raw = point?.local_timestamp || point?.timestamp || point?.time;
+            if (!raw) return null;
+            const timestamp = new Date(raw).getTime();
+            return Number.isFinite(timestamp) ? timestamp : null;
+        }
+
+        function integratePowerKwh(data, selector) {
+            let total = 0;
+            for (let i = 1; i < data.length; i += 1) {
+                const previousTime = powerPointTimeMs(data[i - 1]);
+                const currentTimeMs = powerPointTimeMs(data[i]);
+                if (previousTime == null || currentTimeMs == null || currentTimeMs <= previousTime) continue;
+                const hours = Math.min((currentTimeMs - previousTime) / 3600000, 0.5);
+                total += Math.max(0, Number(selector(data[i - 1])) || 0) * hours / 1000;
+            }
+            return total;
+        }
+
+        const batteryChartStats = computed(() => {
+            const data = powerData.value || [];
+            const charge = integratePowerKwh(
+                data,
+                (point) => (Number(point.solar_to_battery) || 0) + (Number(point.grid_to_battery) || 0),
+            );
+            const discharge = integratePowerKwh(data, (point) => point.battery_to_house);
+            const socPoint = [...data].reverse().find((point) => point.battery_soc != null);
+            const soc = flow.battery_soc ?? socPoint?.battery_soc ?? null;
+            const socValues = data
+                .map((point) => Number(point.battery_soc))
+                .filter((value) => Number.isFinite(value) && value >= 0 && value <= 100);
+            if (flow.battery_soc != null) {
+                const currentSoc = Number(flow.battery_soc);
+                if (Number.isFinite(currentSoc) && currentSoc >= 0 && currentSoc <= 100) {
+                    socValues.push(currentSoc);
+                }
+            }
+            const minSoc = socValues.length ? Math.min(...socValues) : null;
+            const maxSoc = socValues.length ? Math.max(...socValues) : null;
+
+            return {
+                socText: soc == null ? '--' : `${Number(soc).toFixed(0)}%`,
+                minSocText: minSoc == null ? '--' : `${minSoc.toFixed(0)}%`,
+                maxSocText: maxSoc == null ? '--' : `${maxSoc.toFixed(0)}%`,
+                chargeKwh: `${charge.toFixed(2)} kWh`,
+                dischargeKwh: `${discharge.toFixed(2)} kWh`,
+            };
         });
 
         const gridPowerAbsText = computed(() => {
@@ -956,6 +1106,29 @@ const _HomePage = {
             return rows;
         }
 
+        function actualChartRows() {
+            const rows = actualRowsWithLiveDelta();
+            const nowHour = haCurrentHour();
+            let lastActualIndex = -1;
+
+            rows.forEach((value, index) => {
+                const hour = Number(forecastData.hours[index]);
+                if (hour <= nowHour && value != null) {
+                    lastActualIndex = index;
+                }
+            });
+
+            return rows.map((value, index) => {
+                const hour = Number(forecastData.hours[index]);
+                if (hour > nowHour) return null;
+                const fallback = forecastData.actual[index];
+                if (value != null) return value;
+                if (fallback != null) return fallback;
+                if (lastActualIndex >= 0 && index > lastActualIndex) return 0;
+                return null;
+            });
+        }
+
         const forecastTotal = computed(() => {
             if (Number.isFinite(forecastData.operationalTotal)) {
                 return forecastData.operationalTotal.toFixed(1);
@@ -1022,6 +1195,14 @@ const _HomePage = {
             const value = todayForecastErrorPercent.value;
             if (value == null || Number.isNaN(value)) return null;
             return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+        });
+
+        const todayForecastErrorIcon = computed(() => {
+            const value = todayForecastErrorPercent.value;
+            if (value == null || Number.isNaN(value)) return '↕️';
+            if (value > 0) return '↗️';
+            if (value < 0) return '⚠️';
+            return '✓';
         });
 
         const forecastDeviationKwh = computed(() => {
@@ -1831,6 +2012,7 @@ const _HomePage = {
                 const f = data.flows || data;
                 const b = data.battery || {};
                 const h = data.home || {};
+                batterySocSensorConfigured.value = Boolean(data.configured_sensors?.battery_soc);
 
                 flow.solar_power = f.solar_power ?? 0;
                 flow.home_consumption = h.consumption ?? f.home_consumption ?? 0;
@@ -2349,6 +2531,7 @@ const _HomePage = {
                 const res = await SFMLApi.fetch('/api/sfml_stats/power_sources_history?today=true&hours=24');
                 if (!res || !res.data) return;
                 syncTimeContext(res);
+                batterySocSensorConfigured.value = batterySocSensorConfigured.value || Boolean(res.sensors?.battery_soc);
 
                 const todayStr = localDateKey();
                 powerData.value = res.data.filter(d => {
@@ -2357,6 +2540,7 @@ const _HomePage = {
                 });
                 lastPowerUpdate.value = formatHaTime(currentHaInstant(), { hour: '2-digit', minute: '2-digit' });
                 updatePowerChart();
+                updateBatteryChart();
             } catch (err) {
                 console.error('[Home] Power history error:', err);
             }
@@ -2379,6 +2563,7 @@ const _HomePage = {
                 const conf = forecastData.confidence[i] || 50;
                 return Math.max(0, v * (1 - (100 - conf) / 150));
             });
+            const actualRows = actualChartRows();
 
             forecastChartInstance.setOption({
                 backgroundColor: 'transparent',
@@ -2398,8 +2583,7 @@ const _HomePage = {
                         const hour = forecastData.hours[idx];
                         const pred = forecastData.forecast[idx] ?? 0;
                         const hybrid = forecastData.hybrid[idx];
-                        const liveActualRows = actualRowsWithLiveDelta();
-                        const actValue = liveActualRows[idx] ?? forecastData.actual[idx] ?? null;
+                        const actValue = actualRows[idx] ?? null;
                         const act = actValue == null ? null : Number(actValue);
                         const conf = forecastData.confidence[idx] ?? 0;
                         const mlPct = forecastData.ml_pct[idx] ?? 0;
@@ -2453,7 +2637,6 @@ const _HomePage = {
                     type: 'category',
                     data: forecastData.hours.map(h => String(h).padStart(2, '0')),
                     axisLine: { show: false },
-                    axisTick: { show: false },
                     axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, margin: 12 },
                 },
                 yAxis: {
@@ -2515,13 +2698,7 @@ const _HomePage = {
                     {
                         name: 'IST',
                         type: 'line',
-                        data: actualRowsWithLiveDelta().map((value, i) => {
-                            const v = value ?? forecastData.actual[i];
-                            if (v == null) return null;
-                            const h = forecastData.hours[i];
-                            if (h > nowHour) return null;
-                            return v;
-                        }),
+                        data: actualRows,
                         lineStyle: { color: '#22c55e', width: 3, shadowColor: 'rgba(34,197,94,0.3)', shadowBlur: 12, shadowOffsetY: 3 },
                         itemStyle: { color: '#22c55e' },
                         symbol: 'none',
@@ -2629,7 +2806,6 @@ const _HomePage = {
                     type: 'category',
                     data: times,
                     axisLine: { show: false },
-                    axisTick: { show: false },
                     axisLabel: {
                         color: getThemeColor('--text-secondary', '#8b949e'),
                         fontSize: 10,
@@ -2670,6 +2846,131 @@ const _HomePage = {
             });
         }
 
+        function updateBatteryChart() {
+            if (!batteryChartInstance && batteryChartEl.value && typeof echarts !== 'undefined') {
+                batteryChartInstance = echarts.init(batteryChartEl.value, null, { renderer: 'canvas' });
+            }
+            if (!batteryChartInstance || !batterySocSensorConfigured.value) return;
+
+            const data = powerData.value;
+            const dayStart = new Date(`${localDateKey()}T00:00:00`);
+            const dayEnd = new Date(dayStart.getTime() + 24 * 3600000);
+            const toTimeValue = (point) => {
+                const raw = point.local_timestamp || point.timestamp || point.time;
+                if (!raw) return null;
+                const timestamp = new Date(raw).getTime();
+                return Number.isFinite(timestamp) ? timestamp : null;
+            };
+            const socSeries = data
+                .map((point) => {
+                    if (point.battery_soc == null) return null;
+                    const timestamp = toTimeValue(point);
+                    const soc = Number(point.battery_soc);
+                    return timestamp == null || !Number.isFinite(soc) ? null : [timestamp, soc];
+                })
+                .filter(Boolean);
+            if (!socSeries.length && flow.battery_soc != null) {
+                const soc = Number(flow.battery_soc);
+                if (Number.isFinite(soc)) {
+                    socSeries.push([currentHaInstant().getTime(), soc]);
+                }
+            }
+            if (!socSeries.length) return;
+
+            batteryChartInstance.setOption({
+                backgroundColor: 'transparent',
+                grid: { top: 52, right: 24, bottom: 44, left: 56 },
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: getThemeColor('--bg-card', 'rgba(21, 28, 44, 0.85)'),
+                    borderColor: 'rgba(255, 255, 255, 0.08)',
+                    borderWidth: 1,
+                    borderRadius: 12,
+                    padding: [10, 14],
+                    extraCssText: 'backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: 0 8px 32px 0 rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06)',
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-sans)' },
+                    formatter: function(params) {
+                        const axisTime = Number(params[0]?.axisValue);
+                        let point = params[0]?.data;
+                        if (Number.isFinite(axisTime)) {
+                            let bestDistance = Infinity;
+                            socSeries.forEach((candidate) => {
+                                const distance = Math.abs(candidate[0] - axisTime);
+                                if (distance < bestDistance) {
+                                    bestDistance = distance;
+                                    point = candidate;
+                                }
+                            });
+                        }
+                        if (!point) return '';
+                        const soc = Number(point[1]);
+                        let html = '<div style="font-family:var(--font-sans);min-width:170px">';
+                        html += '<div style="font-weight:700;font-size:12px;margin-bottom:6px">' + formatHaTime(point[0], { hour: '2-digit', minute: '2-digit' }) + '</div>';
+                        html += '<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:#38bdf8">Akkuladung:</span><span style="font-family:var(--font-mono);font-weight:700">' + soc.toFixed(0) + '%</span></div>';
+                        html += '</div>';
+                        return html;
+                    }
+                },
+                xAxis: {
+                    type: 'time',
+                    min: dayStart.getTime(),
+                    max: dayEnd.getTime(),
+                    interval: 3600000,
+                    minInterval: 3600000,
+                    maxInterval: 3600000,
+                    splitNumber: 24,
+                    axisLine: { show: false },
+                    axisTick: { show: true, alignWithLabel: true },
+                    axisLabel: {
+                        color: getThemeColor('--text-secondary', '#8b949e'),
+                        fontSize: 9,
+                        margin: 10,
+                        hideOverlap: false,
+                        showMinLabel: true,
+                        showMaxLabel: true,
+                        formatter: value => formatHaTime(value, { hour: '2-digit' })
+                    },
+                },
+                yAxis: {
+                    type: 'value',
+                    min: 0,
+                    max: 100,
+                    interval: 20,
+                    axisLine: { show: false },
+                    axisTick: { show: false },
+                    splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.02)'), type: 'dashed' } },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, formatter: v => `${Math.round(v)}%` },
+                },
+                series: [
+                    {
+                        name: 'Akkuladung',
+                        type: 'line',
+                        data: socSeries,
+                        lineStyle: { color: '#38bdf8', width: 2.5, shadowColor: 'rgba(56,189,248,0.18)', shadowBlur: 8 },
+                        itemStyle: { color: '#38bdf8' },
+                        symbol: socSeries.length > 1 ? 'none' : 'circle',
+                        symbolSize: 6,
+                        smooth: true,
+                        connectNulls: true,
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: 'rgba(56,189,248,0.18)' },
+                                { offset: 1, color: 'rgba(56,189,248,0)' }
+                            ])
+                        },
+                    },
+                ],
+                legend: {
+                    show: false,
+                    data: ['Akkuladung'],
+                    top: 8,
+                    left: 16,
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                },
+            });
+            batteryChartInstance.resize();
+        }
+
         // Sync from parent liveData
         watch(() => props.liveData, (ld) => {
             if (ld.solar_power != null) flow.solar_power = ld.solar_power;
@@ -2688,6 +2989,7 @@ const _HomePage = {
             nextTick(() => {
                 updateForecastChart();
                 updatePowerChart();
+                updateBatteryChart();
                 for (const chart of Object.values(pgChartInstances)) {
                     if (chart) chart.dispose();
                 }
@@ -2727,10 +3029,14 @@ const _HomePage = {
             if (powerChartEl.value && typeof echarts !== 'undefined') {
                 powerChartInstance = echarts.init(powerChartEl.value, null, { renderer: 'canvas' });
             }
+            if (batteryChartEl.value && typeof echarts !== 'undefined') {
+                batteryChartInstance = echarts.init(batteryChartEl.value, null, { renderer: 'canvas' });
+            }
 
             resizeHandler = () => {
                 if (forecastChartInstance) forecastChartInstance.resize();
                 if (powerChartInstance) powerChartInstance.resize();
+                if (batteryChartInstance) batteryChartInstance.resize();
             };
             window.addEventListener('resize', resizeHandler);
 
@@ -2767,6 +3073,7 @@ const _HomePage = {
             if (infoTimer) clearInterval(infoTimer);
             if (forecastChartInstance) { forecastChartInstance.dispose(); forecastChartInstance = null; }
             if (powerChartInstance) { powerChartInstance.dispose(); powerChartInstance = null; }
+            if (batteryChartInstance) { batteryChartInstance.dispose(); batteryChartInstance = null; }
             for (const chart of Object.values(pgChartInstances)) {
                 if (chart) chart.dispose();
             }
@@ -2781,10 +3088,11 @@ const _HomePage = {
         };
 
         return {
-            forecastChartEl, powerChartEl, sparklineRefs,
+            forecastChartEl, powerChartEl, batteryChartEl, sparklineRefs,
             flow, panels, panelHistory, infoData, flowStatusChips, panelGroupsData, pgChartRefs,
             forecastData, powerData, dailyForecasts,
-            fmtKwh, groupHasHourly,
+            fmtKwh, groupHasHourly, panelDayProgressPercent, panelDayProgressColor,
+            panelDayProgressTitle, panelGroupMetaLine, panelGroupMetaTitle,
             weatherTrace, hasWeatherTrace,
             currentTime, lastPowerUpdate,
             isNightTime, forecastTotal, hybridForecastTotal, hasHybridForecast,
@@ -2792,15 +3100,17 @@ const _HomePage = {
             hybridDeviationLabel, cleanEvalStats, todayLearningBasisLabel,
             todayDiscardedLearningLabel, todayCoverageExplanation,
             todayForecastErrorPercent, todayForecastAccuracyPercent, todayForecastErrorLabel,
+            todayForecastErrorIcon,
             forecastDeviationKwh, forecastDeviationKwhLabel,
             hubbleView, hubbleExpanded, hubbleQuestion,
             getGridPower, getGridLabel, fmtKw, fmtW,
-            forecastBandColor, forecastBandColorFromAccuracy,
+            forecastBandColor, forecastBandColorFromAccuracy, yieldDeviationColor,
             getSparklinePath, getSparklineAreaPath,
             getWeatherSymbol, statusChipClass, statusChipTitle,
             consumers, routes, batteryPowerText, batteryStateTextLocal,
             batteryStateClass, gridPowerAbsText, gridStateTextLocal,
             gridStateColorClass, localText,
+            hasBatteryChart, batteryChartStats,
             getConsumerName,
         };
     }
@@ -3427,8 +3737,17 @@ const _HomePage = {
             background: rgba(251, 191, 36, 0.08);
         }
 
-        .pg-badge.accuracy {
+        .pg-badge.progress {
             background: rgba(255, 255, 255, 0.02);
+        }
+
+        .pg-meta-line {
+            margin-top: 8px;
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            line-height: 1.35;
+            font-family: var(--font-mono);
+            white-space: normal;
         }
 
         .forecast-card-title-row {
@@ -3761,6 +4080,62 @@ const _HomePage = {
         }
         .chart-card:hover {
             border-color: var(--border-hover);
+        }
+
+        .battery-chart-container {
+            height: 28vh;
+            min-height: 220px;
+        }
+
+        .battery-chart-stats {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            column-gap: 18px;
+            row-gap: 8px;
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+        }
+
+        .battery-chart-stats span {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .battery-chart-stats strong {
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .battery-chart-stats strong.charge {
+            color: #22c55e;
+        }
+
+        .battery-chart-stats strong.discharge {
+            color: #f97316;
+        }
+
+        .battery-chart-stats .battery-mode {
+            padding: 2px 7px;
+            border-radius: 999px;
+            border: 1px solid var(--border-default);
+            color: var(--text-secondary);
+            font-family: var(--font-sans);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+
+        .battery-chart-stats .battery-mode.charging {
+            border-color: rgba(34, 197, 94, 0.28);
+            color: #22c55e;
+        }
+
+        .battery-chart-stats .battery-mode.discharging {
+            border-color: rgba(249, 115, 22, 0.28);
+            color: #f97316;
         }
 
         @media (max-width: 1180px) {

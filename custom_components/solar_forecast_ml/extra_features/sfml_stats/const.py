@@ -15,7 +15,7 @@ from typing import Final
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "32.0.6"
+VERSION: Final = "32.0.8"
 
 from datetime import timedelta
 from homeassistant.const import Platform
