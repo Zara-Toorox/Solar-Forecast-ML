@@ -39,6 +39,12 @@ from .const import (
     CONF_BILLING_GRID_FEES,
     CONF_BILLING_BASE_FEE,
     CONF_FEED_IN_TARIFF,
+    CONF_AMORTIZATION_INVESTMENT_EUR,
+    CONF_AMORTIZATION_SUBSIDY_EUR,
+    CONF_AMORTIZATION_COMMISSIONING_DATE,
+    CONF_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR,
+    CONF_AMORTIZATION_PRICE_INCREASE_PERCENT,
+    CONF_AMORTIZATION_DEGRADATION_PERCENT,
     CONF_PANEL_GROUP_NAMES,
     CONF_SHOW_PANEL_GROUPS,
     CONF_SMART_CHARGING_ENABLED,
@@ -65,6 +71,11 @@ from .const import (
     DEFAULT_BILLING_GRID_FEES,
     DEFAULT_BILLING_BASE_FEE,
     DEFAULT_FEED_IN_TARIFF,
+    DEFAULT_AMORTIZATION_INVESTMENT_EUR,
+    DEFAULT_AMORTIZATION_SUBSIDY_EUR,
+    DEFAULT_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR,
+    DEFAULT_AMORTIZATION_PRICE_INCREASE_PERCENT,
+    DEFAULT_AMORTIZATION_DEGRADATION_PERCENT,
     DEFAULT_FORECAST_ENTITY_1_NAME,
     DEFAULT_FORECAST_ENTITY_2_NAME,
     PRICE_MODE_DYNAMIC,
@@ -382,6 +393,8 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_consumers()
             if choice == "pricing":
                 return await self.async_step_pricing()
+            if choice == "amortization":
+                return await self.async_step_amortization()
             if choice == "smart_charging":
                 return await self.async_step_smart_charging()
             if choice == "advanced":
@@ -394,6 +407,7 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     "sensors": "Sensors",
                     "consumers": "Consumer Details (WP/Wallbox)",
                     "pricing": "Pricing",
+                    "amortization": "Amortisation",
                     "smart_charging": "Smart Charging",
                     "advanced": "Advanced",
                 }),
@@ -646,6 +660,67 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
+            }),
+        )
+
+    async def async_step_amortization(
+        self, user_input: dict[str, Any] | None = None,
+    ) -> FlowResult:
+        """Edit PV investment and amortization assumptions. @zara"""
+        keys = [
+            CONF_AMORTIZATION_INVESTMENT_EUR,
+            CONF_AMORTIZATION_SUBSIDY_EUR,
+            CONF_AMORTIZATION_COMMISSIONING_DATE,
+            CONF_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR,
+            CONF_AMORTIZATION_PRICE_INCREASE_PERCENT,
+            CONF_AMORTIZATION_DEGRADATION_PERCENT,
+        ]
+        if user_input is not None:
+            new_data = {**self._config_entry.data}
+            for key in keys:
+                value = user_input.get(key)
+                if value is None or (isinstance(value, str) and not value.strip()):
+                    new_data.pop(key, None)
+                else:
+                    new_data[key] = value
+            return self._save(new_data)
+
+        return self.async_show_form(
+            step_id="amortization",
+            data_schema=vol.Schema({
+                vol.Optional(
+                    CONF_AMORTIZATION_INVESTMENT_EUR,
+                    default=self._current(CONF_AMORTIZATION_INVESTMENT_EUR, DEFAULT_AMORTIZATION_INVESTMENT_EUR),
+                ): _number(0, 250000, 100, unit="EUR"),
+                vol.Optional(
+                    CONF_AMORTIZATION_SUBSIDY_EUR,
+                    default=self._current(CONF_AMORTIZATION_SUBSIDY_EUR, DEFAULT_AMORTIZATION_SUBSIDY_EUR),
+                ): _number(0, 250000, 100, unit="EUR"),
+                vol.Optional(
+                    CONF_AMORTIZATION_COMMISSIONING_DATE,
+                    default=self._current(CONF_AMORTIZATION_COMMISSIONING_DATE, ""),
+                ): str,
+                vol.Optional(
+                    CONF_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR,
+                    default=self._current(
+                        CONF_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR,
+                        DEFAULT_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR,
+                    ),
+                ): _number(0, 20000, 10, unit="EUR/Jahr"),
+                vol.Optional(
+                    CONF_AMORTIZATION_PRICE_INCREASE_PERCENT,
+                    default=self._current(
+                        CONF_AMORTIZATION_PRICE_INCREASE_PERCENT,
+                        DEFAULT_AMORTIZATION_PRICE_INCREASE_PERCENT,
+                    ),
+                ): _number(-10, 20, 0.1, unit="%/Jahr"),
+                vol.Optional(
+                    CONF_AMORTIZATION_DEGRADATION_PERCENT,
+                    default=self._current(
+                        CONF_AMORTIZATION_DEGRADATION_PERCENT,
+                        DEFAULT_AMORTIZATION_DEGRADATION_PERCENT,
+                    ),
+                ): _number(0, 10, 0.1, unit="%/Jahr"),
             }),
         )
 

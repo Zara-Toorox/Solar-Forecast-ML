@@ -277,8 +277,8 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     except ValueError:
                         pass
 
-            # Calculate is_cheap if not already done and total_price is available
-            if data.get("total_price") is not None and not data.get("is_cheap", False):
+            # Recalculate is_cheap from the effective total_price, including sensor overrides.
+            if data.get("total_price") is not None:
                 max_price = entry_config.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
                 data["is_cheap"] = data["total_price"] < max_price
 
@@ -465,6 +465,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # --- Store everything ---
     hass.data[DOMAIN][entry.entry_id] = {
+        "config_entry": entry,
         "validator": validator,
         "config": entry_config,
         "aggregator": aggregator,

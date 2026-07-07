@@ -319,9 +319,28 @@ const SettingsPage = {
                                 <span class="settings-item-value">{{ systemInfo.data_points != null ? systemInfo.data_points.toLocaleString() : '--' }}</span>
                             </div>
                         </div>
-                        <button class="export-btn" @click="exportCsv" :disabled="exporting">
-                            {{ exporting ? $t('common.exporting') : $t('common.export') + ' CSV' }}
-                        </button>
+                    </div>
+                </div>
+
+                <!-- Accordion: Exports -->
+                <div class="accordion-section" :class="{ open: openSection === 'exports' }">
+                    <button class="accordion-header" @click="toggle('exports')">
+                        <span class="accordion-icon">{{ openSection === 'exports' ? '\u25BE' : '\u25B8' }}</span>
+                        <span class="accordion-title">{{ $t('settings.exports.title') }}</span>
+                        <span class="accordion-badge neutral">{{ $t('settings.exports.badge') }}</span>
+                    </button>
+                    <div class="accordion-body" v-show="openSection === 'exports'">
+                        <div class="export-grid">
+                            <button v-for="option in exportOptions"
+                                    :key="option.type"
+                                    class="export-option"
+                                    type="button"
+                                    @click="exportDataset(option)"
+                                    :disabled="isExporting">
+                                <span class="export-option-title">{{ exportingType === option.type ? $t('settings.exports.downloading', { name: $t(option.labelKey) }) : $t(option.labelKey) }}</span>
+                                <span class="export-option-format">{{ option.format }}</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -443,7 +462,15 @@ const SettingsPage = {
         };
 
         const openSection = vRef('interface');
-        const exporting = vRef(false);
+        const exportingType = vRef(null);
+        const isExporting = computed(() => exportingType.value !== null);
+        const exportOptions = [
+            { type: 'solar', labelKey: 'settings.exports.solar', format: 'CSV', extension: 'csv' },
+            { type: 'energy', labelKey: 'settings.exports.energy', format: 'CSV', extension: 'csv' },
+            { type: 'billing', labelKey: 'settings.exports.billing', format: 'CSV', extension: 'csv' },
+            { type: 'smart_charging', labelKey: 'settings.exports.smartCharging', format: 'CSV', extension: 'csv' },
+            { type: 'all', labelKey: 'settings.exports.allZip', format: 'ZIP', extension: 'zip' },
+        ];
 
         const sensors = vRef([]);
         const configuredConsumers = vRef([]);
@@ -659,24 +686,32 @@ const SettingsPage = {
             return names[key] || key;
         };
 
-        async function exportCsv() {
-            exporting.value = true;
+        function exportFilename(response, option) {
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const match = disposition.match(/filename="?([^";]+)"?/i);
+            if (match && match[1]) return match[1];
+            return `sfml_stats_${option.type}_${localDateKey()}.${option.extension}`;
+        }
+
+        async function exportDataset(option) {
+            exportingType.value = option.type;
             try {
-                const response = await fetch('/api/sfml_stats/export/csv');
-                if (!response.ok) throw new Error('Export failed');
+                const response = await fetch(`/api/sfml_stats/export/${encodeURIComponent(option.type)}`);
+                if (!response.ok) throw new Error(`${t('settings.exports.failed')} (${response.status})`);
                 const blob = await response.blob();
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'sfml_stats_export_' + localDateKey() + '.csv';
+                a.download = exportFilename(response, option);
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             } catch (e) {
-                console.error('CSV export error:', e);
+                console.error('Export error:', e);
+                window.alert(e?.message || t('settings.exports.failed'));
             } finally {
-                exporting.value = false;
+                exportingType.value = null;
             }
         }
 
@@ -685,11 +720,11 @@ const SettingsPage = {
         });
 
         return {
-            openSection, exporting,
+            openSection, exportingType, isExporting, exportOptions,
             sensors, priceInfo, chargingInfo, panelGroups, systemInfo, aiInfo,
             haConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
-            toggle, exportCsv, formatDate, formatValue, openIntegration,
+            toggle, exportDataset, formatDate, formatValue, openIntegration,
             translateSensorLabel, translateSensorState,
             currentLocale, supportedLocales, localeName, changeLocale, changeTheme,
             configuredConsumers, getConsumerName,
@@ -894,6 +929,44 @@ const SettingsPage = {
         .export-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+        .export-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: var(--space-sm);
+        }
+        .export-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-sm);
+            min-height: 44px;
+            padding: var(--space-sm) var(--space-md);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            background: rgba(255,255,255,0.03);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: border-color var(--transition-fast), background var(--transition-fast);
+        }
+        .export-option:hover:not(:disabled) {
+            border-color: var(--accent);
+            background: rgba(0,212,255,0.08);
+        }
+        .export-option:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        .export-option-title {
+            min-width: 0;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: left;
+        }
+        .export-option-format {
+            flex: 0 0 auto;
+            font: 700 0.7rem var(--font-mono);
+            color: var(--accent);
         }
         .empty-state {
             text-align: center;

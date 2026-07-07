@@ -31,8 +31,9 @@
       },
       "panel_groups": {
         "title": "Configure Panel Groups (Required)",
-        "description": "Configure up to 4 panel groups. Sensor is the group's live power sensor (W or kW). Azimuth: 0°=North, 90°=East, 180°=South, 270°=West. Tilt is the module angle. kWp is the installed DC capacity of the group.",
+        "description": "Set the active group count first. Only groups up to this count are saved; higher groups are ignored. Sensor is the group's live power sensor (W or kW). Azimuth: 0°=North, 90°=East, 180°=South, 270°=West. Tilt is the module angle. kWp is the installed DC capacity of the group.",
         "data": {
+          "panel_group_count": "Active Panel Groups",
           "group_1_sensor": "Group 1 Sensor",
           "group_1_azimuth": "Group 1 Azimuth",
           "group_1_tilt": "Group 1 Tilt",
@@ -51,6 +52,7 @@
           "group_4_kwp": "Group 4 kWp"
         },
         "data_description": {
+          "panel_group_count": "Choose how many panel groups should be active. To remove old groups, reduce this number.",
           "group_1_sensor": "Live power sensor for group 1. Unit must be W or kW.",
           "group_1_azimuth": "Panel direction in degrees.",
           "group_1_tilt": "Module tilt angle in degrees.",
@@ -71,8 +73,9 @@
       },
       "reconfigure_panel_groups": {
         "title": "Reconfigure Panel Groups (Required)",
-        "description": "Configure up to 4 panel groups. Sensor is the group's live power sensor (W or kW). Azimuth: 0°=North, 90°=East, 180°=South, 270°=West. Tilt is the module angle. kWp is the installed DC capacity of the group.",
+        "description": "Set the active group count first. Only groups up to this count are saved; higher groups are removed. Sensor is the group's live power sensor (W or kW). Azimuth: 0°=North, 90°=East, 180°=South, 270°=West. Tilt is the module angle. kWp is the installed DC capacity of the group.",
         "data": {
+          "panel_group_count": "Active Panel Groups",
           "group_1_sensor": "Group 1 Sensor",
           "group_1_azimuth": "Group 1 Azimuth",
           "group_1_tilt": "Group 1 Tilt",
@@ -91,6 +94,7 @@
           "group_4_kwp": "Group 4 kWp"
         },
         "data_description": {
+          "panel_group_count": "Choose how many panel groups should remain active. To reduce from 3 to 2 groups, set this to 2.",
           "group_1_sensor": "Live power sensor for group 1. Unit must be W or kW.",
           "group_1_azimuth": "Panel direction in degrees.",
           "group_1_tilt": "Module tilt angle in degrees.",

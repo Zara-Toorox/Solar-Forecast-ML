@@ -195,6 +195,167 @@ const _EnergyPage = {
                 </div>
             </div>
 
+            <!-- ========== KARTE 1b: VERBRAUCHSATLAS ========== -->
+            <div class="chart-card consumer-atlas-card" style="margin-bottom: var(--space-lg);">
+                <div class="chart-header consumer-atlas-header">
+                    <div>
+                        <span class="chart-title">{{ $t('energy.consumerAtlas.title') }}</span>
+                        <div class="consumer-atlas-subtitle">{{ $t('energy.consumerAtlas.subtitle') }}</div>
+                    </div>
+                    <div class="consumer-atlas-actions">
+                        <span class="consumer-atlas-period" v-if="consumerAtlas?.period">
+                            {{ consumerAtlas.period.start }} — {{ consumerAtlas.period.today }}
+                        </span>
+                    </div>
+                </div>
+
+                <div v-if="consumerAtlasError" class="price-error" style="margin-bottom: var(--space-md);">{{ consumerAtlasError }}</div>
+                <div v-if="consumerAtlasNotice" class="consumer-atlas-notice" aria-live="polite">{{ consumerAtlasNotice }}</div>
+
+                <div class="consumer-atlas-kpis">
+                    <div class="consumer-atlas-kpi">
+                        <span>{{ $t('energy.consumerAtlas.known') }}</span>
+                        <strong>{{ fmt(consumerAtlas?.summary?.known_kwh) }} kWh</strong>
+                    </div>
+                    <div class="consumer-atlas-kpi">
+                        <span>{{ $t('energy.consumerAtlas.unknown') }}</span>
+                        <strong>{{ fmt(consumerAtlas?.summary?.unknown_kwh) }} kWh</strong>
+                    </div>
+                    <div class="consumer-atlas-kpi">
+                        <span>{{ $t('energy.consumerAtlas.activePower') }}</span>
+                        <strong>{{ formatPower(consumerAtlas?.summary?.active_power_w) }}</strong>
+                    </div>
+                    <div class="consumer-atlas-kpi accent">
+                        <span>{{ $t('energy.consumerAtlas.topConsumer') }}</span>
+                        <strong>{{ consumerAtlasTopName }}</strong>
+                    </div>
+                </div>
+
+                <div class="consumer-atlas-layout">
+                    <div class="consumer-atlas-chart-target"></div>
+                    <div class="consumer-atlas-side">
+                        <div class="consumer-atlas-list" v-if="consumerAtlasConsumers.length">
+                            <div class="consumer-atlas-row" v-for="consumer in consumerAtlasConsumers" :key="consumer.consumer_id">
+                                <span class="consumer-atlas-color" :style="{ background: consumer.color }"></span>
+                                <span class="consumer-atlas-name">{{ consumer.name }}</span>
+                                <span class="consumer-atlas-value">{{ fmt(consumer.period_kwh) }} kWh</span>
+                                <span class="consumer-atlas-live">{{ formatPower(consumer.last_power_w) }}</span>
+                                <button class="consumer-atlas-delete" @click="deleteConsumerAtlasEntry(consumer.consumer_id)">×</button>
+                            </div>
+                        </div>
+                        <div class="consumer-atlas-empty" v-else>{{ $t('energy.consumerAtlas.noData') }}</div>
+
+                        <div class="consumer-atlas-form">
+                            <input type="text" :placeholder="$t('energy.consumerAtlas.name')" v-model="consumerAtlasForm.name">
+                            <input type="text" :placeholder="$t('energy.consumerAtlas.entityId')" v-model="consumerAtlasForm.entity_id">
+                            <input type="number" min="0" step="0.1" :placeholder="$t('energy.consumerAtlas.startKwh')" v-model="consumerAtlasForm.start_kwh">
+                            <select v-model="consumerAtlasForm.category">
+                                <option value="entertainment">{{ $t('energy.consumerAtlas.categoryEntertainment') }}</option>
+                                <option value="kitchen">{{ $t('energy.consumerAtlas.categoryKitchen') }}</option>
+                                <option value="heating">{{ $t('energy.consumerAtlas.categoryHeating') }}</option>
+                                <option value="mobility">{{ $t('energy.consumerAtlas.categoryMobility') }}</option>
+                                <option value="office">{{ $t('energy.consumerAtlas.categoryOffice') }}</option>
+                                <option value="utility">{{ $t('energy.consumerAtlas.categoryUtility') }}</option>
+                                <option value="other">{{ $t('energy.consumerAtlas.categoryOther') }}</option>
+                            </select>
+                            <input type="color" v-model="consumerAtlasForm.color" :title="$t('energy.consumerAtlas.color')">
+                            <button class="price-primary-btn consumer-atlas-save" @click="saveConsumerAtlasEntry" :disabled="consumerAtlasSaving">
+                                {{ consumerAtlasSaving ? $t('common.saving') : $t('energy.consumerAtlas.add') }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========== KARTE 1b: AMORTISATION ========== -->
+            <div class="chart-card amortization-card" style="margin-bottom: var(--space-lg);" v-if="amortization">
+                <div class="chart-header" style="margin-bottom: var(--space-md);">
+                    <div>
+                        <span class="chart-title">{{ $t('energy.amortization.title') }}</span>
+                        <div class="amortization-subtitle">{{ $t('energy.amortization.subtitle') }}</div>
+                    </div>
+                    <button class="price-edit-btn" @click="toggleAmortizationEdit">
+                        {{ amortizationEdit ? $t('common.close') : $t('energy.amortization.edit') }}
+                    </button>
+                </div>
+
+                <div v-if="amortizationError" class="price-error" style="margin-bottom: var(--space-md);">{{ amortizationError }}</div>
+
+                <div class="amortization-layout">
+                    <div class="amortization-summary">
+                        <div class="amortization-ring" :style="amortizationRingStyle">
+                            <div class="amortization-ring-inner">
+                                <strong>{{ amortizationProgress }}%</strong>
+                                <span>{{ $t('energy.amortization.progress') }}</span>
+                            </div>
+                        </div>
+                        <div class="amortization-kpis">
+                            <div class="amortization-kpi">
+                                <span>{{ $t('energy.amortization.investment') }}</span>
+                                <strong>{{ formatEuro(amortization.summary?.net_investment_eur) }} €</strong>
+                            </div>
+                            <div class="amortization-kpi">
+                                <span>{{ $t('energy.amortization.paidBack') }}</span>
+                                <strong>{{ formatEuro(amortization.summary?.accumulated_benefit_eur) }} €</strong>
+                            </div>
+                            <div class="amortization-kpi">
+                                <span>{{ $t('energy.amortization.remaining') }}</span>
+                                <strong>{{ formatEuro(amortization.summary?.remaining_eur) }} €</strong>
+                            </div>
+                            <div class="amortization-kpi accent">
+                                <span>{{ $t('energy.amortization.breakEven') }}</span>
+                                <strong>{{ amortizationBreakEven }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="amortization-chart-wrap">
+                        <div class="amortization-chart-target"></div>
+                    </div>
+                </div>
+
+                <div class="amortization-scenarios" v-if="amortization.configured && amortization.scenarios?.length">
+                    <div class="amortization-scenario" v-for="scenario in amortization.scenarios" :key="scenario.id">
+                        <span>{{ $t('energy.amortization.scenarios.' + scenario.id) }}</span>
+                        <strong>{{ formatScenarioBreakEven(scenario) }}</strong>
+                    </div>
+                </div>
+
+                <div class="amortization-empty" v-if="!amortization.configured && !amortizationEdit">
+                    {{ $t('energy.amortization.notConfigured') }}
+                </div>
+
+                <div class="amortization-form" v-if="amortizationEdit">
+                    <label>
+                        <span>{{ $t('energy.amortization.investmentInput') }}</span>
+                        <input type="number" min="0" step="100" v-model="amortizationForm.investment_eur">
+                    </label>
+                    <label>
+                        <span>{{ $t('energy.amortization.subsidyInput') }}</span>
+                        <input type="number" min="0" step="100" v-model="amortizationForm.subsidy_eur">
+                    </label>
+                    <label>
+                        <span>{{ $t('energy.amortization.startDate') }}</span>
+                        <input type="date" v-model="amortizationForm.commissioning_date">
+                    </label>
+                    <label>
+                        <span>{{ $t('energy.amortization.runningCosts') }}</span>
+                        <input type="number" min="0" step="10" v-model="amortizationForm.annual_running_costs_eur">
+                    </label>
+                    <label>
+                        <span>{{ $t('energy.amortization.priceIncrease') }}</span>
+                        <input type="number" min="-10" max="20" step="0.1" v-model="amortizationForm.electricity_price_increase_percent">
+                    </label>
+                    <label>
+                        <span>{{ $t('energy.amortization.degradation') }}</span>
+                        <input type="number" min="0" max="10" step="0.1" v-model="amortizationForm.degradation_percent">
+                    </label>
+                    <button class="price-primary-btn amortization-save" @click="saveAmortizationSettings" :disabled="amortizationSaving">
+                        {{ amortizationSaving ? $t('common.saving') : $t('energy.amortization.save') }}
+                    </button>
+                </div>
+            </div>
+
             <!-- ========== KARTE 1b: MONATLICHE STROMKOSTEN ========== -->
             <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="monthlyData.length > 0">
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
@@ -489,11 +650,78 @@ const _EnergyPage = {
         const locale = { value: window.SFMLI18n ? window.SFMLI18n.current : 'en' };
         const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'en-US');
 
+        const defaultAmortization = {
+            success: true,
+            configured: false,
+            settings: {
+                investment_eur: 0,
+                subsidy_eur: 0,
+                commissioning_date: null,
+                annual_running_costs_eur: 0,
+                electricity_price_increase_percent: 2.0,
+                degradation_percent: 0.5,
+            },
+            summary: {
+                net_investment_eur: 0,
+                accumulated_benefit_eur: 0,
+                remaining_eur: 0,
+                progress_percent: 0,
+                observed_months: 0,
+                annualized_benefit_eur: 0,
+                break_even_month: null,
+                break_even_year: null,
+                months_to_break_even: null,
+                status: 'unavailable',
+            },
+            series: [],
+            projection: [],
+            scenarios: [],
+        };
+
+        const defaultConsumerAtlas = {
+            success: true,
+            period: null,
+            summary: {
+                configured_count: 0,
+                enabled_count: 0,
+                known_kwh: 0,
+                home_consumption_kwh: 0,
+                unknown_kwh: 0,
+                active_power_w: 0,
+                top_consumer: null,
+            },
+            consumers: [],
+            daily: [],
+        };
+
         const billing = ref(null);
         const billingError = ref(null);
         const priceData = ref(null);
         const sourcesData = ref(null);
         const monthlyData = ref([]);
+        const amortization = ref(defaultAmortization);
+        const amortizationError = ref(null);
+        const amortizationEdit = ref(false);
+        const amortizationSaving = ref(false);
+        const amortizationForm = reactive({
+            investment_eur: '',
+            subsidy_eur: '',
+            commissioning_date: '',
+            annual_running_costs_eur: '',
+            electricity_price_increase_percent: '2.0',
+            degradation_percent: '0.5',
+        });
+        const consumerAtlas = ref(defaultConsumerAtlas);
+        const consumerAtlasError = ref(null);
+        const consumerAtlasNotice = ref(null);
+        const consumerAtlasSaving = ref(false);
+        const consumerAtlasForm = reactive({
+            name: '',
+            entity_id: '',
+            start_kwh: '',
+            category: 'entertainment',
+            color: '#06b6d4',
+        });
         const priceModal = ref(null);
         const priceInput = ref('');
         const pricePreview = ref(null);
@@ -510,6 +738,8 @@ const _EnergyPage = {
         });
         let priceChart = null;
         let sourcesChart = null;
+        let amortizationChart = null;
+        let consumerAtlasChart = null;
         let pricePreviewTimer = null;
 
         // Localized via months.shortJan/shortFeb/... at use-site.
@@ -529,6 +759,12 @@ const _EnergyPage = {
         function formatCt(v) {
             const n = Number(v ?? 0);
             return Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : '0,00';
+        }
+        function formatPower(v) {
+            const n = Number(v ?? 0);
+            if (!Number.isFinite(n) || n <= 0) return '0 W';
+            if (n >= 1000) return (n / 1000).toFixed(1) + ' kW';
+            return n.toFixed(0) + ' W';
         }
         function syncTimeContext(payload) {
             const ctx = payload?.time_context;
@@ -713,9 +949,137 @@ const _EnergyPage = {
             return (c.heatpump?.total_kwh > 0) || (c.heatingrod?.total_kwh > 0) || (c.wallbox?.total_kwh > 0);
         });
 
+        const consumerAtlasConsumers = computed(() => consumerAtlas.value?.consumers || []);
+
+        const consumerAtlasTopName = computed(() => (
+            consumerAtlas.value?.summary?.top_consumer?.name || t('energy.consumerAtlas.none')
+        ));
+
+        const amortizationProgress = computed(() => {
+            const value = Number(amortization.value?.summary?.progress_percent ?? 0);
+            return Number.isFinite(value) ? Math.max(0, Math.min(100, value)).toFixed(0) : '0';
+        });
+
+        const amortizationRingStyle = computed(() => ({
+            background: `conic-gradient(#22c55e ${amortizationProgress.value}%, rgba(255,255,255,0.08) 0)`,
+        }));
+
+        const amortizationBreakEven = computed(() => {
+            const summary = amortization.value?.summary;
+            if (!amortization.value?.configured) return t('energy.amortization.open');
+            if (summary?.status === 'reached') return t('energy.amortization.reached');
+            if (summary?.break_even_year) return String(summary.break_even_year);
+            return t('energy.amortization.unavailable');
+        });
+
+        function parseMoneyInput(value) {
+            const number = Number(String(value ?? '').replace(',', '.'));
+            return Number.isFinite(number) ? Math.max(0, number) : 0;
+        }
+
+        function parsePercentInput(value, fallback) {
+            const number = Number(String(value ?? '').replace(',', '.'));
+            return Number.isFinite(number) ? number : fallback;
+        }
+
+        function syncAmortizationForm(settings) {
+            const s = settings || {};
+            amortizationForm.investment_eur = String(s.investment_eur ?? '');
+            amortizationForm.subsidy_eur = String(s.subsidy_eur ?? '');
+            amortizationForm.commissioning_date = s.commissioning_date || '';
+            amortizationForm.annual_running_costs_eur = String(s.annual_running_costs_eur ?? '');
+            amortizationForm.electricity_price_increase_percent = String(s.electricity_price_increase_percent ?? '2.0');
+            amortizationForm.degradation_percent = String(s.degradation_percent ?? '0.5');
+        }
+
+        function formatScenarioBreakEven(scenario) {
+            if (scenario.months_to_break_even === 0) return t('energy.amortization.reached');
+            if (!scenario.break_even_month) return t('energy.amortization.unavailable');
+            return scenario.break_even_month.slice(0, 4);
+        }
+
+        function toggleAmortizationEdit() {
+            amortizationEdit.value = !amortizationEdit.value;
+        }
+
+        async function saveAmortizationSettings() {
+            amortizationSaving.value = true;
+            amortizationError.value = null;
+            try {
+                const payload = {
+                    investment_eur: parseMoneyInput(amortizationForm.investment_eur),
+                    subsidy_eur: parseMoneyInput(amortizationForm.subsidy_eur),
+                    commissioning_date: amortizationForm.commissioning_date || null,
+                    annual_running_costs_eur: parseMoneyInput(amortizationForm.annual_running_costs_eur),
+                    electricity_price_increase_percent: parsePercentInput(amortizationForm.electricity_price_increase_percent, 2.0),
+                    degradation_percent: parsePercentInput(amortizationForm.degradation_percent, 0.5),
+                };
+                const result = await postJson('/api/sfml_stats/amortization', payload);
+                amortization.value = result;
+                syncAmortizationForm(result.settings);
+                amortizationEdit.value = false;
+                await nextTick();
+                renderAmortizationChart(result);
+            } catch (err) {
+                amortizationError.value = err?.message || t('energy.amortization.saveFailed');
+            } finally {
+                amortizationSaving.value = false;
+            }
+        }
+
+        function resetConsumerAtlasForm() {
+            consumerAtlasForm.name = '';
+            consumerAtlasForm.entity_id = '';
+            consumerAtlasForm.start_kwh = '';
+            consumerAtlasForm.category = 'entertainment';
+            consumerAtlasForm.color = '#06b6d4';
+        }
+
+        async function reloadConsumerAtlas() {
+            const atlas = await SFMLApi.fetch('/api/sfml_stats/consumer_atlas', { forceRefresh: true });
+            consumerAtlas.value = atlas || defaultConsumerAtlas;
+            syncTimeContext(atlas);
+            await nextTick();
+            renderConsumerAtlasChart(consumerAtlas.value);
+        }
+
+        async function saveConsumerAtlasEntry() {
+            consumerAtlasSaving.value = true;
+            consumerAtlasError.value = null;
+            consumerAtlasNotice.value = null;
+            try {
+                await postJson('/api/sfml_stats/consumer_atlas', {
+                    name: consumerAtlasForm.name,
+                    entity_id: consumerAtlasForm.entity_id,
+                    start_kwh: consumerAtlasForm.start_kwh,
+                    category: consumerAtlasForm.category,
+                    color: consumerAtlasForm.color,
+                    enabled: true,
+                });
+                resetConsumerAtlasForm();
+                await reloadConsumerAtlas();
+            } catch (err) {
+                consumerAtlasError.value = err?.message || t('energy.consumerAtlas.saveFailed');
+            } finally {
+                consumerAtlasSaving.value = false;
+            }
+        }
+
+        async function deleteConsumerAtlasEntry(consumerId) {
+            if (!consumerId) return;
+            consumerAtlasError.value = null;
+            consumerAtlasNotice.value = null;
+            try {
+                await deleteJson(`/api/sfml_stats/consumer_atlas/${encodeURIComponent(consumerId)}`);
+                await reloadConsumerAtlas();
+            } catch (err) {
+                consumerAtlasError.value = err?.message || t('energy.consumerAtlas.deleteFailed');
+            }
+        }
+
         async function loadData() {
             try {
-                const [bill, prices, sources] = await Promise.all([
+                const [bill, prices, sources, amort, atlas] = await Promise.all([
                     SFMLApi.fetch('/api/sfml_stats/billing', { forceRefresh: true }).catch(err => ({
                         success: false,
                         error: {
@@ -725,10 +1089,20 @@ const _EnergyPage = {
                     })),
                     SFMLApi.fetch('/api/sfml_stats/gpm_prices', { forceRefresh: true }),
                     SFMLApi.fetch('/api/sfml_stats/power_sources_history?hours=24', { forceRefresh: true }),
+                    SFMLApi.fetch('/api/sfml_stats/amortization', { forceRefresh: true }).catch(err => ({
+                        success: false,
+                        error: err?.message || t('energy.amortization.unavailable'),
+                    })),
+                    SFMLApi.fetch('/api/sfml_stats/consumer_atlas', { forceRefresh: true }).catch(err => ({
+                        success: false,
+                        error: err?.message || t('energy.consumerAtlas.unavailable'),
+                    })),
                 ]);
                 syncTimeContext(bill);
                 syncTimeContext(prices);
                 syncTimeContext(sources);
+                syncTimeContext(amort);
+                syncTimeContext(atlas);
                 if (bill?.success === false || bill?.error) {
                     billing.value = null;
                     billingError.value = bill?.error?.message || bill?.error || t('energy.billingUnavailable');
@@ -738,6 +1112,19 @@ const _EnergyPage = {
                 }
                 priceData.value = prices;
                 sourcesData.value = sources;
+                if (amort?.success === false || amort?.error) {
+                    amortizationError.value = amort?.error?.message || amort?.error || t('energy.amortization.unavailable');
+                } else if (amort) {
+                    amortization.value = amort;
+                    amortizationError.value = null;
+                    syncAmortizationForm(amort.settings);
+                }
+                if (atlas?.success === false || atlas?.error) {
+                    consumerAtlasError.value = atlas?.error?.message || atlas?.error || t('energy.consumerAtlas.unavailable');
+                } else if (atlas) {
+                    consumerAtlas.value = atlas;
+                    consumerAtlasError.value = null;
+                }
 
                 // Build monthly cost table from real DB data
                 try {
@@ -802,7 +1189,9 @@ const _EnergyPage = {
                     if (n <= 0) return;
                     const ok1 = renderPriceChart(prices);
                     const ok2 = renderSourcesChart(sources);
-                    if (!ok1 || !ok2) setTimeout(() => tryRender(n - 1), 200);
+                    const ok3 = renderAmortizationChart(amortization.value);
+                    const ok4 = renderConsumerAtlasChart(consumerAtlas.value);
+                    if (!ok1 || !ok2 || !ok3 || !ok4) setTimeout(() => tryRender(n - 1), 200);
                 }
                 tryRender(10);
             } catch (err) {
@@ -933,6 +1322,187 @@ const _EnergyPage = {
             return true;
         }
 
+        function renderConsumerAtlasChart(data) {
+            const el = document.querySelector('.consumer-atlas-chart-target');
+            if (!el || el.offsetWidth === 0 || !data) return false;
+            if (!consumerAtlasChart) consumerAtlasChart = echarts.init(el);
+
+            const consumers = data.consumers || [];
+            const children = consumers
+                .filter(consumer => (consumer.period_kwh || 0) > 0 || (consumer.last_power_w || 0) > 0)
+                .map(consumer => ({
+                    name: consumer.name,
+                    value: Math.max(consumer.period_kwh || 0, 0.01),
+                    itemStyle: { color: consumer.color || '#06b6d4' },
+                    consumer,
+                }));
+            const unknown = Number(data.summary?.unknown_kwh || 0);
+            if (unknown > 0.05) {
+                children.push({
+                    name: t('energy.consumerAtlas.unknown'),
+                    value: unknown,
+                    itemStyle: { color: '#64748b' },
+                    consumer: { period_kwh: unknown, last_power_w: 0, share_percent: 0 },
+                });
+            }
+
+            if (!children.length) {
+                consumerAtlasChart.setOption({
+                    backgroundColor: 'transparent',
+                    graphic: {
+                        type: 'text',
+                        left: 'center',
+                        top: 'middle',
+                        style: { text: t('energy.consumerAtlas.noData'), fill: '#6e7681', fontSize: 14 },
+                    },
+                }, true);
+                return true;
+            }
+
+            consumerAtlasChart.setOption({
+                backgroundColor: 'transparent',
+                tooltip: {
+                    backgroundColor: 'rgba(10,14,20,0.98)',
+                    borderColor: 'rgba(6,182,212,0.45)',
+                    borderWidth: 1,
+                    textStyle: { color: '#f0f6fc', fontSize: 12 },
+                    extraCssText: 'box-shadow: 0 12px 32px rgba(0,0,0,0.45); border-radius: 8px; backdrop-filter: blur(8px);',
+                    formatter: function(info) {
+                        const consumer = info.data.consumer || {};
+                        return `<strong>${info.name}</strong><br>${fmt(consumer.period_kwh)} kWh<br>${formatPower(consumer.last_power_w)}`;
+                    },
+                },
+                series: [{
+                    type: 'treemap',
+                    roam: false,
+                    nodeClick: false,
+                    breadcrumb: { show: false },
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    visibleMin: 0,
+                    label: {
+                        show: true,
+                        color: '#ffffff',
+                        fontWeight: 700,
+                        formatter: function(info) {
+                            const kwh = Number(info.data.consumer?.period_kwh || info.value || 0);
+                            return `${info.name}\n${kwh.toFixed(1)} kWh`;
+                        },
+                    },
+                    upperLabel: { show: false },
+                    itemStyle: {
+                        borderColor: getThemeColor('--bg-app', '#0a0e14'),
+                        borderWidth: 3,
+                        gapWidth: 3,
+                    },
+                    levels: [{
+                        itemStyle: {
+                            borderRadius: 8,
+                            borderColor: getThemeColor('--bg-app', '#0a0e14'),
+                            gapWidth: 3,
+                        },
+                    }],
+                    data: children,
+                }],
+                animationDuration: 900,
+            }, true);
+            return true;
+        }
+
+        function renderAmortizationChart(data) {
+            const el = document.querySelector('.amortization-chart-target');
+            if (!el || el.offsetWidth === 0 || !data) return false;
+            if (!amortizationChart) amortizationChart = echarts.init(el);
+
+            const history = data.series || [];
+            const projection = data.projection || [];
+            const points = history.concat(projection);
+            if (!points.length) {
+                amortizationChart.setOption({
+                    backgroundColor: 'transparent',
+                    graphic: {
+                        type: 'text',
+                        left: 'center',
+                        top: 'middle',
+                        style: { text: t('energy.amortization.noHistory'), fill: '#6e7681', fontSize: 14 },
+                    },
+                }, true);
+                return true;
+            }
+
+            const historyLabels = history.map(row => row.month);
+            const projectionLabels = projection.map(row => row.month);
+            const labels = historyLabels.concat(projectionLabels);
+            const historyValues = history.map(row => row.cumulative_eur);
+            const projectionValues = history.length
+                ? Array(history.length - 1).fill(null).concat([history[history.length - 1].cumulative_eur], projection.map(row => row.cumulative_eur))
+                : projection.map(row => row.cumulative_eur);
+
+            amortizationChart.setOption({
+                backgroundColor: 'transparent',
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: getThemeColor('--bg-card', 'rgba(10,14,20,0.95)'),
+                    borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 },
+                    formatter: function(params) {
+                        let html = '<b>' + params[0].axisValue + '</b>';
+                        params.forEach(function(p) {
+                            if (p.value != null) {
+                                html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + formatEuro(p.value) + ' €</b></span>';
+                            }
+                        });
+                        return html;
+                    },
+                },
+                legend: {
+                    bottom: 0,
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                },
+                grid: { left: 58, right: 20, top: 16, bottom: 45 },
+                xAxis: {
+                    type: 'category',
+                    data: labels,
+                    boundaryGap: false,
+                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, interval: Math.max(0, Math.floor(labels.length / 8)) },
+                    axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.15)') } },
+                    axisTick: { show: false },
+                },
+                yAxis: {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.06)') } },
+                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, formatter: value => formatEuro(value) + ' €' },
+                },
+                series: [
+                    {
+                        name: t('energy.amortization.history'),
+                        type: 'line',
+                        smooth: 0.25,
+                        symbol: 'circle',
+                        symbolSize: 5,
+                        lineStyle: { color: '#22c55e', width: 2.5 },
+                        itemStyle: { color: '#22c55e' },
+                        areaStyle: { color: 'rgba(34,197,94,0.12)' },
+                        markLine: { silent: true, symbol: 'none', lineStyle: { color: 'rgba(255,255,255,0.25)', type: 'dashed' }, data: [{ yAxis: 0 }] },
+                        data: historyValues,
+                    },
+                    {
+                        name: t('energy.amortization.forecast'),
+                        type: 'line',
+                        smooth: 0.25,
+                        symbol: 'none',
+                        lineStyle: { color: '#06b6d4', width: 2, type: 'dashed' },
+                        itemStyle: { color: '#06b6d4' },
+                        data: projectionValues,
+                    },
+                ],
+                animationDuration: 900,
+            }, true);
+            return true;
+        }
+
         async function openPriceModal(monthRow) {
             priceModal.value = {
                 ...monthRow,
@@ -1038,14 +1608,18 @@ const _EnergyPage = {
             }
         }
 
-        function handleResize() { priceChart?.resize(); sourcesChart?.resize(); }
+        function handleResize() { priceChart?.resize(); sourcesChart?.resize(); amortizationChart?.resize(); consumerAtlasChart?.resize(); }
 
         watch(() => props.config?.theme, () => {
             if (priceChart) { priceChart.dispose(); priceChart = null; }
             if (sourcesChart) { sourcesChart.dispose(); sourcesChart = null; }
+            if (amortizationChart) { amortizationChart.dispose(); amortizationChart = null; }
+            if (consumerAtlasChart) { consumerAtlasChart.dispose(); consumerAtlasChart = null; }
             nextTick(() => {
                 if (priceData.value) renderPriceChart(priceData.value);
                 if (sourcesData.value) renderSourcesChart(sourcesData.value);
+                if (amortization.value) renderAmortizationChart(amortization.value);
+                if (consumerAtlas.value) renderConsumerAtlasChart(consumerAtlas.value);
             });
         });
 
@@ -1058,10 +1632,19 @@ const _EnergyPage = {
             window.removeEventListener('resize', handleResize);
             priceChart?.dispose(); priceChart = null;
             sourcesChart?.dispose(); sourcesChart = null;
+            amortizationChart?.dispose(); amortizationChart = null;
+            consumerAtlasChart?.dispose(); consumerAtlasChart = null;
         });
 
         return {
             billing, billingError, priceData, priceRanges, monthlyData, monthlyTotals, fmt,
+            amortization, amortizationError, amortizationEdit, amortizationSaving, amortizationForm,
+            amortizationProgress, amortizationRingStyle, amortizationBreakEven,
+            toggleAmortizationEdit, saveAmortizationSettings, formatScenarioBreakEven,
+            consumerAtlas, consumerAtlasError, consumerAtlasNotice, consumerAtlasSaving,
+            consumerAtlasForm,
+            consumerAtlasConsumers, consumerAtlasTopName, saveConsumerAtlasEntry,
+            deleteConsumerAtlasEntry, formatPower,
             priceModal, priceInput, pricePreview, priceError, priceSaving,
             formatEuro, formatCt, openPriceModal, closePriceModal,
             previewPriceChange, savePriceChange, resetMonthPrice,
@@ -1234,6 +1817,165 @@ const _EnergyPage = {
         .consumer-kwh { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; color: var(--text-secondary); }
         .consumer-cost { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; color: #ef4444; }
 
+        .consumer-atlas-header {
+            align-items: flex-start;
+            gap: var(--space-md);
+        }
+        .consumer-atlas-subtitle {
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            margin-top: 3px;
+        }
+        .consumer-atlas-period {
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            font-size: 0.74rem;
+            white-space: nowrap;
+        }
+        .consumer-atlas-actions {
+            align-items: center;
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            justify-content: flex-end;
+        }
+        .consumer-atlas-notice {
+            align-items: center;
+            background: rgba(34,197,94,0.1);
+            border: 1px solid rgba(34,197,94,0.25);
+            border-radius: var(--radius-sm);
+            color: #22c55e;
+            display: flex;
+            font-size: 0.78rem;
+            gap: 8px;
+            margin-bottom: var(--space-md);
+            padding: 8px 10px;
+        }
+        .consumer-atlas-kpis {
+            display: grid;
+            gap: var(--space-sm);
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            margin: var(--space-md) 0;
+        }
+        .consumer-atlas-kpi {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            min-width: 0;
+            padding: var(--space-sm) var(--space-md);
+        }
+        .consumer-atlas-kpi span {
+            color: var(--text-muted);
+            display: block;
+            font-size: 0.68rem;
+            margin-bottom: 3px;
+        }
+        .consumer-atlas-kpi strong {
+            color: var(--text-primary);
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            overflow-wrap: anywhere;
+        }
+        .consumer-atlas-kpi.accent strong { color: #06b6d4; }
+        .consumer-atlas-layout {
+            display: grid;
+            gap: var(--space-lg);
+            grid-template-columns: minmax(320px, 1.25fr) minmax(280px, 0.75fr);
+            align-items: stretch;
+        }
+        .consumer-atlas-chart-target {
+            min-height: 340px;
+            width: 100%;
+        }
+        .consumer-atlas-side {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+            min-width: 0;
+        }
+        .consumer-atlas-list {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+        .consumer-atlas-row {
+            align-items: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            display: grid;
+            gap: 8px;
+            grid-template-columns: 10px minmax(0, 1fr) auto auto 24px;
+            padding: 8px 9px;
+        }
+        .consumer-atlas-color {
+            border-radius: 999px;
+            height: 28px;
+            width: 6px;
+        }
+        .consumer-atlas-name {
+            color: var(--text-primary);
+            font-size: 0.8rem;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .consumer-atlas-value,
+        .consumer-atlas-live {
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.74rem;
+            white-space: nowrap;
+        }
+        .consumer-atlas-live { color: #22c55e; }
+        .consumer-atlas-delete {
+            background: transparent;
+            border: 0;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 2px;
+        }
+        .consumer-atlas-delete:hover { color: #ef4444; }
+        .consumer-atlas-empty {
+            border: 1px dashed var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            padding: var(--space-md);
+            text-align: center;
+        }
+        .consumer-atlas-form {
+            display: grid;
+            gap: 8px;
+            grid-template-columns: 1fr 1fr;
+        }
+        .consumer-atlas-form input,
+        .consumer-atlas-form select {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            min-width: 0;
+            padding: 8px 10px;
+        }
+        .consumer-atlas-form input[type="color"] {
+            min-height: 36px;
+            padding: 4px;
+        }
+        .consumer-atlas-save {
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 700;
+            min-height: 36px;
+        }
+
         .price-edit-btn {
             background: rgba(0,212,255,0.12);
             border: 1px solid rgba(0,212,255,0.35);
@@ -1394,12 +2136,170 @@ const _EnergyPage = {
         .cd-stat-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
         .cd-stat-label { font-size: 0.7rem; color: var(--text-secondary); text-align: center; }
 
+        .amortization-subtitle {
+            color: var(--text-muted);
+            font-size: 0.74rem;
+            margin-top: 3px;
+        }
+        .amortization-layout {
+            display: grid;
+            grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.4fr);
+            gap: var(--space-lg);
+            align-items: stretch;
+        }
+        .amortization-summary {
+            display: grid;
+            grid-template-columns: 138px 1fr;
+            gap: var(--space-md);
+            align-items: center;
+        }
+        .amortization-ring {
+            align-items: center;
+            border-radius: 50%;
+            display: flex;
+            height: 132px;
+            justify-content: center;
+            width: 132px;
+        }
+        .amortization-ring-inner {
+            align-items: center;
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            height: 104px;
+            justify-content: center;
+            width: 104px;
+        }
+        .amortization-ring-inner strong {
+            color: #22c55e;
+            font-family: var(--font-mono);
+            font-size: 1.45rem;
+        }
+        .amortization-ring-inner span {
+            color: var(--text-muted);
+            font-size: 0.64rem;
+            text-transform: uppercase;
+        }
+        .amortization-kpis {
+            display: grid;
+            gap: var(--space-sm);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .amortization-kpi {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            min-width: 0;
+            padding: var(--space-sm) var(--space-md);
+        }
+        .amortization-kpi span {
+            color: var(--text-muted);
+            display: block;
+            font-size: 0.68rem;
+            margin-bottom: 3px;
+        }
+        .amortization-kpi strong {
+            color: var(--text-primary);
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            overflow-wrap: anywhere;
+        }
+        .amortization-kpi.accent strong { color: #06b6d4; }
+        .amortization-chart-wrap {
+            min-height: 260px;
+            min-width: 0;
+        }
+        .amortization-chart-target {
+            height: 270px;
+            width: 100%;
+        }
+        .amortization-scenarios {
+            display: grid;
+            gap: var(--space-sm);
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: var(--space-md);
+        }
+        .amortization-scenario {
+            align-items: center;
+            background: rgba(255,255,255,0.035);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            display: flex;
+            justify-content: space-between;
+            gap: var(--space-sm);
+            padding: 8px 10px;
+        }
+        .amortization-scenario span {
+            color: var(--text-secondary);
+            font-size: 0.72rem;
+        }
+        .amortization-scenario strong {
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+        }
+        .amortization-empty {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            margin-top: var(--space-md);
+        }
+        .amortization-form {
+            border-top: 1px solid var(--border-default);
+            display: grid;
+            gap: var(--space-sm);
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: var(--space-lg);
+            padding-top: var(--space-lg);
+        }
+        .amortization-form label {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 0;
+        }
+        .amortization-form label span {
+            color: var(--text-secondary);
+            font-size: 0.72rem;
+        }
+        .amortization-form input {
+            background: var(--bg-card);
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            min-width: 0;
+            padding: 8px 10px;
+        }
+        .amortization-form input:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+        .amortization-save {
+            align-self: end;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 700;
+            min-height: 36px;
+            padding: 8px 12px;
+        }
+
         @media (max-width: 768px) {
             .eb-grid { grid-template-columns: repeat(2, 1fr); }
             .eb-value { font-size: 1.1rem; }
             .consumer-row { grid-template-columns: 30px 1fr 80px 60px 20px; }
+            .consumer-atlas-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .consumer-atlas-layout { grid-template-columns: 1fr; }
+            .consumer-atlas-chart-target { min-height: 300px; }
+            .consumer-atlas-actions { justify-content: flex-start; }
+            .consumer-atlas-form { grid-template-columns: 1fr; }
             .cd-stats { grid-template-columns: repeat(2, 1fr); }
             .price-preview-grid { grid-template-columns: 1fr; }
+            .amortization-layout { grid-template-columns: 1fr; }
+            .amortization-summary { grid-template-columns: 1fr; justify-items: center; }
+            .amortization-kpis, .amortization-scenarios, .amortization-form { grid-template-columns: 1fr; width: 100%; }
             .price-modal-actions { justify-content: stretch; }
             .price-modal-actions button { flex: 1 1 100%; }
         }

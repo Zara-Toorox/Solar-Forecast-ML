@@ -104,6 +104,7 @@
           "sensors": "Sensors",
           "consumers": "Consumer Details (WP/Wallbox)",
           "pricing": "Pricing",
+          "amortization": "Amortization",
           "smart_charging": "Smart Charging",
           "advanced": "Advanced"
         }
@@ -220,6 +221,26 @@
           "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
           "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
           "provider_markup": "Provider markup per kWh (gross)."
+        }
+      },
+      "amortization": {
+        "title": "Amortization",
+        "description": "PV investment, subsidies and running costs for the payback projection.",
+        "data": {
+          "amortization_investment_eur": "Investment (EUR)",
+          "amortization_subsidy_eur": "Subsidy (EUR)",
+          "amortization_commissioning_date": "Commissioning date (YYYY-MM-DD)",
+          "amortization_annual_running_costs_eur": "Running costs per year (EUR)",
+          "amortization_price_increase_percent": "Electricity price increase per year (%)",
+          "amortization_degradation_percent": "PV degradation per year (%)"
+        },
+        "data_description": {
+          "amortization_investment_eur": "Total system cost before subsidies.",
+          "amortization_subsidy_eur": "One-time subsidies or grants reducing the investment.",
+          "amortization_commissioning_date": "Historical cashflows are counted from this month. Format: YYYY-MM-DD.",
+          "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
+          "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
+          "amortization_degradation_percent": "Annual PV output degradation in the projection."
         }
       },
       "advanced": {

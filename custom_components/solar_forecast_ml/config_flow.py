@@ -88,6 +88,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+PANEL_GROUP_COUNT = "panel_group_count"
+PANEL_GROUP_MIN_COUNT = 1
+PANEL_GROUP_MAX_COUNT = 4
+
 
 def _get_default(data: dict | None, key: str, default: Any = vol.UNDEFINED):
     """Safely get default value for schema. @zara"""
@@ -277,8 +281,21 @@ def _panel_group_sensor_schema_key(index: int, sensor_key: str, sensor: str | No
 
 def _structured_panel_groups_schema(existing_groups: list[dict]) -> vol.Schema:
     fields = {}
+    fields[
+        vol.Optional(
+            PANEL_GROUP_COUNT,
+            default=_panel_group_count_default(existing_groups),
+        )
+    ] = selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=PANEL_GROUP_MIN_COUNT,
+            max=PANEL_GROUP_MAX_COUNT,
+            step=1,
+            mode=selector.NumberSelectorMode.BOX,
+        )
+    )
 
-    for index in range(1, 5):
+    for index in range(1, PANEL_GROUP_MAX_COUNT + 1):
         group = _existing_panel_group(existing_groups, index)
         sensor = group.get(CONF_PANEL_GROUP_POWER_SENSOR)
         azimuth = group.get(CONF_PANEL_GROUP_AZIMUTH, DEFAULT_PANEL_AZIMUTH)
@@ -334,14 +351,56 @@ def _structured_panel_groups_schema(existing_groups: list[dict]) -> vol.Schema:
     return vol.Schema(fields)
 
 
+def _panel_group_count_default(existing_groups: list[dict]) -> int:
+    return min(
+        PANEL_GROUP_MAX_COUNT,
+        max(PANEL_GROUP_MIN_COUNT, len(existing_groups or [])),
+    )
+
+
+def _submitted_panel_group_count(user_input: dict[str, Any]) -> int:
+    count = 0
+    for index in range(1, PANEL_GROUP_MAX_COUNT + 1):
+        sensor = str(user_input.get(_panel_group_field(index, "sensor")) or "").strip()
+        kwp = user_input.get(_panel_group_field(index, "kwp"))
+        if sensor or kwp not in (None, ""):
+            count = index
+    return count
+
+
+def _resolve_panel_group_count(
+    user_input: dict[str, Any],
+    existing_groups: list[dict],
+) -> tuple[int, str | None]:
+    raw_count = user_input.get(PANEL_GROUP_COUNT)
+    if raw_count in (None, ""):
+        return max(
+            _panel_group_count_default(existing_groups),
+            _submitted_panel_group_count(user_input),
+        ), None
+
+    try:
+        count = int(float(raw_count))
+    except (TypeError, ValueError):
+        return _panel_group_count_default(existing_groups), "invalid_input"
+
+    if not (PANEL_GROUP_MIN_COUNT <= count <= PANEL_GROUP_MAX_COUNT):
+        return _panel_group_count_default(existing_groups), "invalid_input"
+    return count, None
+
+
 def _build_structured_panel_groups(
     user_input: dict[str, Any],
     existing_groups: list[dict],
 ) -> tuple[list[dict], dict[str, str]]:
     groups = []
     errors = {}
+    group_count, count_error = _resolve_panel_group_count(user_input, existing_groups)
+    if count_error:
+        errors[PANEL_GROUP_COUNT] = count_error
+        return groups, errors
 
-    for index in range(1, 5):
+    for index in range(1, group_count + 1):
         sensor_key = _panel_group_field(index, "sensor")
         azimuth_key = _panel_group_field(index, "azimuth")
         tilt_key = _panel_group_field(index, "tilt")
@@ -349,10 +408,7 @@ def _build_structured_panel_groups(
 
         sensor = str(user_input.get(sensor_key) or "").strip()
         if not sensor:
-            if index == 1:
-                errors[sensor_key] = "required"
-            elif user_input.get(kwp_key) not in (None, ""):
-                errors[sensor_key] = "required"
+            errors[sensor_key] = "required"
             continue
 
         try:

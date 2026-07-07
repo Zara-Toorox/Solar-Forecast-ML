@@ -90,6 +90,7 @@
           "sensors": "Sensoren",
           "consumers": "Verbraucher-Details (WP/Wallbox)",
           "pricing": "Strompreis",
+          "amortization": "Amortisation",
           "smart_charging": "Smart Charging",
           "advanced": "Erweitert"
         }
@@ -206,6 +207,26 @@
           "gpm_grid_fee": "Netzentgelte und Messentgelte pro kWh (brutto).",
           "taxes_fees": "Konzessionsabgabe, Stromsteuer und sonstige Umlagen pro kWh (brutto).",
           "provider_markup": "Anbieter-Aufschlag pro kWh (brutto)."
+        }
+      },
+      "amortization": {
+        "title": "Amortisation",
+        "description": "Investition, Förderung und laufende Kosten deiner PV-Anlage für die Amortisationsprognose.",
+        "data": {
+          "amortization_investment_eur": "Investition (EUR)",
+          "amortization_subsidy_eur": "Förderung (EUR)",
+          "amortization_commissioning_date": "Inbetriebnahme (YYYY-MM-DD)",
+          "amortization_annual_running_costs_eur": "Laufende Kosten pro Jahr (EUR)",
+          "amortization_price_increase_percent": "Strompreissteigerung pro Jahr (%)",
+          "amortization_degradation_percent": "PV-Degradation pro Jahr (%)"
+        },
+        "data_description": {
+          "amortization_investment_eur": "Gesamtkosten der Anlage nach Rechnung, vor Förderung.",
+          "amortization_subsidy_eur": "Einmalige Förderung oder Zuschüsse, die die Investition reduzieren.",
+          "amortization_commissioning_date": "Ab diesem Monat werden historische Cashflows berücksichtigt. Format: YYYY-MM-DD.",
+          "amortization_annual_running_costs_eur": "Wartung, Versicherung, Zählerkosten oder ähnliche jährliche Kosten.",
+          "amortization_price_increase_percent": "Annahme für steigende Strompreise in der Projektion.",
+          "amortization_degradation_percent": "Jährlicher Leistungsverlust der PV-Anlage in der Projektion."
         }
       },
       "advanced": {

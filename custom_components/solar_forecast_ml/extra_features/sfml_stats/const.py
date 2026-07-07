@@ -15,7 +15,7 @@ from typing import Final
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "32.1.0"
+VERSION: Final = "32.1.4"
 
 from datetime import timedelta
 from homeassistant.const import Platform
@@ -169,6 +169,13 @@ CONF_BILLING_GRID_FEES: Final = "billing_grid_fees"
 CONF_BILLING_BASE_FEE: Final = "billing_base_fee"
 CONF_FEED_IN_TARIFF: Final = "feed_in_tariff"
 
+CONF_AMORTIZATION_INVESTMENT_EUR: Final = "amortization_investment_eur"
+CONF_AMORTIZATION_SUBSIDY_EUR: Final = "amortization_subsidy_eur"
+CONF_AMORTIZATION_COMMISSIONING_DATE: Final = "amortization_commissioning_date"
+CONF_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR: Final = "amortization_annual_running_costs_eur"
+CONF_AMORTIZATION_PRICE_INCREASE_PERCENT: Final = "amortization_price_increase_percent"
+CONF_AMORTIZATION_DEGRADATION_PERCENT: Final = "amortization_degradation_percent"
+
 CONF_PANEL_GROUP_NAMES: Final = "panel_group_names"
 CONF_SHOW_PANEL_GROUPS: Final = "show_panel_groups"
 
@@ -184,6 +191,11 @@ DEFAULT_BILLING_WORK_PRICE: Final = 28.0
 DEFAULT_BILLING_GRID_FEES: Final = 7.0
 DEFAULT_BILLING_BASE_FEE: Final = 0.0
 DEFAULT_FEED_IN_TARIFF: Final = 8.1
+DEFAULT_AMORTIZATION_INVESTMENT_EUR: Final = 0.0
+DEFAULT_AMORTIZATION_SUBSIDY_EUR: Final = 0.0
+DEFAULT_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR: Final = 0.0
+DEFAULT_AMORTIZATION_PRICE_INCREASE_PERCENT: Final = 2.0
+DEFAULT_AMORTIZATION_DEGRADATION_PERCENT: Final = 0.5
 
 SENSOR_W_TO_DAILY_KWH_MAP: Final = {
     CONF_SENSOR_SOLAR_TO_BATTERY: CONF_SENSOR_BATTERY_CHARGE_SOLAR_DAILY,
