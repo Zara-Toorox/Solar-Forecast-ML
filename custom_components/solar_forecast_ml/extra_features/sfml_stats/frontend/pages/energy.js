@@ -380,9 +380,14 @@ const _EnergyPage = {
                         <tr v-for="(m, idx) in monthlyData" :key="idx"
                             :class="{ 'zebra-odd': idx % 2 === 1 }"
                             :style="{ background: m.isCurrent ? 'rgba(0,212,255,0.06)' : '' }">
-                            <td style="font-weight: 600;">
-                                {{ m.label }}
-                                <span v-if="m.isCurrent" style="color:var(--accent); font-size:0.7rem;"> ({{ $t('energy.current') }})</span>
+                            <td class="month-cell" style="font-weight: 600;">
+                                <div class="month-cell-content">
+                                    <span>
+                                        {{ m.label }}
+                                        <span v-if="m.isCurrent" style="color:var(--accent); font-size:0.7rem;"> ({{ $t('energy.current') }})</span>
+                                    </span>
+                                    <button v-if="m.canEditPrice" class="price-edit-btn price-edit-btn-mobile" @click="openPriceModal(m)">Preis ändern</button>
+                                </div>
                             </td>
                             <td style="text-align:right; font-family:var(--font-mono);">{{ m.consumption }} kWh</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ m.solar }} kWh</td>
@@ -400,7 +405,7 @@ const _EnergyPage = {
                             <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ m.cost }} €</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ m.saved }} €</td>
                             <td style="text-align:right;">
-                                <button v-if="m.canEditPrice" class="price-edit-btn" @click="openPriceModal(m)">Preis ändern</button>
+                                <button v-if="m.canEditPrice" class="price-edit-btn price-edit-btn-desktop" @click="openPriceModal(m)">Preis ändern</button>
                             </td>
                         </tr>
                     </tbody>
@@ -1991,6 +1996,13 @@ const _EnergyPage = {
             background: rgba(0,212,255,0.2);
             border-color: var(--accent);
         }
+        .price-edit-btn-mobile { display: none; }
+        .month-cell-content {
+            align-items: center;
+            display: flex;
+            gap: var(--space-sm);
+            justify-content: space-between;
+        }
 
         /* Consumer Detail Modal */
         .modal-overlay {
@@ -2302,6 +2314,17 @@ const _EnergyPage = {
             .amortization-kpis, .amortization-scenarios, .amortization-form { grid-template-columns: 1fr; width: 100%; }
             .price-modal-actions { justify-content: stretch; }
             .price-modal-actions button { flex: 1 1 100%; }
+            .price-edit-btn-mobile { display: inline-flex; }
+            .price-edit-btn-desktop { display: none; }
+        }
+        @media (max-width: 480px) {
+            .consumer-row {
+                grid-template-columns: 30px minmax(0, 1fr) auto 20px;
+            }
+            .consumer-name { min-width: 0; overflow-wrap: anywhere; }
+            .consumer-kwh { grid-column: 2; text-align: left; }
+            .consumer-cost { grid-column: 3; grid-row: 1 / span 2; }
+            .consumer-arrow { grid-column: 4; grid-row: 1 / span 2; }
         }
     `;
     document.head.appendChild(style);

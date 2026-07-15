@@ -132,6 +132,22 @@ class StartupInitializer:
             if schema_path.exists():
                 with open(schema_path, "r", encoding="utf-8") as f:
                     schema_sql = f.read()
+                existing_hourly_predictions = conn.execute(
+                    """SELECT 1 FROM sqlite_master
+                       WHERE type = 'table' AND name = 'hourly_predictions'"""
+                ).fetchone()
+                if existing_hourly_predictions:
+                    columns = {
+                        row[1]
+                        for row in conn.execute("PRAGMA table_info(hourly_predictions)")
+                    }
+                    if "morning_batch_id" not in columns:
+                        schema_sql = schema_sql.replace(
+                            "CREATE INDEX IF NOT EXISTS "
+                            "idx_hourly_predictions_morning_batch "
+                            "ON hourly_predictions(morning_batch_id);\n",
+                            "",
+                        )
                 conn.executescript(schema_sql)
                 _LOGGER.debug("Database schema initialized")
 

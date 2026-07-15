@@ -54,6 +54,8 @@ const App = {
                 <button v-for="tab in tabs" :key="tab.id"
                         class="mobile-nav-item"
                         :class="{ active: currentPage === tab.id }"
+                        :aria-label="tab.label"
+                        :title="tab.label"
                         @click="navigate(tab.id)">
                     <span class="mobile-nav-icon">{{ tab.icon }}</span>
                     <span class="mobile-nav-label">{{ tab.label }}</span>
@@ -67,7 +69,7 @@ const App = {
 
         const currentPage = ref('home');
         const wsConnected = ref(false);
-        const isMobile = ref(window.innerWidth < 768);
+        const isMobile = ref(window.innerWidth <= 768);
 
         const liveData = reactive({
             total_price: null,
@@ -123,6 +125,10 @@ const App = {
         function navigate(page) {
             currentPage.value = page;
             window.location.hash = page;
+        }
+
+        function syncMobileState() {
+            isMobile.value = window.innerWidth <= 768;
         }
 
         // Hash routing
@@ -197,13 +203,14 @@ const App = {
             applyTheme(appConfig.theme);
             handleHashChange();
             window.addEventListener('hashchange', handleHashChange);
-            window.addEventListener('resize', () => { isMobile.value = window.innerWidth < 768; });
+            window.addEventListener('resize', syncMobileState);
             fetchData();
             pollInterval = setInterval(fetchData, 5000);
         });
 
         onUnmounted(() => {
             window.removeEventListener('hashchange', handleHashChange);
+            window.removeEventListener('resize', syncMobileState);
             if (pollInterval) clearInterval(pollInterval);
         });
 

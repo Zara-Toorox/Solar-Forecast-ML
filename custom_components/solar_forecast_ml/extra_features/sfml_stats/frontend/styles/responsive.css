@@ -18,7 +18,7 @@
     .app.mobile .mobile-nav { display: flex; }
     .app.mobile .main-content {
         padding: var(--space-md);
-        padding-bottom: 72px;
+        padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     }
 
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }

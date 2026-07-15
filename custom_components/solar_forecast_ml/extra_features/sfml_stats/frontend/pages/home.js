@@ -361,6 +361,41 @@ const _HomePage = {
                     <span class="chart-title">{{ hubbleView.title }}</span>
                     <span class="hubble-moment">{{ hubbleView.moment }}</span>
                 </div>
+                <div
+                    v-if="hubbleView.dayBalance"
+                    class="hubble-day-balance"
+                    :class="hubbleView.dayBalance.dataQuality"
+                    :aria-label="$t('home.hubble.dayBalance.aria')"
+                >
+                    <div class="hubble-day-balance-heading">
+                        <span class="hubble-day-balance-title">{{ $t('home.hubble.dayBalance.title') }}</span>
+                        <span class="hubble-day-balance-total">
+                            <strong>{{ hubbleView.dayBalance.homeConsumption }}</strong>
+                            <span>kWh</span>
+                        </span>
+                    </div>
+                    <div class="hubble-day-balance-subtitle">{{ $t('home.hubble.dayBalance.householdDemand') }}</div>
+                    <div class="hubble-day-balance-bar" aria-hidden="true">
+                        <span
+                            v-for="source in hubbleView.dayBalance.activeSources"
+                            :key="source.key"
+                            class="hubble-day-balance-segment"
+                            :class="source.key"
+                            :style="{ width: source.percent + '%' }"
+                        ></span>
+                    </div>
+                    <div class="hubble-day-balance-sources">
+                        <span v-for="source in hubbleView.dayBalance.sources" :key="source.key" class="hubble-day-balance-source">
+                            <span class="hubble-day-balance-dot" :class="source.key"></span>
+                            <span class="hubble-day-balance-source-label">{{ source.label }}</span>
+                            <strong>{{ source.kwh }} kWh</strong>
+                            <span class="hubble-day-balance-percent">{{ source.percent }}%</span>
+                        </span>
+                    </div>
+                    <span v-if="hubbleView.dayBalance.warning" class="hubble-day-balance-warning">
+                        {{ hubbleView.dayBalance.warning }}
+                    </span>
+                </div>
                 <div v-if="hubbleView.systemStatus" class="hubble-system-status" :class="hubbleView.systemStatus.variant">
                     <span class="hubble-system-title">{{ hubbleView.systemStatus.title }}</span>
                     <span class="hubble-system-meta">{{ hubbleView.systemStatus.meta }}</span>
@@ -1458,6 +1493,36 @@ const _HomePage = {
             const variantSeed = payload.variant_seed != null ? payload.variant_seed : 0;
             const yesterday = payload.yesterday || null;
             const workflowStatus = payload.signals?.workflow_status || null;
+            const balancePayload = payload.day_balance;
+            let dayBalance = null;
+            if (balancePayload?.available === true) {
+                const sourceMeta = {
+                    solar: { label: t('home.hubble.dayBalance.solarDirect') },
+                    battery: { label: t('home.hubble.dayBalance.battery') },
+                    grid: { label: t('home.hubble.dayBalance.grid') },
+                    unknown: { label: t('home.hubble.dayBalance.unknown') },
+                };
+                const sources = ['solar', 'battery', 'grid', 'unknown']
+                    .filter(key => balancePayload.sources?.[key])
+                    .map(key => ({
+                        key,
+                        label: sourceMeta[key].label,
+                        kwh: formatHubbleNumber(balancePayload.sources[key].kwh, 2),
+                        percent: Number(balancePayload.sources[key].percent) || 0,
+                    }));
+                const dataQuality = balancePayload.data_quality || 'ok';
+                dayBalance = {
+                    homeConsumption: formatHubbleNumber(balancePayload.home_consumption_kwh, 2),
+                    dataQuality,
+                    sources,
+                    activeSources: sources.filter(source => source.percent > 0),
+                    warning: dataQuality === 'critical'
+                        ? t('home.hubble.dayBalance.inconsistent')
+                        : dataQuality === 'warning'
+                            ? t('home.hubble.dayBalance.incomplete')
+                            : null,
+                };
+            }
 
             const storyParams = {
                 hasWindow: Boolean(bestWindow),
@@ -1543,6 +1608,7 @@ const _HomePage = {
                 moment_key: moment,
                 is_pulsing: moment !== 'evening',
                 systemStatus,
+                dayBalance,
                 chips,
                 lead: t(leadKey, storyParams),
                 tip: buildHubbleTip(payload, windowLabel),
@@ -3416,6 +3482,102 @@ const _HomePage = {
             font-size: 0.78rem;
             font-weight: 600;
         }
+        .hubble-day-balance {
+            flex: 0 1 440px;
+            min-width: min(100%, 360px);
+            padding: 2px 0;
+        }
+        .hubble-day-balance-heading {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--space-md);
+        }
+        .hubble-day-balance-title {
+            color: var(--accent);
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .hubble-day-balance-total {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 5px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+        }
+        .hubble-day-balance-total strong {
+            color: var(--text-primary);
+            font-size: 1.12rem;
+        }
+        .hubble-day-balance-subtitle {
+            margin-top: -2px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+        }
+        .hubble-day-balance-bar {
+            display: flex;
+            width: 100%;
+            height: 8px;
+            margin: 7px 0 6px;
+            overflow: hidden;
+            border-radius: 4px;
+            background: rgba(148, 163, 184, 0.14);
+        }
+        .hubble-day-balance-segment {
+            display: block;
+            height: 100%;
+            min-width: 0;
+        }
+        .hubble-day-balance-segment.solar,
+        .hubble-day-balance-dot.solar { background: #fbbf24; }
+        .hubble-day-balance-segment.battery,
+        .hubble-day-balance-dot.battery { background: #22c55e; }
+        .hubble-day-balance-segment.grid,
+        .hubble-day-balance-dot.grid { background: #a855f7; }
+        .hubble-day-balance-segment.unknown,
+        .hubble-day-balance-dot.unknown { background: #64748b; }
+        .hubble-day-balance-sources {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px 14px;
+        }
+        .hubble-day-balance-source {
+            display: inline-grid;
+            grid-template-columns: 7px auto auto auto;
+            align-items: baseline;
+            gap: 4px;
+            white-space: nowrap;
+            color: var(--text-secondary);
+            font-size: 0.68rem;
+        }
+        .hubble-day-balance-dot {
+            align-self: center;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+        .hubble-day-balance-source strong {
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+        }
+        .hubble-day-balance-percent {
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+        }
+        .hubble-day-balance-warning {
+            display: block;
+            margin-top: 5px;
+            color: #f59e0b;
+            font-size: 0.68rem;
+        }
+        .hubble-day-balance.critical .hubble-day-balance-warning {
+            color: #ef4444;
+        }
         .hubble-system-status {
             flex: 1 1 260px;
             display: flex;
@@ -3688,6 +3850,24 @@ const _HomePage = {
             font-family: var(--font-mono);
             font-size: 0.76rem;
             margin-top: var(--space-md);
+        }
+        @media (max-width: 1280px) {
+            .hubble-day-balance {
+                flex: 1 1 100%;
+                margin-left: 64px;
+            }
+        }
+        @media (max-width: 760px) {
+            .hubble-day-balance {
+                margin-left: 0;
+                min-width: 100%;
+            }
+            .hubble-day-balance-source {
+                grid-template-columns: 7px auto auto;
+            }
+            .hubble-day-balance-percent {
+                display: none;
+            }
         }
         /* ===== Photorealistic Twilight Energy Flow ===== */
         .flow-subtle-axis {

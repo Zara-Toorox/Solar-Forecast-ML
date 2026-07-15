@@ -392,6 +392,7 @@ CREATE TABLE IF NOT EXISTS hourly_predictions (
     prediction_id TEXT NOT NULL UNIQUE,
     prediction_created_at TIMESTAMP NOT NULL,
     prediction_created_hour INTEGER NOT NULL,
+    morning_batch_id TEXT,
     target_datetime TIMESTAMP NOT NULL,
     target_date DATE NOT NULL,
     target_hour INTEGER NOT NULL,
@@ -450,6 +451,152 @@ CREATE TABLE IF NOT EXISTS hourly_predictions (
 CREATE INDEX IF NOT EXISTS idx_hourly_predictions_target ON hourly_predictions(target_date, target_hour);
 CREATE INDEX IF NOT EXISTS idx_hourly_predictions_created ON hourly_predictions(prediction_created_at);
 CREATE INDEX IF NOT EXISTS idx_hourly_predictions_datetime ON hourly_predictions(target_datetime);
+CREATE INDEX IF NOT EXISTS idx_hourly_predictions_morning_batch ON hourly_predictions(morning_batch_id);
+
+CREATE TABLE IF NOT EXISTS ensemble_shadow_batches (
+    morning_batch_id TEXT PRIMARY KEY,
+    run_date DATE NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('running', 'completed', 'failed')),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    failed_at TIMESTAMP,
+    last_resumed_at TIMESTAMP
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ensemble_shadow_batches_one_running
+    ON ensemble_shadow_batches(run_date) WHERE status = 'running';
+
+CREATE TABLE IF NOT EXISTS ensemble_shadow_evaluations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shadow_evaluation_id TEXT NOT NULL UNIQUE,
+    morning_batch_id TEXT NOT NULL,
+    source_prediction_id TEXT NOT NULL,
+    forecast_created_at TIMESTAMP NOT NULL,
+    target_datetime TIMESTAMP NOT NULL,
+    target_utc_epoch INTEGER NOT NULL,
+    target_date DATE NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour >= 0 AND target_hour <= 23),
+    forecast_timezone TEXT NOT NULL,
+    prediction_method TEXT NOT NULL,
+    shadow_rule_version TEXT NOT NULL,
+    physics_kwh REAL,
+    ai_kwh REAL,
+    prediction_kwh REAL NOT NULL,
+    tfs_kwh REAL,
+    tfs_weight REAL,
+    sun_elevation_deg REAL,
+    sun_azimuth_deg REAL,
+    hours_before_sunset REAL,
+    day_progress_ratio REAL,
+    forecast_ghi_wm2 REAL,
+    direct_radiation_wm2 REAL,
+    diffuse_radiation_wm2 REAL,
+    forecast_clouds_pct REAL,
+    theoretical_max_kwh REAL,
+    shadow_evaluable BOOLEAN NOT NULL,
+    shadow_not_evaluable_reason TEXT,
+    shadow_gate_triggered BOOLEAN NOT NULL,
+    shadow_prediction_kwh REAL,
+    production_prediction_kwh REAL NOT NULL,
+    decision_reason_json TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(morning_batch_id, source_prediction_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ensemble_shadow_evaluations_target
+    ON ensemble_shadow_evaluations(target_date, target_hour);
+CREATE INDEX IF NOT EXISTS idx_ensemble_shadow_evaluations_source
+    ON ensemble_shadow_evaluations(source_prediction_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ensemble_shadow_evaluations_batch_target
+    ON ensemble_shadow_evaluations(morning_batch_id, target_utc_epoch);
+
+CREATE TABLE IF NOT EXISTS ensemble_shadow_evaluation_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    shadow_evaluation_id TEXT NOT NULL UNIQUE,
+    evaluated_at TIMESTAMP NOT NULL,
+    actual_kwh REAL NOT NULL,
+    actual_measured_at TIMESTAMP,
+    clean_evaluation_status BOOLEAN NOT NULL,
+    clean_exclusion_reason TEXT,
+    evaluation_status TEXT NOT NULL,
+    final_absolute_error REAL NOT NULL,
+    physics_absolute_error REAL,
+    shadow_absolute_error REAL,
+    avoided_error REAL,
+    lost_ensemble_improvement REAL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (shadow_evaluation_id)
+        REFERENCES ensemble_shadow_evaluations(shadow_evaluation_id)
+        ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_ensemble_shadow_results_status
+    ON ensemble_shadow_evaluation_results(evaluation_status, evaluated_at);
+
+CREATE TABLE IF NOT EXISTS ensemble_shadow_evaluation_versions (
+    evaluation_version_id TEXT PRIMARY KEY,
+    shadow_evaluation_id TEXT NOT NULL,
+    evaluation_version INTEGER NOT NULL,
+    supersedes_evaluation_version_id TEXT,
+    actual_fingerprint TEXT NOT NULL,
+    evaluated_at TIMESTAMP NOT NULL,
+    actual_kwh REAL,
+    actual_measured_at TIMESTAMP,
+    clean_evaluation_status BOOLEAN NOT NULL,
+    clean_exclusion_reason TEXT,
+    evaluation_status TEXT NOT NULL,
+    evaluation_reason TEXT,
+    final_absolute_error REAL,
+    physics_absolute_error REAL,
+    shadow_absolute_error REAL,
+    avoided_error REAL,
+    lost_ensemble_improvement REAL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (shadow_evaluation_id)
+        REFERENCES ensemble_shadow_evaluations(shadow_evaluation_id)
+        ON DELETE RESTRICT,
+    UNIQUE(shadow_evaluation_id, evaluation_version),
+    UNIQUE(shadow_evaluation_id, actual_fingerprint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ensemble_shadow_versions_current
+    ON ensemble_shadow_evaluation_versions(shadow_evaluation_id, evaluation_version DESC);
+
+CREATE TRIGGER IF NOT EXISTS trg_ensemble_shadow_evaluations_no_update
+BEFORE UPDATE ON ensemble_shadow_evaluations
+BEGIN
+    SELECT RAISE(ABORT, 'ensemble shadow provenance is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_ensemble_shadow_evaluations_no_delete
+BEFORE DELETE ON ensemble_shadow_evaluations
+BEGIN
+    SELECT RAISE(ABORT, 'ensemble shadow provenance is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_ensemble_shadow_results_no_update
+BEFORE UPDATE ON ensemble_shadow_evaluation_results
+BEGIN
+    SELECT RAISE(ABORT, 'ensemble shadow evaluation result is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_ensemble_shadow_results_no_delete
+BEFORE DELETE ON ensemble_shadow_evaluation_results
+BEGIN
+    SELECT RAISE(ABORT, 'ensemble shadow evaluation result is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_ensemble_shadow_versions_no_update
+BEFORE UPDATE ON ensemble_shadow_evaluation_versions
+BEGIN
+    SELECT RAISE(ABORT, 'ensemble shadow evaluation version is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS trg_ensemble_shadow_versions_no_delete
+BEFORE DELETE ON ensemble_shadow_evaluation_versions
+BEGIN
+    SELECT RAISE(ABORT, 'ensemble shadow evaluation version is append-only');
+END;
 
 CREATE TABLE IF NOT EXISTS emergency_outage_periods (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
