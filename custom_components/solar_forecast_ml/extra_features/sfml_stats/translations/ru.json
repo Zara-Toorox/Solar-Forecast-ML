@@ -4,149 +4,259 @@
       "user": {
         "title": "Solar Forecast STATS - Добро пожаловать",
         "description": "Добро пожаловать в Solar Forecast STATS!\n\nЭта интеграция отслеживает солнечную генерацию, батарею, потребление из сети и рассчитывает затраты.\n\nНажмите ДАЛЕЕ для настройки сенсоров.",
-        "data": {},
-        "data_description": {}
-      },
-      "sensors_setup": {
-        "title": "Основные сенсоры",
-        "description": "Настройте основные сенсоры.\n\n**🏠 Потребление дома (Вт)** и **☀️ Солнце → Дом (Вт)** — самые важные сенсоры.\nОставьте пустым, если недоступно.\n\nСолнечная мощность поступает автоматически из SFML.\n\n**Необходимые единицы:**\n- Мощность: Ватт (Вт)\n- Энергия: кВт·ч (с ежедневным сбросом)\n- Цена: цент/кВт·ч",
         "data": {
+          "country": "Country",
           "sensor_home_consumption": "🏠 Потребление дома (Вт)",
-          "sensor_home_consumption_daily": "🏠 Потребление дома сегодня (кВт·ч)",
-          "sensor_solar_to_house": "☀️ Солнце → Дом (Вт)",
-          "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)",
           "weather_entity": "🌤️ Объект погоды"
         },
         "data_description": {
+          "country": "Select your country for VAT and electricity price defaults.",
           "sensor_home_consumption": "Единица: Ватт. Общее текущее потребление домохозяйства, включая всех потребителей. Необходим для диаграммы энергопотоков в реальном времени. (Обязательно)",
-          "sensor_home_consumption_daily": "Единица: кВт·ч. Общее потребление домохозяйства с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
-          "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)",
           "weather_entity": "Формат: weather.xxx. Интеграция погоды Home Assistant для прогнозов в графиках. Не sensor-объект, а weather-объект! (Опционально)"
         }
       },
-      "battery_setup": {
-        "title": "Сенсоры батареи (Опционально)",
-        "description": "Настройте сенсоры батареи. Пропустите, если у вас нет накопителя энергии.\n\nВт-сенсоры необходимы для диаграммы энергопотоков в реальном времени.\nкВт·ч-сенсоры опциональны для более точной дневной статистики.",
+      "energy_flows": {
+        "title": "Потоки энергии",
+        "description": "Select the available live power sensors. STATS calculates the corresponding kWh values from midnight automatically. All fields are optional.",
         "data": {
-          "sensor_solar_to_battery": "☀️ Солнце → Батарея (Вт)",
-          "sensor_battery_charge_solar_daily": "☀️ Солнце → Батарея сегодня (кВт·ч)",
-          "sensor_battery_to_house": "🔋 Батарея → Дом (Вт)",
-          "sensor_battery_discharge_daily": "🔋 Батарея → Дом сегодня (кВт·ч)",
-          "sensor_grid_to_battery": "⚡ Сеть → Батарея (Вт)",
-          "sensor_battery_charge_grid_daily": "⚡ Сеть → Батарея сегодня (кВт·ч)",
-          "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
-          "sensor_battery_power": "🔋 Общая мощность батареи (Вт)"
-        },
-        "data_description": {
-          "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
-          "sensor_battery_charge_solar_daily": "Единица: кВт·ч. Солнечная энергия, заряженная в батарею сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
-          "sensor_battery_discharge_daily": "Единица: кВт·ч. Энергия, разряженная из батареи в дом сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_grid_to_battery": "Единица: Ватт. Мощность из сети для зарядки батареи. Только доля зарядки из сети, не солнечная зарядка! (Опционально)",
-          "sensor_battery_charge_grid_daily": "Единица: кВт·ч. Энергия из сети для зарядки батареи сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
-          "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)"
-        }
-      },
-      "smartmeter_setup": {
-        "title": "Сенсоры счётчика (Опционально)",
-        "description": "Настройте сенсоры счётчика для точных значений сети.\nПропустите, если нет счётчика — значения будут оценочными.\n\nВт-сенсоры необходимы для диаграммы энергопотоков в реальном времени.\nкВт·ч-сенсоры опциональны для более точной дневной статистики.",
-        "data": {
-          "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
-          "sensor_grid_import_daily": "📥 Потребление из сети сегодня (кВт·ч)",
-          "sensor_grid_to_house": "⚡ Сеть → Дом (Вт)",
-          "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)",
-          "sensor_grid_export_daily": "📤 Отдача в сеть сегодня (кВт·ч)",
-          "sensor_house_to_grid": "📤 Отдача излишков (Вт)"
-        },
-        "data_description": {
-          "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
-          "sensor_grid_import_daily": "Единица: кВт·ч. Общее потребление из сети с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_grid_to_house": "Единица: Ватт. Мощность из сети, поступающая напрямую в дом. Без зарядки батареи от сети! Отличие от «Потребление из сети»: только доля домашнего потребления. (Опционально)",
-          "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)",
-          "sensor_grid_export_daily": "Единица: кВт·ч. Общая отдача в сеть с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_house_to_grid": "Единица: Ватт. Избыточная мощность, отдаваемая в сеть. Только солнечные излишки, не отдача из батареи! Отличие от «Отдача в сеть»: только доля излишков. (Опционально)"
-        }
-      },
-      "sensors": {
-        "title": "Настройка сенсоров",
-        "description": "Настройте все сенсоры. Оставьте пустым, если недоступно.\n\n**Вт-сенсоры** необходимы для диаграммы энергопотоков в реальном времени.\n**кВт·ч-сенсоры** опциональны — при наличии обеспечивают более точную дневную статистику.\n\n**Необходимые единицы:**\n- Мощность: Ватт (Вт)\n- Энергия: кВт·ч (с ежедневным сбросом)\n- SOC: Процент (0-100)\n- Цена: цент/кВт·ч",
-        "data": {
-          "sensor_home_consumption": "🏠 Потребление дома (Вт)",
-          "sensor_home_consumption_daily": "🏠 Потребление дома сегодня (кВт·ч)",
           "sensor_solar_to_house": "☀️ Солнце → Дом (Вт)",
+          "sensor_inverter_ac_output": "Inverter AC Output (W)",
           "sensor_solar_to_battery": "☀️ Солнце → Батарея (Вт)",
-          "sensor_battery_charge_solar_daily": "☀️ Солнце → Батарея сегодня (кВт·ч)",
           "sensor_battery_to_house": "🔋 Батарея → Дом (Вт)",
-          "sensor_battery_discharge_daily": "🔋 Батарея → Дом сегодня (кВт·ч)",
+          "sensor_grid_to_house": "⚡ Сеть → Дом (Вт)",
           "sensor_grid_to_battery": "⚡ Сеть → Батарея (Вт)",
-          "sensor_battery_charge_grid_daily": "⚡ Сеть → Батарея сегодня (кВт·ч)",
+          "sensor_house_to_grid": "📤 Отдача излишков (Вт)",
+          "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
+          "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)"
+        },
+        "data_description": {
+          "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
+          "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. (Optional)",
+          "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
+          "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
+          "sensor_grid_to_house": "Единица: Ватт. Мощность из сети, поступающая напрямую в дом. Без зарядки батареи от сети! Отличие от «Потребление из сети»: только доля домашнего потребления. (Опционально)",
+          "sensor_grid_to_battery": "Единица: Ватт. Мощность из сети для зарядки батареи. Только доля зарядки из сети, не солнечная зарядка! (Опционально)",
+          "sensor_house_to_grid": "Единица: Ватт. Избыточная мощность, отдаваемая в сеть. Только солнечные излишки, не отдача из батареи! Отличие от «Отдача в сеть»: только доля излишков. (Опционально)",
+          "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
+          "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)"
+        }
+      },
+      "optional": {
+        "title": "Аккумулятор и дополнительные значения",
+        "description": "Configure these fields only when the corresponding values are available. Systems without a battery can skip this step.",
+        "data": {
           "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
           "sensor_battery_power": "🔋 Общая мощность батареи (Вт)",
-          "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
-          "sensor_grid_import_daily": "📥 Потребление из сети сегодня (кВт·ч)",
-          "sensor_grid_to_house": "⚡ Сеть → Дом (Вт)",
-          "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)",
-          "sensor_grid_export_daily": "📤 Отдача в сеть сегодня (кВт·ч)",
-          "sensor_house_to_grid": "📤 Отдача излишков (Вт)",
-          "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)",
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
+          "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)"
+        },
+        "data_description": {
+          "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
+          "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
+          "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)"
+        }
+      },
+      "consumers": {
+        "title": "Потребители",
+        "description": "Configure live power sensors for additional consumers. STATS calculates their daily energy automatically. All fields are optional.",
+        "data": {
+          "sensor_heatpump_power": "🌡️ Тепловой насос мощность (Вт)",
+          "sensor_heatingrod_power": "🔥 ТЭН мощность (Вт)",
+          "sensor_wallbox_power": "🚗 Wallbox мощность (Вт)",
+          "sensor_wallbox_state": "🚗 Wallbox статус"
+        },
+        "data_description": {
+          "sensor_heatpump_power": "Единица: Ватт. Текущее электрическое потребление теплового насоса. Только потребление компрессора, не выделяемое тепло! (Опционально)",
+          "sensor_heatingrod_power": "Единица: Ватт. Текущее электрическое потребление ТЭН. Отображается как отдельный потребитель в диаграмме энергопотоков. (Опционально)",
+          "sensor_wallbox_power": "Единица: Ватт. Текущая мощность зарядки Wallbox/зарядной станции. Только фактическая мощность зарядки, не потребление в режиме ожидания! (Опционально)",
+          "sensor_wallbox_state": "Формат: Текст. Возможные значения: 'charging' = автомобиль заряжается, 'idle' = готов/нет зарядки. Другие значения игнорируются. (Опционально)"
+        }
+      },
+      "consumer_details": {
+        "title": "Дополнительные датчики потребителей",
+        "description": "Additional values for the heat pump and wallbox detail views. These fields are optional and can be skipped.",
+        "data": {
+          "sensor_hp_heating_mode": "Heat Pump: Heating Mode",
+          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode",
+          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active",
+          "sensor_hp_pv_active": "Heat Pump: PV Mode Active",
+          "sensor_hp_electric_power": "Heat Pump: Electrical Power (W or kW)",
+          "sensor_hp_thermal_power": "Heat Pump: Thermal Power (W or kW)",
+          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh)",
+          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh)",
+          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
+          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts",
+          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature",
+          "sensor_wb_charge_mode": "Wallbox: Charging Mode",
+          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+        },
+        "data_description": {
+          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
+          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
+          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
+          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
+          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
+          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
+          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
+          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
+          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
+          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
+          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+        }
+      },
+      "reconfigure": {
+        "title": "Обновить основную настройку",
+        "description": "Update the basic configuration. Empty optional fields remove the currently stored value.\n\nSTATS calculates daily energy values from live power sensors; separate daily kWh sensors are not required.",
+        "data": {
+          "country": "Country",
+          "sensor_home_consumption": "🏠 Потребление дома (Вт)",
           "weather_entity": "🌤️ Объект погоды"
         },
         "data_description": {
+          "country": "Select your country for VAT and electricity price defaults.",
           "sensor_home_consumption": "Единица: Ватт. Общее текущее потребление домохозяйства, включая всех потребителей. Необходим для диаграммы энергопотоков в реальном времени. (Обязательно)",
-          "sensor_home_consumption_daily": "Единица: кВт·ч. Общее потребление домохозяйства с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
-          "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
-          "sensor_battery_charge_solar_daily": "Единица: кВт·ч. Солнечная энергия, заряженная в батарею сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
-          "sensor_battery_discharge_daily": "Единица: кВт·ч. Энергия, разряженная из батареи в дом сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_grid_to_battery": "Единица: Ватт. Мощность из сети для зарядки батареи. Только доля зарядки из сети, не солнечная зарядка! (Опционально)",
-          "sensor_battery_charge_grid_daily": "Единица: кВт·ч. Энергия из сети для зарядки батареи сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
-          "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
-          "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
-          "sensor_grid_import_daily": "Единица: кВт·ч. Общее потребление из сети с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_grid_to_house": "Единица: Ватт. Мощность из сети, поступающая напрямую в дом. Без зарядки батареи от сети! Отличие от «Потребление из сети»: только доля домашнего потребления. (Опционально)",
-          "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)",
-          "sensor_grid_export_daily": "Единица: кВт·ч. Общая отдача в сеть с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_house_to_grid": "Единица: Ватт. Избыточная мощность, отдаваемая в сеть. Только солнечные излишки, не отдача из батареи! Отличие от «Отдача в сеть»: только доля излишков. (Опционально)",
-          "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)",
           "weather_entity": "Формат: weather.xxx. Интеграция погоды Home Assistant для прогнозов в графиках. Не sensor-объект, а weather-объект! (Опционально)"
         }
       },
-      "helpers": {
-        "title": "Отсутствующие кВт·ч-сенсоры",
-        "description": "**{missing_count}** ежедневных кВт·ч-сенсоров отсутствует:\n\n**{missing_sensors}**\n\nИх можно создать из ваших Вт-сенсоров.\n\n**Как это сделать:**\n1. Перейдите в Настройки → Устройства и службы → Помощники\n2. Создайте сенсор «Интеграл суммы Римана» (Вт → кВт·ч)\n3. Создайте «Счётчик потребления» с ежедневным сбросом\n\nИли добавьте следующее в configuration.yaml:\n\n```yaml\n{yaml_config}\n```",
+      "reconfigure_energy_flows": {
+        "title": "Обновить потоки энергии",
+        "description": "Select the available live power sensors. Empty fields remove the currently stored sensor.",
         "data": {
-          "show_yaml": "Я скопировал YAML-конфигурацию"
+          "sensor_solar_to_house": "☀️ Солнце → Дом (Вт)",
+          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_solar_to_battery": "☀️ Солнце → Батарея (Вт)",
+          "sensor_battery_to_house": "🔋 Батарея → Дом (Вт)",
+          "sensor_grid_to_house": "⚡ Сеть → Дом (Вт)",
+          "sensor_grid_to_battery": "⚡ Сеть → Батарея (Вт)",
+          "sensor_house_to_grid": "📤 Отдача излишков (Вт)",
+          "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
+          "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)"
         },
         "data_description": {
-          "show_yaml": "Подтвердите для продолжения. Вы также можете создать сенсоры позже."
+          "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
+          "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. Leave empty if unavailable. (Optional)",
+          "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
+          "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
+          "sensor_grid_to_house": "Единица: Ватт. Мощность из сети, поступающая напрямую в дом. Без зарядки батареи от сети! Отличие от «Потребление из сети»: только доля домашнего потребления. (Опционально)",
+          "sensor_grid_to_battery": "Единица: Ватт. Мощность из сети для зарядки батареи. Только доля зарядки из сети, не солнечная зарядка! (Опционально)",
+          "sensor_house_to_grid": "Единица: Ватт. Избыточная мощность, отдаваемая в сеть. Только солнечные излишки, не отдача из батареи! Отличие от «Отдача в сеть»: только доля излишков. (Опционально)",
+          "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
+          "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)"
         }
       },
-      "settings": {
-        "title": "Настройки",
-        "description": "Настройте автоматические отчёты и тарификацию.",
+      "reconfigure_optional": {
+        "title": "Обновить аккумулятор и дополнительные значения",
+        "description": "Systems without a battery can leave these fields empty. Empty fields remove the currently stored sensor.",
         "data": {
-          "auto_generate": "Автоматическая генерация отчётов",
-          "generate_weekly": "Еженедельные отчёты",
-          "generate_monthly": "Ежемесячные отчёты",
-          "billing_start_month": "Месяц начала расчётного периода",
-          "billing_start_day": "День начала расчётного периода",
-          "billing_price_mode": "Режим тарифа",
-          "billing_fixed_price": "Резервная цена (цент/кВт·ч)",
+          "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
+          "sensor_battery_power": "🔋 Общая мощность батареи (Вт)",
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
+          "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)"
+        },
+        "data_description": {
+          "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
+          "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
+          "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)"
+        }
+      },
+      "reconfigure_consumers": {
+        "title": "Обновить потребителей",
+        "description": "Configure live power sensors for additional consumers. Empty fields remove the currently stored sensor.",
+        "data": {
+          "sensor_heatpump_power": "🌡️ Тепловой насос мощность (Вт)",
+          "sensor_heatingrod_power": "🔥 ТЭН мощность (Вт)",
+          "sensor_wallbox_power": "🚗 Wallbox мощность (Вт)",
+          "sensor_wallbox_state": "🚗 Wallbox статус"
+        },
+        "data_description": {
+          "sensor_heatpump_power": "Единица: Ватт. Текущее электрическое потребление теплового насоса. Только потребление компрессора, не выделяемое тепло! (Опционально)",
+          "sensor_heatingrod_power": "Единица: Ватт. Текущее электрическое потребление ТЭН. Отображается как отдельный потребитель в диаграмме энергопотоков. (Опционально)",
+          "sensor_wallbox_power": "Единица: Ватт. Текущая мощность зарядки Wallbox/зарядной станции. Только фактическая мощность зарядки, не потребление в режиме ожидания! (Опционально)",
+          "sensor_wallbox_state": "Формат: Текст. Возможные значения: 'charging' = автомобиль заряжается, 'idle' = готов/нет зарядки. Другие значения игнорируются. (Опционально)"
+        }
+      },
+      "reconfigure_consumer_details": {
+        "title": "Обновить дополнительные датчики",
+        "description": "Additional values for the heat pump and wallbox detail views. Empty fields remove the currently stored sensor.",
+        "data": {
+          "sensor_hp_heating_mode": "Heat Pump: Heating Mode",
+          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode",
+          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active",
+          "sensor_hp_pv_active": "Heat Pump: PV Mode Active",
+          "sensor_hp_electric_power": "Heat Pump: Electrical Power (W or kW)",
+          "sensor_hp_thermal_power": "Heat Pump: Thermal Power (W or kW)",
+          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh)",
+          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh)",
+          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
+          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts",
+          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature",
+          "sensor_wb_charge_mode": "Wallbox: Charging Mode",
+          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+        },
+        "data_description": {
+          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
+          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
+          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
+          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
+          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
+          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
+          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
+          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
+          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
+          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
+          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+        }
+      },
+      "pricing": {
+        "title": "Тариф на электроэнергию",
+        "description": "Select your electricity tariff mode.",
+        "data": {
+          "billing_price_mode": "Режим тарифа"
+        },
+        "data_description": {
+          "billing_price_mode": "Динамический: почасовые цены от Grid Price Monitor. Фиксированный: единая цена. Без тарифа: отключает финансовые показатели."
+        }
+      },
+      "pricing_fixed": {
+        "title": "Фиксированный тариф",
+        "description": "Enter work price and grid fees separately — the total cost is their sum.",
+        "data": {
+          "billing_work_price": "Work Price (ct/kWh)",
+          "billing_grid_fees": "Grid Fees (ct/kWh)",
+          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
           "feed_in_tariff": "Тариф на отдачу (цент/кВт·ч)"
         },
         "data_description": {
-          "auto_generate": "Автоматически создавать еженедельные и ежемесячные отчёты",
-          "generate_weekly": "Создавать еженедельный отчёт каждое воскресенье",
-          "generate_monthly": "Создавать ежемесячный отчёт 1-го числа каждого месяца",
-          "billing_start_month": "Месяц начала расчётного года",
-          "billing_start_day": "День начала расчётного года",
-          "billing_price_mode": "Динамический: почасовые цены от Grid Price Monitor. Фиксированный: единая цена. Без тарифа: отключает финансовые показатели.",
-          "billing_fixed_price": "Используется, когда Grid Price Monitor не предоставляет цену",
+          "billing_work_price": "Pure energy work price per kWh (without grid fees).",
+          "billing_grid_fees": "Grid fees, metering, concession and taxes per kWh.",
+          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
           "feed_in_tariff": "Тариф на отдачу в сеть в центах за кВт·ч"
+        }
+      },
+      "pricing_dynamic": {
+        "title": "Динамический тариф",
+        "description": "GPM (Grid Price Monitor) provides hourly market prices. Please enter your base fee, taxes, fees and markups.",
+        "data": {
+          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
+          "feed_in_tariff": "Тариф на отдачу (цент/кВт·ч)",
+          "vat_rate": "VAT Rate (%)",
+          "gpm_grid_fee": "Grid Fees (ct/kWh)",
+          "taxes_fees": "Taxes & Levies (ct/kWh)",
+          "provider_markup": "Provider Markup (ct/kWh)"
+        },
+        "data_description": {
+          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
+          "feed_in_tariff": "Тариф на отдачу в сеть в центах за кВт·ч",
+          "vat_rate": "Value Added Tax rate in percent (e.g. 19 for DE, 20 for AT).",
+          "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
+          "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
+          "provider_markup": "Provider markup per kWh (gross)."
         }
       }
     },
@@ -168,121 +278,90 @@
         "data": {
           "menu_choice": "Категория"
         },
-        "menu_options": {
-          "sensors_main": "⚡ Основные сенсоры (Обязательно)",
-          "sensors_battery": "🔋 Сенсоры батареи (Опционально)",
-          "sensors_smartmeter": "📊 Счётчик (Опционально)",
-          "consumers": "🏠 Потребители (Тепловой насос, ТЭН, Wallbox)",
-          "settings": "⚙️ Настройки",
-          "advanced": "🔧 Дополнительно"
-        }
-      },
-      "sensors_main": {
-        "title": "Основные сенсоры (Обязательно)",
-        "description": "**🏠 Потребление дома — самый важный сенсор!**\n\nВт-сенсор необходим для диаграммы энергопотоков в реальном времени.\nОпционально: кВт·ч-сенсор дополнительно для более точной дневной статистики.\nСолнечная мощность поступает автоматически из SFML.",
-        "data": {
-          "sensor_home_consumption": "🏠 Потребление дома (Вт)",
-          "sensor_home_consumption_daily": "🏠 Потребление дома сегодня (кВт·ч)",
-          "sensor_solar_to_house": "☀️ Солнце → Дом (Вт)",
-          "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)",
-          "weather_entity": "🌤️ Объект погоды"
-        },
         "data_description": {
-          "sensor_home_consumption": "Единица: Ватт. Общее текущее потребление домохозяйства, включая всех потребителей. Необходим для диаграммы энергопотоков в реальном времени. (Обязательно)",
-          "sensor_home_consumption_daily": "Единица: кВт·ч. Общее потребление домохозяйства с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
-          "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)",
-          "weather_entity": "Формат: weather.xxx. Интеграция погоды Home Assistant для прогнозов в графиках. Не sensor-объект, а weather-объект! (Опционально)"
-        }
-      },
-      "sensors_battery": {
-        "title": "Сенсоры батареи (Опционально)",
-        "description": "Настраивайте только при наличии накопителя энергии.\n\nВт-сенсоры необходимы для диаграммы энергопотоков в реальном времени.\nкВт·ч-сенсоры опциональны — при наличии обеспечивают более точную дневную статистику.\n\n**☀️ Солнце→Дом и ⚡ Сеть→Дом рассчитываются автоматически!**",
-        "data": {
-          "sensor_solar_to_battery": "☀️ Солнце → Батарея (Вт)",
-          "sensor_battery_charge_solar_daily": "☀️ Солнце → Батарея сегодня (кВт·ч)",
-          "sensor_battery_to_house": "🔋 Батарея → Дом (Вт)",
-          "sensor_battery_discharge_daily": "🔋 Батарея → Дом сегодня (кВт·ч)",
-          "sensor_grid_to_battery": "⚡ Сеть → Батарея (Вт)",
-          "sensor_battery_charge_grid_daily": "⚡ Сеть → Батарея сегодня (кВт·ч)",
-          "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
-          "sensor_battery_power": "🔋 Общая мощность батареи (Вт)"
-        },
-        "data_description": {
-          "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
-          "sensor_battery_charge_solar_daily": "Единица: кВт·ч. Солнечная энергия, заряженная в батарею сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
-          "sensor_battery_discharge_daily": "Единица: кВт·ч. Энергия, разряженная из батареи в дом сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_grid_to_battery": "Единица: Ватт. Мощность из сети для зарядки батареи. Только доля зарядки из сети, не солнечная зарядка! (Опционально)",
-          "sensor_battery_charge_grid_daily": "Единица: кВт·ч. Энергия из сети для зарядки батареи сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
-          "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)"
-        }
-      },
-      "sensors_smartmeter": {
-        "title": "Сенсоры счётчика (Опционально)",
-        "description": "Для точных значений сети.\n\nВт-сенсоры необходимы для диаграммы энергопотоков в реальном времени.\nкВт·ч-сенсоры опциональны — при наличии обеспечивают более точную дневную статистику.\n\n**Без счётчика отдача и потребление будут оценочными.**",
-        "data": {
-          "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
-          "sensor_grid_import_daily": "📥 Потребление из сети сегодня (кВт·ч)",
-          "sensor_grid_to_house": "⚡ Сеть → Дом (Вт)",
-          "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)",
-          "sensor_grid_export_daily": "📤 Отдача в сеть сегодня (кВт·ч)",
-          "sensor_house_to_grid": "📤 Отдача излишков (Вт)"
-        },
-        "data_description": {
-          "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
-          "sensor_grid_import_daily": "Единица: кВт·ч. Общее потребление из сети с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_grid_to_house": "Единица: Ватт. Мощность из сети, поступающая напрямую в дом. Без зарядки батареи от сети! Отличие от «Потребление из сети»: только доля домашнего потребления. (Опционально)",
-          "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)",
-          "sensor_grid_export_daily": "Единица: кВт·ч. Общая отдача в сеть с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_house_to_grid": "Единица: Ватт. Избыточная мощность, отдаваемая в сеть. Только солнечные излишки, не отдача из батареи! Отличие от «Отдача в сеть»: только доля излишков. (Опционально)"
+          "menu_choice": "Choose the area you want to configure."
         }
       },
       "sensors": {
         "title": "Все сенсоры",
-        "description": "Настройте все сенсоры.\n\n**Вт-сенсоры** необходимы для диаграммы энергопотоков в реальном времени.\n**кВт·ч-сенсоры** опциональны для более точной дневной статистики.\n\n**Необходимые единицы:**\n- Мощность: Ватт (Вт)\n- Энергия: кВт·ч (с ежедневным сбросом)\n- SOC: Процент (0-100)\n- Цена: цент/кВт·ч",
+        "description": "Настройте все сенсоры.\n\n**Датчики мощности** предоставляют текущие значения и автоматически преобразуются в суточные показатели энергии.",
         "data": {
+          "country": "Country",
           "sensor_home_consumption": "🏠 Потребление дома (Вт)",
-          "sensor_home_consumption_daily": "🏠 Потребление дома сегодня (кВт·ч)",
           "sensor_solar_to_house": "☀️ Солнце → Дом (Вт)",
-          "sensor_solar_to_battery": "☀️ Солнце → Батарея (Вт)",
-          "sensor_battery_charge_solar_daily": "☀️ Солнце → Батарея сегодня (кВт·ч)",
-          "sensor_battery_to_house": "🔋 Батарея → Дом (Вт)",
-          "sensor_battery_discharge_daily": "🔋 Батарея → Дом сегодня (кВт·ч)",
-          "sensor_grid_to_battery": "⚡ Сеть → Батарея (Вт)",
-          "sensor_battery_charge_grid_daily": "⚡ Сеть → Батарея сегодня (кВт·ч)",
+          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "weather_entity": "🌤️ Объект погоды",
           "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
           "sensor_battery_power": "🔋 Общая мощность батареи (Вт)",
-          "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
-          "sensor_grid_import_daily": "📥 Потребление из сети сегодня (кВт·ч)",
+          "sensor_solar_to_battery": "☀️ Солнце → Батарея (Вт)",
+          "sensor_battery_to_house": "🔋 Батарея → Дом (Вт)",
           "sensor_grid_to_house": "⚡ Сеть → Дом (Вт)",
-          "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)",
-          "sensor_grid_export_daily": "📤 Отдача в сеть сегодня (кВт·ч)",
+          "sensor_grid_to_battery": "⚡ Сеть → Батарея (Вт)",
           "sensor_house_to_grid": "📤 Отдача излишков (Вт)",
+          "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
+          "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)",
+          "sensor_grid_import_extra": "Additional Grid Import (kWh)",
           "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)",
-          "weather_entity": "🌤️ Объект погоды"
+          "sensor_heatpump_power": "🌡️ Тепловой насос мощность (Вт)",
+          "sensor_heatingrod_power": "🔥 ТЭН мощность (Вт)",
+          "sensor_wallbox_power": "🚗 Wallbox мощность (Вт)",
+          "sensor_wallbox_state": "🚗 Wallbox статус"
         },
         "data_description": {
+          "country": "Select country for VAT and price defaults.",
           "sensor_home_consumption": "Единица: Ватт. Общее текущее потребление домохозяйства, включая всех потребителей. Необходим для диаграммы энергопотоков в реальном времени. (Обязательно)",
-          "sensor_home_consumption_daily": "Единица: кВт·ч. Общее потребление домохозяйства с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
           "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
-          "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
-          "sensor_battery_charge_solar_daily": "Единица: кВт·ч. Солнечная энергия, заряженная в батарею сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
-          "sensor_battery_discharge_daily": "Единица: кВт·ч. Энергия, разряженная из батареи в дом сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
-          "sensor_grid_to_battery": "Единица: Ватт. Мощность из сети для зарядки батареи. Только доля зарядки из сети, не солнечная зарядка! (Опционально)",
-          "sensor_battery_charge_grid_daily": "Единица: кВт·ч. Энергия из сети для зарядки батареи сегодня. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
+          "sensor_inverter_ac_output": "Total AC output power of the inverter in Watt. Do not select PV DC power or grid export. (Optional)",
+          "weather_entity": "Формат: weather.xxx. Интеграция погоды Home Assistant для прогнозов в графиках. Не sensor-объект, а weather-объект! (Опционально)",
           "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
           "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
-          "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
-          "sensor_grid_import_daily": "Единица: кВт·ч. Общее потребление из сети с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
+          "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
+          "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
           "sensor_grid_to_house": "Единица: Ватт. Мощность из сети, поступающая напрямую в дом. Без зарядки батареи от сети! Отличие от «Потребление из сети»: только доля домашнего потребления. (Опционально)",
-          "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)",
-          "sensor_grid_export_daily": "Единица: кВт·ч. Общая отдача в сеть с полуночи. Должен сбрасываться в 0:00. Если отсутствует, значение рассчитывается из Вт-сенсора. (Опционально)",
+          "sensor_grid_to_battery": "Единица: Ватт. Мощность из сети для зарядки батареи. Только доля зарядки из сети, не солнечная зарядка! (Опционально)",
           "sensor_house_to_grid": "Единица: Ватт. Избыточная мощность, отдаваемая в сеть. Только солнечные излишки, не отдача из батареи! Отличие от «Отдача в сеть»: только доля излишков. (Опционально)",
+          "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
+          "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)",
+          "sensor_grid_import_extra": "Additional grid import not measured by smartmeter in kWh. (Optional)",
           "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)",
-          "weather_entity": "Формат: weather.xxx. Интеграция погоды Home Assistant для прогнозов в графиках. Не sensor-объект, а weather-объект! (Опционально)"
+          "sensor_heatpump_power": "Единица: Ватт. Текущее электрическое потребление теплового насоса. Только потребление компрессора, не выделяемое тепло! (Опционально)",
+          "sensor_heatingrod_power": "Единица: Ватт. Текущее электрическое потребление ТЭН. Отображается как отдельный потребитель в диаграмме энергопотоков. (Опционально)",
+          "sensor_wallbox_power": "Единица: Ватт. Текущая мощность зарядки Wallbox/зарядной станции. Только фактическая мощность зарядки, не потребление в режиме ожидания! (Опционально)",
+          "sensor_wallbox_state": "Формат: Текст. Возможные значения: 'charging' = автомобиль заряжается, 'idle' = готов/нет зарядки. Другие значения игнорируются. (Опционально)"
+        }
+      },
+      "consumers": {
+        "title": "Сенсоры потребителей (Опционально)",
+        "description": "Настройте сенсоры дополнительных потребителей.\n\nЭто ОПЦИОНАЛЬНО — настраивайте только при наличии этих устройств.\n\n**Необходимые единицы:**\n- Мощность: Ватт (Вт)\n- Энергия: кВт·ч (с ежедневным сбросом)\n- COP: Десятичное число (напр. 3.5)\n- Статус: Текст (charging/idle)",
+        "data": {
+          "sensor_hp_heating_mode": "Heat Pump: Heating Mode (select entity, e.g. off/auto/eco/comfort)",
+          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode (select entity, e.g. off/auto/eco)",
+          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active (binary sensor)",
+          "sensor_hp_pv_active": "Heat Pump: PV Mode Active (binary sensor)",
+          "sensor_hp_electric_power": "Heat Pump: Electrical Power Input (W or kW)",
+          "sensor_hp_thermal_power": "Heat Pump: Thermal Power Output (W or kW)",
+          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh, daily cumulative)",
+          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh, daily cumulative)",
+          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
+          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts (cumulative)",
+          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature (°C)",
+          "sensor_wb_charge_mode": "Wallbox: Charging Mode (select entity)",
+          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+        },
+        "data_description": {
+          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
+          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
+          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
+          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
+          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
+          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
+          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
+          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
+          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
+          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
+          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
         }
       },
       "smart_charging": {
@@ -294,6 +373,7 @@
           "min_soc": "Минимальный SOC (%)",
           "max_soc": "Максимальный SOC (%)",
           "max_price": "Порог дешёвой цены (цент/кВт·ч)",
+          "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
           "battery_soc_sensor": "Сенсор SOC батареи",
           "smart_charging_switch": "Выключатель управления зарядкой",
           "sensor_price_total": "Сенсор цены электричества"
@@ -304,132 +384,100 @@
           "min_soc": "Целевой SOC никогда не опустится ниже этого значения.",
           "max_soc": "Целевой SOC никогда не поднимется выше этого значения. Обычно: 95-100.",
           "max_price": "Текущая цена ниже этого порога считается дешёвой. Только в этом случае разрешена зарядка из сети.",
+          "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
           "battery_soc_sensor": "Сенсор уровня заряда батареи (0-100%). Без него логика переходит в режим работы только по цене.",
           "smart_charging_switch": "Выключатель в Home Assistant для включения/выключения зарядки из сети.",
           "sensor_price_total": "Сенсор стоимости, передающий текущую динамическую цену (например, от Tibber)."
         }
       },
-      "consumers": {
-        "title": "Сенсоры потребителей (Опционально)",
-        "description": "Настройте сенсоры дополнительных потребителей.\n\nЭто ОПЦИОНАЛЬНО — настраивайте только при наличии этих устройств.\n\n**Необходимые единицы:**\n- Мощность: Ватт (Вт)\n- Энергия: кВт·ч (с ежедневным сбросом)\n- COP: Десятичное число (напр. 3.5)\n- Статус: Текст (charging/idle)",
+      "pricing": {
+        "title": "Тариф на электроэнергию",
+        "description": "Select your electricity tariff mode.",
         "data": {
-          "sensor_heatpump_power": "🌡️ Тепловой насос мощность (Вт)",
-          "sensor_heatpump_daily": "🌡️ Тепловой насос сегодня (кВт·ч)",
-          "sensor_heatpump_cop": "🌡️ Тепловой насос COP",
-          "sensor_heatingrod_power": "🔥 ТЭН мощность (Вт)",
-          "sensor_heatingrod_daily": "🔥 ТЭН сегодня (кВт·ч)",
-          "sensor_wallbox_power": "🚗 Wallbox мощность (Вт)",
-          "sensor_wallbox_daily": "🚗 Wallbox сегодня (кВт·ч)",
-          "sensor_wallbox_state": "🚗 Wallbox статус"
+          "billing_price_mode": "Режим тарифа"
         },
         "data_description": {
-          "sensor_heatpump_power": "Единица: Ватт. Текущее электрическое потребление теплового насоса. Только потребление компрессора, не выделяемое тепло! (Опционально)",
-          "sensor_heatpump_daily": "Единица: кВт·ч. Электрическое потребление теплового насоса с полуночи. Должен сбрасываться в 0:00 (напр. через Utility Meter). (Опционально)",
-          "sensor_heatpump_cop": "Единица: Десятичное число (напр. 3.5). Коэффициент производительности — отношение выделяемого тепла к потреблённому электричеству. По умолчанию: 3.5 при отсутствии сенсора. (Опционально)",
-          "sensor_heatingrod_power": "Единица: Ватт. Текущее электрическое потребление ТЭН. Отображается как отдельный потребитель в диаграмме энергопотоков. (Опционально)",
-          "sensor_heatingrod_daily": "Единица: кВт·ч. Потребление ТЭН с полуночи. Должен сбрасываться в 0:00 (напр. через Utility Meter). (Опционально)",
-          "sensor_wallbox_power": "Единица: Ватт. Текущая мощность зарядки Wallbox/зарядной станции. Только фактическая мощность зарядки, не потребление в режиме ожидания! (Опционально)",
-          "sensor_wallbox_daily": "Единица: кВт·ч. Потребление Wallbox на зарядку с полуночи. Должен сбрасываться в 0:00 (напр. через Utility Meter). (Опционально)",
-          "sensor_wallbox_state": "Формат: Текст. Возможные значения: 'charging' = автомобиль заряжается, 'idle' = готов/нет зарядки. Другие значения игнорируются. (Опционально)"
+          "billing_price_mode": "Динамический: почасовые цены от Grid Price Monitor. Фиксированный: единая цена. Без тарифа: отключает финансовые показатели."
         }
       },
-      "settings": {
-        "title": "Настройки",
-        "description": "Настройте отчёты, тему и тарификацию.",
+      "amortization": {
+        "title": "Окупаемость",
+        "description": "PV investment, subsidies and running costs for the payback projection.",
         "data": {
-          "auto_generate": "Автоматическая генерация",
-          "generate_weekly": "Еженедельные отчёты",
-          "generate_monthly": "Ежемесячные отчёты",
-          "billing_start_month": "Месяц начала расчётного периода",
-          "billing_start_day": "День начала расчётного периода",
-          "billing_price_mode": "Режим тарифа",
-          "billing_fixed_price": "Резервная цена (цент/кВт·ч)",
+          "amortization_investment_eur": "Investment (EUR)",
+          "amortization_subsidy_eur": "Subsidy (EUR)",
+          "amortization_commissioning_date": "Commissioning date (YYYY-MM-DD)",
+          "amortization_annual_running_costs_eur": "Running costs per year (EUR)",
+          "amortization_price_increase_percent": "Electricity price increase per year (%)",
+          "amortization_degradation_percent": "PV degradation per year (%)"
+        },
+        "data_description": {
+          "amortization_investment_eur": "Total system cost before subsidies.",
+          "amortization_subsidy_eur": "One-time subsidies or grants reducing the investment.",
+          "amortization_commissioning_date": "Historical cashflows are counted from this month. Format: YYYY-MM-DD.",
+          "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
+          "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
+          "amortization_degradation_percent": "Annual PV output degradation in the projection."
+        }
+      },
+      "pricing_fixed": {
+        "title": "Фиксированный тариф",
+        "description": "Enter work price and grid fees separately — the total cost is their sum.",
+        "data": {
+          "billing_work_price": "Work Price (ct/kWh)",
+          "billing_grid_fees": "Grid Fees (ct/kWh)",
+          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
           "feed_in_tariff": "Тариф на отдачу (цент/кВт·ч)"
         },
         "data_description": {
-          "auto_generate": "Автоматически генерировать отчёты по расписанию",
-          "generate_weekly": "Создавать еженедельный отчёт каждое воскресенье",
-          "generate_monthly": "Создавать ежемесячный отчёт 1-го числа каждого месяца",
-          "billing_start_month": "Месяц начала расчётного года",
-          "billing_start_day": "День начала расчётного года",
-          "billing_price_mode": "Динамический: почасовые цены от Grid Price Monitor. Фиксированный: единая цена. Без тарифа: отключает финансовые показатели.",
-          "billing_fixed_price": "Используется, когда Grid Price Monitor не предоставляет цену",
+          "billing_work_price": "Pure energy work price per kWh (without grid fees).",
+          "billing_grid_fees": "Grid fees, metering, concession and taxes per kWh.",
+          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
           "feed_in_tariff": "Тариф на отдачу в сеть в центах за кВт·ч"
+        }
+      },
+      "pricing_dynamic": {
+        "title": "Динамический тариф",
+        "description": "GPM (Grid Price Monitor) provides hourly market prices. Please enter your base fee, taxes, fees and markups.",
+        "data": {
+          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
+          "feed_in_tariff": "Тариф на отдачу (цент/кВт·ч)",
+          "vat_rate": "VAT Rate (%)",
+          "gpm_grid_fee": "Grid Fees (ct/kWh)",
+          "taxes_fees": "Taxes & Levies (ct/kWh)",
+          "provider_markup": "Provider Markup (ct/kWh)"
+        },
+        "data_description": {
+          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
+          "feed_in_tariff": "Тариф на отдачу в сеть в центах за кВт·ч",
+          "vat_rate": "Value Added Tax rate in percent (e.g. 19 for DE, 20 for AT).",
+          "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
+          "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
+          "provider_markup": "Provider markup per kWh (gross)."
         }
       },
       "advanced": {
         "title": "Дополнительные параметры",
         "description": "Дополнительные настройки.",
         "data": {
-          "menu_choice": "Параметр"
-        },
-        "menu_options": {
-          "panels": "PV-панели",
-          "panel_group_names": "Названия групп панелей",
-          "forecast_comparison": "Сравнение прогнозов",
-          "debug_mode": "Full-KI Transparency Mode"
-        }
-      },
-      "panels": {
-        "title": "Сенсоры PV-панелей",
-        "description": "Настройте до 4 индивидуальных PV-панелей/строк.\n\n**Необходимая единица:** Ватт (Вт)",
-        "data": {
-          "panel1_name": "Панель 1 название",
-          "sensor_panel1_power": "☀️ Панель 1 мощность (Вт)",
-          "panel2_name": "Панель 2 название",
-          "sensor_panel2_power": "☀️ Панель 2 мощность (Вт)",
-          "panel3_name": "Панель 3 название",
-          "sensor_panel3_power": "☀️ Панель 3 мощность (Вт)",
-          "panel4_name": "Панель 4 название",
-          "sensor_panel4_power": "☀️ Панель 4 мощность (Вт)"
-        },
-        "data_description": {
-          "panel1_name": "Отображаемое имя для панели/строки 1 (напр. 'Юг', 'Восток', 'Мансарда'). Используется в графиках и отчётах. (Опционально)",
-          "sensor_panel1_power": "Единица: Ватт. Текущая мощность PV-строки/панели. Значение напрямую от инвертора, не из расчётного сенсора! (Опционально)",
-          "panel2_name": "Отображаемое имя для панели/строки 2 (напр. 'Юг', 'Восток', 'Мансарда'). Используется в графиках и отчётах. (Опционально)",
-          "sensor_panel2_power": "Единица: Ватт. Текущая мощность PV-строки/панели. Значение напрямую от инвертора, не из расчётного сенсора! (Опционально)",
-          "panel3_name": "Отображаемое имя для панели/строки 3 (напр. 'Юг', 'Восток', 'Мансарда'). Используется в графиках и отчётах. (Опционально)",
-          "sensor_panel3_power": "Единица: Ватт. Текущая мощность PV-строки/панели. Значение напрямую от инвертора, не из расчётного сенсора! (Опционально)",
-          "panel4_name": "Отображаемое имя для панели/строки 4 (напр. 'Юг', 'Восток', 'Мансарда'). Используется в графиках и отчётах. (Опционально)",
-          "sensor_panel4_power": "Единица: Ватт. Текущая мощность PV-строки/панели. Значение напрямую от инвертора, не из расчётного сенсора! (Опционально)"
-        }
-      },
-      "panel_group_names": {
-        "title": "Названия групп панелей",
-        "description": "Формат: ОригинальноеИмя=НовоеИмя (через запятую)\n\nПример: {example}",
-        "data": {
-          "panel_group_names_input": "Соответствие имён"
-        },
-        "data_description": {
-          "panel_group_names_input": "Переименование групп панелей. Формат: Старое=Новое,Старое2=Новое2"
-        }
-      },
-      "forecast_comparison": {
-        "title": "Сравнение прогнозов",
-        "description": "Настройте до 2 внешних объектов прогноза для 7-дневного сравнительного графика.\n\n**Необходимая единица:** кВт·ч (дневной прогноз)",
-        "data": {
+          "billing_start_month": "Месяц начала расчётного периода",
+          "billing_start_day": "День начала расчётного периода",
+          "show_panel_groups": "Включить Full-KI Transparency Mode",
+          "panel_group_names_input": "Соответствие имён",
           "forecast_entity_1": "📈 Прогноз 1 (Entity ID)",
           "forecast_entity_1_name": "Название прогноза 1",
           "forecast_entity_2": "📈 Прогноз 2 (Entity ID)",
           "forecast_entity_2_name": "Название прогноза 2"
         },
         "data_description": {
+          "billing_start_month": "Месяц начала расчётного года",
+          "billing_start_day": "День начала расчётного года",
+          "show_panel_groups": "Показывает расширенные графики: дневная генерация, тарификация, статус KI и группы панелей",
+          "panel_group_names_input": "Переименование групп панелей. Формат: Старое=Новое,Старое2=Новое2",
           "forecast_entity_1": "Формат: sensor.xxx. Сенсор с дневным прогнозом генерации в кВт·ч (напр. sensor.solcast_forecast_today). Должен содержать ожидаемую дневную генерацию числом. (Опционально)",
           "forecast_entity_1_name": "Отображаемое имя в сравнительном графике (напр. 'Solcast'). Показывается в легенде 7-дневного сравнения. (Опционально)",
           "forecast_entity_2": "Формат: sensor.xxx. Сенсор с дневным прогнозом генерации в кВт·ч (напр. sensor.forecast_solar_energy_today). Должен содержать ожидаемую дневную генерацию числом. (Опционально)",
           "forecast_entity_2_name": "Отображаемое имя в сравнительном графике (напр. 'Forecast.Solar'). Показывается в легенде 7-дневного сравнения. (Опционально)"
-        }
-      },
-      "debug_mode": {
-        "title": "Full-KI Transparency Mode (только для разработчиков!)",
-        "description": "Показать/скрыть расширенную KI-статистику и графики.\nТребуется код доступа.",
-        "data": {
-          "debug_code": "Код доступа",
-          "show_panel_groups": "Включить Full-KI Transparency Mode"
-        },
-        "data_description": {
-          "debug_code": "Введите код доступа разработчика",
-          "show_panel_groups": "Показывает расширенные графики: дневная генерация, тарификация, статус KI и группы панелей"
         }
       }
     },

@@ -121,8 +121,6 @@ class DatabaseConnectionManager:
     @staticmethod
     def _ha_localtime_converter(hass: HomeAssistant | None):
         def to_ha_localtime(timestamp_str: str) -> str:
-            import zoneinfo
-            from datetime import datetime
 
             if hass is None:
                 return timestamp_str

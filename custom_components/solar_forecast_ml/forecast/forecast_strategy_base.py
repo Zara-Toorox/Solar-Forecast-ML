@@ -15,7 +15,7 @@ Provides abstract base class and result dataclass for all forecast strategies.
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 _LOGGER = logging.getLogger(__name__)

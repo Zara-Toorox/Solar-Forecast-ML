@@ -21,7 +21,6 @@ from typing import Any, Optional
 
 from homeassistant.core import HomeAssistant
 
-from ..const import DATA_VERSION
 from ..core.core_helpers import SafeDateTimeUtil as dt_util
 from .db_manager import DatabaseManager
 from .data_io import DataManagerIO

@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from .db_manager import DatabaseManager
 
 _LOGGER = logging.getLogger(__name__)
 

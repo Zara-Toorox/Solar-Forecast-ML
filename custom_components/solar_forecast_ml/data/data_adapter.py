@@ -20,8 +20,6 @@ from datetime import datetime
 from typing import Any, Optional
 
 from ..const import (
-    CORRECTION_FACTOR_MAX,
-    CORRECTION_FACTOR_MIN,
     DATA_VERSION,
     ML_MODEL_VERSION,
 )

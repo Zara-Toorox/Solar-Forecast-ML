@@ -17,7 +17,6 @@ All file I/O replaced with database operations via DatabaseManager.
 
 import asyncio
 import logging
-from datetime import datetime
 from typing import Any, Optional
 
 from homeassistant.core import HomeAssistant

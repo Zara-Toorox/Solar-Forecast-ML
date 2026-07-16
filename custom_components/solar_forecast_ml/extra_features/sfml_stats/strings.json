@@ -2,39 +2,215 @@
   "config": {
     "step": {
       "user": {
-        "title": "Solar Forecast STATS - Setup",
-        "description": "Configure your country and main sensors.\n\nSolar power comes automatically from SFML.",
+        "title": "Basic Configuration",
+        "description": "STATS calculates daily energy values from live power sensors. Separate daily kWh sensors are not required.\n\nThe current household power sensor is required.",
         "data": {
           "country": "Country",
-          "sensor_home_consumption": "Home Consumption (W)",
-          "sensor_home_consumption_daily": "Home Consumption Today (kWh)",
-          "sensor_solar_to_house": "Solar to House (W)",
-          "weather_entity": "Weather Entity"
+          "sensor_home_consumption": "Current Household Power (W)",
+          "weather_entity": "Weather (optional)"
         },
         "data_description": {
           "country": "Select your country for VAT and electricity price defaults.",
-          "sensor_home_consumption": "Unit: Watt. Total current power consumption of the entire household. (Required)",
-          "sensor_home_consumption_daily": "Unit: kWh. Total household consumption since midnight. (Optional: will be integrated from W-sensor if omitted)",
-          "sensor_solar_to_house": "Unit: Watt. Portion of solar power flowing directly to the house. (Optional: will be calculated if omitted)",
-          "weather_entity": "Weather Entity for charts. (Optional)"
+          "sensor_home_consumption": "Unit: W. Current total power demand of the household. STATS calculates the energy used since midnight from this sensor. (Required)",
+          "weather_entity": "Weather entity for chart overlays. (Optional)"
+        }
+      },
+      "energy_flows": {
+        "title": "Energy Flows",
+        "description": "Select the available live power sensors. STATS calculates the corresponding kWh values from midnight automatically. All fields are optional.",
+        "data": {
+          "sensor_solar_to_house": "Solar to House (W)",
+          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_solar_to_battery": "Solar to Battery (W)",
+          "sensor_battery_to_house": "Battery to House (W)",
+          "sensor_grid_to_house": "Grid to House (W)",
+          "sensor_grid_to_battery": "Grid to Battery (W)",
+          "sensor_house_to_grid": "House to Grid (W)",
+          "sensor_smartmeter_import": "Smart Meter Import (W)",
+          "sensor_smartmeter_export": "Smart Meter Export (W)"
+        },
+        "data_description": {
+          "sensor_solar_to_house": "Direct solar power supplied to the household. (Optional)",
+          "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. (Optional)",
+          "sensor_solar_to_battery": "Solar power charging the battery. (Optional)",
+          "sensor_battery_to_house": "Battery power supplied to the household. (Optional)",
+          "sensor_grid_to_house": "Grid power supplied directly to the household. (Optional)",
+          "sensor_grid_to_battery": "Grid power charging the battery. (Optional)",
+          "sensor_house_to_grid": "Power exported from the house to the grid. (Optional)",
+          "sensor_smartmeter_import": "Current import measured by the smart meter. Used when no separate Grid to House sensor is available. (Optional)",
+          "sensor_smartmeter_export": "Current export measured by the smart meter. Used when no separate House to Grid sensor is available. (Optional)"
         }
       },
       "optional": {
-        "title": "Optional Sensors",
-        "description": "Configure battery and grid sensors. You can skip this step if not needed.",
+        "title": "Battery and Additional Data",
+        "description": "Configure these fields only when the corresponding values are available. Systems without a battery can skip this step.",
         "data": {
           "sensor_battery_soc": "Battery State of Charge (%)",
           "sensor_battery_power": "Battery Power (W)",
-          "sensor_grid_import_daily": "Grid Import Today (kWh)",
-          "sensor_grid_export_daily": "Grid Export Today (kWh)",
-          "sensor_grid_import_extra": "Additional Grid Import (kWh)"
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
+          "sensor_price_total": "Current Total Electricity Price (ct/kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Unit: Percent (0-100). Current state of charge. (Optional)",
           "sensor_battery_power": "Unit: Watt. Positive = charging, Negative = discharging. (Optional)",
-          "sensor_grid_import_daily": "Unit: kWh. Grid import since midnight. Must reset at 0:00. (Optional)",
-          "sensor_grid_export_daily": "Unit: kWh. Grid export since midnight. Must reset at 0:00. (Optional)",
-          "sensor_grid_import_extra": "Additional grid consumption not captured by smartmeter (e.g. battery charging from grid). Daily kWh sensor. (Optional)"
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
+          "sensor_price_total": "Current total electricity price including fees and taxes. Required only when provided by another integration. (Optional)"
+        }
+      },
+      "consumers": {
+        "title": "Consumers",
+        "description": "Configure live power sensors for additional consumers. STATS calculates their daily energy automatically. All fields are optional.",
+        "data": {
+          "sensor_heatpump_power": "Heat Pump Power (W)",
+          "sensor_heatingrod_power": "Heating Rod Power (W)",
+          "sensor_wallbox_power": "Wallbox Power (W)",
+          "sensor_wallbox_state": "Wallbox State"
+        },
+        "data_description": {
+          "sensor_heatpump_power": "Current electrical power input of the heat pump. (Optional)",
+          "sensor_heatingrod_power": "Current electrical power input of the heating rod. (Optional)",
+          "sensor_wallbox_power": "Current charging power of the wallbox. (Optional)",
+          "sensor_wallbox_state": "Current wallbox state, such as charging, connected or idle. (Optional)"
+        }
+      },
+      "consumer_details": {
+        "title": "Consumer Details",
+        "description": "Additional values for the heat pump and wallbox detail views. These fields are optional and can be skipped.",
+        "data": {
+          "sensor_hp_heating_mode": "Heat Pump: Heating Mode",
+          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode",
+          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active",
+          "sensor_hp_pv_active": "Heat Pump: PV Mode Active",
+          "sensor_hp_electric_power": "Heat Pump: Electrical Power (W or kW)",
+          "sensor_hp_thermal_power": "Heat Pump: Thermal Power (W or kW)",
+          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh)",
+          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh)",
+          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
+          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts",
+          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature",
+          "sensor_wb_charge_mode": "Wallbox: Charging Mode",
+          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+        },
+        "data_description": {
+          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
+          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
+          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
+          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
+          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
+          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
+          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
+          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
+          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
+          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
+          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Solar Forecast STATS",
+        "description": "Update the basic configuration. Empty optional fields remove the currently stored value.\n\nSTATS calculates daily energy values from live power sensors; separate daily kWh sensors are not required.",
+        "data": {
+          "country": "Country",
+          "sensor_home_consumption": "Current Household Power (W)",
+          "weather_entity": "Weather (optional)"
+        },
+        "data_description": {
+          "country": "Select your country for VAT and electricity price defaults.",
+          "sensor_home_consumption": "Unit: W. Current total power demand of the household. STATS calculates the energy used since midnight from this sensor. (Required)",
+          "weather_entity": "Weather entity for chart overlays. Leave empty to remove the current selection. (Optional)"
+        }
+      },
+      "reconfigure_energy_flows": {
+        "title": "Reconfigure Energy Flows",
+        "description": "Select the available live power sensors. Empty fields remove the currently stored sensor.",
+        "data": {
+          "sensor_solar_to_house": "Solar to House (W)",
+          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_solar_to_battery": "Solar to Battery (W)",
+          "sensor_battery_to_house": "Battery to House (W)",
+          "sensor_grid_to_house": "Grid to House (W)",
+          "sensor_grid_to_battery": "Grid to Battery (W)",
+          "sensor_house_to_grid": "House to Grid (W)",
+          "sensor_smartmeter_import": "Smart Meter Import (W)",
+          "sensor_smartmeter_export": "Smart Meter Export (W)"
+        },
+        "data_description": {
+          "sensor_solar_to_house": "Direct solar power supplied to the household. (Optional)",
+          "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. Leave empty if unavailable. (Optional)",
+          "sensor_solar_to_battery": "Solar power charging the battery. (Optional)",
+          "sensor_battery_to_house": "Battery power supplied to the household. (Optional)",
+          "sensor_grid_to_house": "Grid power supplied directly to the household. (Optional)",
+          "sensor_grid_to_battery": "Grid power charging the battery. (Optional)",
+          "sensor_house_to_grid": "Power exported from the house to the grid. (Optional)",
+          "sensor_smartmeter_import": "Current import measured by the smart meter. Used when no separate Grid to House sensor is available. (Optional)",
+          "sensor_smartmeter_export": "Current export measured by the smart meter. Used when no separate House to Grid sensor is available. (Optional)"
+        }
+      },
+      "reconfigure_optional": {
+        "title": "Reconfigure Battery and Additional Data",
+        "description": "Systems without a battery can leave these fields empty. Empty fields remove the currently stored sensor.",
+        "data": {
+          "sensor_battery_soc": "Battery State of Charge (%)",
+          "sensor_battery_power": "Battery Power (W)",
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
+          "sensor_price_total": "Current Total Electricity Price (ct/kWh)"
+        },
+        "data_description": {
+          "sensor_battery_soc": "Unit: Percent (0-100). Current state of charge. (Optional)",
+          "sensor_battery_power": "Unit: Watt. Positive = charging, Negative = discharging. (Optional)",
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
+          "sensor_price_total": "Current total electricity price including fees and taxes. Leave empty to remove the current selection. (Optional)"
+        }
+      },
+      "reconfigure_consumers": {
+        "title": "Reconfigure Consumers",
+        "description": "Configure live power sensors for additional consumers. Empty fields remove the currently stored sensor.",
+        "data": {
+          "sensor_heatpump_power": "Heat Pump Power (W)",
+          "sensor_heatingrod_power": "Heating Rod Power (W)",
+          "sensor_wallbox_power": "Wallbox Power (W)",
+          "sensor_wallbox_state": "Wallbox State"
+        },
+        "data_description": {
+          "sensor_heatpump_power": "Current electrical power input of the heat pump. (Optional)",
+          "sensor_heatingrod_power": "Current electrical power input of the heating rod. (Optional)",
+          "sensor_wallbox_power": "Current charging power of the wallbox. (Optional)",
+          "sensor_wallbox_state": "Current wallbox state, such as charging, connected or idle. (Optional)"
+        }
+      },
+      "reconfigure_consumer_details": {
+        "title": "Reconfigure Consumer Details",
+        "description": "Additional values for the heat pump and wallbox detail views. Empty fields remove the currently stored sensor.",
+        "data": {
+          "sensor_hp_heating_mode": "Heat Pump: Heating Mode",
+          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode",
+          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active",
+          "sensor_hp_pv_active": "Heat Pump: PV Mode Active",
+          "sensor_hp_electric_power": "Heat Pump: Electrical Power (W or kW)",
+          "sensor_hp_thermal_power": "Heat Pump: Thermal Power (W or kW)",
+          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh)",
+          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh)",
+          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
+          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts",
+          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature",
+          "sensor_wb_charge_mode": "Wallbox: Charging Mode",
+          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+        },
+        "data_description": {
+          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
+          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
+          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
+          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
+          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
+          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
+          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
+          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
+          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
+          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
+          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
         }
       },
       "pricing": {
@@ -85,7 +261,10 @@
       }
     },
     "abort": {
-      "single_instance_allowed": "Solar Forecast STATS is already configured."
+      "single_instance_allowed": "Solar Forecast STATS is already configured.",
+      "reconfigure_successful": "Reconfiguration successful.",
+      "not_reconfigure": "This step is only available for reconfiguration.",
+      "entry_not_found": "The configuration entry was not found."
     },
     "error": {
       "cannot_connect": "Connection failed",
@@ -106,74 +285,117 @@
           "pricing": "Pricing",
           "smart_charging": "Smart Charging",
           "advanced": "Advanced"
+        },
+        "data_description": {
+          "menu_choice": "Choose the area you want to configure."
         }
       },
       "sensors": {
         "title": "All Sensors",
-        "description": "Configure all sensor mappings.\n\n**W sensors** power the real-time energy flow diagram.\n**kWh sensors** improve daily statistics accuracy.",
+        "description": "Configure all sensor mappings.\n\n**Power sensors** provide the live values and are automatically converted into daily energy totals.",
         "data": {
           "country": "Country",
           "sensor_home_consumption": "Home Consumption (W)",
-          "sensor_home_consumption_daily": "Home Consumption Today (kWh)",
           "sensor_solar_to_house": "Solar to House (W)",
+          "sensor_inverter_ac_output": "Inverter AC Output (W)",
           "weather_entity": "Weather Entity",
           "sensor_battery_soc": "Battery SOC (%)",
           "sensor_battery_power": "Battery Power (W)",
           "sensor_solar_to_battery": "Solar to Battery (W)",
           "sensor_battery_to_house": "Battery to House (W)",
-          "sensor_battery_charge_solar_daily": "Solar to Battery Today (kWh)",
-          "sensor_battery_charge_grid_daily": "Grid to Battery Today (kWh)",
-          "sensor_battery_discharge_daily": "Battery Discharge Today (kWh)",
           "sensor_grid_to_house": "Grid to House (W)",
           "sensor_grid_to_battery": "Grid to Battery (W)",
           "sensor_house_to_grid": "Feed-in to Grid (W)",
           "sensor_smartmeter_import": "Smartmeter Import (W)",
           "sensor_smartmeter_export": "Smartmeter Export (W)",
-          "sensor_smartmeter_import_kwh": "Smartmeter Import Cumulative (kWh)",
-          "sensor_smartmeter_export_kwh": "Smartmeter Export Cumulative (kWh)",
-          "sensor_grid_import_daily": "Grid Import Today (kWh)",
-          "sensor_grid_export_daily": "Grid Export Today (kWh)",
           "sensor_grid_import_extra": "Additional Grid Import (kWh)",
           "sensor_price_total": "Current Price (ct/kWh)",
           "sensor_heatpump_power": "Heat Pump Power (W)",
-          "sensor_heatpump_daily": "Heat Pump Today (kWh)",
           "sensor_heatingrod_power": "Heating Rod Power (W)",
-          "sensor_heatingrod_daily": "Heating Rod Today (kWh)",
           "sensor_wallbox_power": "Wallbox Power (W)",
-          "sensor_wallbox_daily": "Wallbox Today (kWh)",
           "sensor_wallbox_state": "Wallbox State"
         },
         "data_description": {
           "country": "Select country for VAT and price defaults.",
           "sensor_home_consumption": "Current household power consumption in Watt. (Required)",
-          "sensor_home_consumption_daily": "Total household consumption today in kWh since midnight. (Optional)",
           "sensor_solar_to_house": "Direct solar power flow to household in Watt. (Optional)",
+          "sensor_inverter_ac_output": "Total AC output power of the inverter in Watt. Do not select PV DC power or grid export. (Optional)",
           "weather_entity": "Weather entity for forecast chart overlays. (Optional)",
           "sensor_battery_soc": "Battery State of Charge in percent (0-100). (Optional)",
           "sensor_battery_power": "Battery charge/discharge power in Watt. Positive = charge, Negative = discharge. (Optional)",
           "sensor_solar_to_battery": "Solar power flowing into battery in Watt. (Optional)",
           "sensor_battery_to_house": "Power flowing from battery to house in Watt. (Optional)",
-          "sensor_battery_charge_solar_daily": "Total solar energy charged into battery today in kWh. (Optional)",
-          "sensor_battery_charge_grid_daily": "Total grid energy charged into battery today in kWh. (Optional)",
-          "sensor_battery_discharge_daily": "Total energy discharged from battery today in kWh. (Optional)",
           "sensor_grid_to_house": "Power flowing directly from grid to house in Watt. (Optional)",
           "sensor_grid_to_battery": "Power flowing directly from grid to battery in Watt. (Optional)",
           "sensor_house_to_grid": "Total solar power fed into the grid in Watt. (Optional)",
           "sensor_smartmeter_import": "Smartmeter current import power in Watt. (Optional)",
           "sensor_smartmeter_export": "Smartmeter current export power in Watt. (Optional)",
-          "sensor_smartmeter_import_kwh": "Cumulative smartmeter grid import reading in kWh (does not reset). (Optional)",
-          "sensor_smartmeter_export_kwh": "Cumulative smartmeter grid export reading in kWh (does not reset). (Optional)",
-          "sensor_grid_import_daily": "Total grid import today in kWh since midnight. (Optional)",
-          "sensor_grid_export_daily": "Total grid export today in kWh since midnight. (Optional)",
           "sensor_grid_import_extra": "Additional grid import not measured by smartmeter in kWh. (Optional)",
           "sensor_price_total": "Sensor providing current total electricity price in ct/kWh (e.g. from Tibber). (Optional)",
           "sensor_heatpump_power": "Current heat pump electrical power input in Watt. (Optional)",
-          "sensor_heatpump_daily": "Heat pump daily electrical consumption in kWh. (Optional)",
           "sensor_heatingrod_power": "Current heating rod electrical power input in Watt. (Optional)",
-          "sensor_heatingrod_daily": "Heating rod daily electrical consumption in kWh. (Optional)",
           "sensor_wallbox_power": "Current wallbox charging power in Watt. (Optional)",
-          "sensor_wallbox_daily": "Wallbox daily charging energy in kWh. (Optional)",
           "sensor_wallbox_state": "Wallbox status sensor (e.g. charging, connected, idle). (Optional)"
+        }
+      },
+      "consumers": {
+        "title": "Consumer Detail Sensors",
+        "description": "Configure additional sensors for heat pump, heating rod and wallbox detail views. All fields are optional.",
+        "data": {
+          "sensor_hp_heating_mode": "Heat Pump: Heating Mode (select entity, e.g. off/auto/eco/comfort)",
+          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode (select entity, e.g. off/auto/eco)",
+          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active (binary sensor)",
+          "sensor_hp_pv_active": "Heat Pump: PV Mode Active (binary sensor)",
+          "sensor_hp_electric_power": "Heat Pump: Electrical Power Input (W or kW)",
+          "sensor_hp_thermal_power": "Heat Pump: Thermal Power Output (W or kW)",
+          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh, daily cumulative)",
+          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh, daily cumulative)",
+          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
+          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts (cumulative)",
+          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature (°C)",
+          "sensor_wb_charge_mode": "Wallbox: Charging Mode (select entity)",
+          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+        },
+        "data_description": {
+          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
+          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
+          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
+          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
+          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
+          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
+          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
+          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
+          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
+          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
+          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
+          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+        }
+      },
+      "smart_charging": {
+        "title": "Smart Charging",
+        "description": "Automatic battery charging from grid during cheap hours, respecting solar forecast and average daily consumption. Target SOC is calculated dynamically to leave enough room for tomorrow's solar surplus, clamped to min/max.",
+        "data": {
+          "smart_charging_enabled": "Enable Smart Charging",
+          "battery_capacity": "Battery Capacity (kWh)",
+          "min_soc": "Minimum SOC (%)",
+          "max_soc": "Maximum SOC (%)",
+          "max_price": "Cheap Price Threshold (ct/kWh)",
+          "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
+          "battery_soc_sensor": "Battery SOC Sensor",
+          "smart_charging_switch": "Charging Control Switch",
+          "sensor_price_total": "Electricity Price Sensor"
+        },
+        "data_description": {
+          "smart_charging_enabled": "Master toggle. When off, no charging logic runs.",
+          "battery_capacity": "Usable battery capacity. Used to translate solar kWh forecast into SOC percent.",
+          "min_soc": "Target SOC will never fall below this value.",
+          "max_soc": "Target SOC will never exceed this value. Typical: 95-100.",
+          "max_price": "Current price below this threshold is considered cheap. Only then grid charging is allowed.",
+          "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
+          "battery_soc_sensor": "Battery State-of-Charge sensor (0-100%). Without it, logic falls back to price-only mode.",
+          "smart_charging_switch": "Switch entity to turn grid charging on/off in Home Assistant.",
+          "sensor_price_total": "Monetary sensor providing current dynamic price (e.g. from Tibber)."
         }
       },
       "pricing": {
@@ -184,6 +406,26 @@
         },
         "data_description": {
           "billing_price_mode": "Dynamic: hourly prices from GPM. Fixed: single price. None: disables financial displays."
+        }
+      },
+      "amortization": {
+        "title": "Amortization",
+        "description": "PV investment, subsidies and running costs for the payback projection.",
+        "data": {
+          "amortization_investment_eur": "Investment (EUR)",
+          "amortization_subsidy_eur": "Subsidy (EUR)",
+          "amortization_commissioning_date": "Commissioning date (YYYY-MM-DD)",
+          "amortization_annual_running_costs_eur": "Running costs per year (EUR)",
+          "amortization_price_increase_percent": "Electricity price increase per year (%)",
+          "amortization_degradation_percent": "PV degradation per year (%)"
+        },
+        "data_description": {
+          "amortization_investment_eur": "Total system cost before subsidies.",
+          "amortization_subsidy_eur": "One-time subsidies or grants reducing the investment.",
+          "amortization_commissioning_date": "Historical cashflows are counted from this month. Format: YYYY-MM-DD.",
+          "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
+          "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
+          "amortization_degradation_percent": "Annual PV output degradation in the projection."
         }
       },
       "pricing_fixed": {
@@ -226,18 +468,9 @@
         "title": "Advanced Options",
         "description": "Smart charging, reports, panels, and forecast comparison.",
         "data": {
-          "smart_charging_enabled": "Enable Smart Charging",
           "billing_start_month": "Billing Start Month",
           "billing_start_day": "Billing Start Day",
           "show_panel_groups": "Show Panel Groups",
-          "panel1_name": "Panel 1 Name",
-          "sensor_panel1_power": "Panel 1 Power (W)",
-          "panel2_name": "Panel 2 Name",
-          "sensor_panel2_power": "Panel 2 Power (W)",
-          "panel3_name": "Panel 3 Name",
-          "sensor_panel3_power": "Panel 3 Power (W)",
-          "panel4_name": "Panel 4 Name",
-          "sensor_panel4_power": "Panel 4 Power (W)",
           "panel_group_names_input": "Panel Group Name Mapping",
           "forecast_entity_1": "Forecast 1 (Entity ID)",
           "forecast_entity_1_name": "Name for Forecast 1",
@@ -245,71 +478,14 @@
           "forecast_entity_2_name": "Name for Forecast 2"
         },
         "data_description": {
-          "smart_charging_enabled": "Enable smart battery charging based on electricity prices.",
-          "auto_generate": "Automatically generate reports on schedule.",
-          "generate_weekly": "Create a weekly report every Sunday.",
-          "generate_monthly": "Create a monthly report on the 1st of each month.",
           "billing_start_month": "Month when your billing year starts.",
           "billing_start_day": "Day when your billing year starts.",
           "show_panel_groups": "Display individual solar panel group charts and details on the Home page.",
-          "panel1_name": "Display name for panel/string 1. (Optional)",
-          "sensor_panel1_power": "Unit: Watt. Current power of PV string 1. (Optional)",
-          "panel2_name": "Display name for panel/string 2. (Optional)",
-          "sensor_panel2_power": "Unit: Watt. Current power of PV string 2. (Optional)",
-          "panel3_name": "Display name for panel/string 3. (Optional)",
-          "sensor_panel3_power": "Unit: Watt. Current power of PV string 3. (Optional)",
-          "panel4_name": "Display name for panel/string 4. (Optional)",
-          "sensor_panel4_power": "Unit: Watt. Current power of PV string 4. (Optional)",
           "panel_group_names_input": "Rename panel groups. Format: Old=New, Old2=New2",
           "forecast_entity_1": "Sensor with daily yield forecast in kWh (e.g. sensor.solcast_forecast_today). (Optional)",
           "forecast_entity_1_name": "Display name in comparison chart (e.g. 'Solcast'). (Optional)",
           "forecast_entity_2": "Sensor with daily yield forecast in kWh. (Optional)",
           "forecast_entity_2_name": "Display name in comparison chart. (Optional)"
-        }
-      },
-      "smart_charging": {
-        "title": "Smart Charging",
-        "description": "Automatic battery charging from grid during cheap hours, respecting solar forecast and average daily consumption. Target SOC is calculated dynamically to leave enough room for tomorrow's solar surplus, clamped to min/max.",
-        "data": {
-          "smart_charging_enabled": "Enable Smart Charging",
-          "battery_capacity": "Battery Capacity (kWh)",
-          "min_soc": "Minimum SOC (%)",
-          "max_soc": "Maximum SOC (%)",
-          "max_price": "Cheap Price Threshold (ct/kWh)",
-          "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
-          "battery_soc_sensor": "Battery SOC Sensor",
-          "smart_charging_switch": "Charging Control Switch",
-          "sensor_price_total": "Electricity Price Sensor"
-        },
-        "data_description": {
-          "smart_charging_enabled": "Master toggle. When off, no charging logic runs.",
-          "battery_capacity": "Usable battery capacity. Used to translate solar kWh forecast into SOC percent.",
-          "min_soc": "Target SOC will never fall below this value.",
-          "max_soc": "Target SOC will never exceed this value. Typical: 95-100.",
-          "max_price": "Current price below this threshold is considered cheap. Only then grid charging is allowed.",
-          "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
-          "battery_soc_sensor": "Battery State-of-Charge sensor (0-100%). Without it, logic falls back to price-only mode.",
-          "smart_charging_switch": "Switch entity to turn grid charging on/off in Home Assistant.",
-          "sensor_price_total": "Monetary sensor providing current dynamic price (e.g. from Tibber)."
-        }
-      },
-      "consumers": {
-        "title": "Consumer Detail Sensors",
-        "description": "Configure additional sensors for heat pump, heating rod and wallbox detail views. All fields are optional.",
-        "data": {
-          "sensor_hp_heating_mode": "Heat Pump: Heating Mode (select entity, e.g. off/auto/eco/comfort)",
-          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode (select entity, e.g. off/auto/eco)",
-          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active (binary sensor)",
-          "sensor_hp_pv_active": "Heat Pump: PV Mode Active (binary sensor)",
-          "sensor_hp_electric_power": "Heat Pump: Electrical Power Input (W or kW)",
-          "sensor_hp_thermal_power": "Heat Pump: Thermal Power Output (W or kW)",
-          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh, daily cumulative)",
-          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh, daily cumulative)",
-          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
-          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts (cumulative)",
-          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature (°C)",
-          "sensor_wb_charge_mode": "Wallbox: Charging Mode (select entity)",
-          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
         }
       }
     },

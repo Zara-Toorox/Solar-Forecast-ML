@@ -17,7 +17,6 @@ Uses database instead of JSON files.
 """
 
 import logging
-from datetime import datetime
 from typing import Any, Optional, Tuple
 
 from ..core.core_helpers import SafeDateTimeUtil

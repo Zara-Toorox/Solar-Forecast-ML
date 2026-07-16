@@ -10,6 +10,8 @@
 """SFML Stats V17 — Solar Command Center integration for Home Assistant. @zara"""
 from __future__ import annotations
 
+# ruff: noqa: E402
+
 
 # PyArmor Runtime Path Setup - MUST be before any protected module imports
 import sys
@@ -39,13 +41,13 @@ from .const import (
     VERSION,
     PLATFORMS,
     SOLAR_FORECAST_DB,
-    CONF_SENSOR_SMARTMETER_IMPORT_KWH,
     CONF_WEATHER_ENTITY,
     CONF_COUNTRY,
     CONF_VAT_RATE,
     CONF_GPM_GRID_FEE,
     CONF_TAXES_FEES,
     CONF_PROVIDER_MARKUP,
+    LEGACY_POWER_ENERGY_SENSOR_KEYS,
     CONF_MAX_PRICE,
     CONF_SMART_CHARGING_ENABLED,
     CONF_SMART_CHARGING_SWITCH,
@@ -60,8 +62,6 @@ from .const import (
     CONF_SENSOR_BATTERY_POWER,
     CONF_MAX_SOC,
     CONF_MIN_SOC,
-    CONF_FORECAST_ENTITY_1,
-    CONF_FORECAST_ENTITY_2,
     DEFAULT_COUNTRY,
     DEFAULT_VAT_RATE_DE,
     DEFAULT_GPM_GRID_FEE,
@@ -75,12 +75,8 @@ from .const import (
     DAILY_AGGREGATION_HOUR,
     DAILY_AGGREGATION_MINUTE,
     DAILY_AGGREGATION_SECOND,
-    FORECAST_MORNING_HOUR,
-    FORECAST_MORNING_MINUTE,
     FORECAST_EVENING_HOUR,
     FORECAST_EVENING_MINUTE,
-    FORECAST_CHART_HOUR,
-    FORECAST_CHART_MINUTE,
 )
 from .storage import DataValidator
 from .storage.db_connection_manager import DatabaseConnectionManager, get_manager
@@ -362,9 +358,10 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     """Migrate old entry to new version. @zara"""
     _LOGGER.info(
         "Migrating SFML Stats from version %s to %s",
-        config_entry.version, 7
+        config_entry.version, 9
     )
     new_data = {**config_entry.data}
+    new_options = {**config_entry.options}
 
     if config_entry.version < 6:
         hass.config_entries.async_update_entry(
@@ -380,6 +377,30 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             config_entry, data=new_data, version=7
         )
         _LOGGER.info("Migration to version 7 successful (GPM merged)")
+
+    if config_entry.version < 8:
+        removed = sorted(
+            key for key in LEGACY_POWER_ENERGY_SENSOR_KEYS
+            if key in new_data or key in new_options
+        )
+        for key in removed:
+            new_data.pop(key, None)
+            new_options.pop(key, None)
+        hass.config_entries.async_update_entry(
+            config_entry, data=new_data, options=new_options, version=8
+        )
+        _LOGGER.info(
+            "Migration to version 8 successful (%d legacy kWh sensor mappings removed)",
+            len(removed),
+        )
+
+    if config_entry.version < 9:
+        new_data.pop("sensor_solar_power", None)
+        new_options.pop("sensor_solar_power", None)
+        hass.config_entries.async_update_entry(
+            config_entry, data=new_data, options=new_options, version=9
+        )
+        _LOGGER.info("Migration to version 9 successful")
 
     return True
 

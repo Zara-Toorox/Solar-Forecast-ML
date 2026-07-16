@@ -1060,6 +1060,13 @@ CREATE TABLE IF NOT EXISTS coordinator_state (
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS scheduled_task_state (
+    task_key TEXT PRIMARY KEY,
+    completed_period TEXT,
+    completed_at TIMESTAMP,
+    last_attempt_at TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS production_time_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     date DATE NOT NULL,
