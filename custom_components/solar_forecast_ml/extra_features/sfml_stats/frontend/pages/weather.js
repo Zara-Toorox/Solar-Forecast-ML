@@ -204,8 +204,11 @@ const _WeatherPage = {
                     <span class="chart-title">\u{1F4C5} {{ $t('weather.history') }}</span>
                     <div class="history-tabs">
                         <button v-for="tab in historyTabs" :key="tab.id"
+                                type="button"
                                 class="history-tab"
                                 :class="{active: historyTab === tab.id}"
+                                :aria-pressed="historyTab === tab.id"
+                                :disabled="historyLoading && historyTab === tab.id"
                                 @click="setHistoryTab(tab.id)">{{ tab.label }}</button>
                     </div>
                 </div>
@@ -213,7 +216,8 @@ const _WeatherPage = {
                     {{ $t('weather.historyLoading') }}
                 </div>
                 <div v-else>
-                    <div v-if="historyAvailabilityText" class="history-note">{{ historyAvailabilityText }}</div>
+                    <div v-if="historyLoading" class="history-note">{{ $t('weather.historyLoading') }}</div>
+                    <div v-else-if="historyAvailabilityText" class="history-note">{{ historyAvailabilityText }}</div>
                     <div class="history-kpis">
                         <div class="history-kpi">
                             <div class="history-kpi-value">{{ fmt(history.stats.avgTemp, 1) }}°C</div>
@@ -418,6 +422,7 @@ const _WeatherPage = {
         const history = reactive({ data: [], stats: {} });
         const historyMeta = reactive({ availableDays: 0, requestedDays: 7, returnedDays: 0 });
         const historyTab = ref('week');
+        const historyLoading = ref(false);
         // Reactive: relabels when locale switches.
         const historyTabs = computed(() => [
             { id: 'week',  label: t('weather.tab.week') },
@@ -436,6 +441,7 @@ const _WeatherPage = {
         const radiationChartEl = ref(null);
         const historyChartEl = ref(null);
         let forecastChart = null, radiationChart = null, historyChart = null;
+        let historyRequestSequence = 0;
         const historyRequestedDays = computed(() => (
             historyTab.value === 'week' ? 7 : historyTab.value === 'month' ? 30 : 365
         ));
@@ -758,9 +764,12 @@ const _WeatherPage = {
         }
 
         async function loadHistory() {
+            const requestSequence = ++historyRequestSequence;
+            const days = historyRequestedDays.value;
+            historyLoading.value = true;
             try {
-                const days = historyRequestedDays.value;
                 const res = await SFMLApi.getWeatherHistory(days, true);
+                if (requestSequence !== historyRequestSequence) return;
                 if (!res || !res.success) return;
                 syncTimeContext(res);
                 const all = (res.data || []).slice().sort((a, b) => a.date.localeCompare(b.date));
@@ -774,6 +783,10 @@ const _WeatherPage = {
                 renderHistoryChart();
             } catch (e) {
                 console.error('Weather history load error:', e);
+            } finally {
+                if (requestSequence === historyRequestSequence) {
+                    historyLoading.value = false;
+                }
             }
         }
 
@@ -834,7 +847,7 @@ const _WeatherPage = {
 
         return {
             current, forecast, forecastTitle, radiation, clothing, translateClothing, clothingText, clothingExtras, astronomy, history,
-            historyTab, historyTabs, lastUpdated,
+            historyTab, historyTabs, historyLoading, lastUpdated,
             forecastChartEl, radiationChartEl, historyChartEl,
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,
             dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis,
@@ -1029,6 +1042,7 @@ const _WeatherPage = {
             color: var(--accent);
             border-color: var(--accent);
         }
+        .history-tab:disabled { cursor: wait; opacity: 0.75; }
         .history-note {
             margin-bottom: var(--space-md);
             color: var(--text-muted);

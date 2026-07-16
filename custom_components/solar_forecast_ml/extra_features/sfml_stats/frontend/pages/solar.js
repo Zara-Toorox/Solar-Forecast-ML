@@ -81,27 +81,27 @@ const _SolarPage = {
                 <div class="annual-kpi-grid">
                     <div class="annual-kpi" style="--kpi-accent: var(--solar);">
                         <div class="annual-kpi-value" style="color: var(--solar);">
-                            {{ annualKpis.totalKwh }}
+                            {{ annualKpis.totalKwh }} kWh
                         </div>
-                        <div class="annual-kpi-label">{{ $t('solar.kpi.totalKwh') }}</div>
+                        <div class="annual-kpi-label">{{ $t('solar.kpi.measuredYield') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: var(--accent); background: rgba(0,212,255,0.08);">
                         <div class="annual-kpi-value" style="color: var(--text-primary); font-size: 1.3rem;">
                             {{ annualKpis.bestMonth }}
                         </div>
-                        <div class="annual-kpi-label">{{ $t('solar.kpi.bestMonth') }}</div>
+                        <div class="annual-kpi-label">{{ $t('solar.kpi.strongestForecastMonth') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: var(--price-cheap);">
                         <div class="annual-kpi-value" style="color: var(--price-cheap);">
-                            {{ annualKpis.yearKwh }}
+                            {{ annualKpis.yearKwh }} kWh
                         </div>
-                        <div class="annual-kpi-label">2026 kWh</div>
+                        <div class="annual-kpi-label">{{ $t('solar.kpi.yearForecast', { year: annualKpis.year }) }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #a855f7;">
                         <div class="annual-kpi-value" style="color: #a855f7;">
                             {{ annualKpis.avgMonth }}
                         </div>
-                        <div class="annual-kpi-label">{{ $t('solar.kpi.avgPerMonth') }}</div>
+                        <div class="annual-kpi-label">{{ $t('solar.kpi.avgMeasuredMonth') }}</div>
                     </div>
                 </div>
 
@@ -136,15 +136,15 @@ const _SolarPage = {
                 <!-- Shadow KPIs -->
                 <div class="annual-kpi-grid" style="margin-bottom: var(--space-lg);">
                     <div class="annual-kpi" style="--kpi-accent: #ef4444;">
-                        <div class="annual-kpi-value" style="color: #ef4444;">{{ shadowStats.totalLoss }}</div>
+                        <div class="annual-kpi-value" style="color: #ef4444;">{{ shadowStats.totalLoss }} kWh</div>
                         <div class="annual-kpi-label">{{ $t('solar.shadow.lossKwh') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #f59e0b;">
-                        <div class="annual-kpi-value" style="color: #f59e0b;">{{ shadowStats.hours }}</div>
+                        <div class="annual-kpi-value" style="color: #f59e0b;">{{ shadowStats.hours }} h</div>
                         <div class="annual-kpi-label">{{ $t('solar.shadow.hours') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #8b949e;">
-                        <div class="annual-kpi-value" style="color: #8b949e;">{{ shadowStats.efficiency }}%</div>
+                        <div class="annual-kpi-value" style="color: #8b949e;">{{ shadowStats.efficiency != null ? shadowStats.efficiency + '%' : '--' }}</div>
                         <div class="annual-kpi-label">{{ $t('solar.shadow.avgEfficiency') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #06b6d4;">
@@ -167,10 +167,13 @@ const _SolarPage = {
             </div>
 
             <!-- ========== KARTE 3b: SCHATTEN-FINGERPRINT (Monat × Stunde) ========== -->
-            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="shadowFingerprint.seasonal.length > 0">
+            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="shadowFingerprint.loaded">
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
                     <span class="chart-title">🌓 {{ $t('solar.fingerprint.title') }}</span>
-                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: var(--space-sm);">{{ $t('solar.fingerprint.subtitle', { samples: shadowFingerprint.summary.total_samples || 0 }) }}</span>
+                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: var(--space-sm);">{{ $t('solar.fingerprint.subtitle', {
+                        historySamples: shadowFingerprint.summary.seasonal_evaluated_samples || 0,
+                        currentSamples: shadowFingerprint.summary.current_window_samples || shadowFingerprint.summary.evaluated_samples || 0
+                    }) }}</span>
                 </div>
 
                 <!-- Fingerprint KPIs -->
@@ -181,20 +184,24 @@ const _SolarPage = {
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #f59e0b;">
                         <div class="annual-kpi-value" style="color: #f59e0b;">{{ shadowFingerprint.summary.shadow_hours || 0 }}h</div>
-                        <div class="annual-kpi-label">{{ $t('solar.shadow.hours') }}</div>
+                        <div class="annual-kpi-label">{{ $t('solar.fingerprint.localShadowHours') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #a855f7;">
-                        <div class="annual-kpi-value" style="color: #a855f7; font-size: 1.2rem;">{{ shadowFingerprint.summary.first_learned || '--' }}</div>
-                        <div class="annual-kpi-label">{{ $t('solar.fingerprint.sinceLearned') }}</div>
+                        <div class="annual-kpi-value" style="color: #a855f7; font-size: 1.2rem;">{{ shadowFingerprint.summary.history_since || '--' }}</div>
+                        <div class="annual-kpi-label">{{ $t('solar.fingerprint.dataSince') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #06b6d4;">
-                        <div class="annual-kpi-value" style="color: #06b6d4;">{{ shadowFingerprint.maxIntensity }}%</div>
-                        <div class="annual-kpi-label">{{ $t('solar.fingerprint.maxShadow') }}</div>
+                        <div class="annual-kpi-value" style="color: #06b6d4;">{{ shadowFingerprint.maxIntensity > 0 ? shadowFingerprint.maxIntensity + '%' : '--' }}</div>
+                        <div class="annual-kpi-label">{{ $t('solar.fingerprint.maxExpectedShadow') }}</div>
                     </div>
                 </div>
 
                 <!-- Heatmap: Monat × Stunde -->
-                <div ref="shadowFingerprintEl" style="height: 340px; width: 100%;"></div>
+                <div ref="shadowFingerprintEl" style="height: 380px; width: 100%;" v-if="shadowFingerprint.seasonal.length > 0"></div>
+                <div v-else style="padding: 2.5rem 1rem; text-align: center; color: var(--text-secondary);">
+                    <div style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">{{ $t('solar.fingerprint.emptyTitle') }}</div>
+                    <div>{{ $t('solar.fingerprint.emptyText') }}</div>
+                </div>
 
                 <!-- Pattern Legend + Insights -->
                 <div class="shadow-insights" v-if="shadowFingerprint.insights.length">
@@ -217,7 +224,7 @@ const _SolarPage = {
                         <button v-for="d in shadowMovement.availableDates" :key="d.key"
                                 class="sm-mode-btn" :class="{ active: shadowMovement.selectedDate === d.key }"
                                 @click="smSelectDate(d.key)">{{ d.label }}</button>
-                        <button class="sm-mode-btn" :class="{ active: shadowMovement.selectedDate === 'typical' }"
+                        <button v-if="smHasTypicalPattern" class="sm-mode-btn" :class="{ active: shadowMovement.selectedDate === 'typical' }"
                                 @click="smSelectDate('typical')">{{ $t('solar.movement.typical') }}</button>
                     </div>
                 </div>
@@ -489,23 +496,33 @@ const _SolarPage = {
 
         const annualKpis = computed(() => {
             const a = annualData.value;
-            if (!a) return { totalKwh: '--', bestMonth: '--', yearKwh: '--', avgMonth: '--' };
+            if (!a) {
+                return {
+                    totalKwh: '--',
+                    bestMonth: '--',
+                    yearKwh: '--',
+                    avgMonth: '--',
+                    year: Number(timeContext.current_year) || new Date().getFullYear(),
+                };
+            }
 
             const months = a.months || [];
             const measured = months.filter(m => m.source === 'measured');
             const totalMeasured = measured.reduce((s, m) => s + (m.measured_yield_kwh || 0), 0);
+            const currentYear = Number(timeContext.current_year) || new Date().getFullYear();
 
             // Best month
             let bestMonthName = '--';
             if (a.annual?.best_month) {
-                bestMonthName = MONTH_NAMES[(a.annual.best_month - 1) % 12] + ' 2026';
+                bestMonthName = MONTH_NAMES[(a.annual.best_month - 1) % 12] + ' ' + currentYear;
             } else if (months.length > 0) {
                 const sorted = [...months].sort((a, b) => (b.projected_yield_kwh || 0) - (a.projected_yield_kwh || 0));
                 bestMonthName = MONTH_NAMES[(sorted[0].month - 1) % 12] + ' ' + sorted[0].year;
             }
 
-            // Year 2026 total
-            const year2026 = months.filter(m => m.year === 2026).reduce((s, m) => s + (m.projected_yield_kwh || 0), 0);
+            const yearForecast = months
+                .filter(m => Number(m.year) === currentYear)
+                .reduce((sum, month) => sum + (month.projected_yield_kwh || 0), 0);
 
             // Average per month (measured only)
             const avgPerMonth = measured.length > 0 ? totalMeasured / measured.length : 0;
@@ -513,8 +530,9 @@ const _SolarPage = {
             return {
                 totalKwh: Math.round(totalMeasured),
                 bestMonth: bestMonthName,
-                yearKwh: Math.round(year2026),
+                yearKwh: Math.round(yearForecast),
                 avgMonth: avgPerMonth.toFixed(1),
+                year: currentYear,
             };
         });
 
@@ -529,12 +547,15 @@ const _SolarPage = {
         const shadowFingerprintEl = ref(null);
         let shadowFingerprintChart = null;
         const shadowFingerprint = reactive({
+            loaded: false,
+            modelReady: false,
             hourly: [],
             seasonal: [],
             summary: {},
             insights: [],
             maxIntensity: 0,
         });
+        const smHasTypicalPattern = computed(() => shadowFingerprint.seasonal.length > 0);
         // Reuse the locale-aware short months from setup.
         const MONTH_SHORT = MONTH_NAMES;
 
@@ -545,6 +566,7 @@ const _SolarPage = {
                 shadowFingerprint.hourly = res.hourly || [];
                 shadowFingerprint.seasonal = res.seasonal || [];
                 shadowFingerprint.summary = res.summary || {};
+                shadowFingerprint.modelReady = res.model_ready === true;
                 shadowFingerprint.maxIntensity = shadowFingerprint.seasonal.length
                     ? Math.round(Math.max(...shadowFingerprint.seasonal.map(s => s.intensity || 0)))
                     : 0;
@@ -558,6 +580,8 @@ const _SolarPage = {
                 }, 50);
             } catch (e) {
                 console.error('Shadow fingerprint load error:', e);
+            } finally {
+                shadowFingerprint.loaded = true;
             }
         }
 
@@ -595,7 +619,7 @@ const _SolarPage = {
 
             shadowFingerprintChart.setOption({
                 backgroundColor: 'transparent',
-                grid: { left: 60, right: 40, top: 30, bottom: 60 },
+                grid: { left: 60, right: 40, top: 30, bottom: 95 },
                 tooltip: {
                     backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'),
                     borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
@@ -605,7 +629,7 @@ const _SolarPage = {
                         return `<b>${MONTH_SHORT[p.data[1]]} · ${hours[p.data[0]]}:00</b><br/>`
                             + `${t('solar.fingerprint.tooltipShadow')}: <b>${d.avg_percent || 0}%</b><br/>`
                             + `${t('solar.fingerprint.tooltipFrequency')}: ${((d.rate || 0) * 100).toFixed(0)}%<br/>`
-                            + `${t('solar.fingerprint.tooltipCause')}: <b>${d.cause || '--'}</b><br/>`
+                            + `${t('solar.fingerprint.tooltipCause')}: <b>${d.cause ? shadowCauseLabel(d.cause) : '--'}</b><br/>`
                             + `${t('solar.fingerprint.tooltipSamples')}: ${d.samples || 0} · ${t('solar.fingerprint.tooltipConfidence')}: ${((d.confidence || 0) * 100).toFixed(0)}%`;
                     },
                 },
@@ -622,7 +646,7 @@ const _SolarPage = {
                     axisTick: { show: false },
                 },
                 visualMap: {
-                    min: 5, max: 100, calculable: true, orient: 'horizontal',
+                    min: 5, max: 100, calculable: false, orient: 'horizontal',
                     left: 'center', bottom: 5,
                     textStyle: { color: getThemeColor('--text-secondary', '#94a3b8') },
                     itemWidth: 20,
@@ -1119,7 +1143,9 @@ const _SolarPage = {
 
         const SHADOW_CAUSE_COLORS = {
             low_radiation: '#94a3b8', low_sun_angle: '#f59e0b', panel_frost: '#38bdf8',
-            building_tree_obstruction: '#ef4444', weather_clouds: '#64748b', unknown: '#4b5563',
+            panel_frost_snow: '#38bdf8', snow_frost: '#38bdf8',
+            building_tree_obstruction: '#ef4444', possible_obstruction: '#f97316',
+            weather_clouds: '#64748b', clouds: '#64748b', unknown: '#4b5563',
             weather_better_than_forecast: '#10b981',
         };
         // Look up via i18n so the label changes with the active locale.
@@ -1128,8 +1154,12 @@ const _SolarPage = {
                 low_radiation: 'solar.cause.lowRadiation',
                 low_sun_angle: 'solar.cause.lowSunAngle',
                 panel_frost: 'solar.cause.panelFrost',
-                building_tree_obstruction: 'solar.cause.obstruction',
+                panel_frost_snow: 'solar.cause.panelFrost',
+                snow_frost: 'solar.cause.panelFrost',
+                building_tree_obstruction: 'solar.cause.confirmedObstruction',
+                possible_obstruction: 'solar.cause.possibleObstruction',
                 weather_clouds: 'solar.cause.clouds',
+                clouds: 'solar.cause.clouds',
                 unknown: 'common.unknown',
                 weather_better_than_forecast: 'solar.cause.betterThanForecast',
             };
@@ -1270,7 +1300,9 @@ const _SolarPage = {
                 shadowStats.value = {
                     totalLoss: (sh.stats.total_loss_kwh || 0).toFixed(1),
                     hours: sh.stats.shadow_hours || 0,
-                    efficiency: ((sh.stats.avg_efficiency || 0) * 100).toFixed(0),
+                    efficiency: sh.stats.avg_efficiency != null
+                        ? (sh.stats.avg_efficiency * 100).toFixed(0)
+                        : null,
                     daysLearned: sh.learning?.days_learned || 0,
                 };
             }
@@ -1512,7 +1544,7 @@ const _SolarPage = {
                 const losses = sh.daily_loss.map(d => d.loss_kwh || 0);
                 lossChart.setOption({
                     backgroundColor: 'transparent',
-                    tooltip: { trigger: 'axis', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 }, formatter: p => p[0].axisValue + '<br/>Verlust: <b>' + p[0].value.toFixed(2) + ' kWh</b>' },
+                    tooltip: { trigger: 'axis', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 }, formatter: p => p[0].axisValue + '<br/>' + t('solar.shadow.referenceGap') + ': <b>' + p[0].value.toFixed(2) + ' kWh</b>' },
                     grid: { left: 45, right: 15, top: 10, bottom: 40 },
                     xAxis: { type: 'category', data: dates, axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10, rotate: 45 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } } },
                     yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } }, axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 } },
@@ -1719,6 +1751,7 @@ const _SolarPage = {
             shadowStats, weeklyRows,
             shadowFingerprint, shadowFingerprintEl,
             shadowMovement, smHourRange, smCurrentMonthName,
+            smHasTypicalPattern,
             smSunPosition, smLossColor, smSceneModeLabel, smCauseBadgeClass,
             smEffColor, smPanelStyle, smPanelMeterStyle,
             smOnSlider, setShadowMode, smSelectDate, smToggleAutoPlay,

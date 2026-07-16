@@ -53,7 +53,7 @@ function yieldDeviationColor(deviation) {
 
 const STATUS_TRANSLATIONS = {
     de: {
-        producing: 'Erzeugt',
+        producing: 'Aktiv',
         idle: 'Inaktiv',
         charging: 'Laden',
         discharging: 'Entladen',
@@ -71,8 +71,8 @@ const STATUS_TRANSLATIONS = {
         alltime: 'ALLTIME',
     },
     en: {
-        producing: 'Producing',
-        idle: 'Idle',
+        producing: 'Active',
+        idle: 'Inactive',
         charging: 'Charging',
         discharging: 'Discharging',
         standby: 'Standby',
@@ -89,8 +89,8 @@ const STATUS_TRANSLATIONS = {
         alltime: 'ALLTIME',
     },
     pl: {
-        producing: 'Produkcja',
-        idle: 'Brak',
+        producing: 'Aktywna',
+        idle: 'Nieaktywna',
         charging: 'Ładowanie',
         discharging: 'Rozładowywanie',
         standby: 'Czuwanie',
@@ -1578,6 +1578,7 @@ const _HomePage = {
             const variantSeed = payload.variant_seed != null ? payload.variant_seed : 0;
             const yesterday = payload.yesterday || null;
             const workflowStatus = payload.signals?.workflow_status || null;
+            const learnedShadow = payload.signals?.learned_shadow || null;
             const balancePayload = payload.day_balance;
             let dayBalance = null;
             if (balancePayload?.available === true) {
@@ -1685,6 +1686,15 @@ const _HomePage = {
                 peakTime,
                 price: currentPrice,
                 priceAverage: avgPrice,
+                shadowWindow: learnedShadow
+                    ? formatHubbleWindow(learnedShadow)
+                    : t('home.hubble.noWindow'),
+                shadowOccurrence: learnedShadow
+                    ? formatHubbleNumber(learnedShadow.occurrence_percent, 0)
+                    : '--',
+                shadowStrength: learnedShadow
+                    ? formatHubbleNumber(learnedShadow.conditional_loss_percent, 0)
+                    : '--',
             };
 
             const leadKeySpec = `home.hubble.lead.${moment}_v${variantSeed}`;
@@ -1703,6 +1713,14 @@ const _HomePage = {
                 { key: 'quality', label: t('home.hubble.chip.quality'), value: metrics.forecast_quality_percent != null ? `${quality}%` : t('common.noData') },
                 { key: 'window', label: t('home.hubble.chip.window'), value: windowLabel },
             ];
+            if (learnedShadow?.available) {
+                chips.push({
+                    key: 'shadow',
+                    label: t('home.hubble.chip.shadow'),
+                    value: formatHubbleWindow(learnedShadow),
+                    title: t('home.hubble.chip.shadowTitle', storyParams),
+                });
+            }
             if (workflowStatus?.is_running) {
                 chips.unshift({
                     key: 'workflow',
@@ -1997,6 +2015,7 @@ const _HomePage = {
 
         function buildHubbleTip(payload, windowLabel) {
             const metrics = payload.metrics || {};
+            const learnedShadow = payload.signals?.learned_shadow || null;
             const hasBattery = metrics.battery_available === true;
             const type = payload.tip_type || 'flex_load_window';
             const params = {
@@ -2005,7 +2024,25 @@ const _HomePage = {
                 average: formatHubbleNumber(metrics.avg_battery_charge_7d_kwh, 1),
                 price: formatHubbleNumber(metrics.price_current_ct, 2),
                 priceAverage: formatHubbleNumber(metrics.price_avg_ct, 2),
+                shadowWindow: learnedShadow
+                    ? formatHubbleWindow(learnedShadow)
+                    : t('home.hubble.noWindow'),
+                shadowOccurrence: learnedShadow
+                    ? formatHubbleNumber(learnedShadow.occurrence_percent, 0)
+                    : '--',
+                shadowStrength: learnedShadow
+                    ? formatHubbleNumber(learnedShadow.conditional_loss_percent, 0)
+                    : '--',
             };
+            if (learnedShadow?.available && payload.best_window) {
+                const beforeShadow = Number(payload.best_window.end_hour) < Number(learnedShadow.start_hour);
+                return t(
+                    beforeShadow
+                        ? 'home.hubble.tip.shadowBefore'
+                        : 'home.hubble.tip.shadowKnown',
+                    params,
+                );
+            }
             if (hasBattery && type === 'battery_served') return t('home.hubble.tip.batteryServed', params);
             if (type === 'cheap_price_plus_solar') return t('home.hubble.tip.cheapPricePlusSolar', params);
             if (type === 'evening_review') return t('home.hubble.tip.eveningReview', params);
