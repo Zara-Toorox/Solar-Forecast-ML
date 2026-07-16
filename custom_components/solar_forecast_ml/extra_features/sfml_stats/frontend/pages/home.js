@@ -451,6 +451,14 @@ const _HomePage = {
                             <span>{{ $t('home.hubble.energyChain.batteryPath') }}</span>
                             <strong>{{ hubbleView.energyChain.battery.label }}</strong>
                         </span>
+                        <span
+                            v-if="hubbleView.energyChain.mixed"
+                            class="hubble-energy-chain-branch mixed"
+                            :class="{ pending: !hubbleView.energyChain.mixed.available }"
+                        >
+                            <span>{{ $t('home.hubble.energyChain.mixedPath') }}</span>
+                            <strong>{{ hubbleView.energyChain.mixed.label }}</strong>
+                        </span>
                     </div>
                     <div class="hubble-energy-chain-kpis">
                         <span>
@@ -1647,6 +1655,9 @@ const _HomePage = {
                     pv: branchView(chainPayload.pv, 'home.hubble.energyChain.noPvWindow'),
                     battery: chainPayload.battery
                         ? branchView(chainPayload.battery, 'home.hubble.energyChain.noBatteryWindow')
+                        : null,
+                    mixed: chainPayload.mixed
+                        ? branchView(chainPayload.mixed, 'home.hubble.energyChain.noMixedWindow')
                         : null,
                 };
             }
@@ -3914,6 +3925,9 @@ const _HomePage = {
         }
         .hubble-energy-chain-branch.battery::before {
             background: #22c55e;
+        }
+        .hubble-energy-chain-branch.mixed::before {
+            background: #06b6d4;
         }
         .hubble-energy-chain-branch.pending::before {
             background: #64748b;
