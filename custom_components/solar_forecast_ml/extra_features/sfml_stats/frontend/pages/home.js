@@ -414,14 +414,7 @@ const _HomePage = {
                     </div>
                     <span class="hubble-energy-chain-status">{{ hubbleView.energyChain.qualityLabel }}</span>
                 </div>
-                <div class="hubble-energy-chain-flow">
-                    <div class="hubble-energy-chain-node input">
-                        <span class="hubble-energy-chain-node-label">{{ $t('home.hubble.energyChain.dcInput') }}</span>
-                        <strong>{{ hubbleView.energyChain.dcInput }} <small>kWh</small></strong>
-                    </div>
-                    <div class="hubble-energy-chain-route loss">
-                        <span>{{ $t('home.hubble.energyChain.loss') }} {{ hubbleView.energyChain.loss }}</span>
-                    </div>
+                <div class="hubble-energy-chain-focus">
                     <div class="hubble-energy-chain-converter">
                         <span class="hubble-energy-chain-converter-label">{{ $t('home.hubble.energyChain.conversion') }}</span>
                         <div
@@ -430,11 +423,6 @@ const _HomePage = {
                         >
                             <strong>{{ hubbleView.energyChain.systemEfficiency }}</strong>
                         </div>
-                    </div>
-                    <div class="hubble-energy-chain-route output"></div>
-                    <div class="hubble-energy-chain-node output">
-                        <span class="hubble-energy-chain-node-label">{{ $t('home.hubble.energyChain.usefulOutput') }}</span>
-                        <strong>{{ hubbleView.energyChain.usefulOutput }} <small>kWh</small></strong>
                     </div>
                 </div>
                 <div class="hubble-energy-chain-summary">
@@ -476,18 +464,6 @@ const _HomePage = {
                                 >i</button>
                             </small>
                             <strong>{{ hubbleView.energyChain.adjustedAutarky }}</strong>
-                        </span>
-                        <span>
-                            <small>
-                                {{ $t('home.hubble.energyChain.coverage') }}
-                                <button
-                                    type="button"
-                                    class="hubble-metric-help"
-                                    :aria-label="$t('home.hubble.energyChain.coverageHelp')"
-                                    :data-tooltip="$t('home.hubble.energyChain.coverageHelp')"
-                                >i</button>
-                            </small>
-                            <strong>{{ hubbleView.energyChain.coverage }}</strong>
                         </span>
                     </div>
                 </div>
@@ -1638,9 +1614,6 @@ const _HomePage = {
                 energyChain = {
                     dataQuality,
                     qualityLabel: t(`home.hubble.energyChain.status.${dataQuality}`),
-                    dcInput: systemAvailable ? formatHubbleNumber(system.dc_input_kwh, 2) : '--',
-                    usefulOutput: systemAvailable ? formatHubbleNumber(system.useful_output_kwh, 2) : '--',
-                    loss: systemAvailable ? `${formatHubbleNumber(system.loss_kwh, 2)} kWh` : '--',
                     systemEfficiency: systemAvailable ? `${formatHubbleNumber(systemEfficiency, 1)}%` : '--',
                     progress: systemAvailable ? Math.max(0, Math.min(360, systemEfficiency * 3.6)) : 0,
                     netAutarky: chainPayload.net_autarky_percent != null
@@ -1648,9 +1621,6 @@ const _HomePage = {
                         : '--',
                     adjustedAutarky: chainPayload.loss_adjusted_autarky_percent != null
                         ? `${formatHubbleNumber(chainPayload.loss_adjusted_autarky_percent, 1)}%`
-                        : '--',
-                    coverage: chainPayload.measurement_coverage_percent != null
-                        ? `${formatHubbleNumber(chainPayload.measurement_coverage_percent, 1)}%`
                         : '--',
                     pv: branchView(chainPayload.pv, 'home.hubble.energyChain.noPvWindow'),
                     battery: chainPayload.battery
@@ -3806,6 +3776,11 @@ const _HomePage = {
             align-items: center;
             gap: 10px;
         }
+        .hubble-energy-chain-focus {
+            display: flex;
+            justify-content: center;
+            padding: 20px 0 4px;
+        }
         .hubble-energy-chain-node {
             display: flex;
             flex-direction: column;
@@ -4340,7 +4315,7 @@ const _HomePage = {
             }
             .hubble-energy-chain-kpis {
                 display: grid;
-                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-columns: repeat(2, minmax(0, 1fr));
                 gap: 4px;
                 justify-content: stretch;
             }

@@ -262,7 +262,7 @@ window.SFMLLocales = {
                 energyChain: {
                     title: "Energie-Wirkungskette",
                     aria: "Heutige Energie-Wirkungskette der Anlage",
-                    subtitle: "Wie effizient DC-Energie am Wechselrichter in AC umgewandelt wird",
+                    subtitle: "Wirkungsgrad aus abgeschlossenen, belastbaren Messstunden",
                     dcInput: "DC-Eingang",
                     usefulOutput: "AC-Einspeisung",
                     conversion: "Wirkungsgrad",
@@ -277,7 +277,7 @@ window.SFMLLocales = {
                     adjustedAutarky: "Verlustbereinigt",
                     adjustedAutarkyHelp: "Autarkie nach Abzug der gemessenen Umwandlungsverluste von Wechselrichter und Akku.",
                     coverage: "Messabdeckung",
-                    coverageHelp: "Anteil des bisherigen Tages, für den gültige Messwerte am AC-Ausgang vorliegen.",
+                    coverageHelp: "Anteil des bisherigen Tages, der durch abgeschlossene, ausreichend abgedeckte und physikalisch stimmige Messstunden ausgewertet werden konnte.",
                     status: {
                         good: "Messung belastbar",
                         partial: "Messung läuft",
@@ -1225,7 +1225,7 @@ window.SFMLLocales = {
                 energyChain: {
                     title: "Energy conversion chain",
                     aria: "Today's energy conversion chain",
-                    subtitle: "How efficiently the inverter converts DC energy to AC",
+                    subtitle: "Efficiency from completed, reliable measurement hours",
                     dcInput: "DC input",
                     usefulOutput: "AC output",
                     conversion: "Efficiency",
@@ -1240,7 +1240,7 @@ window.SFMLLocales = {
                     adjustedAutarky: "Loss-adjusted",
                     adjustedAutarkyHelp: "Grid independence after deducting the measured conversion losses of the inverter and battery.",
                     coverage: "Measurement coverage",
-                    coverageHelp: "Share of the day so far with valid measurements at the AC output.",
+                    coverageHelp: "Share of the day covered by completed hours with sufficient data and a physically consistent DC-to-AC balance.",
                     status: {
                         good: "Measurement reliable",
                         partial: "Measurement in progress",
@@ -2188,7 +2188,7 @@ window.SFMLLocales = {
                 energyChain: {
                     title: "Łańcuch konwersji energii",
                     aria: "Dzisiejszy łańcuch konwersji energii",
-                    subtitle: "Jak wydajnie falownik przekształca energię DC na AC",
+                    subtitle: "Sprawność z zakończonych, wiarygodnych godzin pomiarowych",
                     dcInput: "Wejście DC",
                     usefulOutput: "Wyjście AC",
                     conversion: "Sprawność",
@@ -2203,7 +2203,7 @@ window.SFMLLocales = {
                     adjustedAutarky: "Po uwzględnieniu strat",
                     adjustedAutarkyHelp: "Niezależność od sieci po odjęciu zmierzonych strat konwersji falownika i akumulatora.",
                     coverage: "Pokrycie pomiarowe",
-                    coverageHelp: "Część dzisiejszego dnia z prawidłowymi pomiarami na wyjściu AC.",
+                    coverageHelp: "Część dnia objęta zakończonymi godzinami z wystarczającymi danymi i fizycznie spójnym bilansem DC-AC.",
                     status: {
                         good: "Pomiar wiarygodny",
                         partial: "Pomiar trwa",
