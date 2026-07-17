@@ -22,6 +22,18 @@ With the optional **Solar Forecast STATS** companion module, the same data becom
 
 ---
 
+## ☀️ Stop Guessing. Start Knowing.
+
+<img src="custom_components/solar_forecast_ml/brand/logo@2x.png" alt="Solar Forecast ML — AI-Powered Solar Forecasting" align="left" width="250">
+
+While generic solar estimates model a typical installation, Solar Forecast ML uses the **Hubble AI Stack** to build a digital twin of your specific roof. Its local Attention and Transformer components are designed to run within Home Assistant's resource limits while learning your roof geometry, local shading, microclimate, and inverter behavior.
+
+Powered by proprietary models, a local machine-learning engine, and a solar-physics backbone, it delivers **three-day hourly forecasts with continuously measured quality metrics**. Everything runs on your hardware with a transactional SQL database for reliability. No cloud model training, no subscriptions, and no telemetry. Your smart home gains foresight for planning energy use before the sun rises.
+
+<br clear="both">
+
+---
+
 ## 🌞 SFML + STATS — From Forecast to Energy Decisions
 
 SFML and STATS are designed as two layers of one local energy system:
@@ -86,18 +98,6 @@ Weather is not just a decorative forecast. SFML blends and corrects weather inpu
 </table>
 
 > **STATS is optional.** SFML remains a complete standalone forecasting integration. STATS adds the visual analysis and energy-management layer and is currently available for x86_64 systems.
-
----
-
-## ☀️ Stop Guessing. Start Knowing.
-
-<img src="custom_components/solar_forecast_ml/brand/logo@2x.png" alt="Solar Forecast ML — AI-Powered Solar Forecasting" align="left" width="250">
-
-While generic solar estimates model a typical installation, Solar Forecast ML uses the **Hubble AI Stack** to build a digital twin of your specific roof. Its local Attention and Transformer components are designed to run within Home Assistant's resource limits while learning your roof geometry, local shading, microclimate, and inverter behavior.
-
-Powered by proprietary models, a local machine-learning engine, and a solar-physics backbone, it delivers **three-day hourly forecasts with continuously measured quality metrics**. Everything runs on your hardware with a transactional SQL database for reliability. No cloud model training, no subscriptions, and no telemetry. Your smart home gains foresight for planning energy use before the sun rises.
-
-<br clear="both">
 
 ---
 
