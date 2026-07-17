@@ -281,6 +281,7 @@
           "pricing": "Strompreis",
           "amortization": "Amortisation",
           "smart_charging": "Smart Charging",
+          "appearance": "Oberfläche",
           "advanced": "Erweitert"
         },
         "data_description": {
@@ -459,6 +460,16 @@
           "gpm_grid_fee": "Netzentgelte und Messentgelte pro kWh (brutto).",
           "taxes_fees": "Konzessionsabgabe, Stromsteuer und sonstige Umlagen pro kWh (brutto).",
           "provider_markup": "Anbieter-Aufschlag pro kWh (brutto)."
+        }
+      },
+      "appearance": {
+        "title": "Dashboard-Oberfläche",
+        "description": "Wähle, welches Dashboard geöffnet wird. Die klassische Oberfläche bleibt erhalten und ist der sichere Standard.",
+        "data": {
+          "ui_mode": "Oberfläche"
+        },
+        "data_description": {
+          "ui_mode": "Klassisch behält das bestehende Dashboard bei. Modern aktiviert die neu gestaltete responsive Oberfläche. Lade das Dashboard nach einer Änderung neu."
         }
       },
       "advanced": {

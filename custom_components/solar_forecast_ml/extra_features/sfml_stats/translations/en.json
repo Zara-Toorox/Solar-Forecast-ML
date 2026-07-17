@@ -285,6 +285,7 @@
           "pricing": "Pricing",
           "amortization": "Amortization",
           "smart_charging": "Smart Charging",
+          "appearance": "Interface",
           "advanced": "Advanced"
         },
         "data_description": {
@@ -463,6 +464,16 @@
           "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
           "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
           "provider_markup": "Provider markup per kWh (gross)."
+        }
+      },
+      "appearance": {
+        "title": "Dashboard Interface",
+        "description": "Choose which dashboard is opened. The classic interface remains available and is the safe default.",
+        "data": {
+          "ui_mode": "Interface"
+        },
+        "data_description": {
+          "ui_mode": "Classic preserves the existing dashboard. Modern enables the redesigned responsive interface. Reload the dashboard after changing this setting."
         }
       },
       "advanced": {

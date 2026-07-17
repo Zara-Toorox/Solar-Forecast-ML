@@ -180,6 +180,26 @@ CONF_AMORTIZATION_DEGRADATION_PERCENT: Final = "amortization_degradation_percent
 CONF_PANEL_GROUP_NAMES: Final = "panel_group_names"
 CONF_SHOW_PANEL_GROUPS: Final = "show_panel_groups"
 
+CONF_UI_MODE: Final = "ui_mode"
+UI_MODE_CLASSIC: Final = "classic"
+UI_MODE_MODERN: Final = "modern"
+DEFAULT_UI_MODE: Final = UI_MODE_CLASSIC
+UI_MODES: Final = frozenset({UI_MODE_CLASSIC, UI_MODE_MODERN})
+
+
+def normalize_ui_mode(value: object) -> str:
+    """Return a supported dashboard mode, defaulting to the classic UI."""
+    if isinstance(value, str) and value in UI_MODES:
+        return value
+    return DEFAULT_UI_MODE
+
+
+def frontend_index_for_ui_mode(value: object) -> str:
+    """Resolve the dashboard entry document for a configured UI mode."""
+    if normalize_ui_mode(value) == UI_MODE_MODERN:
+        return "modern/index.html"
+    return "index.html"
+
 PRICE_MODE_FIXED: Final = "fixed"
 PRICE_MODE_DYNAMIC: Final = "dynamic"
 PRICE_MODE_NONE: Final = "none"

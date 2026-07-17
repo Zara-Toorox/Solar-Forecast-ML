@@ -456,6 +456,16 @@
           "provider_markup": "Provider markup per kWh (gross)."
         }
       },
+      "appearance": {
+        "title": "Interface du tableau de bord",
+        "description": "Choisissez le tableau de bord à ouvrir. L'interface classique reste disponible et constitue la valeur par défaut sûre.",
+        "data": {
+          "ui_mode": "Interface"
+        },
+        "data_description": {
+          "ui_mode": "Classique conserve le tableau de bord existant. Moderne active la nouvelle interface adaptative. Rechargez le tableau de bord après ce changement."
+        }
+      },
       "advanced": {
         "title": "Options avancées",
         "description": "Options de configuration supplémentaires.",

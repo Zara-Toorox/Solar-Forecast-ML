@@ -456,6 +456,16 @@
           "provider_markup": "Provider markup per kWh (gross)."
         }
       },
+      "appearance": {
+        "title": "Interfaz del panel",
+        "description": "Elige qué panel se abre. La interfaz clásica sigue disponible y es la opción predeterminada segura.",
+        "data": {
+          "ui_mode": "Interfaz"
+        },
+        "data_description": {
+          "ui_mode": "Clásica conserva el panel existente. Moderna activa la nueva interfaz adaptable. Recarga el panel después de cambiar esta opción."
+        }
+      },
       "advanced": {
         "title": "Opciones avanzadas",
         "description": "Opciones de configuración adicionales.",

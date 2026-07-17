@@ -46,6 +46,11 @@ from .const import (
     CONF_AMORTIZATION_DEGRADATION_PERCENT,
     CONF_PANEL_GROUP_NAMES,
     CONF_SHOW_PANEL_GROUPS,
+    CONF_UI_MODE,
+    DEFAULT_UI_MODE,
+    UI_MODE_CLASSIC,
+    UI_MODE_MODERN,
+    normalize_ui_mode,
     CONF_SMART_CHARGING_ENABLED,
     CONF_SMART_CHARGING_SWITCH,
     CONF_BATTERY_CAPACITY,
@@ -636,6 +641,8 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_amortization()
             if choice == "smart_charging":
                 return await self.async_step_smart_charging()
+            if choice == "appearance":
+                return await self.async_step_appearance()
             if choice == "advanced":
                 return await self.async_step_advanced()
 
@@ -648,6 +655,7 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     "pricing": "Pricing",
                     "amortization": "Amortisation",
                     "smart_charging": "Smart Charging",
+                    "appearance": "Interface",
                     "advanced": "Advanced",
                 }),
             }),
@@ -1019,6 +1027,43 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     CONF_PROVIDER_MARKUP,
                     default=self._current(CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP),
                 ): _number(0, 20, 0.01),
+            }),
+        )
+
+    # ----- Appearance -----
+
+    async def async_step_appearance(
+        self, user_input: dict[str, Any] | None = None,
+    ) -> FlowResult:
+        """Select the dashboard interface."""
+        if user_input is not None:
+            new_data = {**self._config_entry.data}
+            new_data[CONF_UI_MODE] = normalize_ui_mode(user_input.get(CONF_UI_MODE))
+            return self._save(new_data)
+
+        return self.async_show_form(
+            step_id="appearance",
+            data_schema=vol.Schema({
+                vol.Required(
+                    CONF_UI_MODE,
+                    default=normalize_ui_mode(
+                        self._current(CONF_UI_MODE, DEFAULT_UI_MODE),
+                    ),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(
+                                value=UI_MODE_CLASSIC,
+                                label="Classic",
+                            ),
+                            selector.SelectOptionDict(
+                                value=UI_MODE_MODERN,
+                                label="Modern",
+                            ),
+                        ],
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                ),
             }),
         )
 

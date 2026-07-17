@@ -3343,7 +3343,9 @@ const _HomePage = {
                 for (const chart of Object.values(pgChartInstances)) {
                     if (chart) chart.dispose();
                 }
-                pgChartInstances = {};
+                Object.keys(pgChartInstances).forEach((key) => {
+                    delete pgChartInstances[key];
+                });
                 loadPanelGroups();
             });
         });
@@ -3427,7 +3429,9 @@ const _HomePage = {
             for (const chart of Object.values(pgChartInstances)) {
                 if (chart) chart.dispose();
             }
-            pgChartInstances = {};
+            Object.keys(pgChartInstances).forEach((key) => {
+                delete pgChartInstances[key];
+            });
             if (resizeHandler) window.removeEventListener('resize', resizeHandler);
         });
 
