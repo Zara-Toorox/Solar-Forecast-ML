@@ -1,4 +1,4 @@
-<h1 align="center">Solar Forecast ML V32 "Hubble"</h1>
+<h1 align="center">Solar Forecast ML V40 "Hubble"</h1>
 
 <p align="center">
   <strong>Local solar forecasting, energy intelligence, and smart charging for Home Assistant</strong>
@@ -12,9 +12,9 @@
   <img src="https://img.shields.io/badge/platform-x86__64%20%7C%20ARM%20%7C%20RPi-lightgrey.svg" alt="Platform">
 </p>
 
-Solar Forecast ML (SFML) builds a local digital twin of your photovoltaic system. It combines solar physics, weather intelligence, panel-group measurements, and locally trained models to produce hourly forecasts for today and the next two days. Version 32 adds an SFML-owned Source-of-Truth layer for validated production, forecast, and diagnostic data instead of relying on recorder-derived energy helpers.
+Solar Forecast ML (SFML) builds a local digital twin of your photovoltaic system. It combines solar physics, weather intelligence, panel-group measurements, and locally trained models to produce hourly forecasts for today and the next two days. Version 40 uses an SFML-owned Source-of-Truth layer for validated production, forecast, and diagnostic data instead of relying on recorder-derived energy helpers.
 
-With the optional **Solar Forecast STATS** companion module, the same data becomes a complete energy workspace: live energy flows, forecast evaluation, weather history, long-term model quality, household energy balances, tariffs, battery decisions, and smart charging. No subscription and no remote model training — the forecasting and learning pipeline runs on your Home Assistant hardware.
+With the optional **Solar Forecast STATS** companion module, the same data becomes a complete energy workspace: live energy flows, forecast evaluation, weather history, long-term model quality, household energy balances, tariffs, battery decisions, and smart charging. The licensed **Solar Forecast Energy AI (EAI)** companion adds explainable recommendations and automation signals for heat pumps and an optional wallbox. No remote model training is involved — forecasting, learning, and EAI license validation run locally on your Home Assistant hardware.
 
 **Fuel my late-night ideas with a coffee? I'd really appreciate it — keep this project running!**
 
@@ -34,14 +34,15 @@ Powered by proprietary models, a local machine-learning engine, and a solar-phys
 
 ---
 
-## 🌞 SFML + STATS — From Forecast to Energy Decisions
+## 🌞 SFML + STATS + EAI — From Forecast to Energy Decisions
 
-SFML and STATS are designed as two layers of one local energy system:
+SFML, STATS, and EAI are designed as complementary layers of one local energy system:
 
 | Layer | Responsibility |
 |-------|----------------|
 | **SFML Core** | Creates the 72-hour solar forecast, validates panel-group production, learns local weather and shading effects, protects training data, and persists the solar Source of Truth. |
 | **Solar Forecast STATS** | Turns SFML data and optional household sensors into dashboards, energy balances, forecast intelligence, weather history, tariff analysis, and charging decisions. |
+| **Solar Forecast Energy AI (licensed)** | Combines solar, household, tariff, heat-pump, building, and optional wallbox context into explainable recommendations, confidence and uncertainty values, and passive automation signals. |
 | **Optional companions** | Grid Price Monitor adds dynamic electricity prices; Toorox ForeSight can contribute an additional Transformer forecast track. |
 
 Together they answer the questions that matter in daily operation:
@@ -51,6 +52,8 @@ Together they answer the questions that matter in daily operation:
 - How does the current forecast compare with measured production and alternative model tracks?
 - Where is energy flowing between PV, home, battery, grid, and optional consumers?
 - How are self-consumption, autonomy, grid costs, and battery use developing?
+- When is the most suitable time to run the heat pump, prepare domestic hot water, use thermal storage, or charge the vehicle?
+- Why is EAI making a recommendation, how confident is it, and how wide is the underlying forecast uncertainty?
 - Did weather, shading, curtailment, clipping, or incomplete sensor data affect the result?
 - Is forecast quality improving over weeks and seasons?
 
@@ -97,7 +100,19 @@ Weather is not just a decorative forecast. SFML blends and corrects weather inpu
   </tr>
 </table>
 
-> **STATS is optional.** SFML remains a complete standalone forecasting integration. STATS adds the visual analysis and energy-management layer and is currently available for x86_64 systems.
+### Explainable Energy AI for Heat Pump and Wallbox
+
+[![Interactive EAI heat-pump cost calculator and PV-window scenario](pictures/eai_heat_pump_cost_calculator.png)](pictures/eai_heat_pump_cost_calculator.png)
+
+The heat-pump workspace turns PV coverage, annual heat demand, electricity price, and a 24-hour load profile into an interactive advisory scenario. The animated energy flow and annual cost comparison make the potential value visible while clearly stating that EAI recommends but does not control the heat pump.
+
+[![EAI wallbox planning with charging cost, residual PV, confidence, and uncertainty](pictures/eai_wallbox_planning.png)](pictures/eai_wallbox_planning.png)
+
+The wallbox workspace combines vehicle state of charge, departure target, household demand, heat-pump demand, battery reserve, PV forecast, and tariff context. It explains the recommended charging window and exposes confidence and forecast uncertainty instead of presenting false precision.
+
+> These screenshots show the clearly labelled interactive premium demo with realistic mock data. With an EAI license, the same views use the sensors, forecasts, tariffs, and system values configured by the user. Simulated savings are orientation values, not a savings guarantee.
+
+> **STATS and EAI are optional.** SFML remains a complete standalone forecasting integration. STATS adds the visual analysis and energy-management layer and is currently available for x86_64 systems. EAI requires a signed license key and remains advisory-only: it never sends control commands to a heat pump, wallbox, or vehicle.
 
 ---
 
@@ -232,6 +247,24 @@ Solar Forecast ML is the only solar forecast integration that understands the me
 - Up to 4 independent panel groups with different orientations, tilts, capacities, and live power sensors.
 - Individual efficiency learning, per-group AI predictions, and per-group Source-of-Truth actuals.
 - Total live power and daily energy are derived from the validated panel-group state.
+
+### 🏠 Energy AI — Heat Pump & Building (Licensed)
+
+- 72-hour heat-pump consumption forecast based on the configured system, building context, weather, solar forecast, household demand, battery reserve, and tariff data.
+- Recommendations for heating, domestic hot water, thermal storage, deferral, and the next suitable operating window.
+- Residual-PV planning accounts for household consumption and battery demand before energy is treated as available for the heat pump.
+- Cost and savings context uses the effective electricity-price data supplied through STATS and the configured EAI inputs.
+- Every recommendation includes a plain-language explanation, supporting evidence, confidence, validity period, and a dynamic forecast-uncertainty value.
+- Passive Home Assistant sensors, binary sensors, and policy switches let users build their own automations without granting EAI direct control of the heat pump.
+
+### 🚗 Energy AI — Wallbox & E-Mobility (Licensed, Optional)
+
+- Charging recommendations consider vehicle state of charge, usable battery capacity, target state of charge, departure time, and maximum charging power.
+- Planning prioritizes household demand, heat-pump demand, and battery reserve before assigning residual PV energy to the wallbox.
+- Provides recommended charging start and end, required energy, expected PV share, estimated charging cost, cost advantage, and departure readiness.
+- Each recommendation exposes its reason, explanation, evidence, confidence, and forecast uncertainty.
+- Dedicated wallbox sensors and binary triggers support user-created automations for PV windows, low-price windows, and departure risk.
+- EAI never switches the wallbox or starts vehicle charging itself. The user remains responsible for the automation and all actuator commands.
 
 ### 🧠 Transformer AI Integration — 20.5M Parameter Multihead Transformer (Toorox ForeSight HA Add-on)
 - Seamless integration with the Toorox ForeSight HA companion add-on — a 20.5M-parameter Multihead Transformer trained on multi-year solar history and reanalysis weather data.
@@ -378,7 +411,25 @@ Install via the `install_extras` service:
 | Module | Description | Platform |
 |--------|-------------|----------|
 | **SFML Stats** | Complete solar & energy dashboard: real-time flows, historical charts, forecast vs. actual, cost tracking, surplus detection, smart charging, and beta Lovelace cards. | x86_64 only |
+| **Solar Forecast Energy AI** | Licensed, explainable heat-pump/building and optional wallbox analytics with forecasts, cost context, uncertainty bands, and passive automation signals. No direct device control. | x86_64 and ARM64 |
 | **Grid Price Monitor** | Dynamic electricity spot prices for DE/AT, including time-of-use tariff support. | All |
+
+---
+
+## 🔑 EAI License for Heat Pump & Wallbox
+
+Solar Forecast Energy AI is delivered with SFML but is activated by a signed offline license key. The key is entered once at the beginning of the EAI configuration flow; heat-pump functions and the optional wallbox analytics are then configured in the same integration.
+
+**The only way to request an EAI license is through the [Simon42 Community](https://community.simon42.com/):**
+
+1. Sign in to the Simon42 forum.
+2. Send a **private message (PN)** to the forum user **`tom-ha`**.
+3. State that you would like an EAI license for the heat-pump and/or wallbox functions.
+4. Keep the issued `EAI1...` license key private and enter it in the Solar Forecast Energy AI configuration flow.
+
+EAI licenses are **not** issued through GitHub, HACS, GitHub Issues, GitHub Discussions, or public forum posts. Please do not publish your license key.
+
+The signature is validated entirely offline inside Home Assistant. EAI does not contact a license server and does not transmit the license key or household data.
 
 ---
 
@@ -444,6 +495,8 @@ The obfuscation has **no impact on functionality**. The integration works identi
 ## 📄 License
 
 Proprietary Non-Commercial — free for personal and educational use. See [LICENSE](LICENSE).
+
+This repository license is separate from the signed EAI activation key. For heat-pump and wallbox EAI access, follow the [EAI license request process](#-eai-license-for-heat-pump--wallbox) above.
 
 ---
 
