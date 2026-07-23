@@ -94,6 +94,18 @@
 .mode-strip { display: flex; height: 22px; margin: 24px 0 10px; overflow: hidden; border-radius: 6px; background: var(--bg-elevated); }
 .mode-strip span.heating { background: #d36f3b; }.mode-strip span.dhw { background: #3d73b9; }.mode-strip span.standby { background: #6c7a80; }.mode-strip span.defrost { background: #7a6a9e; }
 .mode-legend, .chart-legend { display: flex; flex-wrap: wrap; gap: 16px; color: var(--text-secondary); font-size: .75rem; }
+.forecast-intelligence { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(180px, .32fr); gap: 22px; align-items: center; margin-top: 22px; border: 1px solid color-mix(in srgb, #45c7bb 32%, var(--border-default)); border-radius: 14px; padding: 20px; background: radial-gradient(circle at 8% 50%, color-mix(in srgb, #45c7bb 15%, transparent), transparent 27%), var(--bg-elevated); }
+.confidence-orbit { display: grid; place-items: center; width: 112px; height: 112px; border-radius: 50%; box-shadow: 0 0 28px color-mix(in srgb, #45c7bb 22%, transparent); }
+.confidence-orbit > div { display: grid; place-content: center; width: 86px; height: 86px; border-radius: 50%; background: var(--bg-card); text-align: center; }
+.confidence-orbit strong { color: #45c7bb; font-size: 1.45rem; font-variant-numeric: tabular-nums; }
+.confidence-orbit span, .uncertainty-facts span, .uncertainty-facts small { color: var(--text-secondary); font-size: .7rem; }
+.forecast-explanation { display: grid; gap: 7px; }
+.forecast-explanation h4, .forecast-explanation p { margin: 0; }
+.forecast-explanation p, .forecast-explanation li { color: var(--text-secondary); line-height: 1.45; }
+.forecast-explanation ul { display: grid; gap: 4px; margin: 2px 0 0; padding-left: 18px; font-size: .78rem; }
+.uncertainty-facts { display: grid; gap: 7px; border-left: 1px solid var(--border-default); padding-left: 20px; }
+.uncertainty-facts strong { color: #a88de0; font-size: 1.8rem; font-variant-numeric: tabular-nums; }
+.uncertainty-facts small { line-height: 1.45; }
 .forecast-plot { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 280px; margin: 28px 0 14px; border-bottom: 1px solid var(--border-default); background: repeating-linear-gradient(to top, transparent, transparent 24%, color-mix(in srgb, var(--border-default) 55%, transparent) 25%); }
 .forecast-column { position: relative; flex: 1; height: 100%; min-width: 2px; }
 .forecast-value { position: absolute; bottom: 0; left: 20%; width: 60%; border-radius: 2px 2px 0 0; background: #168f87; }
@@ -103,6 +115,6 @@
 .eai-loading, .eai-empty { min-height: 220px; display: grid; place-content: center; gap: 8px; text-align: center; color: var(--text-secondary); }
 .locked-card { min-height: 280px; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; }
 .lock-icon { color: #a88de0; font-size: 2rem; }
-@media (max-width: 900px) { .eai-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.wow-card, .wow-card:nth-child(-n+2) { grid-column: span 3; }.savings-layout { grid-template-columns: 1fr; }.energy-story { grid-template-columns: repeat(4, 1fr); }.energy-path { display: none; } }
-@media (max-width: 600px) { .eai-hero, .eai-demo-banner { flex-direction: column; padding: 20px; }.demo-cta { text-align: left; }.eai-grid { grid-template-columns: 1fr; }.eai-wow-grid { grid-template-columns: 1fr; }.wow-card, .wow-card:nth-child(-n+2) { grid-column: auto; }.eai-span-2 { grid-column: auto; }.forecast-plot { height: 220px; gap: 1px; }.savings-header, .timeline-heading { flex-direction: column; }.energy-story { grid-template-columns: repeat(2, 1fr); }.advisory-timeline { gap: 1px; }.timeline-hour small { font-size: .52rem; }.calculator-controls label > span { align-items: flex-end; }.calculator-controls label strong { text-align: right; } }
+@media (max-width: 900px) { .eai-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.wow-card, .wow-card:nth-child(-n+2) { grid-column: span 3; }.savings-layout { grid-template-columns: 1fr; }.energy-story { grid-template-columns: repeat(4, 1fr); }.energy-path { display: none; }.forecast-intelligence { grid-template-columns: auto 1fr; }.uncertainty-facts { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border-default); padding: 14px 0 0; } }
+@media (max-width: 600px) { .eai-hero, .eai-demo-banner { flex-direction: column; padding: 20px; }.demo-cta { text-align: left; }.eai-grid { grid-template-columns: 1fr; }.eai-wow-grid { grid-template-columns: 1fr; }.wow-card, .wow-card:nth-child(-n+2) { grid-column: auto; }.eai-span-2 { grid-column: auto; }.forecast-plot { height: 220px; gap: 1px; }.savings-header, .timeline-heading { flex-direction: column; }.energy-story { grid-template-columns: repeat(2, 1fr); }.advisory-timeline { gap: 1px; }.timeline-hour small { font-size: .52rem; }.calculator-controls label > span { align-items: flex-end; }.calculator-controls label strong { text-align: right; }.forecast-intelligence { grid-template-columns: 1fr; }.confidence-orbit { width: 96px; height: 96px; }.confidence-orbit > div { width: 72px; height: 72px; }.uncertainty-facts { grid-column: auto; } }
 @media (prefers-reduced-motion: reduce) { .eai-page * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }

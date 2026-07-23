@@ -49,7 +49,7 @@ const ModernEAIPage = {
                 <div class="eai-wow-grid">
                     <article class="eai-card wow-card accent"><span class="eyebrow">Warum läuft sie gerade?</span><h3>{{ whyNow.headline || "Noch keine Erklärung verfügbar" }}</h3><p>{{ whyNow.explanation }}</p><ul><li v-for="item in whyNow.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(whyNow.confidence_percent, " % Sicherheit") }}</span><span :class="originClass">{{ originLabel }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Tägliches Energie-Briefing</span><h3>{{ briefing.headline || "Briefing wird vorbereitet" }}</h3><p>{{ briefing.summary }}</p><ol><li v-for="item in briefing.actions || []" :key="item">{{ item }}</li></ol><footer><span :class="originClass">{{ originLabel }}</span></footer></article>
-                    <article class="eai-card wow-card"><span class="eyebrow">Bestes Energiezeitfenster</span><h3>{{ windowLabel }}</h3><strong class="wow-number">{{ format(optimization.pv_surplus_kwh, " kWh") }}</strong><p>{{ optimization.recommendation || "Noch kein belastbares PV-Fenster erkannt." }}</p><footer><span :class="originClass">{{ originLabel }}</span></footer></article>
+                    <article class="eai-card wow-card"><span class="eyebrow">Bestes Energiezeitfenster</span><h3>{{ windowLabel }}</h3><strong class="wow-number">{{ format(optimization.pv_surplus_kwh, " kWh") }}</strong><p>{{ optimizationExplanation.summary || optimization.recommendation || "Noch kein belastbares PV-Fenster erkannt." }}</p><ul><li v-for="item in optimizationExplanation.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(optimizationExplanation.confidence_percent, " % Vertrauen") }}</span><span :class="originClass">{{ originLabel }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Anlagen-Gesundheit</span><div class="health-row"><strong class="health-score">{{ format(diagnostics.health_score, "") }}</strong><span>/ 100</span></div><p>{{ anomalyText }}</p><footer><span :class="originClass">{{ originLabel }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Gebäude-Fingerabdruck</span><h3>{{ format(building.thermal_inertia_hours, " h Wärmespeicher") }}</h3><p>Geschätzter Wärmeverlust: {{ format(building.heat_loss_kw, " kW") }} · Lernfortschritt: {{ format(building.learning_progress_percent, " %") }}</p><div class="learning"><span :style="{ width: (building.learning_progress_percent || 0) + '%' }"></span></div><footer><span :class="originClass">{{ originLabel }}</span></footer></article>
                 </div>
@@ -58,7 +58,12 @@ const ModernEAIPage = {
 
             <div v-else-if="activeTab === 'forecast'" class="eai-card forecast-card">
                 <header><div><span class="eyebrow">72 Stunden · mit Unsicherheitsband</span><h3>Wärmepumpenbedarf und PV-Potenzial</h3></div><span :class="originClass">{{ originLabel }}</span></header>
-                <div class="forecast-plot" aria-label="72-Stunden-Prognose"><div v-for="point in forecast.hours || []" :key="point.timestamp" class="forecast-column"><span class="forecast-band" :style="bandStyle(point)"></span><span class="forecast-value" :style="{ height: powerHeight(point.forecast_kw) }"></span><span v-if="point.actual_kw != null" class="actual-dot" :style="{ bottom: powerHeight(point.actual_kw) }"></span></div></div>
+                <div class="forecast-intelligence">
+                    <div class="confidence-orbit" :style="confidenceOrbitStyle"><div><strong>{{ format(forecastUncertainty.confidence_percent, " %") }}</strong><span>Vertrauen</span></div></div>
+                    <div class="forecast-explanation"><span class="eyebrow">KEPLER erklärt die Empfehlung</span><h4>{{ optimizationExplanation.headline || "Prognose wird eingeordnet" }}</h4><p>{{ optimizationExplanation.summary || forecastUncertainty.explanation }}</p><ul><li v-for="item in optimizationExplanation.evidence || []" :key="item">{{ item }}</li></ul></div>
+                    <div class="uncertainty-facts"><span>Mittlere Unsicherheit</span><strong>± {{ format(forecastUncertainty.average_percent, " %") }}</strong><small>Das Band zeigt die aktuelle Modellspanne transparent und ist keine Garantie.</small></div>
+                </div>
+                <div class="forecast-plot" aria-label="72-Stunden-Prognose"><div v-for="point in forecast.hours || []" :key="point.timestamp" class="forecast-column" :title="forecastPointTitle(point)"><span class="forecast-band" :style="bandStyle(point)"></span><span class="forecast-value" :style="{ height: powerHeight(point.forecast_kw) }"></span><span v-if="point.actual_kw != null" class="actual-dot" :style="{ bottom: powerHeight(point.actual_kw) }"></span></div></div>
                 <div class="chart-legend"><span><i class="forecast-line"></i>Prognose</span><span><i class="actual-line"></i>Ist</span><span><i class="band-line"></i>Unsicherheit</span></div><p class="eai-caption">Haupttreiber: {{ (forecast.main_drivers || []).join(" · ") || "Nicht verfügbar" }}</p>
             </div>
 
@@ -144,6 +149,12 @@ const ModernEAIPage = {
         const whyNow = computed(() => overview.value.why_now || operation.value.why_now || {});
         const briefing = computed(() => overview.value.briefing || {});
         const optimization = computed(() => forecast.value.optimization || sections.energy?.optimization || {});
+        const optimizationExplanation = computed(() => optimization.value.explanation || {});
+        const forecastUncertainty = computed(() => forecast.value.uncertainty || {});
+        const confidenceOrbitStyle = computed(() => {
+            const confidence = Math.min(100, Math.max(0, Number(forecastUncertainty.value.confidence_percent || 0)));
+            return { background: `conic-gradient(#45c7bb ${confidence}%, color-mix(in srgb, #45c7bb 12%, var(--bg-elevated)) 0)` };
+        });
         const originLabel = computed(() => status.is_demo ? "Mock-Daten" : "Live-Daten");
         const originClass = computed(() => `origin-tag ${status.is_demo ? "demo" : "live"}`);
         const modeLabel = computed(() => ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt", unavailable: "Nicht verfügbar" }[status.data_mode] || status.data_mode));
@@ -197,15 +208,19 @@ const ModernEAIPage = {
             operation: { current_power_kw: ["Aktuelle Leistung", " kW"], current_mode: ["Betriebsart", ""], runtime_hours: ["Laufzeit", " h"], starts: ["Starts", ""], average_cycle_minutes: ["Ø Taktlänge", " min"], sensor_coverage_percent: ["Sensorabdeckung", " %"] },
             efficiency: { electric_kwh: ["Elektrische Energie", " kWh"], thermal_kwh: ["Thermische Energie", " kWh"], cop: ["Synchroner COP", ""], electric_power_kw: ["Elektrische Leistung", " kW"], thermal_power_kw: ["Thermische Leistung", " kW"], volume_flow_l_min: ["Volumenstrom", " l/min"] },
             building: { indoor_c: ["Innentemperatur", " °C"], outdoor_c: ["Außentemperatur", " °C"], comfort_delta_c: ["Komfortabweichung", " K"], thermal_inertia_hours: ["Thermische Trägheit", " h"], heat_loss_kw: ["Wärmeverlust", " kW"], learning_progress_percent: ["Lernfortschritt", " %"] },
-            energy: { pv_forecast_kwh: ["PV-Prognose", " kWh"], heat_pump_kwh: ["Wärmepumpenlast", " kWh"], pv_coverage_percent: ["PV-Deckung", " %"], expected_grid_import_kwh: ["Netzbezug erwartet", " kWh"] },
+            energy: { pv_forecast_kwh: ["PV-Prognose", " kWh"], household_base_load_kwh: ["Hausgrundlast vor Wärme", " kWh"], heat_pump_kwh: ["Wärmepumpenlast", " kWh"], battery_pv_reserve_kwh: ["Speicherreserve nach Wärme", " kWh"], wallbox_pv_available_kwh: ["Rest-PV für Wallbox", " kWh"], pv_coverage_percent: ["PV-Deckung Wärmepumpe", " %"], expected_grid_import_kwh: ["WP-Netzbezug erwartet", " kWh"], energy_context_quality_percent: ["STATS-Kontextqualität", " %"] },
             diagnostics: { health_score: ["Gesundheit", " / 100"], sensor_quality: ["Sensorqualität", ""], data_gaps: ["Datenlücken", ""], forecast_quality: ["Prognosequalität", ""], model_status: ["Modellstatus", ""], drift: ["Drift", ""] },
         };
         const detailItems = computed(() => Object.entries(labels[activeTab.value] || {}).map(([key, [label, unit]]) => ({ label, value: format(current.value[key], unit) })));
         const locked = computed(() => current.value.locked === true);
         const powerHeight = (value) => `${Math.min(100, Math.max(2, Number(value || 0) * 26))}%`;
         const bandStyle = (point) => ({ bottom: powerHeight(point.lower_kw), height: `${Math.max(2, (point.upper_kw - point.lower_kw) * 26)}%` });
+        const forecastPointTitle = (point) => {
+            const time = new Date(point.timestamp).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+            return `${time} · ${format(point.forecast_kw, " kWh")} · Band ${format(point.lower_kw, "")}–${format(point.upper_kw, " kWh")} · ± ${format(point.uncertainty_percent, " %")}`;
+        };
         onMounted(load);
-        return { tabs, activeTab, loading, error, status, current, operation, forecast, diagnostics, building, whyNow, briefing, optimization, originLabel, originClass, modeLabel, notice, windowLabel, anomalyText, overviewMetrics, detailItems, locked, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, format, powerHeight, bandStyle };
+        return { tabs, activeTab, loading, error, status, current, operation, forecast, diagnostics, building, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, originLabel, originClass, modeLabel, notice, windowLabel, anomalyText, overviewMetrics, detailItems, locked, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, format, powerHeight, bandStyle, forecastPointTitle };
     },
 };
 

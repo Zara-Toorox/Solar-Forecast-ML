@@ -437,6 +437,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .core.billing import BillingCalculator
     from .core.tariff_manager import MonthlyTariffManager
     from .core.forecast_collector import ForecastComparisonCollector
+    from .core.energy_context import StatsEnergyContextProvider
 
     aggregator = DailyEnergyAggregator(hass, config_path)
     billing_calculator = BillingCalculator(hass, config_path, entry_data=entry_config)
@@ -447,6 +448,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hourly_aggregator = HourlyBillingAggregator(hass, config_path)
     _LOGGER.info("Hourly billing aggregator initialized (price_mode: %s)",
                  entry_config.get("billing_price_mode", "dynamic"))
+
+    energy_context_provider = (
+        StatsEnergyContextProvider(hass, db_manager) if db_manager is not None else None
+    )
+    if energy_context_provider is not None:
+        await energy_context_provider.async_refresh()
 
     # --- Power Sources Collector ---
     from .power_sources_collector import PowerSourcesCollector
@@ -497,6 +504,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "forecast_comparison_collector": forecast_comparison_collector,
         "gpm_coordinator": gpm_coordinator,
         "hourly_aggregator": hourly_aggregator,
+        "energy_context_provider": energy_context_provider,
     }
 
     # --- Forward sensor platforms ---
@@ -550,6 +558,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             success = await hourly_aggregator.async_aggregate_hourly()
             if success:
                 _LOGGER.debug("Hourly billing aggregation completed")
+                if energy_context_provider is not None:
+                    await energy_context_provider.async_refresh()
             else:
                 _LOGGER.debug("Hourly billing aggregation skipped (no data)")
         except Exception as err:

@@ -10,7 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .automation import EAIRecommendationEngine, device_info
+from .automation import EAIRecommendationEngine, device_info, wallbox_enabled
 from .const import DOMAIN
 
 BINARY_SENSORS = tuple(
@@ -26,6 +26,15 @@ BINARY_SENSORS = tuple(
         "critical_data_issue",
     )
 )
+WALLBOX_BINARY_SENSORS = tuple(
+    BinarySensorEntityDescription(key=key, translation_key=key)
+    for key in (
+        "wallbox_charging_window_active",
+        "wallbox_pv_charging_recommended",
+        "wallbox_low_price_charging_recommended",
+        "wallbox_departure_risk",
+    )
+)
 
 
 async def async_setup_entry(
@@ -34,9 +43,12 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     runtime = hass.data[DOMAIN][entry.entry_id]
+    descriptions = BINARY_SENSORS + (
+        WALLBOX_BINARY_SENSORS if wallbox_enabled(entry) else ()
+    )
     async_add_entities(
         EAIBinarySensor(runtime.recommendation_engine, entry, description)
-        for description in BINARY_SENSORS
+        for description in descriptions
     )
 
 

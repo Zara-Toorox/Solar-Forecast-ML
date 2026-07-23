@@ -17,6 +17,10 @@ from .const import (
     CONF_CAPABILITY_LEVEL,
     CONF_COP_RATED,
     CONF_ELECTRICITY_PRICE_ENTITY,
+    CONF_EV_BATTERY_CAPACITY_KWH,
+    CONF_EV_DEPARTURE_TIME,
+    CONF_EV_SOC_ENTITY,
+    CONF_EV_TARGET_SOC,
     CONF_FEED_IN_TARIFF_ENTITY,
     CONF_HAS_DHW,
     CONF_HAS_HEATING_ELEMENT,
@@ -29,10 +33,22 @@ from .const import (
     CONF_MODEL,
     CONF_ONBOARDING_STATE,
     CONF_WP_TYPE,
+    CONF_WALLBOX_CHARGING_ENTITY,
+    CONF_WALLBOX_CONNECTED_ENTITY,
+    CONF_WALLBOX_ENABLED,
+    CONF_WALLBOX_ENERGY_TODAY_ENTITY,
+    CONF_WALLBOX_MAX_POWER_KW,
+    CONF_WALLBOX_NAME,
+    CONF_WALLBOX_POWER_ENTITY,
+    DEFAULT_EV_BATTERY_CAPACITY_KWH,
+    DEFAULT_EV_DEPARTURE_TIME,
+    DEFAULT_EV_TARGET_SOC,
     DOMAIN,
     DEFAULT_LOW_PRICE_THRESHOLD_CT,
+    DEFAULT_WALLBOX_MAX_POWER_KW,
     REQUIRED_SENSORS,
     STANDARD_SENSORS,
+    WALLBOX_SENSORS,
 )
 
 
@@ -75,6 +91,72 @@ def _automation_schema() -> vol.Schema:
                     step=0.1,
                     mode=selector.NumberSelectorMode.BOX,
                     unit_of_measurement="ct/kWh",
+                )
+            ),
+        }
+    )
+
+
+def _wallbox_choice_schema(*, default: bool = False) -> vol.Schema:
+    return vol.Schema({vol.Required(CONF_WALLBOX_ENABLED, default=default): bool})
+
+
+def _wallbox_schema(*, required: bool) -> vol.Schema:
+    marker = vol.Required if required else vol.Optional
+    return vol.Schema(
+        {
+            marker(CONF_WALLBOX_NAME, default="Wallbox"): str,
+            marker(CONF_WALLBOX_POWER_ENTITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor")
+            ),
+            vol.Optional(CONF_WALLBOX_ENERGY_TODAY_ENTITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor")
+            ),
+            vol.Optional(CONF_WALLBOX_CONNECTED_ENTITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "binary_sensor"])
+            ),
+            vol.Optional(CONF_WALLBOX_CHARGING_ENTITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["sensor", "binary_sensor"])
+            ),
+            marker(CONF_EV_SOC_ENTITY): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain="sensor")
+            ),
+            marker(
+                CONF_EV_BATTERY_CAPACITY_KWH,
+                default=DEFAULT_EV_BATTERY_CAPACITY_KWH,
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=5,
+                    max=250,
+                    step=0.5,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="kWh",
+                )
+            ),
+            marker(
+                CONF_EV_TARGET_SOC, default=DEFAULT_EV_TARGET_SOC
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=10,
+                    max=100,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="%",
+                )
+            ),
+            marker(
+                CONF_EV_DEPARTURE_TIME, default=DEFAULT_EV_DEPARTURE_TIME
+            ): selector.TimeSelector(),
+            marker(
+                CONF_WALLBOX_MAX_POWER_KW,
+                default=DEFAULT_WALLBOX_MAX_POWER_KW,
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=50,
+                    step=0.1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="kW",
                 )
             ),
         }
@@ -197,10 +279,35 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._data.update(
                 {key: value for key, value in user_input.items() if value}
             )
-            return await self.async_step_automation_inputs()
+            return await self.async_step_wallbox_choice()
         return self.async_show_form(
             step_id="advanced_sensors",
             data_schema=_entity_schema(ADVANCED_SENSORS, required=False),
+        )
+
+    async def async_step_wallbox_choice(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None:
+            enabled = bool(user_input[CONF_WALLBOX_ENABLED])
+            self._data[CONF_WALLBOX_ENABLED] = enabled
+            return (
+                await self.async_step_wallbox()
+                if enabled
+                else await self.async_step_automation_inputs()
+            )
+        return self.async_show_form(
+            step_id="wallbox_choice", data_schema=_wallbox_choice_schema()
+        )
+
+    async def async_step_wallbox(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None:
+            self._data.update(user_input)
+            return await self.async_step_automation_inputs()
+        return self.async_show_form(
+            step_id="wallbox", data_schema=_wallbox_schema(required=True)
         )
 
     async def async_step_automation_inputs(
@@ -224,16 +331,19 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not (entity_id := self._data.get(key))
             or self.hass.states.get(entity_id) is None
         ]
+        sensor_keys = REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS
+        if self._data.get(CONF_WALLBOX_ENABLED):
+            sensor_keys += WALLBOX_SENSORS
         duplicates = len(
             [
                 self._data.get(key)
-                for key in REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS
+                for key in sensor_keys
                 if self._data.get(key)
             ]
         ) != len(
             set(
                 self._data.get(key)
-                for key in REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS
+                for key in sensor_keys
                 if self._data.get(key)
             )
         )
@@ -331,7 +441,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
             return await getattr(self, f"async_step_{choice}")()
         return self.async_show_menu(
             step_id="init",
-            menu_options=["license", "heat_pump", "sensors", "automation"],
+            menu_options=["license", "heat_pump", "sensors", "wallbox", "automation"],
         )
 
     async def async_step_license(
@@ -408,4 +518,43 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
             return self.async_create_entry(title="", data=self._options)
         return self.async_show_form(
             step_id="automation", data_schema=_automation_schema()
+        )
+
+    async def async_step_wallbox(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            merged = {**self._entry.data, **self._options, **user_input}
+            if user_input.get(CONF_WALLBOX_ENABLED) and not all(
+                merged.get(key)
+                for key in (CONF_WALLBOX_POWER_ENTITY, CONF_EV_SOC_ENTITY)
+            ):
+                errors["base"] = "wallbox_required"
+            else:
+                self._options.update(
+                    {
+                        key: value
+                        for key, value in user_input.items()
+                        if value not in (None, "")
+                    }
+                )
+                return self.async_create_entry(title="", data=self._options)
+        return self.async_show_form(
+            step_id="wallbox",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_WALLBOX_ENABLED,
+                        default=bool(
+                            self._options.get(
+                                CONF_WALLBOX_ENABLED,
+                                self._entry.data.get(CONF_WALLBOX_ENABLED, False),
+                            )
+                        ),
+                    ): bool,
+                    **_wallbox_schema(required=False).schema,
+                }
+            ),
+            errors=errors,
         )

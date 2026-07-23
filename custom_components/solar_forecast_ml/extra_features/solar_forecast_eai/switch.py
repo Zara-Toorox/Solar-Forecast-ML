@@ -9,7 +9,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .automation import EAIRecommendationEngine, POLICY_DEFAULTS, device_info
+from .automation import (
+    EAIRecommendationEngine,
+    POLICY_DEFAULTS,
+    device_info,
+    wallbox_enabled,
+)
 from .const import DOMAIN
 
 SWITCHES = tuple(
@@ -26,9 +31,14 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     runtime = hass.data[DOMAIN][entry.entry_id]
+    descriptions = tuple(
+        description
+        for description in SWITCHES
+        if description.key != "wallbox_optimization" or wallbox_enabled(entry)
+    )
     async_add_entities(
         EAIPolicySwitch(runtime.recommendation_engine, entry, description)
-        for description in SWITCHES
+        for description in descriptions
     )
 
 

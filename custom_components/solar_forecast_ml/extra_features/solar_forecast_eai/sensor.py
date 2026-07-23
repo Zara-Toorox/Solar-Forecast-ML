@@ -15,7 +15,7 @@ from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .automation import EAIRecommendationEngine, device_info
+from .automation import EAIRecommendationEngine, device_info, wallbox_enabled
 from .const import DOMAIN
 
 
@@ -45,8 +45,17 @@ SENSORS = (
         ],
     ),
     EAISensorDescription(
+        key="recommendation_explanation",
+        translation_key="recommendation_explanation",
+    ),
+    EAISensorDescription(
         key="recommendation_confidence",
         translation_key="recommendation_confidence",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="forecast_uncertainty",
+        translation_key="forecast_uncertainty",
         native_unit_of_measurement=PERCENTAGE,
     ),
     EAISensorDescription(
@@ -107,6 +116,86 @@ SENSORS = (
     ),
 )
 
+WALLBOX_SENSORS = (
+    EAISensorDescription(
+        key="wallbox_recommended_action",
+        translation_key="wallbox_recommended_action",
+        device_class=SensorDeviceClass.ENUM,
+        options=["data_unavailable", "connect", "charge", "defer", "complete"],
+    ),
+    EAISensorDescription(
+        key="wallbox_recommendation_reason",
+        translation_key="wallbox_recommendation_reason",
+        device_class=SensorDeviceClass.ENUM,
+        options=[
+            "data_unavailable",
+            "pv_surplus",
+            "pv_window_upcoming",
+            "low_price",
+            "departure_deadline",
+            "deadline_plan",
+            "target_reached",
+        ],
+    ),
+    EAISensorDescription(
+        key="wallbox_recommendation_explanation",
+        translation_key="wallbox_recommendation_explanation",
+    ),
+    EAISensorDescription(
+        key="wallbox_recommendation_confidence",
+        translation_key="wallbox_recommendation_confidence",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="wallbox_forecast_uncertainty",
+        translation_key="wallbox_forecast_uncertainty",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="wallbox_next_start",
+        translation_key="wallbox_next_start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    EAISensorDescription(
+        key="wallbox_recommended_end",
+        translation_key="wallbox_recommended_end",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    EAISensorDescription(
+        key="wallbox_required_energy",
+        translation_key="wallbox_required_energy",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    ),
+    EAISensorDescription(
+        key="wallbox_expected_pv_share",
+        translation_key="wallbox_expected_pv_share",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="wallbox_estimated_cost",
+        translation_key="wallbox_estimated_cost",
+        device_class=SensorDeviceClass.MONETARY,
+        native_unit_of_measurement="EUR",
+    ),
+    EAISensorDescription(
+        key="wallbox_estimated_cost_advantage",
+        translation_key="wallbox_estimated_cost_advantage",
+        device_class=SensorDeviceClass.MONETARY,
+        native_unit_of_measurement="EUR",
+    ),
+    EAISensorDescription(
+        key="wallbox_departure_readiness",
+        translation_key="wallbox_departure_readiness",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="wallbox_data_quality",
+        translation_key="wallbox_data_quality",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -114,9 +203,10 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     runtime = hass.data[DOMAIN][entry.entry_id]
+    descriptions = SENSORS + (WALLBOX_SENSORS if wallbox_enabled(entry) else ())
     async_add_entities(
         EAISensor(runtime.recommendation_engine, entry, description)
-        for description in SENSORS
+        for description in descriptions
     )
 
 

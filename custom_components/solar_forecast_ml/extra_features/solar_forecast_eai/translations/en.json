@@ -91,6 +91,18 @@
           "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional."
         }
       },
+      "wallbox_choice": {
+        "title": "E-mobility and wallbox",
+        "description": "Enable optional wallbox analytics. EAI only creates recommendations and never sends control commands to the vehicle or wallbox.",
+        "data": {"wallbox_enabled": "Enable wallbox analytics"},
+        "data_description": {"wallbox_enabled": "Enables joint planning of heat-pump demand and vehicle charging from residual PV energy."}
+      },
+      "wallbox": {
+        "title": "Wallbox and vehicle",
+        "description": "Assign measurements and charging targets for the primary wallbox. EAI only exposes passive advice and automation triggers.",
+        "data": {"wallbox_name": "Name", "wallbox_power_entity": "Current wallbox power (W)", "wallbox_energy_today_entity": "Wallbox daily energy (kWh)", "wallbox_connected_entity": "Vehicle connected", "wallbox_charging_entity": "Charging active", "ev_soc_entity": "Vehicle state of charge (%)", "ev_battery_capacity_kwh": "Usable battery capacity (kWh)", "ev_target_soc": "Target state of charge (%)", "ev_departure_time": "Regular departure time", "wallbox_max_power_kw": "Maximum charging power (kW)"},
+        "data_description": {"wallbox_name": "Free name for the vehicle or wallbox. Unit: none.", "wallbox_power_entity": "Expected: sensor for current wallbox charging power. Unit: W. Required.", "wallbox_energy_today_entity": "Expected: charging energy accumulated since midnight. Unit: kWh. Optional.", "wallbox_connected_entity": "Expected: binary sensor indicating that a vehicle is connected. Unit: none. Optional.", "wallbox_charging_entity": "Expected: binary sensor indicating active charging. Unit: none. Optional.", "ev_soc_entity": "Expected: current vehicle battery state of charge. Unit: %. Required.", "ev_battery_capacity_kwh": "Usable vehicle battery capacity. Unit: kWh. Required.", "ev_target_soc": "Desired state of charge at departure. Unit: %. Required.", "ev_departure_time": "Regular local time by which the charging target should be reached. Unit: local time. Required.", "wallbox_max_power_kw": "Maximum charging power available to the vehicle. Unit: kW. Required."}
+      },
       "validation": {
         "title": "Sensor validation",
         "description": "The sensor assignment contains warnings. Missing entities: {missing}. Duplicate assignments: {duplicates}.",
@@ -139,7 +151,8 @@
       "license_expired": "The license has expired.",
       "license_missing_entitlement": "The EAI entitlement is missing.",
       "license_validation_error": "The license could not be validated safely.",
-      "validation_required": "Review and accept the sensor warnings."
+      "validation_required": "Review and accept the sensor warnings.",
+      "wallbox_required": "Wallbox analytics require at least wallbox power and vehicle state of charge."
     },
     "abort": {
       "not_confirmed": "Setup was not confirmed.",
@@ -155,6 +168,7 @@
           "license": "Renew license",
           "heat_pump": "Heat pump details",
           "sensors": "Sensor assignments",
+          "wallbox": "E-mobility and wallbox",
           "automation": "Automation signals"
         }
       },
@@ -224,6 +238,12 @@
           "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional."
         }
       },
+      "wallbox": {
+        "title": "E-mobility and wallbox",
+        "description": "Update wallbox measurements and charging targets. EAI never switches the wallbox itself.",
+        "data": {"wallbox_enabled": "Enable wallbox analytics", "wallbox_name": "Name", "wallbox_power_entity": "Current wallbox power (W)", "wallbox_energy_today_entity": "Wallbox daily energy (kWh)", "wallbox_connected_entity": "Vehicle connected", "wallbox_charging_entity": "Charging active", "ev_soc_entity": "Vehicle state of charge (%)", "ev_battery_capacity_kwh": "Usable battery capacity (kWh)", "ev_target_soc": "Target state of charge (%)", "ev_departure_time": "Regular departure time", "wallbox_max_power_kw": "Maximum charging power (kW)"},
+        "data_description": {"wallbox_enabled": "Enables or disables all wallbox analytics and wallbox entities.", "wallbox_name": "Free name. Unit: none.", "wallbox_power_entity": "Expected: current charging power. Unit: W. Required when wallbox analytics are enabled.", "wallbox_energy_today_entity": "Expected: charging energy accumulated since midnight. Unit: kWh. Optional.", "wallbox_connected_entity": "Expected: binary sensor for the vehicle connection. Unit: none. Optional.", "wallbox_charging_entity": "Expected: binary sensor for active charging. Unit: none. Optional.", "ev_soc_entity": "Expected: current vehicle state of charge. Unit: %. Required when wallbox analytics are enabled.", "ev_battery_capacity_kwh": "Usable battery capacity. Unit: kWh.", "ev_target_soc": "Desired state of charge at departure. Unit: %.", "ev_departure_time": "Regular local departure time. Unit: time.", "wallbox_max_power_kw": "Maximum available charging power. Unit: kW."}
+      },
       "automation": {
         "title": "Automation signals",
         "description": "Configure optional price data for passive EAI triggers and conditions.",
@@ -236,11 +256,18 @@
     "sensor": {
       "recommended_action": {"name": "Recommended action", "state": {"none": "None", "dhw": "Domestic hot water", "heating": "Heating", "thermal_storage": "Thermal storage", "defer": "Defer"}},
       "recommendation_reason": {"name": "Recommendation reason", "state": {"none": "None", "pv_surplus": "PV surplus", "low_price": "Low electricity price", "comfort_need": "Comfort demand", "high_price": "High electricity price", "data_unavailable": "Data unavailable"}},
-      "recommendation_confidence": {"name": "Recommendation confidence"}, "next_action_start": {"name": "Next recommended start"}, "recommendation_valid_until": {"name": "Recommendation valid until"}, "recommended_duration": {"name": "Recommended duration"}, "consumption_next_hour": {"name": "Consumption next hour"}, "consumption_today": {"name": "Expected consumption today"}, "consumption_tomorrow": {"name": "Expected consumption tomorrow"}, "expected_pv_surplus": {"name": "Expected PV surplus"}, "estimated_cost_advantage": {"name": "Estimated cost advantage"}, "data_quality": {"name": "Data quality"},
-      "model_status": {"name": "Model status", "state": {"learning": "Learning", "ready": "Ready", "degraded": "Degraded"}}
+      "recommendation_explanation": {"name": "Recommendation explanation"},
+      "recommendation_confidence": {"name": "Recommendation confidence"}, "forecast_uncertainty": {"name": "Forecast uncertainty"}, "next_action_start": {"name": "Next recommended start"}, "recommendation_valid_until": {"name": "Recommendation valid until"}, "recommended_duration": {"name": "Recommended duration"}, "consumption_next_hour": {"name": "Consumption next hour"}, "consumption_today": {"name": "Expected consumption today"}, "consumption_tomorrow": {"name": "Expected consumption tomorrow"}, "expected_pv_surplus": {"name": "Expected PV surplus"}, "estimated_cost_advantage": {"name": "Estimated cost advantage"}, "data_quality": {"name": "Data quality"},
+      "model_status": {"name": "Model status", "state": {"learning": "Learning", "ready": "Ready", "degraded": "Degraded"}},
+      "wallbox_recommended_action": {"name": "Wallbox recommendation", "state": {"data_unavailable": "Data unavailable", "connect": "Connect vehicle", "charge": "Charge", "defer": "Wait", "complete": "Target reached"}},
+      "wallbox_recommendation_reason": {"name": "Wallbox recommendation reason", "state": {"data_unavailable": "Data unavailable", "pv_surplus": "Residual PV surplus", "pv_window_upcoming": "PV window upcoming", "low_price": "Low electricity price", "departure_deadline": "Departure target", "deadline_plan": "Charging plan to departure", "target_reached": "Target reached"}},
+      "wallbox_recommendation_explanation": {"name": "Wallbox recommendation explanation"},
+      "wallbox_recommendation_confidence": {"name": "Wallbox recommendation confidence"},
+      "wallbox_forecast_uncertainty": {"name": "Wallbox forecast uncertainty"},
+      "wallbox_next_start": {"name": "Next recommended charging start"}, "wallbox_recommended_end": {"name": "Recommended charging end"}, "wallbox_required_energy": {"name": "Required charging energy"}, "wallbox_expected_pv_share": {"name": "Expected PV charging share"}, "wallbox_estimated_cost": {"name": "Estimated charging cost"}, "wallbox_estimated_cost_advantage": {"name": "Estimated charging-plan cost advantage"}, "wallbox_departure_readiness": {"name": "Departure readiness"}, "wallbox_data_quality": {"name": "Wallbox data quality"}
     },
-    "binary_sensor": {"automation_ready": {"name": "Automation ready"}, "pv_window_active": {"name": "PV window active"}, "dhw_recommended": {"name": "Domestic hot water recommended"}, "heating_recommended": {"name": "Heating recommended"}, "thermal_storage_recommended": {"name": "Thermal storage recommended"}, "low_price_window_active": {"name": "Low-price window active"}, "operation_deferrable": {"name": "Operation deferrable"}, "critical_data_issue": {"name": "Critical data issue"}},
-    "switch": {"automation_signals": {"name": "Enable automation signals"}, "pv_optimization": {"name": "PV signals"}, "tariff_optimization": {"name": "Tariff signals"}}
+    "binary_sensor": {"automation_ready": {"name": "Automation ready"}, "pv_window_active": {"name": "PV window active"}, "dhw_recommended": {"name": "Domestic hot water recommended"}, "heating_recommended": {"name": "Heating recommended"}, "thermal_storage_recommended": {"name": "Thermal storage recommended"}, "low_price_window_active": {"name": "Low-price window active"}, "operation_deferrable": {"name": "Operation deferrable"}, "critical_data_issue": {"name": "Critical data issue"}, "wallbox_charging_window_active": {"name": "Wallbox charging window active"}, "wallbox_pv_charging_recommended": {"name": "PV charging recommended"}, "wallbox_low_price_charging_recommended": {"name": "Low-price charging recommended"}, "wallbox_departure_risk": {"name": "Departure target at risk"}},
+    "switch": {"automation_signals": {"name": "Enable automation signals"}, "pv_optimization": {"name": "PV signals"}, "tariff_optimization": {"name": "Tariff signals"}, "wallbox_optimization": {"name": "Wallbox signals"}}
   },
   "selector": {
     "wp_type": {

@@ -91,6 +91,44 @@
           "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional."
         }
       },
+      "wallbox_choice": {
+        "title": "E-Mobilität und Wallbox",
+        "description": "Aktiviere die optionale Wallbox-Analyse. EAI erstellt ausschließlich Empfehlungen und sendet keine Steuerbefehle an Fahrzeug oder Wallbox.",
+        "data": {
+          "wallbox_enabled": "Wallbox-Analyse aktivieren"
+        },
+        "data_description": {
+          "wallbox_enabled": "Aktiviert die gemeinsame Planung von Wärmepumpenbedarf und Fahrzeugladung auf Basis des verbleibenden PV-Überschusses."
+        }
+      },
+      "wallbox": {
+        "title": "Wallbox und Fahrzeug",
+        "description": "Ordne die Messwerte und Ladeziele der primären Wallbox zu. EAI stellt nur passive Empfehlungen und Automationstrigger bereit.",
+        "data": {
+          "wallbox_name": "Bezeichnung",
+          "wallbox_power_entity": "Aktuelle Wallbox-Leistung (W)",
+          "wallbox_energy_today_entity": "Wallbox-Tagesenergie (kWh)",
+          "wallbox_connected_entity": "Fahrzeug verbunden",
+          "wallbox_charging_entity": "Ladevorgang aktiv",
+          "ev_soc_entity": "Fahrzeug-Ladezustand (%)",
+          "ev_battery_capacity_kwh": "Nutzbare Batteriekapazität (kWh)",
+          "ev_target_soc": "Ziel-Ladezustand (%)",
+          "ev_departure_time": "Reguläre Abfahrtszeit",
+          "wallbox_max_power_kw": "Maximale Ladeleistung (kW)"
+        },
+        "data_description": {
+          "wallbox_name": "Erwartet: frei wählbare Bezeichnung für Fahrzeug oder Wallbox. Einheit: keine.",
+          "wallbox_power_entity": "Erwartet: Sensor für die aktuelle elektrische Ladeleistung der Wallbox. Einheit: W. Pflichtfeld.",
+          "wallbox_energy_today_entity": "Erwartet: seit Mitternacht kumulierte Ladeenergie. Einheit: kWh. Optional.",
+          "wallbox_connected_entity": "Erwartet: Binärsensor, der eine bestehende Fahrzeugverbindung meldet. Einheit: keine. Optional.",
+          "wallbox_charging_entity": "Erwartet: Binärsensor für einen aktiven Ladevorgang. Einheit: keine. Optional.",
+          "ev_soc_entity": "Erwartet: aktueller Ladezustand des Fahrzeugakkus. Einheit: %. Pflichtfeld.",
+          "ev_battery_capacity_kwh": "Erwartet: nutzbare Fahrzeug-Batteriekapazität laut Hersteller oder Fahrzeug. Einheit: kWh. Pflichtfeld.",
+          "ev_target_soc": "Erwartet: gewünschter Ladezustand zur Abfahrt. Einheit: %. Pflichtfeld.",
+          "ev_departure_time": "Erwartet: regelmäßige Uhrzeit, zu der das Ladeziel erreicht sein soll. Einheit: lokale Uhrzeit. Pflichtfeld.",
+          "wallbox_max_power_kw": "Erwartet: maximal nutzbare Ladeleistung des Fahrzeugs an dieser Wallbox. Einheit: kW. Pflichtfeld."
+        }
+      },
       "validation": {
         "title": "Sensorprüfung",
         "description": "Die Sensorzuordnung enthält Warnungen. Fehlende Entitäten: {missing}. Doppelte Zuordnungen: {duplicates}.",
@@ -147,7 +185,8 @@
       "license_expired": "Die Lizenz ist abgelaufen.",
       "license_missing_entitlement": "Die EAI-Berechtigung fehlt.",
       "license_validation_error": "Die Lizenz konnte nicht sicher geprüft werden.",
-      "validation_required": "Prüfe und bestätige die Sensorwarnungen."
+      "validation_required": "Prüfe und bestätige die Sensorwarnungen.",
+      "wallbox_required": "Für die Wallbox-Analyse werden mindestens Wallbox-Leistung und Fahrzeug-Ladezustand benötigt."
     },
     "abort": {
       "not_confirmed": "Die Einrichtung wurde nicht bestätigt.",
@@ -163,6 +202,7 @@
           "license": "Lizenz erneuern",
           "heat_pump": "Wärmepumpendaten",
           "sensors": "Sensorzuordnungen",
+          "wallbox": "E-Mobilität und Wallbox",
           "automation": "Automationssignale"
         }
       },
@@ -232,6 +272,36 @@
           "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional."
         }
       },
+      "wallbox": {
+        "title": "E-Mobilität und Wallbox",
+        "description": "Aktualisiere Wallbox-Messwerte und Ladeziele. EAI schaltet die Wallbox nicht selbst.",
+        "data": {
+          "wallbox_enabled": "Wallbox-Analyse aktivieren",
+          "wallbox_name": "Bezeichnung",
+          "wallbox_power_entity": "Aktuelle Wallbox-Leistung (W)",
+          "wallbox_energy_today_entity": "Wallbox-Tagesenergie (kWh)",
+          "wallbox_connected_entity": "Fahrzeug verbunden",
+          "wallbox_charging_entity": "Ladevorgang aktiv",
+          "ev_soc_entity": "Fahrzeug-Ladezustand (%)",
+          "ev_battery_capacity_kwh": "Nutzbare Batteriekapazität (kWh)",
+          "ev_target_soc": "Ziel-Ladezustand (%)",
+          "ev_departure_time": "Reguläre Abfahrtszeit",
+          "wallbox_max_power_kw": "Maximale Ladeleistung (kW)"
+        },
+        "data_description": {
+          "wallbox_enabled": "Aktiviert oder deaktiviert alle Wallbox-Auswertungen und Wallbox-Entitäten. EAI sendet keine Steuerbefehle.",
+          "wallbox_name": "Erwartet: frei wählbare Bezeichnung für Fahrzeug oder Wallbox. Einheit: keine.",
+          "wallbox_power_entity": "Erwartet: aktuelle elektrische Ladeleistung. Einheit: W. Pflichtfeld bei aktivierter Wallbox-Analyse.",
+          "wallbox_energy_today_entity": "Erwartet: seit Mitternacht kumulierte Ladeenergie. Einheit: kWh. Optional.",
+          "wallbox_connected_entity": "Erwartet: Binärsensor für die Fahrzeugverbindung. Einheit: keine. Optional.",
+          "wallbox_charging_entity": "Erwartet: Binärsensor für einen aktiven Ladevorgang. Einheit: keine. Optional.",
+          "ev_soc_entity": "Erwartet: aktueller Fahrzeug-Ladezustand. Einheit: %. Pflichtfeld bei aktivierter Wallbox-Analyse.",
+          "ev_battery_capacity_kwh": "Erwartet: nutzbare Batteriekapazität laut Hersteller oder Fahrzeug. Einheit: kWh.",
+          "ev_target_soc": "Erwartet: gewünschter Ladezustand zur Abfahrt. Einheit: %.",
+          "ev_departure_time": "Erwartet: regelmäßige lokale Abfahrtszeit. Einheit: Uhrzeit.",
+          "wallbox_max_power_kw": "Erwartet: maximal nutzbare Ladeleistung von Fahrzeug und Wallbox. Einheit: kW."
+        }
+      },
       "automation": {
         "title": "Automationssignale",
         "description": "Konfiguriere optionale Preisdaten für passive EAI-Trigger und Bedingungen.",
@@ -252,7 +322,9 @@
     "sensor": {
       "recommended_action": {"name": "Empfohlene Aktion", "state": {"none": "Keine", "dhw": "Warmwasser", "heating": "Heizen", "thermal_storage": "Thermischer Speicher", "defer": "Verschieben"}},
       "recommendation_reason": {"name": "Grund der Empfehlung", "state": {"none": "Keiner", "pv_surplus": "PV-Überschuss", "low_price": "Niedriger Strompreis", "comfort_need": "Komfortbedarf", "high_price": "Hoher Strompreis", "data_unavailable": "Daten nicht verfügbar"}},
+      "recommendation_explanation": {"name": "Erklärung der Empfehlung"},
       "recommendation_confidence": {"name": "Vertrauen der Empfehlung"},
+      "forecast_uncertainty": {"name": "Prognoseunsicherheit"},
       "next_action_start": {"name": "Nächster empfohlener Start"},
       "recommendation_valid_until": {"name": "Empfehlung gültig bis"},
       "recommended_duration": {"name": "Empfohlene Dauer"},
@@ -262,7 +334,20 @@
       "expected_pv_surplus": {"name": "Erwarteter PV-Überschuss"},
       "estimated_cost_advantage": {"name": "Geschätzter Kostenvorteil"},
       "data_quality": {"name": "Datenqualität"},
-      "model_status": {"name": "Modellstatus", "state": {"learning": "Lernt", "ready": "Bereit", "degraded": "Eingeschränkt"}}
+      "model_status": {"name": "Modellstatus", "state": {"learning": "Lernt", "ready": "Bereit", "degraded": "Eingeschränkt"}},
+      "wallbox_recommended_action": {"name": "Wallbox-Empfehlung", "state": {"data_unavailable": "Daten fehlen", "connect": "Fahrzeug verbinden", "charge": "Laden", "defer": "Warten", "complete": "Ladeziel erreicht"}},
+      "wallbox_recommendation_reason": {"name": "Grund der Wallbox-Empfehlung", "state": {"data_unavailable": "Daten fehlen", "pv_surplus": "Verbleibender PV-Überschuss", "pv_window_upcoming": "PV-Fenster folgt", "low_price": "Niedriger Strompreis", "departure_deadline": "Abfahrtsziel", "deadline_plan": "Ladeplan bis Abfahrt", "target_reached": "Ladeziel erreicht"}},
+      "wallbox_recommendation_explanation": {"name": "Erklärung der Wallbox-Empfehlung"},
+      "wallbox_recommendation_confidence": {"name": "Vertrauen der Wallbox-Empfehlung"},
+      "wallbox_forecast_uncertainty": {"name": "Wallbox-Prognoseunsicherheit"},
+      "wallbox_next_start": {"name": "Nächster empfohlener Ladestart"},
+      "wallbox_recommended_end": {"name": "Empfohlenes Ladeende"},
+      "wallbox_required_energy": {"name": "Benötigte Ladeenergie"},
+      "wallbox_expected_pv_share": {"name": "Erwarteter PV-Ladeanteil"},
+      "wallbox_estimated_cost": {"name": "Geschätzte Ladekosten"},
+      "wallbox_estimated_cost_advantage": {"name": "Geschätzter Kostenvorteil der Ladeplanung"},
+      "wallbox_departure_readiness": {"name": "Abfahrtsbereitschaft"},
+      "wallbox_data_quality": {"name": "Wallbox-Datenqualität"}
     },
     "binary_sensor": {
       "automation_ready": {"name": "Automation bereit"},
@@ -272,12 +357,17 @@
       "thermal_storage_recommended": {"name": "Thermischer Speicher empfohlen"},
       "low_price_window_active": {"name": "Niedrigpreisfenster aktiv"},
       "operation_deferrable": {"name": "Betrieb verschiebbar"},
-      "critical_data_issue": {"name": "Kritisches Datenproblem"}
+      "critical_data_issue": {"name": "Kritisches Datenproblem"},
+      "wallbox_charging_window_active": {"name": "Wallbox-Ladefenster aktiv"},
+      "wallbox_pv_charging_recommended": {"name": "PV-Laden empfohlen"},
+      "wallbox_low_price_charging_recommended": {"name": "Niedrigpreis-Laden empfohlen"},
+      "wallbox_departure_risk": {"name": "Abfahrtsziel gefährdet"}
     },
     "switch": {
       "automation_signals": {"name": "Automationssignale freigeben"},
       "pv_optimization": {"name": "PV-Signale"},
-      "tariff_optimization": {"name": "Tarif-Signale"}
+      "tariff_optimization": {"name": "Tarif-Signale"},
+      "wallbox_optimization": {"name": "Wallbox-Signale"}
     }
   },
   "selector": {
