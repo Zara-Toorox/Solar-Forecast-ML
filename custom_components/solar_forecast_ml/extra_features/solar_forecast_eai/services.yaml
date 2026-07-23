@@ -1,0 +1,116 @@
+# ============================================================================
+# Solar Forecast Energy AI - Service Definitions
+# Heat Pump Energy Consumption Forecasting
+# ============================================================================
+
+# ============================================================================
+# AI Model Services
+# ============================================================================
+
+retrain_ai_model:
+  name: "Retrain AI Model"
+  description: "Developer only or on advice."
+  fields: {}
+
+reset_ai_model:
+  name: "Reset AI Model"
+  description: "Developer only or on advice."
+  fields: {}
+
+run_grid_search:
+  name: "Grid-Search Hyperparameter Optimization"
+  description: "Developer only or on advice."
+  fields:
+    retrain_after:
+      name: "Retrain after search"
+      description: "Retrain model with best parameters after grid search completes"
+      default: true
+      selector:
+        boolean:
+
+analyze_feature_importance:
+  name: "Analyze Feature Importance"
+  description: "Developer only or on advice."
+  fields:
+    num_permutations:
+      name: "Number of permutations"
+      description: "Developer only or on advice."
+      required: false
+      default: 5
+      example: 5
+      selector:
+        number:
+          min: 1
+          max: 20
+          mode: box
+
+# ============================================================================
+# Operational Services
+# ============================================================================
+
+run_all_day_end_tasks:
+  name: "Run All Day-End Tasks"
+  description: "Developer only or on advice."
+  fields: {}
+
+test_morning_routine:
+  name: "TEST: Analyze Morning Predictions (Real Data)"
+  description: "Developer only or on advice."
+  fields: {}
+
+run_adaptive_forecast:
+  name: "Run Adaptive Midday Correction"
+  description: "Developer only or on advice."
+  fields: {}
+
+# ============================================================================
+# Weather Services
+# ============================================================================
+
+run_weather_correction:
+  name: "Rebuild Corrected Weather Forecast"
+  description: "Developer only or on advice."
+  fields: {}
+
+refresh_multi_weather:
+  name: "Refresh Multi-Weather Cache"
+  description: "Developer only or on advice."
+  fields:
+    force_update:
+      name: "Force Update"
+      description: "Developer only or on advice."
+      required: false
+      default: false
+      example: true
+      selector:
+        boolean:
+
+# ============================================================================
+# Notification Services
+# ============================================================================
+
+send_daily_briefing:
+  name: Send Daily Energy Briefing
+  description: "Developer only or on advice."
+  fields:
+    notify_service:
+      name: Mobile Device (Optional)
+      description: "Developer only or on advice."
+      example: "mobile_app_iphone"
+      default: "persistent_notification"
+      required: false
+      selector:
+        text:
+    language:
+      name: Language
+      description: Language for the notification text (de=German, en=English)
+      example: "de"
+      default: "de"
+      required: false
+      selector:
+        select:
+          options:
+            - label: "Deutsch"
+              value: "de"
+            - label: "English"
+              value: "en"

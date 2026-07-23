@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-32.2.4-blue.svg" alt="Version"></a>
+  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-40.0.0-blue.svg" alt="Version"></a>
   <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Hubble-purple.svg" alt="Codename"></a>
   <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Proprietary%20Non--Commercial-green.svg" alt="License"></a>
@@ -116,9 +116,9 @@ Most integrations (like Forecast.Solar or Solcast) use static cloud models. They
 
 ---
 
-## 🧭 Version 32 — Source of Truth Architecture
+## 🧭 Version 40 — Source of Truth Architecture
 
-Version 32 makes SFML the authoritative runtime layer for solar production data. Home Assistant remains the interface, but SFML now owns the critical calculations, validation, and persistence path for its solar truth.
+Version 40 makes SFML the authoritative runtime layer for solar production data. Home Assistant remains the interface, but SFML now owns the critical calculations, validation, and persistence path for its solar truth.
 
 - **SFML-owned database truth** — Actual production, panel-group values, forecast rows, diagnostics, and companion-module reads are backed by the SFML database.
 - **Panel-group power first** — Configuration is built around the power sensors (W) of the individual strings or panel groups. Daily-reset energy helpers are no longer required for the core solar setup.
@@ -131,7 +131,7 @@ Version 32 makes SFML the authoritative runtime layer for solar production data.
 
 ## 🏗️ The "Hubble" AI Stack — Enterprise Intelligence built for Home Assistant
 
-<img src="pictures/hubble_ai.jpg" alt="Hubble AI 8.0 — Solar Forecast ML" align="left" width="350">
+<img src="pictures/hubble_ai.jpg" alt="Hubble AI 10.0 — Solar Forecast ML" align="left" width="350">
 
 > *"It's kind of like building a Hubble telescope in your living room just to check if the fridge light is on in the kitchen… simply because it's cool."*
 > — **Basti**, Tester

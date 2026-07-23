@@ -1,0 +1,254 @@
+{
+  "config": {
+    "step": {
+      "license": {
+        "title": "Offline license",
+        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection.",
+        "data": {
+          "license_key": "EAI license key"
+        },
+        "data_description": {
+          "license_key": "The license key starts with EAI1. and is issued by your EAI provider."
+        }
+      },
+      "heat_pump": {
+        "title": "Heat pump and building",
+        "description": "Enter the technical details of the heat pump and its installation.",
+        "data": {
+          "wp_type": "Heat pump type",
+          "manufacturer": "Manufacturer",
+          "model": "Model designation",
+          "heating_capacity_kw": "Rated heating output (kW)",
+          "cop_rated": "Rated COP",
+          "has_heating_element": "Electric auxiliary heater available",
+          "has_dhw": "Domestic hot water available",
+          "building_ref": "Building designation"
+        },
+        "data_description": {
+          "wp_type": "Select the heat source and system type.",
+          "manufacturer": "Optional manufacturer name.",
+          "model": "Optional model or product designation.",
+          "heating_capacity_kw": "Rated heat output according to the data sheet, from 1 to 100 kW.",
+          "cop_rated": "Rated coefficient of performance according to the data sheet, from 1 to 10.",
+          "has_heating_element": "Enable this if the system has an electric auxiliary heater.",
+          "has_dhw": "Enable this if the heat pump also provides domestic hot water.",
+          "building_ref": "Optional name used to identify the building, for example Residential house."
+        }
+      },
+      "required_sensors": {
+        "title": "Required sensors",
+        "description": "Assign the three measurements required for the basic EAI functions.",
+        "data": {
+          "wp_power_entity": "Heat pump electrical power (W)",
+          "wp_energy_today": "Heat pump daily energy (kWh)",
+          "outdoor_temp_entity": "Outdoor temperature (°C)"
+        },
+        "data_description": {
+          "wp_power_entity": "Expected: sensor for the heat pump's current total electrical power input. Unit: W. Required.",
+          "wp_energy_today": "Expected: electrical energy meter accumulated daily since 00:00 that resets to 0 at midnight. Unit: kWh. Required.",
+          "outdoor_temp_entity": "Expected: sensor for the current outdoor air temperature at the building. Unit: °C. Required."
+        }
+      },
+      "standard_sensors": {
+        "title": "Standard sensors",
+        "description": "Assign available operating and temperature sensors. All fields on this page are optional.",
+        "data": {
+          "indoor_temp_entity": "Indoor temperature (°C)",
+          "target_temp_entity": "Room target temperature (°C)",
+          "operation_mode_entity": "Operating mode",
+          "compressor_entity": "Compressor status",
+          "dhw_temp_entity": "Domestic hot water temperature (°C)",
+          "flow_temp_entity": "Flow temperature (°C)",
+          "return_temp_entity": "Return temperature (°C)",
+          "starts_entity": "Compressor starts",
+          "runtime_entity": "Compressor runtime"
+        },
+        "data_description": {
+          "indoor_temp_entity": "Expected: temperature sensor in a representative indoor or reference room. Unit: °C. Optional.",
+          "target_temp_entity": "Expected: sensor for the currently configured room target temperature. Unit: °C. Optional.",
+          "operation_mode_entity": "Expected: sensor with a stable text state for the operating mode, such as heating, domestic hot water, defrost, or off. Unit: none. Optional.",
+          "compressor_entity": "Expected: binary sensor for compressor operation (on/off) or numerical sensor using 1/0. Unit: none. Optional.",
+          "dhw_temp_entity": "Expected: temperature sensor in the domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
+          "flow_temp_entity": "Expected: sensor for the current heating circuit flow temperature. Unit: °C. Optional.",
+          "return_temp_entity": "Expected: sensor for the current return temperature of the same heating circuit. Unit: °C. Optional.",
+          "starts_entity": "Expected: cumulative compressor-start counter; counter resets must be detectable. Unit: count. Optional.",
+          "runtime_entity": "Expected: cumulative compressor runtime counter. Unit: h. Optional."
+        }
+      },
+      "advanced_sensors": {
+        "title": "Advanced sensors",
+        "description": "Assign additional measurements for advanced analysis. All fields on this page are optional.",
+        "data": {
+          "thermal_energy_entity": "Thermal energy (kWh)",
+          "volume_flow_entity": "Volume flow",
+          "source_temp_entity": "Heat source temperature (°C)",
+          "storage_temp_entity": "Storage temperature (°C)"
+        },
+        "data_description": {
+          "thermal_energy_entity": "Expected: cumulative heat meter for thermal energy delivered by the heat pump; the system boundary for space heating and domestic hot water must be known. Unit: thermal kWh. Optional.",
+          "volume_flow_entity": "Expected: sensor for the current heating circuit volume flow; the fluid and measured circuit must be known. Unit: l/min or m³/h. Optional.",
+          "source_temp_entity": "Expected: heat-source temperature sensor for outdoor air, brine, or groundwater. Unit: °C. Optional.",
+          "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional."
+        }
+      },
+      "validation": {
+        "title": "Sensor validation",
+        "description": "The sensor assignment contains warnings. Missing entities: {missing}. Duplicate assignments: {duplicates}.",
+        "data": {
+          "acknowledge_warnings": "Warnings reviewed and accepted"
+        },
+        "data_description": {
+          "acknowledge_warnings": "Confirm that you reviewed the listed warnings and want to continue with this assignment."
+        }
+      },
+      "automation_inputs": {
+        "title": "Prices for automation signals",
+        "description": "Optional: Assign electricity price and feed-in tariff sensors. EAI never controls equipment and only exposes passive signals.",
+        "data": {"electricity_price_entity": "Current electricity price", "feed_in_tariff_entity": "Current feed-in tariff", "low_price_threshold_ct": "Low-price threshold (ct/kWh)"},
+        "data_description": {"electricity_price_entity": "Expected: sensor for the current import price. Unit: EUR/kWh or ct/kWh. Optional.", "feed_in_tariff_entity": "Expected: sensor for the current feed-in tariff. Unit: EUR/kWh or ct/kWh. Optional.", "low_price_threshold_ct": "Price below which EAI signals a low-price window. Unit: ct/kWh."}
+      },
+      "summary": {
+        "title": "Summary",
+        "description": "License: {license_id}. Available capability level: {capability}. Forecasting is not active yet.",
+        "data": {
+          "confirm": "Create configuration"
+        },
+        "data_description": {
+          "confirm": "Confirm the entries and create the EAI configuration."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Renew license",
+        "description": "Enter a new signed EAI license key to replace the current license.",
+        "data": {
+          "license_key": "New EAI license key"
+        },
+        "data_description": {
+          "license_key": "The new license key is validated locally before it is stored."
+        }
+      }
+    },
+    "error": {
+      "license_not_provided": "Enter an EAI license key.",
+      "license_invalid_format": "The license format is invalid.",
+      "license_invalid_signature": "The signature is invalid.",
+      "license_wrong_product": "The license belongs to another product.",
+      "license_unsupported_version": "The license version is not supported.",
+      "license_unknown_key_id": "The signing key is not recognized.",
+      "license_not_yet_valid": "The license is not valid yet.",
+      "license_expired": "The license has expired.",
+      "license_missing_entitlement": "The EAI entitlement is missing.",
+      "license_validation_error": "The license could not be validated safely.",
+      "validation_required": "Review and accept the sensor warnings."
+    },
+    "abort": {
+      "not_confirmed": "Setup was not confirmed.",
+      "reauth_successful": "The license was renewed successfully."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "EAI options",
+        "description": "Select the area you want to change.",
+        "menu_options": {
+          "license": "Renew license",
+          "heat_pump": "Heat pump details",
+          "sensors": "Sensor assignments",
+          "automation": "Automation signals"
+        }
+      },
+      "license": {
+        "title": "Renew license",
+        "description": "Enter a new signed EAI license key to replace the current license.",
+        "data": {
+          "license_key": "New EAI license key"
+        },
+        "data_description": {
+          "license_key": "The new license key is validated locally before it is stored."
+        }
+      },
+      "heat_pump": {
+        "title": "Heat pump details",
+        "description": "Update the technical details of the configured heat pump.",
+        "data": {
+          "manufacturer": "Manufacturer",
+          "model": "Model designation",
+          "heating_capacity_kw": "Rated heating output (kW)",
+          "cop_rated": "Rated COP"
+        },
+        "data_description": {
+          "manufacturer": "Optional manufacturer name.",
+          "model": "Optional model or product designation.",
+          "heating_capacity_kw": "Rated heat output according to the data sheet.",
+          "cop_rated": "Rated coefficient of performance according to the data sheet."
+        }
+      },
+      "sensors": {
+        "title": "Sensor assignments",
+        "description": "Update the sensor entities used by EAI. All fields on this page are optional.",
+        "data": {
+          "wp_power_entity": "Heat pump electrical power (W)",
+          "wp_energy_today": "Heat pump daily energy (kWh)",
+          "outdoor_temp_entity": "Outdoor temperature (°C)",
+          "indoor_temp_entity": "Indoor temperature (°C)",
+          "target_temp_entity": "Room target temperature (°C)",
+          "operation_mode_entity": "Operating mode",
+          "compressor_entity": "Compressor status",
+          "dhw_temp_entity": "Domestic hot water temperature (°C)",
+          "flow_temp_entity": "Flow temperature (°C)",
+          "return_temp_entity": "Return temperature (°C)",
+          "starts_entity": "Compressor starts",
+          "runtime_entity": "Compressor runtime",
+          "thermal_energy_entity": "Thermal energy (kWh)",
+          "volume_flow_entity": "Volume flow",
+          "source_temp_entity": "Heat source temperature (°C)",
+          "storage_temp_entity": "Storage temperature (°C)"
+        },
+        "data_description": {
+          "wp_power_entity": "Expected: sensor for the heat pump's current total electrical power input. Unit: W. Required during initial setup.",
+          "wp_energy_today": "Expected: electrical energy meter accumulated daily since 00:00 that resets to 0 at midnight. Unit: kWh. Required during initial setup.",
+          "outdoor_temp_entity": "Expected: sensor for the current outdoor air temperature at the building. Unit: °C. Required during initial setup.",
+          "indoor_temp_entity": "Expected: temperature sensor in a representative indoor or reference room. Unit: °C. Optional.",
+          "target_temp_entity": "Expected: sensor for the currently configured room target temperature. Unit: °C. Optional.",
+          "operation_mode_entity": "Expected: sensor with a stable text state for the operating mode, such as heating, domestic hot water, defrost, or off. Unit: none. Optional.",
+          "compressor_entity": "Expected: binary sensor for compressor operation (on/off) or numerical sensor using 1/0. Unit: none. Optional.",
+          "dhw_temp_entity": "Expected: temperature sensor in the domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
+          "flow_temp_entity": "Expected: sensor for the current heating circuit flow temperature. Unit: °C. Optional.",
+          "return_temp_entity": "Expected: sensor for the current return temperature of the same heating circuit. Unit: °C. Optional.",
+          "starts_entity": "Expected: cumulative compressor-start counter; counter resets must be detectable. Unit: count. Optional.",
+          "runtime_entity": "Expected: cumulative compressor runtime counter. Unit: h. Optional.",
+          "thermal_energy_entity": "Expected: cumulative heat meter for thermal energy delivered by the heat pump; the system boundary for space heating and domestic hot water must be known. Unit: thermal kWh. Optional.",
+          "volume_flow_entity": "Expected: sensor for the current heating circuit volume flow; the fluid and measured circuit must be known. Unit: l/min or m³/h. Optional.",
+          "source_temp_entity": "Expected: heat-source temperature sensor for outdoor air, brine, or groundwater. Unit: °C. Optional.",
+          "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional."
+        }
+      },
+      "automation": {
+        "title": "Automation signals",
+        "description": "Configure optional price data for passive EAI triggers and conditions.",
+        "data": {"electricity_price_entity": "Current electricity price", "feed_in_tariff_entity": "Current feed-in tariff", "low_price_threshold_ct": "Low-price threshold (ct/kWh)"},
+        "data_description": {"electricity_price_entity": "Expected: sensor for the current import price. Unit: EUR/kWh or ct/kWh. Optional.", "feed_in_tariff_entity": "Expected: sensor for the current feed-in tariff. Unit: EUR/kWh or ct/kWh. Optional.", "low_price_threshold_ct": "Price below which EAI signals a low-price window. Unit: ct/kWh."}
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "recommended_action": {"name": "Recommended action", "state": {"none": "None", "dhw": "Domestic hot water", "heating": "Heating", "thermal_storage": "Thermal storage", "defer": "Defer"}},
+      "recommendation_reason": {"name": "Recommendation reason", "state": {"none": "None", "pv_surplus": "PV surplus", "low_price": "Low electricity price", "comfort_need": "Comfort demand", "high_price": "High electricity price", "data_unavailable": "Data unavailable"}},
+      "recommendation_confidence": {"name": "Recommendation confidence"}, "next_action_start": {"name": "Next recommended start"}, "recommendation_valid_until": {"name": "Recommendation valid until"}, "recommended_duration": {"name": "Recommended duration"}, "consumption_next_hour": {"name": "Consumption next hour"}, "consumption_today": {"name": "Expected consumption today"}, "consumption_tomorrow": {"name": "Expected consumption tomorrow"}, "expected_pv_surplus": {"name": "Expected PV surplus"}, "estimated_cost_advantage": {"name": "Estimated cost advantage"}, "data_quality": {"name": "Data quality"},
+      "model_status": {"name": "Model status", "state": {"learning": "Learning", "ready": "Ready", "degraded": "Degraded"}}
+    },
+    "binary_sensor": {"automation_ready": {"name": "Automation ready"}, "pv_window_active": {"name": "PV window active"}, "dhw_recommended": {"name": "Domestic hot water recommended"}, "heating_recommended": {"name": "Heating recommended"}, "thermal_storage_recommended": {"name": "Thermal storage recommended"}, "low_price_window_active": {"name": "Low-price window active"}, "operation_deferrable": {"name": "Operation deferrable"}, "critical_data_issue": {"name": "Critical data issue"}},
+    "switch": {"automation_signals": {"name": "Enable automation signals"}, "pv_optimization": {"name": "PV signals"}, "tariff_optimization": {"name": "Tariff signals"}}
+  },
+  "selector": {
+    "wp_type": {
+      "options": {
+        "air_water": "Air/water",
+        "brine_water": "Brine/water",
+        "water_water": "Water/water"
+      }
+    }
+  }
+}

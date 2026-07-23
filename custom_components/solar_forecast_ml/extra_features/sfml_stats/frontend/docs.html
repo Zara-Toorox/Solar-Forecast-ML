@@ -1,2264 +1,495 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solar Forecast ML — Handbuch & Dokumentation</title>
-    
-    <!-- Google Fonts: Outfit & Fira Code -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    
-    <style>
-        :root {
-            /* Identisch zu STATS base.css mit Gelb-Dominanz */
-            --bg-app: #0a0e14;
-            --bg-card: rgba(255, 255, 255, 0.04);
-            --bg-card-hover: rgba(255, 255, 255, 0.08);
-            --bg-sidebar: rgba(10, 14, 20, 0.85);
-            --border-default: rgba(255, 255, 255, 0.10);
-            --border-hover: rgba(251, 191, 36, 0.25);
-            
-            --text-primary: #f0f6fc;
-            --text-secondary: #8b949e;
-            --text-muted: #6e7681;
-            
-            --solar: #fbbf24;
-            --solar-glow: rgba(251, 191, 36, 0.35);
-            --battery: #06b6d4;
-            --battery-glow: rgba(6, 182, 212, 0.2);
-            --grid: #6366f1;
-            --house: #8b5cf6;
-            
-            --accent: #fbbf24;
-            --accent-glow: rgba(251, 191, 36, 0.15);
-            --success: #22c55e;
-            --warning: #eab308;
-            --danger: #ef4444;
-            
-            --radius-lg: 20px;
-            --radius-md: 12px;
-            --radius-sm: 6px;
-            
-            --font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-            --font-mono: 'Fira Code', monospace;
-            
-            --transition-normal: 0.25s ease;
-            --transition-fast: 0.15s ease;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family: var(--font-family);
-            background-color: var(--bg-app);
-            color: var(--text-primary);
-            line-height: 1.6;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-            background-image: 
-                radial-gradient(circle at 10% 20%, rgba(251, 191, 36, 0.05) 0%, transparent 40%),
-                radial-gradient(circle at 90% 80%, rgba(251, 191, 36, 0.02) 0%, transparent 40%);
-            background-attachment: fixed;
-        }
-
-        h1, h2, h3, h4 {
-            font-weight: 700;
-            letter-spacing: -0.01em;
-        }
-
-        a {
-            color: var(--solar);
-            text-decoration: none;
-            transition: var(--transition-fast);
-        }
-        a:hover {
-            color: #ffda79;
-        }
-
-        .container {
-            max-width: 1440px;
-            margin: 0 auto;
-            display: flex;
-            gap: 24px;
-            padding: 24px;
-        }
-
-        /* --- SIDEBAR --- */
-        .sidebar {
-            width: 320px;
-            flex-shrink: 0;
-            position: sticky;
-            top: 24px;
-            height: calc(100vh - 48px);
-            background: var(--bg-sidebar);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-lg);
-            padding: 24px;
-            backdrop-filter: blur(24px) saturate(160%);
-            -webkit-backdrop-filter: blur(24px) saturate(160%);
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            z-index: 100;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding-bottom: 16px;
-            border-bottom: 1px solid var(--border-default);
-        }
-
-        .brand-logo {
-            font-size: 1.3rem;
-            filter: drop-shadow(0 0 6px var(--solar-glow));
-        }
-
-        .brand-name {
-            font-size: 1.15rem;
-            font-weight: 800;
-            letter-spacing: -0.01em;
-            background: linear-gradient(135deg, var(--solar), #f59e0b);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .search-box {
-            position: relative;
-        }
-
-        .search-input {
-            width: 100%;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-sm);
-            padding: 10px 12px 10px 36px;
-            color: var(--text-primary);
-            font-family: inherit;
-            font-size: 0.88rem;
-            outline: none;
-            transition: var(--transition-fast);
-        }
-
-        .search-input:focus {
-            border-color: var(--solar);
-            background: rgba(255, 255, 255, 0.04);
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-            font-size: 0.85rem;
-        }
-
-        .nav-links {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            overflow-y: auto;
-            flex-grow: 1;
-            padding-right: 4px;
-        }
-
-        .nav-links::-webkit-scrollbar {
-            width: 4px;
-        }
-        .nav-links::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 2px;
-        }
-
-        .nav-link {
-            display: flex;
-            align-items: center;
-            padding: 10px 14px;
-            border-radius: var(--radius-sm);
-            color: var(--text-secondary);
-            font-weight: 500;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: var(--transition-fast);
-            border: 1px solid transparent;
-        }
-
-        .nav-link:hover, .nav-link.active {
-            color: var(--text-primary);
-            background: var(--bg-card-hover);
-            border-color: var(--border-default);
-        }
-
-        .nav-link.active {
-            border-left: 3px solid var(--solar);
-            background: rgba(251, 191, 36, 0.04);
-            font-weight: 600;
-        }
-
-        /* --- CONTENT --- */
-        .content {
-            flex-grow: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-        }
-
-        .hero {
-            background: var(--bg-card);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-lg);
-            padding: 36px;
-            backdrop-filter: blur(24px) saturate(160%);
-            -webkit-backdrop-filter: blur(24px) saturate(160%);
-        }
-
-        .hero-title {
-            font-size: 2rem;
-            line-height: 1.2;
-            margin-bottom: 12px;
-            background: linear-gradient(135deg, #fff, var(--text-secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero-desc {
-            font-size: 1rem;
-            color: var(--text-secondary);
-            max-width: 850px;
-        }
-
-        .section-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-lg);
-            padding: 32px;
-            backdrop-filter: blur(20px) saturate(130%);
-            -webkit-backdrop-filter: blur(20px) saturate(130%);
-            transition: var(--transition-normal);
-        }
-
-        .section-title {
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            border-bottom: 1px solid var(--border-default);
-            padding-bottom: 10px;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .section-title span {
-            color: var(--solar);
-        }
-
-        /* --- SYSTEM GRID --- */
-        .ecosystem-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
-        }
-
-        @media (min-width: 900px) {
-            .ecosystem-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-
-        .eco-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-md);
-            padding: 20px;
-            transition: var(--transition-normal);
-        }
-
-        .eco-card:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
-        }
-
-        .eco-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .eco-name {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: #fff;
-        }
-
-        .eco-badge {
-            background: rgba(251, 191, 36, 0.06);
-            color: var(--solar);
-            border: 1px solid rgba(251, 191, 36, 0.2);
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-
-        .eco-badge.stats {
-            background: rgba(251, 191, 36, 0.06);
-            color: var(--solar);
-            border-color: rgba(251, 191, 36, 0.2);
-        }
-
-        .eco-badge.tfs {
-            background: rgba(6, 182, 212, 0.06);
-            color: var(--battery);
-            border-color: rgba(6, 182, 212, 0.2);
-        }
-
-        .eco-badge.gpm {
-            background: rgba(99, 102, 241, 0.06);
-            color: var(--grid);
-            border-color: rgba(99, 102, 241, 0.2);
-        }
-
-        .eco-desc {
-            color: var(--text-secondary);
-            font-size: 0.92rem;
-            margin-bottom: 12px;
-        }
-
-        .eco-features {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            font-size: 0.88rem;
-            color: var(--text-secondary);
-        }
-
-        .eco-features li {
-            display: flex;
-            align-items: flex-start;
-            gap: 8px;
-        }
-
-        .eco-features li::before {
-            content: '●';
-            color: var(--solar);
-            font-size: 0.6rem;
-            margin-top: 6px;
-        }
-
-        .eco-features.stats li::before {
-            color: var(--solar);
-        }
-        .eco-features.tfs li::before {
-            color: var(--battery);
-        }
-        .eco-features.gpm li::before {
-            color: var(--grid);
-        }
-
-        /* --- SENSORS TABLE --- */
-        .sensor-table-container {
-            overflow-x: auto;
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-md);
-            margin-top: 16px;
-            background: rgba(255, 255, 255, 0.01);
-        }
-
-        .sensor-table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-            font-size: 0.88rem;
-        }
-
-        .sensor-table th {
-            background: rgba(255, 255, 255, 0.02);
-            font-weight: 600;
-            color: #fff;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border-default);
-        }
-
-        .sensor-table td {
-            padding: 12px 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            vertical-align: middle;
-            color: var(--text-secondary);
-        }
-
-        .sensor-table tr:hover {
-            background: rgba(255, 255, 255, 0.015);
-        }
-
-        .sensor-name {
-            font-weight: 600;
-            color: #fff;
-        }
-
-        .sensor-unit {
-            font-family: var(--font-mono);
-            background: rgba(255, 255, 255, 0.05);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.78rem;
-            color: var(--text-primary);
-        }
-
-        .sensor-module-header {
-            background: rgba(255, 255, 255, 0.03) !important;
-            font-weight: bold;
-            color: var(--solar) !important;
-            font-size: 0.9rem;
-        }
-
-        /* --- CONFIG FLOW EXPLORER --- */
-        .explorer-container {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: var(--radius-md);
-            padding: 20px;
-            border: 1px solid var(--border-default);
-        }
-
-        .explorer-header {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .explorer-tab {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-sm);
-            padding: 8px 16px;
-            color: var(--text-secondary);
-            font-weight: 600;
-            cursor: pointer;
-            font-size: 0.88rem;
-            transition: var(--transition-fast);
-        }
-
-        .explorer-tab:hover {
-            background: var(--bg-card-hover);
-            color: #fff;
-        }
-
-        .explorer-tab.active {
-            background: rgba(251, 191, 36, 0.08);
-            border-color: var(--solar);
-            color: #fff;
-        }
-
-        .explorer-tab.stats.active {
-            background: rgba(251, 191, 36, 0.08);
-            border-color: var(--solar);
-        }
-
-        .explorer-tab.gpm.active {
-            background: rgba(99, 102, 241, 0.08);
-            border-color: var(--grid);
-        }
-
-        .explorer-content {
-            display: none;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .explorer-content.active {
-            display: flex;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .config-item {
-            border: 1px solid var(--border-default);
-            background: rgba(255, 255, 255, 0.01);
-            border-radius: var(--radius-sm);
-            padding: 12px 16px;
-            cursor: pointer;
-            transition: var(--transition-fast);
-        }
-
-        .config-item:hover {
-            background: rgba(255, 255, 255, 0.02);
-            border-color: var(--border-hover);
-        }
-
-        .config-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .config-item-title {
-            font-weight: 600;
-            color: #fff;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.92rem;
-        }
-
-        .config-item-icon {
-            font-size: 1rem;
-        }
-
-        .config-item-arrow {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-            transition: var(--transition-fast);
-        }
-
-        .config-item.open .config-item-arrow {
-            transform: rotate(90deg);
-            color: var(--solar);
-        }
-
-        .config-item-body {
-            display: none;
-            padding-top: 10px;
-            color: var(--text-secondary);
-            font-size: 0.88rem;
-            border-top: 1px solid var(--border-default);
-            margin-top: 10px;
-            line-height: 1.5;
-        }
-
-        .config-item.open .config-item-body {
-            display: block;
-        }
-
-        /* --- CODE BOXES & EXAMPLES --- */
-        .code-box {
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-sm);
-            padding: 16px;
-            font-family: var(--font-mono);
-            font-size: 0.82rem;
-            overflow-x: auto;
-            color: #e2e8f0;
-            margin: 12px 0;
-        }
-
-        .example-card {
-            border-left: 3px solid var(--solar);
-            background: rgba(255, 255, 255, 0.01);
-            padding: 16px;
-            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-            margin-top: 16px;
-            border-top: 1px solid var(--border-default);
-            border-right: 1px solid var(--border-default);
-            border-bottom: 1px solid var(--border-default);
-        }
-
-        .example-title {
-            font-weight: 600;
-            color: #fff;
-            margin-bottom: 8px;
-            font-size: 0.95rem;
-        }
-
-        .example-desc {
-            font-size: 0.88rem;
-            color: var(--text-secondary);
-            margin-bottom: 10px;
-        }
-
-        /* --- SMART CHARGING SIMULATOR --- */
-        .simulator-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 24px;
-            margin-top: 16px;
-        }
-
-        @media (min-width: 900px) {
-            .simulator-grid {
-                grid-template-columns: 3fr 2fr;
-            }
-        }
-
-        .sim-sliders {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: var(--radius-md);
-            padding: 20px;
-            border: 1px solid var(--border-default);
-        }
-
-        .sim-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .sim-label-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-
-        .sim-label {
-            color: var(--text-secondary);
-        }
-
-        .sim-value {
-            color: var(--solar);
-            font-weight: 600;
-        }
-
-        .sim-slider {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 4px;
-            border-radius: 2px;
-            background: rgba(255, 255, 255, 0.08);
-            outline: none;
-        }
-
-        .sim-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: var(--solar);
-            cursor: pointer;
-            box-shadow: 0 0 8px var(--solar-glow);
-            transition: var(--transition-fast);
-        }
-
-        .sim-slider::-webkit-slider-thumb:hover {
-            transform: scale(1.15);
-        }
-
-        .sim-result-card {
-            background: rgba(255, 255, 255, 0.01);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-md);
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            text-align: center;
-        }
-
-        .battery-container {
-            width: 90px;
-            height: 140px;
-            border: 3px solid var(--text-secondary);
-            border-radius: 10px;
-            position: relative;
-            padding: 3px;
-            display: flex;
-            align-items: flex-end;
-        }
-
-        .battery-container::after {
-            content: '';
-            position: absolute;
-            top: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 24px;
-            height: 7px;
-            background: var(--text-secondary);
-            border-top-left-radius: 3px;
-            border-top-right-radius: 3px;
-        }
-
-        .battery-fill {
-            width: 100%;
-            height: 0%;
-            background: linear-gradient(to top, var(--solar), #fffbeb);
-            border-radius: 5px;
-            transition: height 0.3s ease;
-            box-shadow: 0 0 12px var(--solar-glow);
-        }
-
-        .battery-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: #fff;
-            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
-            z-index: 2;
-        }
-
-        .sim-explanation {
-            font-size: 0.88rem;
-            color: var(--text-secondary);
-        }
-
-        .sim-explanation strong {
-            color: #fff;
-        }
-
-        /* --- SETUPS --- */
-        .setup-timeline {
-            position: relative;
-            padding-left: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-            margin-top: 16px;
-        }
-
-        .setup-timeline::before {
-            content: '';
-            position: absolute;
-            left: 6px;
-            top: 8px;
-            bottom: 8px;
-            width: 2px;
-            background: var(--border-default);
-        }
-
-        .setup-step {
-            position: relative;
-        }
-
-        .setup-step::before {
-            content: '';
-            position: absolute;
-            left: -24px;
-            top: 6px;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: var(--bg-app);
-            border: 3px solid var(--solar);
-        }
-
-        .setup-step-title {
-            font-size: 1.05rem;
-            font-weight: 600;
-            color: #fff;
-            margin-bottom: 6px;
-        }
-
-        .setup-step-desc {
-            color: var(--text-secondary);
-            font-size: 0.88rem;
-        }
-
-        /* --- UTILS --- */
-        .alert-box {
-            background: rgba(251, 191, 36, 0.02);
-            border: 1px solid rgba(251, 191, 36, 0.15);
-            border-radius: var(--radius-md);
-            padding: 16px;
-            color: var(--text-secondary);
-            font-size: 0.88rem;
-            margin-top: 16px;
-            display: flex;
-            gap: 12px;
-            align-items: flex-start;
-        }
-
-        .alert-icon {
-            color: var(--solar);
-            font-size: 1.1rem;
-        }
-
-        .alert-text strong {
-            color: #fff;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(3px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Responsive Breakpoints */
-        @media (max-width: 1024px) {
-            .container {
-                flex-direction: column;
-            }
-            .sidebar {
-                width: 100%;
-                height: auto;
-                position: relative;
-                top: 0;
-            }
-        }
-
-        /* --- DIAGRAMS & KPIS SECTION --- */
-        .charts-grid {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 24px;
-            margin-top: 16px;
-        }
-        @media (min-width: 900px) {
-            .charts-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-        .chart-legend-card, .kpi-explain-card {
-            background: rgba(255, 255, 255, 0.01);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-md);
-            padding: 18px;
-            transition: var(--transition-normal);
-        }
-        .chart-legend-card:hover, .kpi-explain-card:hover {
-            background: var(--bg-card-hover);
-            border-color: var(--border-hover);
-        }
-        .chart-legend-title {
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: #fff;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .chart-line-indicator {
-            width: 24px;
-            height: 4px;
-            border-radius: var(--radius-sm);
-            display: inline-block;
-        }
-        .chart-line-indicator.prognose {
-            background: var(--solar);
-            box-shadow: 0 0 8px var(--solar-glow);
-        }
-        .chart-line-indicator.hybrid {
-            border-top: 3px dashed var(--battery);
-            height: 0;
-            width: 24px;
-        }
-        .chart-line-indicator.ist {
-            background: var(--success);
-            box-shadow: 0 0 8px rgba(34, 197, 94, 0.3);
-        }
-        .chart-line-indicator.tfs {
-            border-top: 3px dashed var(--house);
-            height: 0;
-            width: 24px;
-        }
-        .chart-line-indicator.unsicherheit {
-            background: var(--solar-glow);
-            width: 24px;
-            height: 12px;
-            border: 1px solid rgba(251, 191, 36, 0.2);
-        }
-        .chart-line-indicator.jetzt {
-            border-left: 2px dashed var(--text-muted);
-            height: 16px;
-            width: 0;
-            margin-left: 10px;
-            margin-right: 10px;
-        }
-        
-        .kpi-badge-demo {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--border-default);
-            padding: 4px 10px;
-            border-radius: var(--radius-sm);
-            font-size: 0.8rem;
-            font-weight: 700;
-            color: var(--solar);
-            display: inline-block;
-            margin-bottom: 8px;
-        }
-        .kpi-badge-demo.success {
-            color: var(--success);
-            border-color: rgba(34, 197, 94, 0.2);
-        }
-        .kpi-badge-demo.info {
-            color: var(--battery);
-            border-color: rgba(6, 182, 212, 0.2);
-        }
-        .kpi-badge-demo.danger {
-            color: var(--danger);
-            border-color: rgba(239, 68, 68, 0.2);
-        }
-        .kpi-badge-demo.muted {
-            color: var(--text-secondary);
-            border-color: var(--border-default);
-        }
-        
-        .section-subtitle-minor {
-            font-size: 1.15rem;
-            font-weight: 600;
-            color: #fff;
-            margin-top: 24px;
-            margin-bottom: 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            padding-bottom: 6px;
-        }
-        
-        .weather-trace-explain {
-            background: rgba(255, 255, 255, 0.01);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-md);
-            padding: 20px;
-            margin-top: 16px;
-        }
-        
-        .weather-row-explain {
-            display: flex;
-            gap: 16px;
-            align-items: flex-start;
-            margin-bottom: 12px;
-        }
-        .weather-row-explain:last-child {
-            margin-bottom: 0;
-        }
-        .weather-row-badge {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--border-default);
-            border-radius: var(--radius-sm);
-            padding: 4px 12px;
-            font-size: 0.82rem;
-            font-weight: 600;
-            min-width: 100px;
-            text-align: center;
-        }
-    </style>
-</head>
-<body>
-
-    <div class="container">
-        
-        <!-- SIDEBAR -->
-        <aside class="sidebar">
-            <div class="brand">
-                <span class="brand-logo">☀️</span>
-                <span class="brand-name">Solar Forecast ML</span>
-            </div>
-            
-            <div class="search-box">
-                <span class="search-icon">🔍</span>
-                <input type="text" class="search-input" id="docSearch" placeholder="Suche nach Begriffen, Sensoren..." oninput="handleSearch()">
-            </div>
-            
-            <ul class="nav-links">
-                <li><div class="nav-link active" onclick="scrollToSection('ecosystem', this)">1. Das Ökosystem</div></li>
-                <li><div class="nav-link" onclick="scrollToSection('sensors', this)">2. Sensoren & Erwartungen</div></li>
-                <li><div class="nav-link" onclick="scrollToSection('charts', this)">3. Diagramme & Kennzahlen</div></li>
-                <li><div class="nav-link" onclick="scrollToSection('menus', this)">4. Einstellungs-Menüs</div></li>
-                <li><div class="nav-link" onclick="scrollToSection('smartcharging', this)">5. Smart-Charging Rechner</div></li>
-                <li><div class="nav-link" onclick="scrollToSection('provided', this)">6. Bereitgestellte Entitäten & Praxis</div></li>
-                <li><div class="nav-link" onclick="scrollToSection('setup', this)">7. Einrichtung (Workflow)</div></li>
-            </ul>
-        </aside>
-
-        <!-- MAIN CONTENT -->
-        <main class="content">
-            
-            <!-- HERO -->
-            <section class="hero">
-                <h1 class="hero-title">Solar Forecast ML — Handbuch (beta 1.2) <span style="font-size: 0.85rem; font-weight: 400; color: var(--text-muted); -webkit-text-fill-color: var(--text-muted); background: none; display: block; margin-top: 4px;">credits to Basti</span></h1>
-                <p class="hero-desc">Willkommen im technischen Handbuch. Dieses Portal erklärt verständlich die Funktionsweise des gesamten Ökosystems, dessen Einstellungsoptionen und die erwarteten Sensor-Messwerte — ganz ohne Programmiercode.</p>
-            </section>
-
-            <!-- SECTION 1: DAS ÖKOSYSTEM -->
-            <section id="ecosystem" class="section-card">
-                <h2 class="section-title"><span>1.</span> Das Ökosystem</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 0.95rem;">Das Solar Forecast ML Ökosystem besteht aus vier ineinandergreifenden Modulen, die den Solarertrag prognostizieren, analysieren und deine Hausverbraucher intelligent steuern.</p>
-                
-                <div class="ecosystem-grid">
-                    
-                    <!-- SFML -->
-                    <div class="eco-card">
-                        <div class="eco-header">
-                            <span class="eco-name">Solar Forecast ML (SFML)</span>
-                            <span class="eco-badge">Core AI</span>
-                        </div>
-                        <p class="eco-desc">Das Gehirn des Ökosystems. Berechnet stündlich deine exakten Solarprognosen auf Basis von physikalischen Berechnungen und maschinellem Lernen.</p>
-                        <ul class="eco-features">
-                            <li><strong>Multi-Wetter-Mischung:</strong> Kombiniert Open-Meteo und optionale Satelliten-Wetterdaten.</li>
-                            <li><strong>Winter-Modus:</strong> Optimiert Prognosen für flache Einstrahlungswinkel von November bis Februar.</li>
-                            <li><strong>MPPT-Drosselungserkennung:</strong> Ignoriert verfälschte Ertragswerte, wenn deine Anlage wegen vollem Akku oder Null-Export abgeregelt wurde.</li>
-                        </ul>
-                    </div>
-
-                    <!-- STATS -->
-                    <div class="eco-card">
-                        <div class="eco-header">
-                            <span class="eco-name">Solar Forecast STATS</span>
-                            <span class="eco-badge stats">Visualisierung</span>
-                        </div>
-                        <p class="eco-desc">Die Kommandozentrale. Bereitet Daten visuell auf, berechnet Autarkie-Werte und verknüpft Stromtarife mit deinen Großverbrauchern.</p>
-                        <ul class="eco-features stats">
-                            <li><strong>Hubble Insight:</strong> Ein sprachbasierter Sidekick, der dir smarte Spartipps für den Tag gibt.</li>
-                            <li><strong>Energiefluss-Dashboard:</strong> 2D- oder 3D-Darstellung deines Echtzeit-Haushaltsstroms.</li>
-                            <li><strong>Tarif-Analysen:</strong> Visualisiert Einsparungen und verknüpft stündliche Preise mit Wärmepumpe und Wallbox.</li>
-                        </ul>
-                    </div>
-
-                    <!-- TFS HA -->
-                    <div class="eco-card">
-                        <div class="eco-header">
-                            <span class="eco-name">Toorox ForeSight HA (TFS)</span>
-                            <span class="eco-badge tfs">Transformer AI</span>
-                        </div>
-                        <p class="eco-desc">Der KI-Verstärker. Nutzt ein hochmodernes neuronales Netz (Transformer), um lokale Verschattungen und diffuse Lichteffekte zu lernen.</p>
-                        <ul class="eco-features tfs">
-                            <li><strong>72-Stunden-Prognosehorizont:</strong> Präzise Prognosen für die nächsten 3 Tage.</li>
-                            <li><strong>Quantil-Ausgabe (P10/P50/P90):</strong> Zeigt Best-Case, Normal-Case und Worst-Case an.</li>
-                            <li><strong>Spezifisches Lernen (LoRA):</strong> Passt das globale Basismodell nächtlich an dein spezifisches Schattendesign an.</li>
-                        </ul>
-                    </div>
-
-                    <!-- GPM -->
-                    <div class="eco-card">
-                        <div class="eco-header">
-                            <span class="eco-name">Grid Price Monitor (GPM)</span>
-                            <span class="eco-badge gpm">Tarif-Monitor</span>
-                        </div>
-                        <p class="eco-desc">Der Preis-Wächter. Überwacht stündliche Strombörsenpreise (aWATTar) und kalkuliert deinen exakten Brutto-Endkundenpreis.</p>
-                        <ul class="eco-features gpm">
-                            <li><strong>Echte Bruttopreise:</strong> Rechnet Netzentgelte, Steuern und Aufschläge automatisch ein.</li>
-                            <li><strong>Günstig-Sensor:</strong> Schaltet Binärwerte auf "ON", wenn Strom billig ist.</li>
-                            <li><strong>Smart-Charging-Brücke:</strong> Gibt Ladesignale an STATS, um den Akku bei Billigstrom nachts gezielt aus dem Netz zu laden.</li>
-                        </ul>
-                    </div>
-
-                </div>
-            </section>
-
-            <!-- SECTION 2: SENSOREN & ERWARTUNGEN -->
-            <section id="sensors" class="section-card">
-                <h2 class="section-title"><span>2.</span> Erwartete Sensoren & Einheiten</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.95rem;">Für eine fehlerfreie Prognose und Auswertung benötigt das System saubere Messwerte. Hier sind alle im Config-Flow erwarteten Entitäten aufgelistet:</p>
-                
-                <div class="sensor-table-container">
-                    <table class="sensor-table">
-                        <thead>
-                            <tr>
-                                <th>Name im Config-Menü</th>
-                                <th>Einheit</th>
-                                <th>Beschreibung & Erwartetes Verhalten</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- SFML Sektion -->
-                            <tr>
-                                <td colspan="3" class="sensor-module-header">Solar Forecast ML (SFML) Konfiguration</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Panelgruppe 1-4: Live Power Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td><strong>Pflicht je aktiver Panelgruppe.</strong> Aktuelle DC-Leistung der jeweiligen Modulgruppe in Watt. Diese Gruppen-Power ist die neue Source of Truth: SFML summiert daraus Gesamtleistung, Tages-Ist und Gruppen-Ist. Nicht als kW-Sensor dokumentieren oder konfigurieren.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Panelgruppe 1-4: Azimuth</td>
-                                <td><span class="sensor-unit">°</span></td>
-                                <td>Ausrichtung der Gruppe: 0° Nord, 90° Ost, 180° Süd, 270° West. Wird für Physikprognose, Schattenlogik und Gruppengewichtung genutzt.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Panelgruppe 1-4: Tilt</td>
-                                <td><span class="sensor-unit">°</span></td>
-                                <td>Neigungswinkel der Module. 0° bedeutet horizontal, 90° vertikal.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Panelgruppe 1-4: Installed DC Capacity</td>
-                                <td><span class="sensor-unit">kWp</span></td>
-                                <td>Installierte DC-Nennleistung der Gruppe. Aus allen Gruppen wird die Anlagenkapazität abgeleitet.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Household Consumption Today</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Optionaler Tagesverbrauch des Haushalts seit Mitternacht. Muss um 00:00 Uhr auf 0 zurücksetzen.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Inverter AC Limit</td>
-                                <td><span class="sensor-unit">kW</span></td>
-                                <td>Optionales physikalisches AC-Limit des Wechselrichters. Begrenzt Prognosen auf die real mögliche AC-Ausgangsleistung.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Solar to Battery Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Optionaler Leistungsfluss von PV in den Akku. Wird für MPPT-/Battery-Full-Drosselungserkennung genutzt, damit verfälschte Stunden nicht ins Lernen laufen.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Lokale Wettersensoren</td>
-                                <td><span class="sensor-unit">mm/h, lx, °C, m/s, %, hPa, W/m²</span></td>
-                                <td>Optionale reale Außensensoren vor Ort: Regen, Helligkeit/Lux, Temperatur, Wind, Luftfeuchte, Luftdruck und Globalstrahlung. Keine Indoorwerte, Templates oder Internet-Wetterdienste als Messwerte verwenden.</td>
-                            </tr>
-
-                            <!-- STATS Sektion -->
-                            <tr>
-                                <td colspan="3" class="sensor-module-header">Solar Forecast STATS</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Home Consumption (W)</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Aktuelle Leistung des gesamten Haushaltsbedarfs. Wird für das Flussdiagramm verwendet.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Home Consumption Today (kWh)</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Kumulierter Haushaltsverbrauch seit Mitternacht. Reset zwingend um 00:00 Uhr.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Solar to House (W)</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Aktueller PV-Ertrag, der direkt im Haus verbraucht wird.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Battery SOC (%)</td>
-                                <td><span class="sensor-unit">%</span></td>
-                                <td>Aktueller Ladestand des Heimspeichers (0–100%). (Optional)</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Battery Power (W)</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Aktuelle Batterieleistung. <strong>Laden = positiv, Entladen = negativ.</strong> (Optional)</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Grid Import / Export Today</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Täglicher Netzbezug und Netzeinspeisung. Reset zwingend um 00:00 Uhr. (Optional)</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Großverbraucher-Sensoren</td>
-                                <td><span class="sensor-unit">W / kWh</span></td>
-                                <td>Mapping für Wärmepumpe, Heizstab oder Wallbox (Leistung in W, Tagesverbrauch in kWh). (Optional)</td>
-                            </tr>
-
-                            <!-- GPM Sektion -->
-                            <tr>
-                                <td colspan="3" class="sensor-module-header">Grid Price Monitor (GPM) & Smart Charging</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Börsen-Spotpreis</td>
-                                <td><span class="sensor-unit">ct/kWh</span></td>
-                                <td>Börsen-Spotpreis (z. B. aWATTar-API) brutto bzw. netto.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Battery Power Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Leistung, mit der die Batterie aus dem Netz geladen wird. (Optional)</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name">Battery SoC Sensor</td>
-                                <td><span class="sensor-unit">%</span></td>
-                                <td>Wird für die Berechnung der dynamic Smart-Charging Ladelogik benötigt.</td>
-                            </tr>
-                        </tbody>
-            </section>
-
-            <!-- SECTION 3: DIAGRAMME & KENNZAHLEN -->
-            <section id="charts" class="section-card">
-                <h2 class="section-title"><span>3.</span> Diagramme & Kennzahlen</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 0.95rem;">STATS bereitet deine Energiedaten in interaktiven Dashboards auf. Hier erfährst du, was die Kurven im Hauptdiagramm aussagen und wie sich die Kennzahlen (KPIs) zusammensetzen.</p>
-                
-                <div class="section-subtitle-minor">Das Hauptdiagramm (Tagesprognose vs. IST)</div>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">Das große Liniendiagramm vergleicht den prognostizierten Solarertrag stündlich mit der tatsächlichen Erzeugung (IST). Die Kurven haben folgende Bedeutung:</p>
-                
-                <div class="charts-grid">
-                    <div class="chart-legend-card">
-                        <div class="chart-legend-title">
-                            <span class="chart-line-indicator prognose"></span>
-                            Prognose (Gelb, durchgezogen)
-                        </div>
-                        <p class="eco-desc">Der standardmäßig von Solar Forecast ML (Core) berechnete Solarertrag auf Basis der Wettervorhersagen und deiner Anlagenparameter.</p>
-                    </div>
-                    
-                    <div class="chart-legend-card">
-                        <div class="chart-legend-title">
-                            <span class="chart-line-indicator hybrid"></span>
-                            Hybrid (Cyan, gestrichelt)
-                        </div>
-                        <p class="eco-desc">Die optimierte Vorhersage. Sie verschmilzt die physikalischen Erwartungsdaten mit maschinellem Lernen (ML) und bereinigten Erfahrungswerten.</p>
-                    </div>
-                    
-                    <div class="chart-legend-card">
-                        <div class="chart-legend-title">
-                            <span class="chart-line-indicator ist"></span>
-                            IST (Grün, durchgezogen)
-                        </div>
-                        <p class="eco-desc">Der tatsächlich gemessene Solarertrag deiner PV-Anlage an diesem Tag in Kilowattstunden (kWh).</p>
-                    </div>
-                    
-                    <div class="chart-legend-card">
-                        <div class="chart-legend-title">
-                            <span class="chart-line-indicator tfs"></span>
-                            TFS (Lila, gestrichelt)
-                        </div>
-                        <p class="eco-desc">Toorox ForeSight Prognose. Das neuronale Netz (Transformer-Modell), das lokale Verschattungsmuster und diffuse Lichtsituationen hinzulernt.</p>
-                    </div>
-
-                    <div class="chart-legend-card">
-                        <div class="chart-legend-title">
-                            <span class="chart-line-indicator unsicherheit"></span>
-                            Unsicherheit (Schattierter Bereich)
-                        </div>
-                        <p class="eco-desc">Das Vertrauensintervall (Toleranzbereich) rund um die gelbe Prognosekurve. Ein breiterer Schatten signalisiert wechselhaftes oder unsicheres Wetter.</p>
-                    </div>
-
-                    <div class="chart-legend-card">
-                        <div class="chart-legend-title">
-                            <span class="chart-line-indicator jetzt"></span>
-                            Jetzt-Linie (Grau, vertikal gestrichelt)
-                        </div>
-                        <p class="eco-desc">Zeigt die aktuelle Uhrzeit im Verlauf des Tagesdiagramms an, um Ist- und Prognosewerte des laufenden Moments schnell einzuordnen.</p>
-                    </div>
-                </div>
-
-                <div class="section-subtitle-minor">Die Wetter-Vergleichs-Leiste (Weather Trace)</div>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">Direkt über dem Diagramm vergleicht diese Leiste stündlich das prognostizierte Wetter mit den echten Messungen:</p>
-                
-                <div class="weather-trace-explain">
-                    <div class="weather-row-explain">
-                        <div class="weather-row-badge">Erwartet</div>
-                        <p class="eco-desc" style="margin: 0;">Das Wetter-Symbol (z. B. Wolke, Sonne, Regen), das laut Vorhersage für diese Stunde angekündigt war.</p>
-                    </div>
-                    <div class="weather-row-explain">
-                        <div class="weather-row-badge">Gesehen</div>
-                        <p class="eco-desc" style="margin: 0;">Die real beobachtete Wettersituation, die nachträglich als Referenz dient.</p>
-                    </div>
-                    <div class="weather-row-explain">
-                        <div class="weather-row-badge">Treffer</div>
-                        <p class="eco-desc" style="margin: 0;">Visueller Abgleich: Ein <strong>grüner Haken</strong> steht für eine perfekte Übereinstimmung, eine <strong>orangefarbene Welle</strong> für eine kleine Abweichung, ein <strong>rotes Kreuz</strong> für eine Fehlprognose (z. B. unerwarteter Nebel oder Bewölkung).</p>
-                    </div>
-                </div>
-
-                <div class="section-subtitle-minor">Kennzahlen (KPIs) verstehen</div>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">Die Kacheln oberhalb des Diagramms geben Aufschluss über die Genauigkeit und die Datenbasis des Modells:</p>
-                
-                <div class="charts-grid">
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo">HEUTE PROGNOSEGÜTE</div>
-                        <p class="eco-desc">Die mathematische Präzision der Vorhersage in Prozent. Sie wird stündlich aktualisiert, schließt jedoch bewusste Drosselungen (Akku voll, Nullexport) aus, um die Qualität des KI-Modells sauber zu bewerten.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo danger">HEUTE FORECAST-FEHLER</div>
-                        <p class="eco-desc">Der Abweichungsfehler der Prognose. Ein positiver Wert (z. B. +33%) zeigt an, wie stark die reale PV-Erzeugung von der berechneten Kurve abweicht.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo success">IST-VERGLEICH</div>
-                        <p class="eco-desc">Die Summe der real erzeugten Solarenergie (in kWh) innerhalb der Stunden, die für die Qualitätsmessung herangezogen wurden.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo">PROGNOSE</div>
-                        <p class="eco-desc">Die ursprünglich prognostizierte Gesamtenergie (in kWh) für den heutigen Tag.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo info">HEUTE LERNBASIS</div>
-                        <p class="eco-desc">Die Anzahl der Stunden (z. B. 10/18 h), deren Daten in die nächtliche Lernbasis des Modells einfließen. Stunden, in denen der Ertrag durch vollen Akku oder Netzeinspeisebegrenzung gedrosselt wurde, werden automatisch herausgefiltert.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo muted">HEUTE VERWORFEN</div>
-                        <p class="eco-desc">Stunden, die wegen MPPT-Abregelung oder Netzdrosselung nicht für das Training des Modells verwendet werden konnten. So wird verhindert, dass künstlich reduzierte Ertragswerte die zukünftigen Prognosen verfälschen.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo info">HYBRID</div>
-                        <p class="eco-desc">Die prognostizierte Gesamtenergie (in kWh) laut des optimierten Hybrid-Modells.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo danger">ABWEICHUNG</div>
-                        <p class="eco-desc">Die absolute Abweichung in Kilowattstunden (kWh) zwischen Prognose und IST. Ein negativer Wert zeigt an, dass real weniger erzeugt wurde als prognostiziert.</p>
-                    </div>
-                </div>
-
-                <div class="section-subtitle-minor">Die Wochenübersicht (Tabelle)</div>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.9rem;">Die Tabelle listet die historischen Werte der vergangenen Tage auf und ermöglicht eine langfristige Analyse der Prognosequalität:</p>
-                
-                <div class="charts-grid">
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo muted">TAG</div>
-                        <p class="eco-desc">Wochentag und Datum des jeweiligen aufgezeichneten Tages.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo success">ERTRAG</div>
-                        <p class="eco-desc">Tatsächlich gemessener Solarertrag deiner PV-Anlage an diesem Tag in Kilowattstunden (kWh).</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo">PROGNOSE</div>
-                        <p class="eco-desc">Die vorhergesagte PV-Erzeugung (in kWh) laut des Basis-Prognosemodells.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo info">ERTRAG &Delta;</div>
-                        <p class="eco-desc">Die relative Abweichung des realen Ertrags zur Prognose. Mehrertrag wird grün, Minderertrag gelb/orange dargestellt.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo danger">FORECAST-FEHLER</div>
-                        <p class="eco-desc">Der prozentuale Abweichungsfehler der Prognose. Ein niedrigerer Wert steht für eine exaktere Vorhersage.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo success">PROGNOSEGÜTE</div>
-                        <p class="eco-desc">Die farblich codierte Genauigkeit des Tages. Grün symbolisiert eine sehr hohe Qualität (z. B. > 90%), Gelb mittlere Abweichungen und Rot stärkere Fehler (meist durch Wetterumschwünge).</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo info">LERNBASIS</div>
-                        <p class="eco-desc">Verwertbare Sonnenstunden des Tages für die Lernbasis (z. B. 17/17 h). Nur ungekürzte Stunden fließen in das KI-Training ein.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo muted">VERWORFEN</div>
-                        <p class="eco-desc">Stunden, die aufgrund aktiver Drosselungen (z. B. <code>1 h Nullexport/Basislast</code> oder Batterielimitierung) nicht gelernt werden, um das Modell nicht mit künstlich reduzierten Werten zu verfälschen.</p>
-                    </div>
-
-                    <div class="kpi-explain-card">
-                        <div class="kpi-badge-demo">PEAK</div>
-                        <p class="eco-desc">Der Spitzenertrag (in kWh), der an diesem Tag in einer einzelnen Stunde generiert wurde.</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION 4: EINSTELLUNGS-MENÜS -->
-            <section id="menus" class="section-card">
-                <h2 class="section-title"><span>4.</span> Einstellungs-Menüs erklärt</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 0.95rem;">Klicke auf die Tabs und Menüpunkte, um eine verständliche Erklärung der verschiedenen Konfigurationsfelder und deren Auswirkungen auf das System zu erhalten.</p>
-                
-                <div class="explorer-container">
-                    <div class="explorer-header">
-                        <button class="explorer-tab active" onclick="switchExplorerTab('sfml', this)">Solar Forecast ML</button>
-                        <button class="explorer-tab stats" onclick="switchExplorerTab('stats', this)">Solar Forecast STATS</button>
-                        <button class="explorer-tab gpm" onclick="switchExplorerTab('gpm', this)">Grid Price Monitor</button>
-                    </div>
-
-                    <!-- SFML EXPLORER -->
-                    <div id="exp-sfml" class="explorer-content active">
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">📐</span> Panel-Gruppen (Ausrichtung)</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Bestimmt das physikalische Layout und die Messquelle deiner Solarmodule. Jede aktive Gruppe braucht <strong>kWp, Ausrichtung, Neigung und einen Live-Power-Sensor in Watt</strong>.<br>
-                                <strong>Power-Sensor:</strong> aktuelle DC-Leistung der Gruppe in <code>W</code>. Diese Werte werden zur Gesamtleistung summiert und bilden die IST-Quelle für Gruppen- und Tagesertrag.<br>
-                                <strong>Ausrichtung (Azimut):</strong> 0° ist Norden, 90° Osten, 180° Süden, 270° Westen.<br>
-                                <strong>Neigung (Tilt):</strong> 0° ist flach auf dem Boden liegend, 90° ist senkrecht an der Wand montiert.<br>
-                                <em>Auswirkung:</em> SFML verbindet Geometrie, Gruppenleistung und Wettermodell zur Prognose und zur späteren Lernbewertung.
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">⚙️</span> Modus (AI Algorithmus)</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Bestimmt, welcher mathematische Ansatz zur Ertragsberechnung verwendet wird:<br>
-                                <strong>Automatisch (Empfohlen):</strong> Das System entscheidet basierend auf der Menge der aufgezeichneten Daten selbstständig. Es startet mit Ridge und schaltet das Neuronale Netz frei, sobald ausreichend Daten vorhanden sind.<br>
-                                <strong>Ridge:</strong> Ein statistisches Modell (lineare Regression), das extrem schnell lernt, robust gegen Ausreißer ist und bereits ab wenigen Tagen Trainingsdaten stabile Ergebnisse liefert.<br>
-                                <strong>Neuronales Netz (TinyLSTM):</strong> Bietet eine um 5–10% höhere Vorhersagegenauigkeit. Benötigt mindestens 100 fehlerfreie Aufzeichnungstage und ca. 200 MB RAM auf dem Host-System.
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🤖</span> KI aktivieren / deaktivieren</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Erlaubt oder verbietet die Nutzung des Neuronalen Netzes (TinyLSTM).<br>
-                                <em>Auswirkung:</em> Ist diese Option aktiviert, nutzt das System bei erfüllten Mindestanforderungen (100+ Proben und genügend Arbeitsspeicher) das neuronale Netz. Falls die Kriterien nicht erfüllt sind oder die Option deaktiviert wird, fällt das System automatisch und nahtlos auf die Ridge-Regression zurück. <strong>Empfehlung: Aktiviert lassen.</strong>
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🔄</span> Adaptive Prognose</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Ermöglicht eine dynamische Anpassung der Prognose am Mittag.<br>
-                                <em>Funktionsweise:</em> Sollten am Vormittag starke Abweichungen (&gt;35%) zwischen der ursprünglichen Morgenprognose und der tatsächlichen PV-Produktion gemessen werden (z. B. durch unerwarteten Nebel oder plötzlichen Sonnenschein), korrigiert SFML um 12:30 Uhr die restliche Nachmittagsprognose automatisch auf Basis frischer Wetterdaten und objektiver Kriterien. <strong>Standardwert: AUS.</strong>
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">❄️</span> Winter-Modus</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Aktiviert verbesserte Algorithmen für die dunklen Wintermonate (November bis Februar).<br>
-                                <em>Auswirkung:</em> Bei niedrigen Sonnenständen wird der Einfluss von Bewölkung und Streulicht genauer in die Berechnung einbezogen. Dies verhindert eine systematische Überprognose im Winter und stabilisiert die Ladeplanung. <strong>Standardwert: AN.</strong>
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🔌</span> Nulleinspeisung aktiv (MPPT-Drosselerkennung)</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Muss aktiviert werden, wenn im Haushalt eine Nulleinspeise-Regelung (z. B. Shelly-gesteuert) im Einsatz ist.<br>
-                                <strong>Warum ist das wichtig?</strong> Bei einer Nulleinspeisung drosselt der Wechselrichter die PV-Produktion künstlich auf den aktuellen Hausbedarf herunter, wenn kein Strom ins Netz fließen darf. Ohne diese Option würde das maschinelle Lernen fälschlicherweise lernen: <em>"Sonnenschein um 12 Uhr bringt nur 200W"</em> (statt z. B. 1000W theoretisch möglicher Erzeugung). Mit dieser Option werden solche gedrosselten Stunden automatisch vom KI-Training ausgeschlossen.<br>
-                                <em>Hinweis:</em> Die Erkennung greift nur bei guten Wetterbedingungen (viel Sonne, wenig Wolken) und wenn die reale Erzeugung deutlich unter der physikalischen Vorhersage liegt.
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🔋</span> Batteriespeicher vorhanden</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Aktiviert die erweiterte MPPT-Drosselerkennung für Systeme mit physischem Heimspeicher.<br>
-                                <strong>Warum ist das wichtig?</strong> Sobald der Akku voll aufgeladen ist und gleichzeitig eine Nulleinspeisung oder AC-Begrenzung greift, drosselt der Laderegler (MPPT) die Solarproduktion. Das System erkennt diese Drosselung daran, dass der Stromfluss in die Batterie unter 50W fällt.<br>
-                                <em>Wichtig:</em> Bei Aktivierung dieser Option **MUSS** zwingend auch der *Solar-zu-Akku Sensor* konfiguriert werden!
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">⚡</span> Solar-zu-Akku Sensor</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Bestimmt den Leistungssensor (in Watt), der den direkten Energiefluss von den PV-Modulen in den Akku misst.<br>
-                                <strong>Typische Beispiele:</strong> <code>sensor.pv_to_battery_power</code>, <code>sensor.battery_charging_power</code> oder <code>sensor.solar_battery_flow</code>.<br>
-                                <strong>Wie funktioniert es?</strong> Fällt dieser Wert bei gutem Wetter unter 50W, weiß die Drosselungserkennung, dass die Batterie voll ist und keine Enegie mehr aufnehmen kann. Stunden, in denen der Akku gesättigt ist und gedrosselt wurde, werden so automatisch vom Training ausgeschlossen.
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🔍</span> Diagnose-Modus</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Schaltet zusätzliche interne System- und Diagnose-Sensoren in Home Assistant frei.<br>
-                                <em>Nutzen:</em> Dient der erweiterten Überwachung der Integration und hilft beim Debuggen von Berechnungs- oder Verbindungsfehlern.
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">⏱️</span> Stunden-Prognose Sensor</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Richtet einen Sensor für die Solarprognose der jeweils nächsten Stunde ein (<code>sensor.next_hour_forecast</code>).<br>
-                                <em>Nutzen:</em> Ermöglicht ultrakurzfristige Steuerungen im Haus (z. B. Freigabe von kurzzeitigen Heizpatronen oder Verbrauchern).
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🚘</span> evcc Solar-Prognose</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Stellt einen Sensor mit stündlichen Prognosedaten im nativen evcc-Format als JSON-Payload bereit (<code>sensor.evcc_solar_forecast</code>).<br>
-                                <em>Vorteil:</em> Erlaubt das direkte Einbinden deiner Solarprognosen in evcc zum intelligenten Überschussladen deines E-Autos – ganz ohne komplizierte YAML-Template-Helfer. <strong>Standardwert: AUS.</strong>
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🔔</span> Benachrichtigungs-Einstellungen</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Steuert, welche Systemereignisse Benachrichtigungen in Home Assistant auslösen:<br>
-                                <ul>
-                                    <li><strong>Start-Benachrichtigung:</strong> Informiert dich per Systembenachrichtigung, wenn die Integration erfolgreich gestartet wurde.</li>
-                                    <li><strong>Prognose-Benachrichtigungen:</strong> Sendet Updates bei Aktualisierungen der Solarprognose.</li>
-                                    <li><strong>Trainings-Benachrichtigungen:</strong> Informiert dich, sobald das nächtliche KI-Modell-Training startet.</li>
-                                    <li><strong>Erfolgs-Benachrichtigungen:</strong> Benachrichtigt dich nach einem erfolgreich abgeschlossenem Trainingslauf.</li>
-                                    <li><strong>Schneebedeckung-Benachrichtigungen:</strong> Löst eine Warnung aus, wenn die Wettersensoren und Ertragsdaten eine anhaltende Schneebedeckung der Solarmodule nahelegen.</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- STATS EXPLORER -->
-                    <div id="exp-stats" class="explorer-content">
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">🔋</span> Smart Charging (STATS-Ebene)</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Ermöglicht das Laden deines Haus-Akkus aus dem Netz bei günstigen Börsenstrompreisen. Die Zielladung (Target SoC) wird dynamisch berechnet: Je mehr Sonne für den Tag angesagt ist, desto weniger Netzstrom wird geladen, um Platz für die PV-Energie frei zu halten.
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">📊</span> Energiefluss-Stil</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Wechselt das Layout deines Haupt-Dashboards zwischen einem klassischen 2D-Flussdiagramm und einer modernen isometrischen 3D-Ansicht deines Hauses mit animierten Energiepartikeln.
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">📅</span> Abrechnungszeitraum</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Konfiguriert den genauen Tag und Monat, an dem dein jährlicher Stromabrechnungszyklus startet.<br>
-                                <em>Auswirkung:</em> Alle finanziellen Berechnungen, Jahresschätzungen und COP-Berechnungen der Wärmepumpe beziehen sich exakt auf dieses Abrechnungsjahr.
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- GPM EXPLORER -->
-                    <div id="exp-gpm" class="explorer-content">
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">⚖️</span> Automatische Kalibrierung</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Vereinfacht das Setup deines dynamischen Tarifs. Statt alle Abgaben und Steuern manuell herauszusuchen, trägst du einfach den aktuellen kWh-Preis aus der App deines Stromanbieters ein. Das System einebnet den Aufschlag zum Börsenpreis im Hintergrund automatisch.
-                            </div>
-                        </div>
-
-                        <div class="config-item" onclick="toggleConfigItem(this)">
-                            <div class="config-item-header">
-                                <span class="config-item-title"><span class="config-item-icon">💸</span> Preiskomponenten (Netzentgelte & Steuern)</span>
-                                <span class="config-item-arrow">▶</span>
-                            </div>
-                            <div class="config-item-body">
-                                Ermöglicht die manuelle Eingabe von Netznutzungsgebühren, Konzessionsabgaben, Stromsteuer und Provider-Margen.<br>
-                                <em>Formel:</em> <code>Bruttopreis = (Börsen-Spotpreis * MwSt) + Netzentgelte + Steuern + Aufschlag</code>.
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
-            </section>
-
-            <!-- SECTION 4: SMART CHARGING SIMULATOR -->
-            <section id="smartcharging" class="section-card">
-                <h2 class="section-title"><span>5.</span> Smart-Charging Rechner</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 0.95rem;">Dieser interaktive Simulator verdeutlicht die Logik der dynamischen Speicherladung. Der berechnete <strong>Ziel-Ladestand (Target SoC)</strong> ist die Energiemenge, die das System nachts bei Billigstrom aus dem Netz in den Akku lädt. Er lässt genau so viel Platz frei, wie am Tag an Solarstrom erwartet wird.</p>
-                
-                <div class="simulator-grid">
-                    <!-- Sliders -->
-                    <div class="sim-sliders">
-                        
-                        <div class="sim-group">
-                            <div class="sim-label-row">
-                                <span class="sim-label">Nutzbare Batteriekapazität</span>
-                                <span class="sim-value" id="valCap">10.0 kWh</span>
-                            </div>
-                            <input type="range" class="sim-slider" id="slideCap" min="2" max="25" step="0.5" value="10" oninput="calculateSim()">
-                        </div>
-
-                        <div class="sim-group">
-                            <div class="sim-label-row">
-                                <span class="sim-label">Erwartete Solarprognose (Heute)</span>
-                                <span class="sim-value" id="valForecast">6.0 kWh</span>
-                            </div>
-                            <input type="range" class="sim-slider" id="slideForecast" min="0" max="30" step="0.5" value="6" oninput="calculateSim()">
-                        </div>
-
-                        <div class="sim-group">
-                            <div class="sim-label-row">
-                                <span class="sim-label">Maximaler Lade-SoC (Sicherheitsgrenze)</span>
-                                <span class="sim-value" id="valMaxSoc">95 %</span>
-                            </div>
-                            <input type="range" class="sim-slider" id="slideMaxSoc" min="70" max="100" step="5" value="95" oninput="calculateSim()">
-                        </div>
-
-                        <div class="sim-group">
-                            <div class="sim-label-row">
-                                <span class="sim-label">Minimaler Lade-SoC (Puffer nachts)</span>
-                                <span class="sim-value" id="valMinSoc">15 %</span>
-                            </div>
-                            <input type="range" class="sim-slider" id="slideMinSoc" min="5" max="40" step="5" value="15" oninput="calculateSim()">
-                        </div>
-
-                    </div>
-
-                    <!-- Visual Result -->
-                    <div class="sim-result-card">
-                        <div class="battery-container">
-                            <div class="battery-text" id="batText">35%</div>
-                            <div class="battery-fill" id="batFill" style="height: 35%;"></div>
-                        </div>
-                        <div class="sim-explanation" id="simExpl">
-                            Empfohlene Netzbefüllung: <strong>35% Target SoC</strong>.<br>
-                            Wir blockieren <strong>60% Speicherplatz</strong> für die erwarteten 6.0 kWh Sonnenenergie.
-                        </div>
-                    </div>
-                </div>
-
-                <div class="alert-box">
-                    <span class="alert-icon">💡</span>
-                    <div class="alert-text">
-                        <strong>Hinweis zur Formel:</strong> Der Solarertrag wird in Prozent der Batteriekapazität umgerechnet. Die Formel zieht diesen Prozentwert vom maximalen SoC ab: <code>Target SoC = Max SoC - (Solarprognose / Kapazität * 100)</code>. Das Ergebnis wird streng durch deine Mindest- und Maximalschranken begrenzt.
-                    </div>
-                </div>
-            </section>
-
-            <!-- SECTION 5: PROVIDED ENTITIES & EXAMPLES -->
-            <section id="provided" class="section-card">
-                <h2 class="section-title"><span>6.</span> Bereitgestellte Entitäten & Praxisbeispiele</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 20px; font-size: 0.95rem;">Jedes Modul des Solar Forecast ML Ökosystems erzeugt eigene Sensoren in Home Assistant. Nachfolgend findest du eine Übersicht dieser Entitäten sowie praktische Beispiele für deren täglichen Einsatz.</p>
-
-                <div class="sensor-table-container">
-                    <table class="sensor-table">
-                        <thead>
-                            <tr>
-                                <th>Entitäts-ID in Home Assistant</th>
-                                <th>Typ</th>
-                                <th>Einheit</th>
-                                <th>Beschreibung & Nutzen</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- SFML Ausgaben -->
-                            <tr>
-                                <td colspan="4" class="sensor-module-header">Solar Forecast ML (SFML) bereitgestellte Sensoren</td>
-                            </tr>
-                            <tr>
-                                <td colspan="4" style="color: var(--text-secondary); font-size: 0.86rem;">Hinweis: Entitäts-IDs können bei Altinstallationen durch Home Assistant leicht abweichen. Fachlich maßgeblich sind Name, Einheit und Quelle. Die Gruppen-Power-Sensoren arbeiten in Watt.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_system_status</code></td>
-                                <td>Status</td>
-                                <td><span class="sensor-unit">Text</span></td>
-                                <td>Gesamtzustand der SFML-Integration und Start-/Runtime-Status.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_sfml_total_power</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Aktuelle Gesamtleistung als Summe der Panelgruppen-Power.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_sfml_total_actual_today</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Aktueller Tages-Ist-Ertrag der gesamten Anlage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_sfml_total_yield</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Tagesertrag aus SFML-SOT; setzt nach Mitternacht wieder bei 0 an.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_1_power</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Live-Leistung von Panelgruppe 1.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_1_actual_today</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Tages-Ist-Ertrag von Panelgruppe 1.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_2_power</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Live-Leistung von Panelgruppe 2.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_2_actual_today</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Tages-Ist-Ertrag von Panelgruppe 2.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_3_power</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Live-Leistung von Panelgruppe 3.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_3_actual_today</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Tages-Ist-Ertrag von Panelgruppe 3.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_4_power</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Live-Leistung von Panelgruppe 4.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_gruppe_4_actual_today</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Tages-Ist-Ertrag von Panelgruppe 4.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_heute</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Gesamtprognose für heute.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_heute_verbleibend</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Noch verbleibende Prognose für den restlichen heutigen Tag.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_morgen</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Gesamtprognose für morgen.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_ubermorgen</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Gesamtprognose für übermorgen.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_prognose_nachste_stunde</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Erwartete Erzeugung in der nächsten Stunde.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_planungsprognose_p10_blend</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Konservative P10-Planungsprognose für vorsichtige Verbraucher-/Akkuplanung.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_hybrid_forecast</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Operative Hybrid-Prognose aus dem Intraday-/OPS-Sidecar.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_beste_stunde</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">Uhrzeit</span></td>
-                                <td>Beste Stunde für steuerbare Verbraucher nach erwarteter PV-Produktion.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_produktionszeit_heute</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">h</span></td>
-                                <td>Bisherige PV-Produktionszeit des aktuellen Tages.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_max_peak_heute</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Höchster heute gemessener SFML-SOT-Leistungspeak.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_max_peak_rekord</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">W</span></td>
-                                <td>Höchster jemals gemessener SFML-SOT-Leistungspeak.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_durchschnittlicher_monatsertrag</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Durchschnittlicher Tagesertrag im aktuellen Monatskontext.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_o_ertrag_7_tage</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Durchschnittlicher Tagesertrag der letzten 7 Tage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_o_ertrag_30_tage</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Durchschnittlicher Tagesertrag der letzten 30 Tage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_wochenertrag</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Kumulierter PV-Ertrag der aktuellen Woche.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_wochenverbrauch</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Kumulierter Verbrauch der aktuellen Woche, sofern Verbrauchsdaten vorhanden sind.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_monatsertrag</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Kumulierter PV-Ertrag des aktuellen Monats.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_monatsverbrauch</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Kumulierter Verbrauch des aktuellen Monats, sofern Verbrauchsdaten vorhanden sind.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_o_genauigkeit_30_tage</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">%</span></td>
-                                <td>Durchschnittliche Prognosegenauigkeit der letzten 30 Tage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_bewertungsabdeckung_7_tage</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">%</span></td>
-                                <td>Anteil bewertbarer Produktionsstunden der letzten 7 Tage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_bewertungsabdeckung_30_tage</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">%</span></td>
-                                <td>Anteil bewertbarer Produktionsstunden der letzten 30 Tage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_mppt_ausschluss_7_tage</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">h</span></td>
-                                <td>Aus Lern-/Clean-Evaluation ausgeschlossene MPPT-/Curtailment-Stunden der letzten 7 Tage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_mppt_ausschluss_30_tage</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">h</span></td>
-                                <td>Aus Lern-/Clean-Evaluation ausgeschlossene MPPT-/Curtailment-Stunden der letzten 30 Tage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_shadow_current</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">Zustand</span></td>
-                                <td>Aktueller Schattenzustand der Anlage.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_shadow_today</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">h</span></td>
-                                <td>Heute erkannte oder erwartete Schattenstunden.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_performance_loss_today</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Heute geschätzter Leistungsverlust durch Schatten oder vergleichbare Ertragsminderung.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_evcc_solar_prognose</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">JSON</span></td>
-                                <td>Optionale stündliche Prognose im evcc-kompatiblen Format.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Zustand</span></td>
-                                <td>Drift-Status des Lernsystems.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_active_prediction_model</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Text</span></td>
-                                <td>Aktuell bevorzugtes Prognosemodell bzw. Modellmix.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_ai_rmse</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>RMSE des AI-Anteils als Qualitätsmaß.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_ml_metrics</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Text</span></td>
-                                <td>Zusammenfassung wichtiger Modellmetriken.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_physics_samples</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Anzahl</span></td>
-                                <td>Verfügbare Lern-/Physik-Samples.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_yesterday_deviation</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">kWh</span></td>
-                                <td>Abweichung zwischen Prognose und Ist-Ertrag von gestern.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_cloudiness_trend_1h</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Trend</span></td>
-                                <td>Kurzfristiger Wolkentrend über eine Stunde.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_cloudiness_trend_3h</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Trend</span></td>
-                                <td>Wolkentrend über drei Stunden.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_cloudiness_volatility</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">%</span></td>
-                                <td>Wetterstabilität bzw. Schwankung der Bewölkung.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_coordinator_health</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Text</span></td>
-                                <td>Gesundheitszustand des Coordinators.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_data_files_status</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Text</span></td>
-                                <td>Status der SFML-Datenbank-/Dateibasis.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_external_sensors_status</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Text</span></td>
-                                <td>Status der eingebundenen externen Sensoren.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_last_update</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Zeit</span></td>
-                                <td>Zeitpunkt des letzten Coordinator-Updates.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_last_ai_training</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Zeit</span></td>
-                                <td>Zeitpunkt des letzten AI-Trainings.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_next_scheduled_update</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Zeit</span></td>
-                                <td>Nächstes geplantes Update.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_next_production_start</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">Zeit</span></td>
-                                <td>Erwarteter nächster Produktionsstart.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.solar_forecast_ml_end_of_day_duration</code></td>
-                                <td>Diagnose</td>
-                                <td><span class="sensor-unit">s</span></td>
-                                <td>Dauer des letzten End-of-Day-Workflows.</td>
-                            </tr>
-
-                            <!-- GPM & STATS Preise -->
-                            <tr>
-                                <td colspan="4" class="sensor-module-header">Grid Price Monitor (GPM) & Smart Charging</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.spot_price</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">ct/kWh</span></td>
-                                <td>Aktueller Netto-Börsenstrompreis.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.total_price</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">ct/kWh</span></td>
-                                <td>Berechneter Brutto-Endpreis incl. aller Entgelte und Steuern.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>sensor.smart_charging_target_soc</code></td>
-                                <td>Sensor</td>
-                                <td><span class="sensor-unit">%</span></td>
-                                <td>Dynamischer Ziel-Ladestand für die nächtliche Netzbefüllung des Akkus.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>binary_sensor.cheap_energy</code></td>
-                                <td>Binär</td>
-                                <td><span class="sensor-unit">ON/OFF</span></td>
-                                <td>Schaltet auf ON, wenn der Strompreis unter deinem Grenzwert liegt.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>binary_sensor.smart_charging</code></td>
-                                <td>Binär</td>
-                                <td><span class="sensor-unit">ON/OFF</span></td>
-                                <td>Schaltet auf ON, wenn der Speicher aktuell aktiv aus dem Netz geladen wird.</td>
-                            </tr>
-                            <tr>
-                                <td class="sensor-name"><code>binary_sensor.solar_forecast_stats_pv_surplus_available</code></td>
-                                <td>Binär</td>
-                                <td><span class="sensor-unit">ON/OFF</span></td>
-                                <td>Schaltet nach 5 Minuten stabiler Einspeisung auf ON und sofort wieder auf OFF, wenn keine Einspeisung mehr anliegt oder der Hausbedarf größer als die Solarleistung ist.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 1.15rem; color: #fff;">STATS Lovelace Card</h3>
-                <div class="example-card">
-                    <div class="example-title">Dashboard-Karte für Home Assistant</div>
-                    <p class="example-desc">STATS liefert eine eigene Lovelace-Karte aus. In Installationen mit Lovelace Storage-Modus wird die Ressource automatisch registriert. Falls du Ressourcen manuell verwaltest, füge diese Modul-URL hinzu:</p>
-                    <pre class="code-box">/api/sfml_stats/static/sfml-stats-card.js?v=32.0.0</pre>
-                    <p class="example-desc">Danach kannst du die Karte als <code>custom:sfml-stats-card</code> verwenden. Sie zeigt PV-Liveleistung, Tagesertrag, Prognosegüte, Autarkie, Eigenverbrauch, Panelgruppen und den STATS-Überschuss-Binärsensor an, sofern die jeweiligen Daten im System vorhanden sind.</p>
-                    <pre class="code-box">type: custom:sfml-stats-card
-title: Solar Forecast STATS
-show_panels: true
-show_price: true
-show_surplus: true</pre>
-                </div>
-
-                <!-- PRAXISBEISPIELE -->
-                <h3 style="margin-top: 24px; margin-bottom: 12px; font-size: 1.15rem; color: #fff;">Praxisbeispiele zur Nutzung</h3>
-
-                <!-- BEISPIEL 1 -->
-                <div class="example-card">
-                    <div class="example-title">Beispiel 1: Waschmaschine automatisch starten bei Peak-Solarstunde</div>
-                    <p class="example-desc">Nutzt den Sensor <code>sensor.best_hour_for_consumption</code> als Auslöser, um Waschmaschine oder Spülmaschine automatisch dann zu starten, wenn deine Solaranlage das meiste Potenzial hat.</p>
-                    <pre class="code-box">
-alias: "Geräte: Start zur Peak-Solarstunde"
-trigger:
-  - platform: template
-    value_template: "{{ states('sensor.time') == states('sensor.best_hour_for_consumption') }}"
-condition:
-  - condition: state
-    entity_id: input_boolean.waschmaschine_bereit
-    state: "on"
-action:
-  - service: switch.turn_on
-    target:
-      entity_id: switch.waschmaschine_steckdose
-</pre>
-                </div>
-
-                <!-- BEISPIEL 2 -->
-                <div class="example-card">
-                    <div class="example-title">Beispiel 2: E-Auto Laden via evcc direkt einbinden</div>
-                    <p class="example-desc">Dank des integrierten evcc-Sensors kann die stündliche Solarprognose ohne komplexe Template-Bastelei direkt in deiner <code>evcc.yaml</code> eingetragen werden:</p>
-                    <pre class="code-box">
-# In deiner evcc.yaml
-tariffs:
-  grid:
-    type: awattar
-    api: ...
-  feedin:
-    type: fixed
-    price: 0.08
-
-# Direktes Einbinden von SFML als Prognosequelle
-forecast:
-  type: homeassistant
-  uri: http://10.90.90.116:8123  # Deine HA-IP
-  token: dein_ha_long_lived_access_token
-  entity: sensor.evcc_solar_forecast
-</pre>
-                </div>
-
-                <!-- BEISPIEL 3 -->
-                <div class="example-card">
-                    <div class="example-title">Beispiel 3: Batterie-Netzladung bei Billigstrom nachts aktivieren</div>
-                    <p class="example-desc">Diese Automatisierung startet das Laden deines Akkus aus dem Netz, sobald der Smart Charging Binärsensor aktiv schaltet, und lädt den Akku exakt bis zum berechneten <code>Target SoC</code>.</p>
-                    <pre class="code-box">
-alias: "Speicher: Smart Netzbefüllung"
-trigger:
-  - platform: state
-    entity_id: binary_sensor.smart_charging
-    to: "on"
-action:
-  - service: number.set_value
-    target:
-      entity_id: number.battery_grid_charge_limit  # Dein Akku-Ladegrenz-Sensor
-    data:
-      value: "{{ states('sensor.smart_charging_target_soc') | float }}"
-  - service: switch.turn_on
-    target:
-      entity_id: switch.battery_force_charge_from_grid
-</pre>
-                </div>
-
-            </section>
-
-            <!-- SECTION 6: EINRICHTUNG (WORKFLOW) -->
-            <section id="setup" class="section-card">
-                <h2 class="section-title"><span>7.</span> Schritt-für-Schritt Einrichtung</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 24px; font-size: 0.95rem;">Damit das Ökosystem fehlerfrei arbeitet, empfiehlt sich die Einrichtung in der folgenden logischen Reihenfolge:</p>
-                
-                <div class="setup-timeline">
-                    
-                    <div class="setup-step">
-                        <h3 class="setup-step-title">Schritt 1: Grid Price Monitor (GPM) konfigurieren</h3>
-                        <p class="setup-step-desc">Falls du einen stündlichen, dynamischen Stromtarif besitzt (z. B. Tibber), richte zuerst GPM ein. Wähle dein Land (Deutschland oder Österreich) und kalibriere die Gebühren über deinen aktuellen App-Preis. Dies bildet das Fundament für die finanzielle Optimierung.</p>
-                    </div>
-
-                    <div class="setup-step">
-                        <h3 class="setup-step-title">Schritt 2: Solar Forecast ML (SFML) anlegen</h3>
-                        <p class="setup-step-desc">Richte deine Panelgruppen ein: je Gruppe Live-Power-Sensor in Watt, kWp, Ausrichtung und Neigung. SFML berechnet daraus Gesamtleistung, Tages-Ist und Gruppen-Ist selbst. Aktiviere bei vorhandenem Speicher optional die MPPT-Drosselungserkennung, damit verfälschte Stunden nicht in die Lernbasis laufen.</p>
-                    </div>
-
-                    <div class="setup-step">
-                        <h3 class="setup-step-title">Schritt 3: Toorox ForeSight (TFS) installieren</h3>
-                        <p class="setup-step-desc">Starte das TFS Add-on in Home Assistant. TFS verbindet sich automatisch mit der SFML-Datenbank, liest deine geographischen Koordinaten und beginnt im Hintergrund mit dem regelmäßigen Vorab-Training (LoRA-Feineinstellung) auf deine spezifischen Verschattungen.</p>
-                    </div>
-
-                    <div class="setup-step">
-                        <h3 class="setup-step-title">Schritt 4: Solar Forecast STATS einrichten</h3>
-                        <p class="setup-step-desc">Als Letztes verknüpfst du alle Fäden in STATS. Wähle deinen Tarifmodus (Dynamic -> verknüpft mit GPM), trage die Hausverbrauchssensoren ein und aktiviere das Smart Charging. Mappe anschließend deine Großverbraucher wie Wärmepumpe oder Wallbox, um Hubbles Ratschläge freizuschalten.</p>
-                    </div>
-
-                </div>
-            </section>
-
-        </main>
-    </div>
-
-    <script>
-        // Smooth scroll implementation
-        function scrollToSection(id, element) {
-            // Remove active classes
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.classList.remove('active');
-            });
-            
-            // Add active class to clicked
-            element.classList.add('active');
-
-            const target = document.getElementById(id);
-            if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-        }
-
-        // Config Flow Tab Switch
-        function switchExplorerTab(tab, element) {
-            document.querySelectorAll('.explorer-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.explorer-content').forEach(c => c.classList.remove('active'));
-            
-            element.classList.add('active');
-            document.getElementById('exp-' + tab).classList.add('active');
-        }
-
-        // Toggle Config Item Accordion
-        function toggleConfigItem(element) {
-            element.classList.toggle('open');
-        }
-
-        // Smart Charging Simulator logic
-        function calculateSim() {
-            const cap = parseFloat(document.getElementById('slideCap').value);
-            const forecast = parseFloat(document.getElementById('slideForecast').value);
-            const maxSoc = parseInt(document.getElementById('slideMaxSoc').value);
-            const minSoc = parseInt(document.getElementById('slideMinSoc').value);
-
-            // Update Labels
-            document.getElementById('valCap').innerText = cap.toFixed(1) + ' kWh';
-            document.getElementById('valForecast').innerText = forecast.toFixed(1) + ' kWh';
-            document.getElementById('valMaxSoc').innerText = maxSoc + ' %';
-            document.getElementById('valMinSoc').innerText = minSoc + ' %';
-
-            // Calculate Target SOC
-            const solarPercentOfBattery = (forecast / cap) * 100;
-            let targetSoc = maxSoc - solarPercentOfBattery;
-
-            // Clamping
-            if (targetSoc < minSoc) targetSoc = minSoc;
-            if (targetSoc > maxSoc) targetSoc = maxSoc;
-
-            const finalSoC = Math.round(targetSoc);
-            const solarRoom = Math.round(maxSoc - finalSoC);
-
-            // Update UI
-            document.getElementById('batText').innerText = finalSoC + '%';
-            document.getElementById('batFill').style.height = finalSoC + '%';
-            
-            let explanationText = `Empfohlene Netzbefüllung: <strong>${finalSoC}% Target SoC</strong>.<br>`;
-            if (solarRoom > 0) {
-                explanationText += `Wir blockieren <strong>${solarRoom}% Speicherplatz</strong> für die erwarteten ${forecast.toFixed(1)} kWh Sonnenenergie.`;
-            } else {
-                explanationText += `Da kaum Solarertrag erwartet wird, wird die Batterie nachts vollständig geladen.`;
-            }
-            document.getElementById('simExpl').innerHTML = explanationText;
-        }
-
-        // Live Search Filter
-        function handleSearch() {
-            const query = document.getElementById('docSearch').value.toLowerCase();
-            const configItems = document.querySelectorAll('.config-item');
-            const sensorRows = document.querySelectorAll('.sensor-table tbody tr');
-            const ecoCards = document.querySelectorAll('.eco-card');
-
-            // Filter config explorer items
-            configItems.forEach(item => {
-                const text = item.innerText.toLowerCase();
-                if (text.includes(query)) {
-                    item.style.display = 'block';
-                    if (query.length > 2) {
-                        item.classList.add('open');
-                    }
-                } else {
-                    item.style.display = 'none';
-                    item.classList.remove('open');
-                }
-            });
-
-            // Filter sensor table rows
-            sensorRows.forEach(row => {
-                const text = row.innerText.toLowerCase();
-                row.style.display = text.includes(query) ? 'table-row' : 'none';
-            });
-
-            // Filter ecosystem cards
-            ecoCards.forEach(card => {
-                const text = card.innerText.toLowerCase();
-                card.style.display = text.includes(query) ? 'block' : 'none';
-            });
-
-            // Filter chart & KPI explanation cards
-            const chartCards = document.querySelectorAll('.chart-legend-card, .kpi-explain-card');
-            chartCards.forEach(card => {
-                const text = card.innerText.toLowerCase();
-                card.style.display = text.includes(query) ? 'block' : 'none';
-            });
-        }
-
-        // Initialize Simulator
-        calculateSim();
-    </script>
-</body>
-</html>
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark light"><title>SFML Stats – Handbuch</title><style>
+:root{--bg:#071019;--panel:#0d1824;--panel2:#111f2d;--text:#e8f0f7;--muted:#9cafbf;--line:#26394a;--accent:#22d3ee;--solar:#fbbf24;--warn:#f59e0b;--shadow:0 18px 50px rgba(0,0,0,.24)}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:24px}body{margin:0;background:radial-gradient(circle at 20% 0,rgba(34,211,238,.08),transparent 35%),var(--bg);color:var(--text);font:16px/1.65 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.layout{display:grid;grid-template-columns:300px minmax(0,1fr);min-height:100vh}.sidebar{position:sticky;top:0;height:100vh;overflow:auto;padding:24px 18px;border-right:1px solid var(--line);background:rgba(7,16,25,.96);backdrop-filter:blur(16px)}.brand{display:flex;gap:12px;align-items:center;margin-bottom:18px}.brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,var(--solar),#f97316);color:#111;font-weight:900}.brand strong{display:block}.brand small{color:var(--muted)}.search{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--text);outline:none;margin-bottom:16px}.search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(34,211,238,.12)}.nav{display:flex;flex-direction:column;gap:2px}.nav-link{color:var(--muted);text-decoration:none;border-radius:8px;padding:6px 9px}.nav-link:hover,.nav-link.active{color:var(--text);background:rgba(34,211,238,.09)}.nav-link.level-1{margin-top:10px;color:var(--text);font-weight:700}.nav-link.level-2{font-weight:650}.nav-link.level-3{padding-left:22px;font-size:.9rem}.content{width:min(1120px,100%);padding:42px clamp(20px,5vw,70px) 90px}.content>h1:first-child{font-size:clamp(2rem,4vw,3.5rem);line-height:1.08;margin:0 0 8px;background:linear-gradient(90deg,var(--accent),var(--solar));-webkit-background-clip:text;color:transparent}.content>p:nth-of-type(1){color:var(--muted);margin-bottom:34px}.content h1:not(:first-child){font-size:2rem;margin-top:64px;padding-top:18px;border-top:1px solid var(--line)}.content h2{font-size:1.55rem;margin-top:48px}.content h3{font-size:1.15rem;margin:26px 0 0;padding:18px 20px 0;border:1px solid var(--line);border-bottom:0;border-radius:14px 14px 0 0;background:linear-gradient(180deg,var(--panel2),var(--panel))}.content h3+p{margin-top:0;padding:14px 20px 20px;border:1px solid var(--line);border-top:0;border-radius:0 0 14px 14px;background:var(--panel);box-shadow:var(--shadow)}p,li{max-width:88ch}strong{color:#fff}code{padding:.12em .36em;border-radius:5px;background:#142536;color:#a5f3fc}table{display:block;width:100%;overflow:auto;border-collapse:collapse;margin:18px 0 30px;background:var(--panel);border:1px solid var(--line);border-radius:12px}th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#132536;color:#fff}tr:last-child td{border-bottom:0}blockquote{margin:20px 0;padding:12px 18px;border-left:4px solid var(--warn);background:rgba(245,158,11,.08)}.hidden{display:none!important}.no-results{display:none;padding:20px;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}.no-results.show{display:block}.topbar{display:none}.footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}@media(max-width:900px){.layout{display:block}.sidebar{position:fixed;z-index:20;inset:0 18% 0 0;height:auto;transform:translateX(-105%);transition:.2s}.sidebar.open{transform:none}.topbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);background:rgba(7,16,25,.94);backdrop-filter:blur(14px)}.topbar button{border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);padding:8px 11px}.content{padding-top:28px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+</style><link rel="stylesheet" href="docs-handbook.css?v=6"></head><body><div class="topbar"><strong>SFML Stats Handbuch</strong><button id="menuButton" type="button">Navigation</button></div><div class="layout"><aside class="sidebar" id="sidebar"><div class="brand"><span class="brand-mark">SF</span><div><strong>SFML Stats</strong><small>Virtuelles Handbuch</small></div></div><input id="search" class="search" type="search" placeholder="Handbuch durchsuchen…" aria-label="Handbuch durchsuchen"><nav class="nav"><a class="nav-link level-2" href="#schnellstart">Schnellstart</a><a class="nav-link level-2" href="#installation-und-voraussetzungen">Installation und Voraussetzungen</a><a class="nav-link level-3" href="#sensormatrix">Sensormatrix</a><a class="nav-link level-2" href="#in-5-minuten-verstehen-was-stats-anzeigt">In 5 Minuten verstehen, was Stats anzeigt</a><a class="nav-link level-2" href="#orientierung">Orientierung</a><a class="nav-link level-1" href="#seiten-und-karten">Seiten und Karten</a><a class="nav-link level-2" href="#home">Home</a><a class="nav-link level-3" href="#energiefluss">Energiefluss</a><a class="nav-link level-3" href="#hubble-ai-stack">Hubble AI-Stack</a><a class="nav-link level-3" href="#hubble-tagesbilanz">Hubble-Tagesbilanz</a><a class="nav-link level-3" href="#energie-wirkungskette">Energie-Wirkungskette</a><a class="nav-link level-3" href="#tagesprognose-gegen-ist">Tagesprognose gegen Ist</a><a class="nav-link level-3" href="#mehrtagesprognose">Mehrtagesprognose</a><a class="nav-link level-3" href="#panelgruppen">Panelgruppen</a><a class="nav-link level-3" href="#live-pv-produktion">Live-PV-Produktion</a><a class="nav-link level-3" href="#akku-ladestand">Akku-Ladestand</a><a class="nav-link level-2" href="#solar">Solar</a><a class="nav-link level-3" href="#monatlicher-solarertrag">Monatlicher Solarertrag</a><a class="nav-link level-3" href="#produktions-heatmap">Produktions-Heatmap</a><a class="nav-link level-3" href="#prognosevergleich">Prognosevergleich</a><a class="nav-link level-3" href="#leistungsabweichung-zur-physikalischen-referenz">Leistungsabweichung zur physikalischen Referenz</a><a class="nav-link level-3" href="#saisonaler-schatten-fingerprint">Saisonaler Schatten-Fingerprint</a><a class="nav-link level-3" href="#schatten-abweichungs-wanderung">Schatten-/Abweichungs-Wanderung</a><a class="nav-link level-3" href="#wochentabelle">Wochentabelle</a><a class="nav-link level-3" href="#jahresubersicht">Jahresübersicht</a><a class="nav-link level-2" href="#wetter">Wetter</a><a class="nav-link level-3" href="#aktuelles-wetter">Aktuelles Wetter</a><a class="nav-link level-3" href="#72-stunden-prognose">72-Stunden-Prognose</a><a class="nav-link level-3" href="#solarstrahlung-heute">Solarstrahlung heute</a><a class="nav-link level-3" href="#kleidungsempfehlung">Kleidungsempfehlung</a><a class="nav-link level-3" href="#astronomie">Astronomie</a><a class="nav-link level-3" href="#wetterhistorie">Wetterhistorie</a><a class="nav-link level-2" href="#energie-finanzen">Energie &amp; Finanzen</a><a class="nav-link level-3" href="#abrechnungszeitraum-und-energiebilanz">Abrechnungszeitraum und Energiebilanz</a><a class="nav-link level-3" href="#verbrauchsatlas">Verbrauchsatlas</a><a class="nav-link level-3" href="#amortisation">Amortisation</a><a class="nav-link level-3" href="#monatliche-stromkosten">Monatliche Stromkosten</a><a class="nav-link level-3" href="#strompreise-heute-und-morgen">Strompreise heute und morgen</a><a class="nav-link level-3" href="#energiequellen-heute">Energiequellen heute</a><a class="nav-link level-3" href="#verbraucher">Verbraucher</a><a class="nav-link level-2" href="#smart-charging">Smart Charging</a><a class="nav-link level-3" href="#live-status">Live-Status</a><a class="nav-link level-3" href="#kpi-reihe">KPI-Reihe</a><a class="nav-link level-3" href="#48-stunden-diagramm">48-Stunden-Diagramm</a><a class="nav-link level-3" href="#hardware-und-kapazitatsberater">Hardware- und Kapazitätsberater</a><a class="nav-link level-2" href="#einstellungen">Einstellungen</a><a class="nav-link level-3" href="#oberflache-und-sprache">Oberfläche und Sprache</a><a class="nav-link level-3" href="#sensoren">Sensoren</a><a class="nav-link level-3" href="#preis-und-tarif">Preis und Tarif</a><a class="nav-link level-3" href="#smart-charging_1">Smart Charging</a><a class="nav-link level-3" href="#panelgruppen_1">Panelgruppen</a><a class="nav-link level-3" href="#hubble-ai-stack_1">Hubble AI-Stack</a><a class="nav-link level-3" href="#system-und-datenbank">System und Datenbank</a><a class="nav-link level-3" href="#exporte">Exporte</a><a class="nav-link level-2" href="#prognosequalitat-nur-modern">Prognosequalität – nur Modern</a><a class="nav-link level-3" href="#ubersicht">Übersicht</a><a class="nav-link level-3" href="#replay">Replay</a><a class="nav-link level-3" href="#model-battle">Model Battle</a><a class="nav-link level-3" href="#365-tage-kalender">365-Tage-Kalender</a><a class="nav-link level-3" href="#meilensteine">Meilensteine</a><a class="nav-link level-3" href="#trends">Trends</a><a class="nav-link level-2" href="#wetter-energie-nur-modern">Wetter &amp; Energie – nur Modern</a><a class="nav-link level-3" href="#cockpit">Cockpit</a><a class="nav-link level-3" href="#weather-to-energy-story">Weather-to-Energy Story</a><a class="nav-link level-3" href="#weather-impact">Weather Impact</a><a class="nav-link level-3" href="#vergleichbare-tage">Vergleichbare Tage</a><a class="nav-link level-1" href="#zahlen-und-statistik">Zahlen und Statistik</a><a class="nav-link level-1" href="#das-ist-wahrscheinlich-kein-bug">Das ist wahrscheinlich kein Bug</a><a class="nav-link level-1" href="#fehlerdiagnose">Fehlerdiagnose</a><a class="nav-link level-2" href="#keine-daten">Keine Daten</a><a class="nav-link level-2" href="#unplausible-werte">Unplausible Werte</a><a class="nav-link level-2" href="#veralteteabweichende-modern-ansicht">Veraltete/abweichende Modern-Ansicht</a><a class="nav-link level-1" href="#faq">FAQ</a><a class="nav-link level-1" href="#glossar">Glossar</a></nav></aside><main class="content" id="content"><h1 id="sfml-stats-handbuch-version-2">SFML Stats – Handbuch Version 2</h1>
+<p>Version 2 · Fachentwurf, keine produktive Veröffentlichung</p>
+<h2 id="schnellstart">Schnellstart</h2>
+<p>SFML erzeugt Solarprognosen und speichert Prognose-, Mess-, Wetter- und Lerndaten. SFML Stats liest diese gemeinsame Datenbasis, ergänzt sie um konfigurierte Home-Assistant-Sensoren und stellt Vergleiche, Energieflüsse und Analysen dar. Stats ist kein geeichter Zähler und ersetzt nicht die Prognoselogik von SFML.</p>
+<p>SFML und SFML Stats werden gemeinsam ausgeliefert. Nach der Installation Land und Hausverbrauch wählen, optionale Flüsse nur mit korrekter Richtung und Einheit zuordnen und Home Assistant nach Backend-Updates neu starten. Livekarten können sofort Daten zeigen; historische Auswertungen benötigen gespeicherte Stunden oder abgeschlossene Tage.</p>
+<h2 id="installation-und-voraussetzungen">Installation und Voraussetzungen</h2>
+<p>Die gemeinsame Auslieferung setzt Home Assistant 2026.6.x oder neuer voraus. Eine separate SFML-Mindestversion ist nicht erforderlich.</p>
+<h3 id="sensormatrix">Sensormatrix</h3>
+<table>
+<thead>
+<tr>
+<th>Sensor</th>
+<th>Pflicht</th>
+<th>Erwartung</th>
+<th>Verwendung</th>
+<th>Folge bei Fehlen/Fehler</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Land</td>
+<td>ja</td>
+<td>DE/AT</td>
+<td>Tarifdefaults</td>
+<td>falsche Defaults</td>
+</tr>
+<tr>
+<td>Hausverbrauch</td>
+<td>ja</td>
+<td>Leistung W/kW</td>
+<td>Livefluss/Tagesenergie</td>
+<td>Kernbilanz fehlt/falsch</td>
+</tr>
+<tr>
+<td>Wetter</td>
+<td>nein</td>
+<td><code>weather</code></td>
+<td>aktueller Fallback</td>
+<td>Livewetter reduziert</td>
+</tr>
+<tr>
+<td>Solar→Haus</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>direkter Solarverbrauch</td>
+<td>Herkunft unvollständig</td>
+</tr>
+<tr>
+<td>WR-AC-Ausgang</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>Nutzenergie/Wirkungsgrad</td>
+<td>Wirkungskette fehlt</td>
+</tr>
+<tr>
+<td>Solar→Akku</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>PV-Ladung</td>
+<td>Akkuherkunft fehlt</td>
+</tr>
+<tr>
+<td>Akku→Haus</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>Akkuversorgung</td>
+<td>Herkunft unvollständig</td>
+</tr>
+<tr>
+<td>Netz→Haus</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>Netzbezug</td>
+<td>Netzanteil fehlt</td>
+</tr>
+<tr>
+<td>Netz→Akku</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>Netzladung</td>
+<td>Autarkie unvollständig</td>
+</tr>
+<tr>
+<td>Haus→Netz</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>Einspeisung</td>
+<td>Export fehlt</td>
+</tr>
+<tr>
+<td>Smartmeter Import/Export</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>Netzfluss</td>
+<td>kein Zusatzfluss</td>
+</tr>
+<tr>
+<td>Akku-SoC</td>
+<td>nein</td>
+<td>%</td>
+<td>Akku/Smart Charging</td>
+<td>Karten reduziert</td>
+</tr>
+<tr>
+<td>Akkuleistung</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>Laden/Entladen</td>
+<td>Verlauf fehlt</td>
+</tr>
+<tr>
+<td>zusätzlicher Netzimport</td>
+<td>nein</td>
+<td>kWh</td>
+<td>Sonderfallback</td>
+<td>kein Fallback</td>
+</tr>
+<tr>
+<td>Gesamtpreis</td>
+<td>nein</td>
+<td>numerisch ct/kWh</td>
+<td>Preisoverride</td>
+<td>andere Einheit führt zu Fehlentscheidung</td>
+</tr>
+<tr>
+<td>WP/Heizstab/Wallbox</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>Verbraucherenergie</td>
+<td>Verbraucher fehlt</td>
+</tr>
+<tr>
+<td>Verbraucher-Details</td>
+<td>nein</td>
+<td>Select/Binary/Zahl/kWh/°C</td>
+<td>Detaildialoge</td>
+<td>einzelne Details fehlen</td>
+</tr>
+<tr>
+<td>Smart-Charging-Schalter</td>
+<td>nein</td>
+<td>Switch</td>
+<td>Steueraktion</td>
+<td>nur Analyse</td>
+</tr>
+<tr>
+<td>Atlas-Verbraucher</td>
+<td>nein</td>
+<td>Leistung</td>
+<td>frei definierte Last</td>
+<td>kein Atlas-Eintrag</td>
+</tr>
+</tbody>
+</table>
+<p>Leistung wird über die Zeit zu Energie integriert. W/kW und kWh sind nicht austauschbar. Beim Gesamtpreissensor validiert der aktuelle Code die Einheit nicht; nur einen Sensor verwenden, dessen numerischer Zustand bereits ct/kWh ist.</p>
+<h2 id="in-5-minuten-verstehen-was-stats-anzeigt">In 5 Minuten verstehen, was Stats anzeigt</h2>
+<ol>
+<li>Prognosen sind Erwartungen, Messwerte beobachtete Werte.</li>
+<li>Watt ist Leistung jetzt, kWh ist Energie über einen Zeitraum.</li>
+<li>Der laufende Tag bleibt vorläufig; abgeschlossene Tageswerte entstehen beim Tagesabschluss.</li>
+<li>Physics, AI, Ensemble, Morning Forecast und Reforecast sind unterschiedliche Stufen derselben Prognosekette.</li>
+<li>P10 ist bewusst konservativer als die wahrscheinlichste Prognose und keine Garantie.</li>
+<li>Lernbasis umfasst bewertbare Stunden; technische Ausschlüsse sind keine normalen Modellfehler.</li>
+<li>Fehlend ist nicht null. Stats rekonstruiert fehlende Historie nicht mit erfundenen Werten.</li>
+</ol>
+<h2 id="orientierung">Orientierung</h2>
+<p>Classic besitzt sechs Seiten. Modern nutzt dieselben Fachseiten und ergänzt Prognosequalität sowie Wetter &amp; Energie. Modern-Tabs sind alternative Ansichten, keine gleichzeitig untereinander sichtbaren Karten. Datumswahl auf Home ändert Tagescharts, nicht globale Livewerte. Responsive Layouts brechen Spalten um; die logische Reihenfolge bleibt erhalten.</p>
+<h1 id="seiten-und-karten">Seiten und Karten</h1>
+<h2 id="home">Home</h2>
+<h3 id="energiefluss">Energiefluss</h3>
+<p><strong>Was zeigt die Karte?</strong> PV, Haus, Netz, optional Akku/Wallbox, Peaks und Produktionsdauer. <strong>Quelle:</strong> HA-Leistungssensoren, SFML-Panelwerte, STATS-Tagesspeicher. <strong>Bildung:</strong> normalisierte Momentanwerte und gerichtete Pfade. <strong>Interpretation:</strong> W ist momentan; Netzbezug und Einspeisung sind getrennt. <strong>Aktualisierung:</strong> laufend. <strong>Normal:</strong> kurzfristig nicht geschlossene Momentaufnahme bei versetzten Sensorupdates. <strong>Kein Bug:</strong> Sekundenabweichung. <strong>Prüfen:</strong> dauerhaft Faktor 1000, falsche Richtung oder <code>--</code>. <strong>Beispiel:</strong> 3.000 W PV − 1.000 W Haus = 2.000 W Export. <strong>Technik:</strong> <code>/realtime</code>, <code>/energy_flow</code>.</p>
+<h3 id="hubble-ai-stack">Hubble AI-Stack</h3>
+<p><strong>Anzeige:</strong> priorisierter Tageskontext, Systemstatus, Chips, Kurztext, Quick Actions und Bericht. <strong>Quelle:</strong> SFML-/STATS-Tages-, Forecast-, Preis-, Wetter- und Statusdaten. <strong>Bildung:</strong> deterministische Prioritäts- und Auswahlregeln plus Modellmetadaten. <strong>Interpretation:</strong> Assistenz zur vorhandenen SOT, keine zweite Prognose. <strong>Aktualisierung:</strong> Seitenload/periodisch. <strong>Normal:</strong> optionale Chips/Aktionen fehlen. <strong>Kein Bug:</strong> kein Schattenhinweis ohne qualifiziertes Muster. <strong>Prüfen:</strong> Text widerspricht Zahlen. <strong>Beispiel:</strong> Empfehlung eines früheren Verbraucherfensters vor einem belegten Schattensegment.</p>
+<h3 id="hubble-tagesbilanz">Hubble-Tagesbilanz</h3>
+<p><strong>Anzeige:</strong> Hausbedarf und Anteile Solar direkt, Akku, Netz, optional nicht zugeordnet. <strong>Quelle:</strong> <code>stats_daily_energy</code>. <strong>Bildung:</strong> Quellenanteile; ganzzahlige Prozentwerte summieren deterministisch zu 100 %. <strong>Interpretation:</strong> „nicht zugeordnet“ ist eine positive Bilanzlücke. <strong>Aktualisierung:</strong> laufender Tag. <strong>Normal:</strong> Akkuanteil fehlt ohne Akku. <strong>Kein Bug:</strong> kleine tolerierte Rundungslücke. <strong>Prüfen:</strong> Quellen übersteigen den Hausbedarf dauerhaft. <strong>Beispiel:</strong> 8 kWh = 5 + 2 + 1 kWh.</p>
+<h3 id="energie-wirkungskette">Energie-Wirkungskette</h3>
+<p><strong>Anzeige:</strong> DC-Eingang, AC-Nutzenergie, Verlust, Wirkungsgrad, Netzautarkie und bereinigte Autarkie. <strong>Quelle:</strong> WR-AC, PV-DC, Akku-DC und Tagesfenster. <strong>Bildung:</strong> nur eindeutige Messfenster. <strong>Interpretation:</strong> Abdeckung mitlesen. <strong>Aktualisierung:</strong> laufend. <strong>Normal:</strong> ausstehend/nicht eindeutig. <strong>Kein Bug:</strong> Karte fehlt ohne AC-Sensor. <strong>Prüfen:</strong> dauerhaft physikalisch unplausibel. <strong>Beispiel:</strong> 0,527 kWh DC und 0,512 kWh AC ≈97,2 %.</p>
+<h3 id="tagesprognose-gegen-ist">Tagesprognose gegen Ist</h3>
+<p><strong>Anzeige:</strong> Stundenchart, Datum, Güte, Fehler, Lernbasis, Ausschlüsse, Ist, Forecast, P10 und Wetterspur. <strong>Quelle:</strong> <code>hourly_predictions</code>, Tages-SOT, Wettertabellen. <strong>Bildung:</strong> Tagesabweichung Ist−Forecast; Clean-Güte nur bewertbare Stunden. <strong>Interpretation:</strong> negative Ertragsabweichung bedeutet weniger Ist. <strong>Aktualisierung:</strong> heute laufend, Historie final. <strong>Normal:</strong> heutige Werte ändern sich. <strong>Kein Bug:</strong> Gesamtfehler und Clean-Güte unterscheiden sich. <strong>Prüfen:</strong> falsches Datum/Liveoverlay historisch. <strong>Beispiel:</strong> 8,0−9,2=−1,2 kWh.</p>
+<h3 id="mehrtagesprognose">Mehrtagesprognose</h3>
+<p><strong>Anzeige:</strong> verfügbare Folgetage in kWh. <strong>Quelle:</strong> SFML-Tagesprognosen. <strong>Bildung:</strong> finaler Wert je Tag/Typ. <strong>Interpretation:</strong> Planungswert. <strong>Aktualisierung:</strong> Morning Forecast/Reforecast. <strong>Normal:</strong> fehlender Tag reduziert Kartenanzahl. <strong>Kein Bug:</strong> später geänderter Forecast. <strong>Prüfen:</strong> SFML-Quellwert vorhanden, Karte dauerhaft leer.</p>
+<h3 id="panelgruppen">Panelgruppen</h3>
+<p><strong>Anzeige:</strong> dynamisch eine Karte je Gruppe mit Ist, Prognose, Fortschritt und Stundenverlauf. <strong>Quelle:</strong> <code>prediction_panel_groups</code> und Live-Panelwerte. <strong>Bildung:</strong> gruppenweise Summen. <strong>Interpretation:</strong> nicht ungewichtet zur Anlagenqualität mitteln. <strong>Aktualisierung:</strong> live. <strong>Normal:</strong> „nur Live“. <strong>Kein Bug:</strong> Gruppen- und Anlagenprozent verschieden. <strong>Prüfen:</strong> systematische Summendifferenz ohne Lücke.</p>
+<h3 id="live-pv-produktion">Live-PV-Produktion</h3>
+<p><strong>Anzeige:</strong> PV-Leistung, Tagespeak, Zeit und dynamische Panel-Livekarten. <strong>Quelle:</strong> SFML-/HA-Leistung. <strong>Bildung:</strong> aktuelle Samples und Tagesmaximum. <strong>Interpretation:</strong> Peak-W ist nicht Tages-kWh. <strong>Aktualisierung:</strong> live. <strong>Normal:</strong> kurze Spitzen. <strong>Kein Bug:</strong> Peak höher als länger sichtbares Plateau. <strong>Prüfen:</strong> negative/tausendfach falsche Leistung.</p>
+<h3 id="akku-ladestand">Akku-Ladestand</h3>
+<p><strong>Anzeige:</strong> SoC-Verlauf, Min/Max, Lade-/Entladeenergie und Modus. <strong>Quelle:</strong> SoC/Akkuleistung und Tagesintegration. <strong>Bildung:</strong> Samples plus W-Integration. <strong>Interpretation:</strong> % und kWh trennen. <strong>Aktualisierung:</strong> live. <strong>Normal:</strong> Karte fehlt ohne Akku. <strong>Kein Bug:</strong> SoC und Leistung aktualisieren versetzt. <strong>Prüfen:</strong> SoC außerhalb 0–100 % oder Richtungsfehler.</p>
+<h2 id="solar">Solar</h2>
+<h3 id="monatlicher-solarertrag">Monatlicher Solarertrag</h3>
+<p><strong>Anzeige:</strong> Monatschart, Jahreswahl, gemessener Ertrag, stärkster Prognosemonat, Jahresprognose, gemessenes Monatsmittel. <strong>Quelle:</strong> Tagesabschlüsse/Annual Reader. <strong>Bildung:</strong> Aggregation im gewählten Jahr. <strong>Interpretation:</strong> Messung und Prognose getrennt. <strong>Aktualisierung:</strong> Tagesabschluss. <strong>Normal:</strong> laufendes Jahr unvollständig. <strong>Kein Bug:</strong> Monatsmittel ≠ Jahresprognose. <strong>Prüfen:</strong> falsches Jahr/Quelle.</p>
+<h3 id="produktions-heatmap">Produktions-Heatmap</h3>
+<p><strong>Anzeige:</strong> Produktionsintensität nach Datum/Stunde. <strong>Quelle:</strong> historische Erzeugung. <strong>Bildung:</strong> Stundenwerte in Heatmapzellen. <strong>Interpretation:</strong> Muster, keine Prognose. <strong>Aktualisierung:</strong> neue Messstunden. <strong>Normal:</strong> Lücken bei fehlenden Daten. <strong>Kein Bug:</strong> Nachtzellen leer/niedrig. <strong>Prüfen:</strong> ECharts-Topologie fehlerhaft oder Daten vorhanden, Visual leer.</p>
+<h3 id="prognosevergleich">Prognosevergleich</h3>
+<p><strong>Anzeige:</strong> Vergleich der tatsächlich konfigurierten Prognosequellen. <strong>Quelle:</strong> Forecast-Vergleichstabellen. <strong>Bildung:</strong> gemeinsame historische Werte. <strong>Interpretation:</strong> gleiche Zeitbasis beachten. <strong>Aktualisierung:</strong> Tagesabschluss. <strong>Normal:</strong> Quelle fehlt ohne Daten. <strong>Kein Bug:</strong> Anbieterwerte weichen ab. <strong>Prüfen:</strong> unterschiedliche Tage werden verglichen.</p>
+<h3 id="leistungsabweichung-zur-physikalischen-referenz">Leistungsabweichung zur physikalischen Referenz</h3>
+<p><strong>Anzeige:</strong> Minderertrag, Stunden, Referenzerfüllung, Ursachen und Tagesverlust. <strong>Quelle:</strong> Abweichungs-/Schattenanalyse. <strong>Bildung:</strong> Vergleich mit physikalischer Referenz. <strong>Interpretation:</strong> kein automatischer Gebäude-/Baumschattenbeweis. <strong>Aktualisierung:</strong> Auswertung. <strong>Normal:</strong> Wetter/niedrige Sonne wirken mit. <strong>Kein Bug:</strong> interner Legacyname <code>shadowAnalysis</code>. <strong>Prüfen:</strong> UI behauptet lokale Ursache ohne Qualifikation.</p>
+<h3 id="saisonaler-schatten-fingerprint">Saisonaler Schatten-Fingerprint</h3>
+<p><strong>Anzeige:</strong> Monat×Stunde, lokale Muster, erwartete Stärke. <strong>Quelle:</strong> Schattenmodell 2.0. <strong>Bildung:</strong> ≥7 Samples, Konfidenz ≥0,5, lokale Wahrscheinlichkeit ≥0,6. <strong>Interpretation:</strong> historischer Erwartungswert. <strong>Aktualisierung:</strong> Lernlauf/EOD. <strong>Normal:</strong> Leerzustand. <strong>Kein Bug:</strong> saisonales Muster trotz leerem 30-Tage-Fenster. <strong>Prüfen:</strong> unklare/Wettermuster als lokal.</p>
+<h3 id="schatten-abweichungs-wanderung">Schatten-/Abweichungs-Wanderung</h3>
+<p><strong>Anzeige:</strong> ausgewählter Tag oder qualifiziertes typisches Muster, Gruppen, Ist, Referenz, Ausschlüsse/MPPT. <strong>Quelle:</strong> Panelgruppen, Astronomie, Detektion. <strong>Bildung:</strong> Stundenansicht. <strong>Interpretation:</strong> „Nur Prognose“ ist keine 0-%-Effizienz. <strong>Aktualisierung:</strong> Tagesdaten. <strong>Normal:</strong> typischer Modus fehlt. <strong>Kein Bug:</strong> ausgeschlossene Gruppe ohne Effizienz. <strong>Prüfen:</strong> Ausschluss als normale Minderleistung.</p>
+<h3 id="wochentabelle">Wochentabelle</h3>
+<p><strong>Anzeige:</strong> Tag, Ertrag, Forecast, Delta, Fehler, Güte, Lernbasis, Ausschlüsse, Peak. <strong>Quelle:</strong> Tagesabschlüsse. <strong>Bildung:</strong> eine Zeile je Tag. <strong>Interpretation:</strong> kWh und Prozent gemeinsam lesen. <strong>Aktualisierung:</strong> EOD. <strong>Normal:</strong> kleiner Ertrag erzeugt hohen Prozentfehler. <strong>Kein Bug:</strong> ausgeschlossener Tag unbewertbar. <strong>Prüfen:</strong> Vorzeichen/Spaltenbasis falsch.</p>
+<h3 id="jahresubersicht">Jahresübersicht</h3>
+<p><strong>Anzeige:</strong> erwartet, optimistisch, pessimistisch, Rekordtag, Peak, kWp, Gruppenfaktoren. <strong>Quelle:</strong> Annual Reader. <strong>Bildung:</strong> ohne ≥3 gemessene Monatsmittel ±15 %; sonst halber Variationskoeffizient, begrenzt 8–20 %. <strong>Interpretation:</strong> heuristische Bandbreite, kein Quantil/Konfidenzintervall. <strong>Aktualisierung:</strong> neue Tagesdaten. <strong>Normal:</strong> breite Bandbreite bei wenig Historie. <strong>Kein Bug:</strong> Szenarien unterscheiden sich. <strong>Prüfen:</strong> Szenarien als Wahrscheinlichkeit beschriftet.</p>
+<h2 id="wetter">Wetter</h2>
+<h3 id="aktuelles-wetter">Aktuelles Wetter</h3>
+<p><strong>Anzeige:</strong> Temperatur, gefühlt, Wolken, Wind, Feuchte, Taupunkt, Druck, Sicht, Strahlung, Niederschlag, Solarpotenzial. <strong>Quelle:</strong> Wetter-Ist-DB mit HA-/Forecast-Fallback. <strong>Bildung:</strong> aktueller Datensatz. <strong>Interpretation:</strong> Ist/Fallback kennzeichnen. <strong>Aktualisierung:</strong> Wetterimport. <strong>Normal:</strong> einzelne <code>--</code>. <strong>Kein Bug:</strong> Forecast-Fallback. <strong>Prüfen:</strong> alter Zeitstempel dauerhaft.</p>
+<h3 id="72-stunden-prognose">72-Stunden-Prognose</h3>
+<p><strong>Anzeige:</strong> Wetterverlauf der nächsten 72 h. <strong>Quelle:</strong> <code>weather_forecast</code>. <strong>Bildung:</strong> stündliche Zukunftsreihe. <strong>Interpretation:</strong> Prognose, kein Messwert. <strong>Aktualisierung:</strong> Forecastimport. <strong>Normal:</strong> spätere Revision. <strong>Kein Bug:</strong> Abweichung zum Ist. <strong>Prüfen:</strong> veraltete Forecastzeit.</p>
+<h3 id="solarstrahlung-heute">Solarstrahlung heute</h3>
+<p><strong>Anzeige:</strong> GHI/DNI/DHI und Clear-Sky. <strong>Quelle:</strong> Wetter/Astronomie. <strong>Bildung:</strong> Stundenwerte. <strong>Interpretation:</strong> W/m² ist Leistung pro Fläche. <strong>Aktualisierung:</strong> stündlich. <strong>Normal:</strong> DNI fällt bei Wolken. <strong>Kein Bug:</strong> nicht in kWh angegeben. <strong>Prüfen:</strong> negative Tagesstrahlung.</p>
+<h3 id="kleidungsempfehlung">Kleidungsempfehlung</h3>
+<p><strong>Anzeige:</strong> regelbasierte Kleidung und Extras. <strong>Quelle:</strong> gefühlte/echte Temperatur, Wind, Regen, Feuchte. <strong>Bildung:</strong> feste Schwellenregeln. <strong>Interpretation:</strong> Komfortfunktion. <strong>Aktualisierung:</strong> aktuelles Wetter. <strong>Normal:</strong> nicht verfügbar ohne Temperatur. <strong>Kein Bug:</strong> Empfehlung ändert sich an Schwelle. <strong>Prüfen:</strong> Eingangswert/Einheit falsch.</p>
+<h3 id="astronomie">Astronomie</h3>
+<p><strong>Anzeige:</strong> Auf-/Untergang, Tageslänge, Sonnenhöhe, Mondphase/-beleuchtung. <strong>Quelle:</strong> <code>astronomy_cache</code> und Berechnung. <strong>Bildung:</strong> Standort/Datum. <strong>Interpretation:</strong> astronomische Referenz. <strong>Aktualisierung:</strong> täglich. <strong>Normal:</strong> jahreszeitliche Änderung. <strong>Kein Bug:</strong> Mondwert unabhängig von PV. <strong>Prüfen:</strong> Datum/Zeitzone falsch.</p>
+<h3 id="wetterhistorie">Wetterhistorie</h3>
+<p><strong>Anzeige:</strong> alternative Filter 7/30/365 Tage, Temperatur, Regen, Wind, Sonnenstunden und Chart. <strong>Quelle:</strong> echte <code>hourly_weather_actual</code>-Historie. <strong>Bildung:</strong> Aggregation des gewählten Fensters. <strong>Interpretation:</strong> nur vorhandener Bestand. <strong>Aktualisierung:</strong> Tabwechsel/neue Istwerte. <strong>Normal:</strong> ältere Bereiche leer. <strong>Kein Bug:</strong> keine Forecast-Rekonstruktion. <strong>Prüfen:</strong> gespeicherte Zeilen werden nicht angezeigt.</p>
+<h2 id="energie-finanzen">Energie &amp; Finanzen</h2>
+<h3 id="abrechnungszeitraum-und-energiebilanz">Abrechnungszeitraum und Energiebilanz</h3>
+<p><strong>Anzeige:</strong> Haus, Solar, Akku, Netz, Export, Autarkie, Kosten, Ersparnis, Herkunft. <strong>Quelle:</strong> <code>stats_daily_energy</code>, <code>stats_hourly_billing</code>, Tarif. <strong>Bildung:</strong> Zeitraumaggregation; Netzladung berücksichtigt. <strong>Interpretation:</strong> Autarkie ≠ Eigenverbrauch. <strong>Aktualisierung:</strong> laufend. <strong>Normal:</strong> nicht zugeordnet. <strong>Kein Bug:</strong> Rundung. <strong>Prüfen:</strong> Netzladung erhöht Solarautarkie.</p>
+<h3 id="verbrauchsatlas">Verbrauchsatlas</h3>
+<p><strong>Anzeige:</strong> bekannte/sonstige Energie, Liveleistung, Topverbraucher, dynamische Einträge. <strong>Quelle:</strong> HA-Leistung plus Start-kWh. <strong>Bildung:</strong> Leistungsintegration; Startwert nur Periodensumme. <strong>Interpretation:</strong> Sonstiges ist Rest. <strong>Aktualisierung:</strong> live. <strong>Normal:</strong> keine alte Recorder-Nachfüllung. <strong>Kein Bug:</strong> Backfill-Endpunkt 410. <strong>Prüfen:</strong> Energiesensor statt Leistung.</p>
+<h3 id="amortisation">Amortisation</h3>
+<p><strong>Anzeige:</strong> Investition, Rückfluss, Rest, Fortschritt, Break-even, drei Szenarien. <strong>Quelle:</strong> Einstellungen, reale Monatswerte/Billing. <strong>Bildung:</strong> Benefit minus laufende Kosten und Projektion. <strong>Interpretation:</strong> Projektion. <strong>Aktualisierung:</strong> Daten/Einstellungen. <strong>Normal:</strong> ungenau bei wenig Historie. <strong>Kein Bug:</strong> Szenarien driften. <strong>Prüfen:</strong> Werte vor Inbetriebnahme einbezogen.</p>
+<h3 id="monatliche-stromkosten">Monatliche Stromkosten</h3>
+<p><strong>Anzeige:</strong> Monat, Verbrauch, Solar, Autarkie, Import, Preis, Kosten, Ersparnis; Preisänderungsdialog. <strong>Quelle:</strong> Billing/Tarif. <strong>Bildung:</strong> Monatsaggregation. <strong>Interpretation:</strong> Preisänderung ändert Kosten, nicht Energie. <strong>Aktualisierung:</strong> Monats-/Preiswerte. <strong>Normal:</strong> dynamisch/geschätzt markiert. <strong>Kein Bug:</strong> historischer Preis korrigierbar. <strong>Prüfen:</strong> falscher Monat.</p>
+<h3 id="strompreise-heute-und-morgen">Strompreise heute und morgen</h3>
+<p><strong>Anzeige:</strong> Stundenpreise/Min-Max. <strong>Quelle:</strong> GPM/fester Tarif; Preisservice kann aWATTar per HTTPS laden. <strong>Bildung:</strong> lokaler Stundenpreis einschließlich konfigurierter Bestandteile. <strong>Interpretation:</strong> ct/kWh. <strong>Aktualisierung:</strong> Preisimport. <strong>Normal:</strong> Morgen fehlt vor Veröffentlichung. <strong>Kein Bug:</strong> externe Verzögerung. <strong>Prüfen:</strong> Anbieter hat Daten, STATS bleibt leer.</p>
+<h3 id="energiequellen-heute">Energiequellen heute</h3>
+<p><strong>Anzeige:</strong> heutige Quellenverläufe. <strong>Quelle:</strong> <code>stats_power_sources</code>/Tagesstatistik. <strong>Bildung:</strong> gespeicherte Samples/Aggregation. <strong>Interpretation:</strong> gerichtete Quellen getrennt. <strong>Aktualisierung:</strong> laufend. <strong>Normal:</strong> Quelle fehlt ohne Sensor. <strong>Kein Bug:</strong> Lücke statt erfundener Null. <strong>Prüfen:</strong> vorhandene Quelle falsch zugeordnet.</p>
+<h3 id="verbraucher">Verbraucher</h3>
+<p><strong>Anzeige:</strong> WP, Heizstab, Wallbox mit kWh/Kosten und Detaildialogen. <strong>Quelle:</strong> konfigurierte Leistungs-/Detailsensoren. <strong>Bildung:</strong> Tagesintegration und Billing. <strong>Interpretation:</strong> Verbraucheranteil, nicht Gesamtverbrauch. <strong>Aktualisierung:</strong> live/Tag. <strong>Normal:</strong> nur konfigurierte Verbraucher. <strong>Kein Bug:</strong> Detailfeld fehlt ohne Sensor. <strong>Prüfen:</strong> doppelte Zuordnung.</p>
+<h1 id="funktionen">Funktionen</h1>
+<p>Dieser Bereich beschreibt die eigenständigen Funktionen von SFML Stats unabhängig von ihrer Position in der Benutzeroberfläche. Jedes Kapitel folgt demselben Muster: Bezeichnung, Beschreibung und Nutzen, notwendige Sensoren oder Daten sowie ein Anwendungsbeispiel.</p>
+<div class="function-index">
+<a href="#smart-charge-smc-funktion">🔋 Smart Charge</a>
+<a href="#funktion-s-plus">☀️ S-Plus</a>
+<a href="#funktion-amortisation">💶 Amortisation</a>
+<a href="#funktion-wirkungsgrade">⚙️ Wirkungsgrade</a>
+<a href="#funktion-akku">🔋 Akku</a>
+<a href="#funktion-hardware-kapazitaet">📊 Hardware- &amp; Kapazitäts-Analysen</a>
+</div>
+<section class="function-chapter" id="kapitel-smart-charge">
+<h2 id="smart-charging">Smart Charge</h2>
+<h3 id="smart-charge-smc-funktion">Smart Charge (SMC)</h3>
+<p><strong>Bezeichnung:</strong> Smart Charge (SMC) – vorausschauende Netzladung eines stationären Akkus bei dynamischem Stromtarif. <strong>Beschreibung:</strong> SMC lädt den Akku nicht allein deshalb, weil der aktuelle Strompreis niedrig ist. Hubble verbindet den effektiven Bruttostrompreis mit Solarprognose, aktueller Wirkleistung, erwartetem Verbrauch, Umwandlungsverlusten, Akku-SoC, Akkukapazität und den konfigurierten SoC-Grenzen. Daraus entstehen ein wirtschaftlich bewerteter Ladezeitpunkt und ein dynamischer Ziel-SoC. <strong>Wozu ist das gut?</strong> Günstige Netzstunden werden genutzt, ohne den Akku unnötig zu füllen und dadurch Platz für den erwarteten Solarüberschuss zu verlieren. Das reduziert teuren Netzbezug und verbessert die wirtschaftliche Akkunutzung.</p>
+<h3 id="smart-charge-smc-funktionsweise">So funktioniert SMC</h3>
+<ol>
+<li>STATS ermittelt den wirksamen Gesamtpreis in ct/kWh aus dem dynamischen Preisservice oder einem konfigurierten Gesamtpreissensor.</li>
+<li>SMC liest Solarprognose und durchschnittlichen Verbrauch aus der gemeinsamen SFML-Datenbasis.</li>
+<li>Hubble bewertet Preis, Prognose und aktuelle Wirkleistung gemeinsam. Umwandlungsverluste korrigieren dabei die tatsächlich nutzbaren Kosten- und Energiemengen.</li>
+<li>Aus Prognose, Verbrauch, Verlusten, Akkukapazität sowie Min-/Max-SoC wird der Ziel-SoC berechnet. Erwarteter Solarüberschuss reserviert freien Speicher; erwarteter Nachtverbrauch erhöht den notwendigen Puffer.</li>
+<li>Der aktuelle Akku-SoC wird mit dem Ziel verglichen. Eine Hysterese verhindert häufiges Ein- und Ausschalten.</li>
+<li>Standardladung ist nur nachts aktiv, wenn der Gesamtpreis unter der konfigurierten Maximalpreisschwelle liegt. Eine besonders günstige Force-Charge-Schwelle kann zusätzlich greifen; tagsüber jedoch nur bei belegtem Leistungsdefizit.</li>
+<li>Ist ein Steuerschalter konfiguriert, schaltet SMC die Netzladung automatisch. Ohne Schalter bleibt SMC eine Analyse- und Empfehlungsebene.</li>
+</ol>
+<blockquote><strong>Hubble und Verluste:</strong> Hubble bewertet den aktuellen SMC-Zustand und bezieht Bruttostrompreis, Prognose, Wirkleistung sowie Speicher- und Umwandlungsverluste direkt in Ladeentscheidung und Ersparnisbewertung ein. SMC setzt die daraus abgeleitete Entscheidung über den konfigurierten Netzlade-Schalter um.</blockquote>
+<h3 id="smart-charge-smc-sensoren">Benötigte Sensoren und Daten</h3>
+<table>
+<thead><tr><th>Sensor oder Wert</th><th>Status</th><th>Anforderung</th><th>Aufgabe</th><th>Wenn er fehlt</th></tr></thead>
+<tbody>
+<tr><td>Akku-SoC</td><td>funktional erforderlich</td><td>Sensor, numerisch 0–100 %</td><td>Start-/Stoppentscheidung und Zielvergleich</td><td>Automatische Ladung wird aus Sicherheitsgründen blockiert</td></tr>
+<tr><td>Netzlade-Schalter</td><td>für automatische Steuerung erforderlich</td><td><code>switch</code>-Entity des Akkus/Wechselrichters</td><td>Schaltet die Netzladung ein oder aus</td><td>Nur Analyse und Empfehlung, keine Schaltaktion</td></tr>
+<tr><td>Gesamtstrompreis</td><td>erforderliche Datenquelle</td><td>GPM-Dynamikpreis oder Gesamtpreissensor; effektiv ct/kWh</td><td>Vergleich mit Maximal- und Force-Charge-Schwelle</td><td>Keine belastbare Preisentscheidung</td></tr>
+<tr><td>Solarprognose</td><td>erforderliche SFML-Datenbasis</td><td>heutige/morgige Prognose in kWh</td><td>Reserviert Platz für erwarteten Solarüberschuss</td><td>Ziel-SoC fällt konservativ bis zum Max-SoC zurück</td></tr>
+<tr><td>Hausverbrauch</td><td>für Tages-Force-Charge erforderlich</td><td>Leistung in W oder kW</td><td>Vergleich mit aktueller Solarleistung</td><td>Force Charge am Tag wird bei unbekanntem Defizit blockiert</td></tr>
+<tr><td>Solar→Haus</td><td>für Tages-Force-Charge erforderlich</td><td>Leistung in W oder kW</td><td>Belegt, ob Solar den aktuellen Hausbedarf deckt</td><td>Force Charge am Tag wird bei unbekanntem Defizit blockiert</td></tr>
+<tr><td>Wirkungsgrad-/Verlustdaten</td><td>erforderliche Bewertungsbasis</td><td>Wirkungskette von Wechselrichter und Akku</td><td>Korrigiert nutzbare Energie und wirtschaftlichen Ladepreis</td><td>Keine vollständige verlustbereinigte Ladeentscheidung</td></tr>
+<tr><td>Alternativer Haupt-SoC</td><td>optional</td><td>Sensor, numerisch 0–100 %</td><td>Fallback bei ungültigem primären SoC</td><td>Kein Fallback</td></tr>
+</tbody>
+</table>
+<h3 id="smart-charge-smc-konfiguration">Notwendige Konfiguration</h3>
+<table>
+<thead><tr><th>Wert</th><th>Bedeutung</th></tr></thead>
+<tbody>
+<tr><td>Akkukapazität in kWh</td><td>Übersetzt erwartete Energie in einen Ziel-SoC.</td></tr>
+<tr><td>Minimaler und maximaler SoC</td><td>Begrenzt den von SMC erlaubten Arbeitsbereich.</td></tr>
+<tr><td>Maximalpreis</td><td>Unterhalb dieser Grenze gilt eine Nachtstunde als günstig. Der Grenzwert selbst zählt nicht als günstig.</td></tr>
+<tr><td>Force-Charge-Preis</td><td>Besonders günstige Schwelle für eine Ladung bis nahe Max-SoC; tagsüber nur bei belegtem Solardefizit.</td></tr>
+</tbody>
+</table>
+<h3 id="smart-charge-smc-beispiel">Nutzungsbeispiel</h3>
+<p><strong>Ausgangslage:</strong> 10-kWh-Akku, Min-SoC 20 %, Max-SoC 90 %, Maximalpreis 25 ct/kWh, aktueller SoC 35 %. SMC berechnet aus der Solarprognose und dem erwarteten Verbrauch einen Ziel-SoC von 65 %. <strong>Entscheidung:</strong> In einer Nachtstunde kostet Strom 18 ct/kWh. Der Preis ist günstig und der SoC liegt unter der Einschalthysterese. SMC aktiviert den Netzlade-Schalter und lädt bis zum Zielbereich. <strong>Nutzen:</strong> Der erwartete Nachtbedarf wird günstig gedeckt; gleichzeitig bleiben 35 % Speicherkapazität bis zum Max-SoC für den prognostizierten Solarertrag frei. <strong>Zweites Szenario:</strong> Fällt der Preis tagsüber unter die Force-Charge-Schwelle, lädt SMC nur dann aus dem Netz, wenn Hausverbrauch und Solar→Haus-Leistung gemeinsam ein tatsächliches Leistungsdefizit belegen.</p>
+<h3 id="live-status">Live-Status</h3>
+<p><strong>Anzeige:</strong> SoC-Gauge, Status und Entscheidung. <strong>Quelle:</strong> SoC, Preis, Forecast, Konfiguration. <strong>Bildung:</strong> Preis-/SoC-Regeln mit Hysterese. <strong>Interpretation:</strong> Entscheidung, nicht garantierte Schaltaktion. <strong>Aktualisierung:</strong> Sensor/Preis. <strong>Normal:</strong> ohne Switch Analyse. <strong>Kein Bug:</strong> Preis exakt Grenze ist nicht günstig. <strong>Prüfen:</strong> falscher Preiswert.</p>
+<h3 id="kpi-reihe">KPI-Reihe</h3>
+<p><strong>Anzeige:</strong> aktuelle Ziel-, Preis- und Energiewerte. <strong>Quelle:</strong> Dashboardpayload. <strong>Bildung:</strong> Backendwerte. <strong>Interpretation:</strong> Einheit/Zeitraum je KPI. <strong>Aktualisierung:</strong> Dashboardreload. <strong>Normal:</strong> einzelne KPI leer. <strong>Kein Bug:</strong> ohne Akku-/Preisdaten reduziert. <strong>Prüfen:</strong> Wert widerspricht Payload.</p>
+<h3 id="48-stunden-diagramm">48-Stunden-Diagramm</h3>
+<p><strong>Anzeige:</strong> Preis-/Forecast-/Ladefenster über 48 h. <strong>Quelle:</strong> Stundenpreise und Forecast. <strong>Bildung:</strong> gemeinsame Zeitachse. <strong>Interpretation:</strong> Planungsfenster. <strong>Aktualisierung:</strong> Preis/Forecast. <strong>Normal:</strong> morgiger Teil unvollständig. <strong>Kein Bug:</strong> spätere Änderung. <strong>Prüfen:</strong> Zeitzonenversatz.</p>
+</section>
+<section class="function-chapter" id="kapitel-s-plus">
+<h2 id="funktion-s-plus">S-Plus</h2>
+<h3 id="funktion-s-plus-beschreibung">Bezeichnung, Beschreibung und Nutzen</h3>
+<p><strong>Bezeichnung:</strong> S-Plus – stabil erkannter PV-Überschuss. <strong>Beschreibung:</strong> S-Plus erkennt nicht nur einen kurzen positiven Leistungsausschlag, sondern einen belastbaren Solarüberschuss. Die Funktion gleicht PV-Leistung, bereinigten Hausverbrauch, Akku-Ladung, Netzeinspeisung und Netzbezug miteinander ab. Erst wenn mindestens 50 W Überschuss fünf Minuten stabil anliegen, wird S-Plus aktiv. Ein Netzbezug ab 50 W schaltet S-Plus nach einer Karenz von 60 Sekunden wieder aus. <strong>Wozu ist das gut?</strong> Automationen für flexible Verbraucher reagieren erst auf nachhaltigen Überschuss und werden nicht durch Wolkenkanten oder kurze Messspitzen ständig ein- und ausgeschaltet.</p>
+<h3 id="funktion-s-plus-sensoren">Notwendige Sensoren</h3>
+<table><thead><tr><th>Sensor oder Datenquelle</th><th>Aufgabe</th><th>Fallback</th></tr></thead><tbody>
+<tr><td>PV-Liveleistung aus SFML</td><td>Ermittelt die verfügbare Solarleistung</td><td>kein belastbarer Solarvergleich</td></tr>
+<tr><td>Hausverbrauch</td><td>Berechnet den nach Hauslast verbleibenden Überschuss</td><td>reine Exportbewertung möglich</td></tr>
+<tr><td>Haus→Netz oder Smartmeter-Export</td><td>Belegt tatsächliche Einspeisung</td><td>rechnerischer Überschuss aus PV minus Last</td></tr>
+<tr><td>Netz→Haus oder Smartmeter-Import</td><td>Verhindert S-Plus bei anhaltendem Netzbezug</td><td>Importschutz reduziert</td></tr>
+<tr><td>Solar→Akku oder Akkuleistung</td><td>Bereinigt Hausverbrauch um aktuelle Akkuladung</td><td>Überschuss kann konservativer bewertet werden</td></tr>
+</tbody></table>
+<h3 id="funktion-s-plus-beispiel">Nutzungsbeispiel</h3>
+<p>Eine Wärmepumpe oder Wallbox soll nur mit echtem Solarüberschuss starten. S-Plus bleibt bei kurzen 200-W-Spitzen aus. Liegen dagegen mindestens 50 W Überschuss fünf Minuten stabil an und besteht kein dauerhafter Netzbezug, wechselt der Binärsensor auf Ein. Eine Home-Assistant-Automation kann diesen Zustand als robuste Freigabe verwenden.</p>
+</section>
+<section class="function-chapter" id="kapitel-amortisation">
+<h2 id="funktion-amortisation">Amortisation</h2>
+<h3 id="funktion-amortisation-beschreibung">Bezeichnung, Beschreibung und Nutzen</h3>
+<p><strong>Bezeichnung:</strong> Amortisationsanalyse. <strong>Beschreibung:</strong> Die Funktion stellt Investition, bisherigen finanziellen Rückfluss, Restbetrag, Fortschritt und erwarteten Break-even dar. Reale Monats- und Billingwerte werden mit den konfigurierten Anschaffungs- und Betriebskosten verbunden und in mehreren Szenarien fortgeschrieben. <strong>Wozu ist das gut?</strong> Nutzer sehen nicht nur erzeugte kWh, sondern wann und unter welchen Preisannahmen sich die Anlage wirtschaftlich trägt.</p>
+<h3 id="funktion-amortisation-daten">Notwendige Daten</h3>
+<p>Erforderlich sind Investitionsbetrag und Inbetriebnahmedatum sowie belastbare Monatswerte für Solarertrag, Eigenverbrauch, Netzimport, Einspeisung und die zugehörigen Bezugs-/Einspeisepreise. Laufende Kosten und angenommene Preisentwicklung verfeinern die Projektion.</p>
+<h3 id="funktion-amortisation-beispiel">Nutzungsbeispiel</h3>
+<p>Nach zwölf Monaten vergleicht die Analyse reale Einsparungen und Einspeiseerlöse mit der Investition. Die drei Szenarien zeigen, wie sich stabile, fallende oder steigende Strompreise auf das Break-even-Jahr auswirken.</p>
+</section>
+<section class="function-chapter" id="kapitel-wirkungsgrade">
+<h2 id="funktion-wirkungsgrade">Wirkungsgrade</h2>
+<h3 id="funktion-wirkungsgrade-beschreibung">Bezeichnung, Beschreibung und Nutzen</h3>
+<p><strong>Bezeichnung:</strong> Energie-Wirkungskette. <strong>Beschreibung:</strong> Die Funktion verfolgt nutzbare Energie vom Solarertrag über Wechselrichter und Akku bis zur AC-Seite. Sie trennt Solar→AC, Akku→AC, kombinierte Umwandlung, Netzautarkie und verlustbereinigte Autarkie. <strong>Wozu ist das gut?</strong> Erzeugung, nutzbare Energie und technische Verluste werden nicht miteinander verwechselt; schleichende Abweichungen werden sichtbar.</p>
+<h3 id="funktion-wirkungsgrade-sensoren">Notwendige Sensoren</h3>
+<p>Benötigt werden Solarertrag beziehungsweise DC-/Yield-Daten, Wechselrichter-AC-Ausgang sowie – für den Akkupfad – Lade- und Entladeenergie oder gerichtete Leistungswerte. Hausverbrauch und Netzflüsse ergänzen die Autarkiebewertung. Wirkungsgrade werden nur aus abgeschlossenen, belastbaren Messstunden gebildet.</p>
+<h3 id="funktion-wirkungsgrade-beispiel">Nutzungsbeispiel</h3>
+<p>Zeigt Solar→AC 97 %, Akku→AC 92 % und verlustbereinigte Autarkie 84 %, lässt sich erkennen, dass ein hoher nomineller Autarkiewert nicht der tatsächlich nutzbaren Energie nach Umwandlungsverlusten entspricht.</p>
+</section>
+<section class="function-chapter" id="kapitel-akku">
+<h2 id="funktion-akku">Akku</h2>
+<h3 id="funktion-akku-beschreibung">Bezeichnung, Beschreibung und Nutzen</h3>
+<p><strong>Bezeichnung:</strong> Akkuanalyse. <strong>Beschreibung:</strong> Die Funktion verbindet aktuellen SoC und Lade-/Entladeleistung mit Energieherkunft, Tagesverlauf, Durchsatz und Ladequelle. Sie unterscheidet insbesondere Solar→Akku, Netz→Akku und Akku→Haus. <strong>Wozu ist das gut?</strong> Nutzer erkennen, ob der Speicher Solarüberschuss aufnimmt, aus dem Netz geladen wird oder den Hausverbrauch versorgt – und können SoC-Verlauf und Nutzung plausibilisieren.</p>
+<h3 id="funktion-akku-sensoren">Notwendige Sensoren</h3>
+<p>Für die Grundanzeige ist ein SoC-Sensor in Prozent nötig. Akkuleistung sowie Solar→Akku, Netz→Akku und Akku→Haus ermöglichen Richtung, Herkunft und Tagesenergie. Fehlen gerichtete Sensoren, bleibt die Anzeige bewusst reduziert und erfindet keine Flüsse.</p>
+<h3 id="funktion-akku-beispiel">Nutzungsbeispiel</h3>
+<p>Steigt der SoC morgens, während Solar→Akku positiv und Netz→Akku null ist, stammt die Ladung aus PV. Ein später positiver Akku→Haus-Wert zeigt, dass diese Energie den Abendverbrauch deckt.</p>
+</section>
+<section class="function-chapter" id="kapitel-hardware-kapazitaet">
+<h2 id="funktion-hardware-kapazitaet">Hardware- &amp; Kapazitäts-Analysen</h2>
+<h3 id="hardware-und-kapazitatsberater">Bezeichnung, Beschreibung und Nutzen</h3>
+<p><strong>Bezeichnung:</strong> Hardware- und Kapazitätsberater. <strong>Beschreibung:</strong> Die Funktion bewertet Akku-Dimensionierung, nutzbare Kapazität, Solarleistung, Durchsatz, Volltage, Zyklen und ungenutztes Überschusspotenzial aus der historischen Tagesenergie. <strong>Wozu ist das gut?</strong> Entscheidungen über größere oder kleinere Speicher beruhen auf dem realen Anlagenprofil statt auf einem einzelnen Spitzentag.</p>
+<h3 id="funktion-hardware-kapazitaet-daten">Notwendige Daten</h3>
+<p>Benötigt werden mehrere belastbare Tage mit Solarertrag, Hausverbrauch, Solar-/Netzladung, Akkuabgabe und SoC sowie die konfigurierte Akkukapazität. Je länger die Historie und je mehr Jahreszeiten enthalten sind, desto aussagekräftiger wird die Analyse.</p>
+<h3 id="funktion-hardware-kapazitaet-beispiel">Nutzungsbeispiel</h3>
+<p>Ist der Akku an vielen sonnenreichen Tagen früh voll und bleibt regelmäßig Solarüberschuss ungenutzt, weist die Analyse zusätzlich nutzbares Kapazitätspotenzial aus. Bleibt der Speicher dagegen häufig teilgeladen, wäre eine Vergrößerung wirtschaftlich kaum begründbar.</p>
+</section>
+<h2 id="einstellungen">Einstellungen</h2>
+<h3 id="oberflache-und-sprache">Oberfläche und Sprache</h3>
+<p>Zeigt/ändert Sprache und UI-Modus; Sprache kann über URL überschrieben werden. Fehlende Auswahl fällt regionsabhängig zurück.</p>
+<h3 id="sensoren">Sensoren</h3>
+<p>Zeigt Zuordnungen und Status. Änderungen erfolgen im HA-Reconfigure-Flow. Fehlende optionale Sensoren reduzieren Karten.</p>
+<h3 id="preis-und-tarif">Preis und Tarif</h3>
+<p>Zeigt Modus, Preisbestandteile, Grundgebühr und Einspeisevergütung. ct/kWh und Euro/Monat getrennt lesen.</p>
+<h3 id="smart-charging_1">Smart Charging</h3>
+<p>Zeigt Aktivierung, Schwelle, SoC-Grenzen, Preis und Entscheidungsgrund. Ohne SoC-Sensor ist die Funktion reduziert.</p>
+<h3 id="panelgruppen_1">Panelgruppen</h3>
+<p>Zeigt dynamisch Name, Azimut, Neigung, kWp, Module, Physikfaktor und Konfidenz je Gruppe.</p>
+<h3 id="hubble-ai-stack_1">Hubble AI-Stack</h3>
+<p>Zeigt aktives Modell, Stackversion, Genauigkeit, RMSE, Trainingsdaten, LSTM/Ridge-, Physik- und Driftmetadaten. Diese Diagnosewerte sind nicht mit Forecast Health gleichzusetzen.</p>
+<h3 id="system-und-datenbank">System und Datenbank</h3>
+<p>Zeigt STATS-/SFML-Version, DB-Status/-Größe, letzte Aggregation und Datenpunkte. Warnstatus ist Anlass zur Diagnose.</p>
+<h3 id="exporte">Exporte</h3>
+<p>Stellt getrennte Exporte für Solar, Energie, Billing, Smart Charging und alles als ZIP bereit. Smart Charging ist eine rekonstruierte Analyse, kein lückenloses Decision-Audit.</p>
+<h2 id="prognosequalitat-nur-modern">Prognosequalität – nur Modern</h2>
+<h3 id="ubersicht">Übersicht</h3>
+<p>Forecast Health = harmonisches Mittel aus Genauigkeit und Abdeckung; verfügbar ab 7 gültigen Tagen im 14-Tage-Fenster. Zeigt Komponenten, Einfluss und Executive Summary.</p>
+<h3 id="replay">Replay</h3>
+<p>Alternative Tagesansicht mit Datum, Play/Tempo, Serien und Morning/Physics/AI/Final/Reforecast. Historische Stunden-P10 fehlt und wird nicht rekonstruiert.</p>
+<h3 id="model-battle">Model Battle</h3>
+<p>Alternative Ansicht für 7/30/90 Tage sowie Morning/Reforecast. Vergleicht nur gemeinsame gültige Stunden; mindestens 24 Stunden aus 3 Tagen. Zeigt MAE, RMSE, Bias, WAPE und Siege.</p>
+<h3 id="365-tage-kalender">365-Tage-Kalender</h3>
+<p>Alternative Heatmap mit gültig, unzureichend und fehlend; Detail zeigt Forecast, Ist, Fehler, Abdeckung und Rang.</p>
+<h3 id="meilensteine">Meilensteine</h3>
+<p>Alternative dynamische Karten für erreichte/laufende Qualitätsziele. Fehlende Historie reduziert die Liste.</p>
+<h3 id="trends">Trends</h3>
+<p>Alternative Wochenansicht mit Health, Genauigkeit, Vollständigkeit, MAE, Bias und gültigen Tagen.</p>
+<h2 id="wetter-energie-nur-modern">Wetter &amp; Energie – nur Modern</h2>
+<h3 id="cockpit">Cockpit</h3>
+<p>Alternative Übersicht Conditions→Forecast→Ist→Qualität mit KPIs und Datenbasis. Solar Conditions braucht 8 Tageslichtstunden und 70 % Wetterabdeckung.</p>
+<h3 id="weather-to-energy-story">Weather-to-Energy Story</h3>
+<p>Alternative Stundenansicht des letzten abgeschlossenen Morning-Snapshots. Zeigt Wetter, Strahlung, Forecast und Ist; keine Kausalitätsgarantie.</p>
+<h3 id="weather-impact">Weather Impact</h3>
+<p>Alternative 30/90/180-Tage-Ansicht. Bewölkungs-/Volatilitätsgruppe wird erst ab 30 Punkten aus 3 Tagen bewertet.</p>
+<h3 id="vergleichbare-tage">Vergleichbare Tage</h3>
+<p>Alternative Ansicht ab 14 qualifizierten Kandidaten; zeigt fünf Treffer. Gewichtung: 40 % Strahlung, 25 % Profil, 15 % Wolken, je 10 % Temperatur/Tageslicht.</p>
+<h1 id="zahlen-und-statistik">Zahlen und Statistik</h1>
+<p>1 kW = 1.000 W; 2 kW über 30 Minuten = 1 kWh. MAE mittelt absolute Fehler, RMSE gewichtet große Fehler stärker, WAPE bezieht die Fehlersumme auf die Istsumme. Bias verwendet im Modern-Layer <code>Forecast−Ist</code>; positiv bedeutet Überprognose. MAPE ist bei kleinen Istwerten instabil. Ein Median ist ausreißerrobuster als ein Durchschnitt. Ein Quantil ist eine Verteilungsschwelle; die Solar-Jahresbandbreite ist ausdrücklich kein Quantil.</p>
+<h1 id="das-ist-wahrscheinlich-kein-bug">Das ist wahrscheinlich kein Bug</h1>
+<table>
+<thead>
+<tr>
+<th>Beobachtung</th>
+<th>Erklärung</th>
+<th>Einordnung</th>
+<th>Prüfen/Bugreportgrenze</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Karte direkt leer</td>
+<td>Quelle/Historie fehlt</td>
+<td>normal bis erster erforderlicher Datensatz/EOD</td>
+<td>Bugreport, wenn Quellwert vorhanden und API nach Reload leer bleibt</td>
+</tr>
+<tr>
+<td>heutiger Wert ändert sich</td>
+<td>laufender Tag</td>
+<td>normal bis EOD</td>
+<td>historischer Tag ändert sich ohne Backfill/Migration</td>
+</tr>
+<tr>
+<td>P10 niedriger</td>
+<td>konservativer Wert</td>
+<td>normal</td>
+<td>Quellwert vorhanden, Anzeige fehlt/falsche Richtung</td>
+</tr>
+<tr>
+<td>Clean-Güte ≠ Gesamtfehler</td>
+<td>andere Auswertungsbasis</td>
+<td>normal</td>
+<td>gleiche Basis rechnerisch falsch</td>
+</tr>
+<tr>
+<td>hoher Prozentfehler</td>
+<td>kleiner Ist-Nenner</td>
+<td>normal</td>
+<td>auch absolute kWh-Rechnung falsch</td>
+</tr>
+<tr>
+<td>Fingerprint leer</td>
+<td>V2-Schwellen fehlen</td>
+<td>normal</td>
+<td>qualifiziertes Muster im Payload fehlt</td>
+</tr>
+<tr>
+<td>Akkukarte fehlt</td>
+<td>Sensor fehlt/ungültig</td>
+<td>Konfiguration</td>
+<td>gültiger konfigurierte Sensor wird ignoriert</td>
+</tr>
+<tr>
+<td>Morgenpreise fehlen</td>
+<td>noch nicht veröffentlicht</td>
+<td>Verzögerung</td>
+<td>Quelle hat Daten, STATS nach Reload nicht</td>
+</tr>
+<tr>
+<td>Wetterjahr teilweise leer</td>
+<td>keine echte Isthistorie</td>
+<td>normal dauerhaft</td>
+<td>vorhandene DB-Zeilen fehlen in API</td>
+</tr>
+<tr>
+<td>Modern hat Zusatzseiten</td>
+<td><code>ui_mode=modern</code></td>
+<td>normal</td>
+<td>Gate/Navigation widerspricht Option</td>
+</tr>
+<tr>
+<td>Hubble Teilabdeckung</td>
+<td>Messfenster unvollständig</td>
+<td>Datenqualität</td>
+<td>Berechnung widerspricht Sensorreihe</td>
+</tr>
+<tr>
+<td>Atlas ohne Altverlauf</td>
+<td>Backfill deaktiviert</td>
+<td>normal dauerhaft</td>
+<td>neue Live-Samples werden nicht integriert</td>
+</tr>
+</tbody>
+</table>
+<p>Für Bugreports: Versionen, Seite/Karte, Zeitpunkt/Zeitzone, Zeitraum, Entity und Einheit, Screenshot, API-Status und relevante Logs an den im Manifest hinterlegten Issue Tracker. Keine Geheimnisse oder vollständige Datenbank ungeprüft anhängen.</p>
+<h1 id="fehlerdiagnose">Fehlerdiagnose</h1>
+<h2 id="keine-daten">Keine Daten</h2>
+<p>System-/DB-Status, Sensorzustand, Einheit, Zeitstempel, Zeitraum und API prüfen. Livekarten brauchen gültige Updates; EOD-Karten einen Tagesabschluss. Bugreport bei belegter Quelle und dauerhaft leerem/fehlerhaftem Payload.</p>
+<h2 id="unplausible-werte">Unplausible Werte</h2>
+<p>W/kW/kWh, Vorzeichen, Zeitraum, laufend/final, Preisquelle, Netzladung, Ausschlüsse und Rundung prüfen. Gesamtpreissensor muss numerisch ct/kWh liefern.</p>
+<h2 id="veralteteabweichende-modern-ansicht">Veraltete/abweichende Modern-Ansicht</h2>
+<p>Zeitstempel, Hard Refresh, Backend-Neustart nach Deploy und <code>ui_mode</code> prüfen. Modern hält zuletzt geladene Daten sichtbar und markiert stale/offline.</p>
+<h1 id="faq">FAQ</h1>
+<p><strong>Warum stimmt Forecast nicht exakt?</strong> Prognose ist wetter- und zustandsabhängig.<br>
+<strong>Wann entsteht sie?</strong> Morning Forecast, später möglicher Reforecast.<br>
+<strong>Warum fehlen erste Tage?</strong> Historie beginnt mit Sammlung/EOD.<br>
+<strong>Woher kommt Wetter?</strong> SFML-DB, aktuelles Wetter mit kontrolliertem HA-/Forecast-Fallback.<br>
+<strong>Werden Daten übertragen?</strong> Anlagen-/Statistikdaten lokal; aWATTar-Preisservice kann HTTPS nutzen.<br>
+<strong>Warum mehrere Prognosen?</strong> Modell-, Snapshot-, Final- und P10-Werte haben andere Rollen.<br>
+<strong>Classic oder Modern?</strong> Gemeinsame Fachseiten nutzen dieselben Komponenten; Modern ergänzt zwei Analyseseiten.<br>
+<strong>Wann Bug?</strong> Wenn belegte Quelle, Einheit, Zeitraum und Datenvertrag stimmen, aber Payload/Anzeige reproduzierbar abweicht.</p>
+<h1 id="glossar">Glossar</h1>
+<p><strong>Abdeckung:</strong> nutzbarer Datenanteil. <strong>Autarkie:</strong> Verbrauchsanteil ohne Netz. <strong>Bias:</strong> mittlere signierte Abweichung. <strong>Forecast Health:</strong> harmonischer Score. <strong>Hubble AI-Stack:</strong> Assistenz- und Modellstatusbereich. <strong>Istwert:</strong> Messwert. <strong>Lernbasis:</strong> bewertbare Stunden. <strong>MAE:</strong> mittlerer absoluter Fehler. <strong>Morning Forecast:</strong> morgendlicher Snapshot. <strong>P10:</strong> konservativer Prognosewert. <strong>Reforecast:</strong> spätere Neuberechnung. <strong>RMSE:</strong> quadratisch gewichteter Fehler. <strong>SoC:</strong> Akkuladestand. <strong>WAPE:</strong> gewichteter absoluter Prozentfehler. <strong>Watt:</strong> Leistung. <strong>Kilowattstunde:</strong> Energie.</p><div id="noResults" class="no-results">Keine passenden Inhalte gefunden.</div><div class="footer">SFML Stats · Handbuch Version 2 · Stand 2026-07-21</div></main></div><script src="docs-handbook.js?v=6"></script><script>
+const search=document.getElementById("search"),content=document.getElementById("content"),noResults=document.getElementById("noResults");
+search.addEventListener("input",()=>{const q=search.value.trim().toLocaleLowerCase("de");let visible=0;content.querySelectorAll("h1,h2,h3,p,table,ul,ol,blockquote").forEach(el=>{const hit=!q||el.textContent.toLocaleLowerCase("de").includes(q);el.classList.toggle("hidden",!hit);if(hit&&q)visible++});noResults.classList.toggle("show",Boolean(q)&&!visible)});
+document.querySelectorAll(".nav-link").forEach(a=>a.addEventListener("click",()=>document.getElementById("sidebar").classList.remove("open")));
+document.getElementById("menuButton").addEventListener("click",()=>document.getElementById("sidebar").classList.toggle("open"));
+const links=[...document.querySelectorAll(".nav-link")];const observer=new IntersectionObserver(entries=>{entries.filter(e=>e.isIntersecting).forEach(e=>links.forEach(a=>a.classList.toggle("active",a.hash==="#"+e.target.id)))},{rootMargin:"0px 0px -75% 0px"});document.querySelectorAll("h1[id],h2[id],h3[id]").forEach(h=>observer.observe(h));
+</script></body></html>

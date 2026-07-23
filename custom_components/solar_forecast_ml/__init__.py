@@ -44,7 +44,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -1156,7 +1157,18 @@ def _stop_queue_listener() -> None:
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Solar Forecast ML integration. @zara"""
+    from .core.database_service import (
+        async_setup_database_service,
+        async_shutdown_database_service,
+    )
+
     hass.data.setdefault(DOMAIN, {})
+    await async_setup_database_service(hass)
+
+    async def _handle_home_assistant_stop(_event: Event) -> None:
+        await async_shutdown_database_service(hass)
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _handle_home_assistant_stop)
     return True
 
 

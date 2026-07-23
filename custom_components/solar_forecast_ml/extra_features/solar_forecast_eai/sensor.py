@@ -1,0 +1,146 @@
+"""Passive EAI recommendation sensors."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfTime
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
+from .automation import EAIRecommendationEngine, device_info
+from .const import DOMAIN
+
+
+@dataclass(frozen=True, kw_only=True)
+class EAISensorDescription(SensorEntityDescription):
+    pass
+
+
+SENSORS = (
+    EAISensorDescription(
+        key="recommended_action",
+        translation_key="recommended_action",
+        device_class=SensorDeviceClass.ENUM,
+        options=["none", "dhw", "heating", "thermal_storage", "defer"],
+    ),
+    EAISensorDescription(
+        key="recommendation_reason",
+        translation_key="recommendation_reason",
+        device_class=SensorDeviceClass.ENUM,
+        options=[
+            "none",
+            "pv_surplus",
+            "low_price",
+            "comfort_need",
+            "high_price",
+            "data_unavailable",
+        ],
+    ),
+    EAISensorDescription(
+        key="recommendation_confidence",
+        translation_key="recommendation_confidence",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="next_action_start",
+        translation_key="next_action_start",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    EAISensorDescription(
+        key="recommendation_valid_until",
+        translation_key="recommendation_valid_until",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    EAISensorDescription(
+        key="recommended_duration",
+        translation_key="recommended_duration",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+    ),
+    EAISensorDescription(
+        key="consumption_next_hour",
+        translation_key="consumption_next_hour",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    ),
+    EAISensorDescription(
+        key="consumption_today",
+        translation_key="consumption_today",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    ),
+    EAISensorDescription(
+        key="consumption_tomorrow",
+        translation_key="consumption_tomorrow",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    ),
+    EAISensorDescription(
+        key="expected_pv_surplus",
+        translation_key="expected_pv_surplus",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    ),
+    EAISensorDescription(
+        key="estimated_cost_advantage",
+        translation_key="estimated_cost_advantage",
+        device_class=SensorDeviceClass.MONETARY,
+        native_unit_of_measurement="EUR",
+    ),
+    EAISensorDescription(
+        key="data_quality",
+        translation_key="data_quality",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="model_status",
+        translation_key="model_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=["learning", "ready", "degraded"],
+    ),
+)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    runtime = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities(
+        EAISensor(runtime.recommendation_engine, entry, description)
+        for description in SENSORS
+    )
+
+
+class EAISensor(SensorEntity):
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        engine: EAIRecommendationEngine,
+        entry: ConfigEntry,
+        description: EAISensorDescription,
+    ) -> None:
+        self.engine = engine
+        self.entity_description = description
+        self._attr_unique_id = f"{entry.entry_id}_automation_{description.key}"
+        self._attr_device_info = device_info(entry.entry_id)
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(self.engine.add_listener(self.async_write_ha_state))
+
+    @property
+    def native_value(self) -> Any:
+        return self.engine.snapshot().values[self.entity_description.key]
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return self.engine.snapshot().attributes[self.entity_description.key]

@@ -1,0 +1,17 @@
+{
+  "domain": "solar_forecast_eai",
+  "name": "Solar Forecast Energy AI",
+  "codeowners": ["@Zara-Toorox"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/Zara-Toorox/ha-solar-forecast-eai",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "requirements": [
+    "aiofiles>=24.1.0",
+    "aiosqlite>=0.21.0",
+    "cryptography==48.0.1",
+    "numpy>=2.3.2"
+  ],
+  "version": "40.0.0"
+}

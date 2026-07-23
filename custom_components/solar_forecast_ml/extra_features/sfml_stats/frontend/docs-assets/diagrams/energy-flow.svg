@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 560" role="img" aria-labelledby="title description">
+  <title id="title">Energiefluss über den Wechselrichter</title>
+  <desc id="description">Photovoltaik, Batterie und Netz sind über den Wechselrichter verbunden. Das Haus wird vom Wechselrichter versorgt.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1">
+      <stop stop-color="#f8fbff"/>
+      <stop offset="1" stop-color="#eef8ff"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0 0L9 3 0 6z" fill="#0b74de"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="560" rx="30" fill="url(#background)"/>
+  <text x="52" y="58" font-family="system-ui" font-size="28" font-weight="750" fill="#14233b">Energiefluss über den Wechselrichter</text>
+  <text x="52" y="88" font-family="system-ui" font-size="16" fill="#5f6f83">Der WR ist der zentrale Energie-Router zwischen PV, Haus, Akku und Netz.</text>
+
+  <g font-family="system-ui" text-anchor="middle" fill="#14233b">
+    <g transform="translate(70 155)">
+      <rect width="190" height="120" rx="20" fill="#fff" stroke="#d6e4f0" stroke-width="2"/>
+      <text x="95" y="48" font-size="34">☀️</text>
+      <text x="95" y="88" font-size="21" font-weight="750">PV</text>
+    </g>
+    <g transform="translate(385 155)">
+      <rect width="210" height="120" rx="20" fill="#e8f3ff" stroke="#0b74de" stroke-width="3"/>
+      <text x="105" y="48" font-size="34">🔄</text>
+      <text x="105" y="88" font-size="21" font-weight="800">Wechselrichter</text>
+    </g>
+    <g transform="translate(720 155)">
+      <rect width="190" height="120" rx="20" fill="#fff" stroke="#d6e4f0" stroke-width="2"/>
+      <text x="95" y="48" font-size="34">🏠</text>
+      <text x="95" y="88" font-size="21" font-weight="750">Haus</text>
+    </g>
+    <g transform="translate(385 345)">
+      <rect width="210" height="120" rx="20" fill="#fff" stroke="#d6e4f0" stroke-width="2"/>
+      <text x="105" y="48" font-size="34">🔋</text>
+      <text x="105" y="88" font-size="21" font-weight="750">Akku</text>
+    </g>
+    <g transform="translate(720 345)">
+      <rect width="190" height="120" rx="20" fill="#fff" stroke="#d6e4f0" stroke-width="2"/>
+      <text x="95" y="48" font-size="34">⚡</text>
+      <text x="95" y="88" font-size="21" font-weight="750">Netz</text>
+    </g>
+  </g>
+
+  <g fill="none" stroke="#0b74de" stroke-width="6" marker-end="url(#arrow)">
+    <path d="M260 215H370"/>
+    <path d="M595 215H705"/>
+    <path d="M455 290V330"/>
+    <path d="M525 345V290"/>
+    <path d="M595 245C660 265 685 330 720 375"/>
+    <path d="M720 435C655 425 620 340 570 270"/>
+  </g>
+
+  <g font-family="system-ui" fill="#14233b">
+    <rect x="945" y="130" width="210" height="355" rx="20" fill="#fff" stroke="#d6e4f0" stroke-width="2"/>
+    <text x="970" y="170" font-size="18" font-weight="750">Gültige Pfade</text>
+    <g font-size="15">
+      <text x="970" y="210">☀ PV → WR → Haus</text>
+      <text x="970" y="246">☀ PV → WR → Akku</text>
+      <text x="970" y="282">☀ PV → WR → Netz</text>
+      <text x="970" y="330">🔋 Akku → WR → Haus</text>
+      <text x="970" y="366">🔋 Akku → WR → Netz</text>
+      <text x="970" y="414">⚡ Netz → WR → Haus</text>
+      <text x="970" y="450">⚡ Netz → WR → Akku</text>
+    </g>
+  </g>
+</svg>

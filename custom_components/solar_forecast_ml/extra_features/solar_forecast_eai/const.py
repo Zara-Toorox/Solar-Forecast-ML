@@ -1,0 +1,191 @@
+"""Solar Forecast Energy AI setup and runtime constants."""
+
+from datetime import timedelta
+
+DOMAIN = "solar_forecast_eai"
+VERSION = "40.0.0"
+CONF_LICENSE_KEY = "license_key"
+CONF_LICENSE_STATUS = "license_status"
+CONF_LICENSE_ID = "license_id"
+CONF_WP_TYPE = "wp_type"
+CONF_MANUFACTURER = "manufacturer"
+CONF_MODEL = "model"
+CONF_HEATING_CAPACITY_KW = "heating_capacity_kw"
+CONF_COP_RATED = "cop_rated"
+CONF_HAS_HEATING_ELEMENT = "has_heating_element"
+CONF_HAS_DHW = "has_dhw"
+CONF_BUILDING_REF = "building_ref"
+CONF_WP_POWER_ENTITY = "wp_power_entity"
+CONF_WP_ENERGY_TODAY = "wp_energy_today"
+CONF_OUTDOOR_TEMP_ENTITY = "outdoor_temp_entity"
+CONF_INDOOR_TEMP_ENTITY = "indoor_temp_entity"
+CONF_TARGET_TEMP_ENTITY = "target_temp_entity"
+CONF_OPERATION_MODE_ENTITY = "operation_mode_entity"
+CONF_COMPRESSOR_ENTITY = "compressor_entity"
+CONF_DHW_TEMP_ENTITY = "dhw_temp_entity"
+CONF_FLOW_TEMP_ENTITY = "flow_temp_entity"
+CONF_RETURN_TEMP_ENTITY = "return_temp_entity"
+CONF_STARTS_ENTITY = "starts_entity"
+CONF_RUNTIME_ENTITY = "runtime_entity"
+CONF_THERMAL_ENERGY_ENTITY = "thermal_energy_entity"
+CONF_VOLUME_FLOW_ENTITY = "volume_flow_entity"
+CONF_SOURCE_TEMP_ENTITY = "source_temp_entity"
+CONF_STORAGE_TEMP_ENTITY = "storage_temp_entity"
+CONF_ELECTRICITY_PRICE_ENTITY = "electricity_price_entity"
+CONF_FEED_IN_TARIFF_ENTITY = "feed_in_tariff_entity"
+CONF_LOW_PRICE_THRESHOLD_CT = "low_price_threshold_ct"
+CONF_CAPABILITY_LEVEL = "capability_level"
+CONF_ONBOARDING_STATE = "onboarding_state"
+
+# Coordinator runtime options. These remain internal to EAI and do not alter
+# the SFML or STATS contracts.
+CONF_UPDATE_INTERVAL = "update_interval"
+CONF_LEARNING_ENABLED = "learning_enabled"
+CONF_HOURLY = "hourly"
+CONF_DIAGNOSTIC = "diagnostic"
+CONF_WEATHER_ENTITY = "weather_entity"
+CONF_FALLBACK_ENTITY = "fallback_weather_entity"
+CONF_TEMP_SENSOR = CONF_OUTDOOR_TEMP_ENTITY
+CONF_HUMIDITY_SENSOR = "humidity_sensor"
+CONF_WIND_SENSOR = "wind_sensor"
+CONF_RAIN_SENSOR = "rain_sensor"
+CONF_PRESSURE_SENSOR = "pressure_sensor"
+CONF_SOLAR_RADIATION_SENSOR = "solar_radiation_sensor"
+CONF_WINTER_MODE = "winter_mode"
+CONF_ADAPTIVE_FORECAST_MODE = "adaptive_forecast_mode"
+CONF_NOTIFY_STARTUP = "notify_startup"
+CONF_NOTIFY_FORECAST = "notify_forecast"
+CONF_NOTIFY_LEARNING = "notify_learning"
+CONF_NOTIFY_SUCCESSFUL_LEARNING = "notify_successful_learning"
+CONF_NOTIFY_FROST = "notify_frost"
+CONF_NOTIFY_FOG = "notify_fog"
+CONF_NOTIFY_SNOW_COVERED = "notify_snow_covered_panels"
+CONF_NOTIFY_WEATHER_ALERT = "notify_weather_alert"
+
+WP_TYPE_AIR_WATER = "air_water"
+DEFAULT_WP_TYPE = WP_TYPE_AIR_WATER
+DEFAULT_HEATING_CAPACITY_KW = 10.0
+DEFAULT_COP_RATED = 4.0
+DEFAULT_WINTER_MODE = True
+DEFAULT_ADAPTIVE_FORECAST_MODE = False
+DEFAULT_LOW_PRICE_THRESHOLD_CT = 25.0
+
+UPDATE_INTERVAL = timedelta(minutes=60)
+DAILY_UPDATE_HOUR = 6
+DAILY_VERIFICATION_HOUR = 23
+MIN_TRAINING_DATA_POINTS = 50
+ML_MODEL_VERSION = "1.0"
+DATA_VERSION = "1.0"
+AI_VERSION = "1.0"
+SOFTWARE_VERSION = VERSION
+INTEGRATION_MODEL = "Solar Forecast Energy AI V40"
+CORRECTION_FACTOR_MIN = 0.5
+CORRECTION_FACTOR_MAX = 1.5
+BACKUP_RETENTION_DAYS = 30
+MAX_BACKUP_FILES = 10
+
+ADAPTIVE_CHECK_HOUR = 12
+ADAPTIVE_CHECK_MINUTE = 30
+ADAPTIVE_CLOUD_COVER_DIFF_THRESHOLD = 25
+ADAPTIVE_DEVIATION_THRESHOLD_PERCENT = 35
+ADAPTIVE_DEVIATION_MIN_THRESHOLD_KWH = 0.5
+ADAPTIVE_DEVIATION_PERCENT_OF_FORECAST = 0.1
+ADAPTIVE_MIN_REMAINING_HOURS = 3
+
+EXTERNAL_SENSOR_MAPPING = {
+    "current_power": CONF_WP_POWER_ENTITY,
+    "wp_energy_today": CONF_WP_ENERGY_TODAY,
+    "temperature": CONF_OUTDOOR_TEMP_ENTITY,
+    "indoor_temp": CONF_INDOOR_TEMP_ENTITY,
+    "target_temp": CONF_TARGET_TEMP_ENTITY,
+    "humidity": CONF_HUMIDITY_SENSOR,
+    "wind_speed": CONF_WIND_SENSOR,
+    "rain": CONF_RAIN_SENSOR,
+    "pressure": CONF_PRESSURE_SENSOR,
+}
+
+DATA_KEY_FORECAST_TODAY = "forecast_today"
+DATA_KEY_FORECAST_TOMORROW = "forecast_tomorrow"
+DATA_KEY_FORECAST_DAY_AFTER = "forecast_day_after_tomorrow"
+DATA_KEY_HOURLY_FORECAST = "hourly_forecast"
+DATA_KEY_CURRENT_WEATHER = "current_weather"
+DATA_KEY_EXTERNAL_SENSORS = "external_sensors"
+DATA_KEY_HEATING_TIME = "heating_time"
+DATA_KEY_PEAK_TODAY = "peak_today"
+DATA_KEY_CONSUMPTION_TODAY = "consumption_today"
+DATA_KEY_EXPECTED_DAILY_CONSUMPTION = "expected_daily_consumption"
+DATA_KEY_STATISTICS = "statistics"
+
+HEATING_TIME_ACTIVE = "active"
+HEATING_TIME_DURATION_SECONDS = "duration_seconds"
+HEATING_TIME_START_TIME = "start_time"
+HEATING_TIME_END_TIME = "end_time"
+PEAK_TODAY_POWER_W = "power_w"
+PEAK_TODAY_AT = "at"
+CONSUMPTION_TODAY_KWH = "kwh"
+CONSUMPTION_TODAY_SENSOR = "sensor"
+
+FORECAST_KEY_TODAY = "today"
+FORECAST_KEY_TOMORROW = "tomorrow"
+FORECAST_KEY_DAY_AFTER = "day_after_tomorrow"
+FORECAST_KEY_HOURLY = "hourly"
+FORECAST_KEY_METHOD = "method"
+EXT_SENSOR_WP_ENERGY_TODAY = "wp_energy_today"
+
+STATS_ALL_TIME_PEAK = "all_time_peak"
+STATS_CURRENT_MONTH = "current_month"
+STATS_CURRENT_WEEK = "current_week"
+STATS_LAST_7_DAYS = "last_7_days"
+STATS_LAST_30_DAYS = "last_30_days"
+STATS_AVG_ACCURACY = "avg_accuracy"
+STATS_CONSUMPTION_KWH = "consumption_kwh"
+STATS_AVG_CONSUMPTION_KWH = "avg_consumption_kwh"
+
+CACHE_HOURLY_PREDICTIONS = "_hourly_predictions_cache"
+CACHE_PREDICTIONS = "predictions"
+CACHE_PREDICTIONS_TOMORROW = "predictions_tomorrow"
+CACHE_PREDICTIONS_DAY_AFTER = "predictions_day_after"
+CACHE_BEST_HOUR_TODAY = "peak_hour_today"
+PRED_TARGET_DATE = "target_date"
+PRED_TARGET_HOUR = "target_hour"
+PRED_PREDICTION_KWH = "prediction_kwh"
+PRED_PREDICTED_KWH = "predicted_kwh"
+
+HEATING_SEASON_MONTHS = [1, 2, 3, 4, 10, 11, 12]
+WINTER_MONTHS = [11, 12, 1, 2]
+WINTER_CLOUD_PENALTY_FACTOR = 1.25
+WINTER_LOW_SUN_THRESHOLD = 25
+
+SERVICE_RETRAIN_AI_MODEL = "retrain_ai_model"
+SERVICE_RESET_AI_MODEL = "reset_ai_model"
+SERVICE_RUN_GRID_SEARCH = "run_grid_search"
+SERVICE_ANALYZE_FEATURE_IMPORTANCE = "analyze_feature_importance"
+SERVICE_RUN_ALL_DAY_END_TASKS = "run_all_day_end_tasks"
+SERVICE_TEST_MORNING_ROUTINE = "test_morning_routine"
+SERVICE_RUN_ADAPTIVE_FORECAST = "run_adaptive_forecast"
+SERVICE_RUN_WEATHER_CORRECTION = "run_weather_correction"
+SERVICE_REFRESH_MULTI_WEATHER = "refresh_multi_weather"
+SERVICE_SEND_DAILY_BRIEFING = "send_daily_briefing"
+
+REQUIRED_SENSORS = (
+    CONF_WP_POWER_ENTITY,
+    CONF_WP_ENERGY_TODAY,
+    CONF_OUTDOOR_TEMP_ENTITY,
+)
+STANDARD_SENSORS = (
+    CONF_INDOOR_TEMP_ENTITY,
+    CONF_TARGET_TEMP_ENTITY,
+    CONF_OPERATION_MODE_ENTITY,
+    CONF_COMPRESSOR_ENTITY,
+    CONF_DHW_TEMP_ENTITY,
+    CONF_FLOW_TEMP_ENTITY,
+    CONF_RETURN_TEMP_ENTITY,
+    CONF_STARTS_ENTITY,
+    CONF_RUNTIME_ENTITY,
+)
+ADVANCED_SENSORS = (
+    CONF_THERMAL_ENERGY_ENTITY,
+    CONF_VOLUME_FLOW_ENTITY,
+    CONF_SOURCE_TEMP_ENTITY,
+    CONF_STORAGE_TEMP_ENTITY,
+)
