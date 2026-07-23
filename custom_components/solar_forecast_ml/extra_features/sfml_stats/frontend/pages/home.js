@@ -492,7 +492,7 @@ const _HomePage = {
                     {{ action.label }}
                 </button>
                 <a
-                    href="/api/sfml_stats/static/docs.html?v=6-20260721"
+                    href="/api/sfml_stats/static/docs.html?v=7-20260723"
                     target="_blank"
                     class="hubble-action docs-link"
                     style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;"

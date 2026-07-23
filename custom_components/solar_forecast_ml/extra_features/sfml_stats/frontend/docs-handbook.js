@@ -13,6 +13,20 @@
 
   const iconFor = (id) => icons.find(([part]) => id.includes(part))?.[1] || "📘";
 
+  const sidebarNav = document.querySelector(".sidebar .nav");
+  if (sidebarNav) {
+    sidebarNav.insertAdjacentHTML("afterbegin", [
+      '<a class="nav-link level-1" href="#sensoren-und-config-flow">Einrichtung &amp; Sensoren</a>',
+      '<a class="nav-link level-2" href="#flow-grundkonfiguration">Grundkonfiguration</a>',
+      '<a class="nav-link level-2" href="#flow-energiefluesse">Energieflüsse</a>',
+      '<a class="nav-link level-2" href="#flow-akku-zusatzdaten">Akku &amp; Zusatzdaten</a>',
+      '<a class="nav-link level-2" href="#flow-verbraucher">Verbraucher</a>',
+      '<a class="nav-link level-2" href="#flow-verbraucher-details">Verbraucher-Details</a>',
+      '<a class="nav-link level-2" href="#flow-smart-charging">Smart Charging</a>',
+      '<a class="nav-link level-2" href="#flow-erweitert">Erweitert</a>'
+    ].join(""));
+  }
+
   content.querySelectorAll("h1[id], h2[id]").forEach((heading) => {
     const icon = document.createElement("span");
     icon.className = "section-icon";
@@ -89,6 +103,32 @@
     quickstart.after(callout);
   }
 
+  const sensorSearch = document.getElementById("sensorSearch");
+  const sensorStatus = document.getElementById("sensorSearchStatus");
+  const sensorRows = [...content.querySelectorAll("[data-sensor-row]")];
+  const sensorSections = [...content.querySelectorAll("[data-sensor-section]")];
+  if (sensorSearch && sensorStatus && sensorRows.length) {
+    const updateSensorResults = () => {
+      const query = sensorSearch.value.trim().toLocaleLowerCase("de");
+      let matches = 0;
+      sensorRows.forEach((row) => {
+        const visible = !query || row.textContent.toLocaleLowerCase("de").includes(query);
+        row.classList.toggle("sensor-row-hidden", !visible);
+        if (visible) matches += 1;
+      });
+      sensorSections.forEach((section) => {
+        const hasVisibleRows = [...section.querySelectorAll("[data-sensor-row]")]
+          .some((row) => !row.classList.contains("sensor-row-hidden"));
+        section.classList.toggle("sensor-section-empty", Boolean(query) && !hasVisibleRows);
+      });
+      sensorStatus.textContent = query
+        ? `${matches} passende ${matches === 1 ? "Sensorbeschreibung" : "Sensorbeschreibungen"}`
+        : `${sensorRows.length} Sensorfelder aus allen Config-Flows`;
+    };
+    sensorSearch.addEventListener("input", updateSensorResults);
+    updateSensorResults();
+  }
+
   const noBug = document.getElementById("das-ist-wahrscheinlich-kein-bug");
   if (noBug) {
     const callout = document.createElement("aside");
@@ -120,6 +160,8 @@
     smartChargingLink.textContent = "Funktionen";
     smartChargingLink.className = "nav-link level-1";
     const featureLinks = [
+      ["#funktion-eai-waermepumpe", "EAI: Wärmepumpe & Gebäude"],
+      ["#funktion-eai-wallbox", "EAI: Wallbox & Mobilität"],
       ["#smart-charge-smc-funktion", "Smart Charge"],
       ["#funktion-s-plus", "S-Plus"],
       ["#funktion-amortisation", "Amortisation"],
