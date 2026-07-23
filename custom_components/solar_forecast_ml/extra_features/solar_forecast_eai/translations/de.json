@@ -22,6 +22,7 @@
           "cop_rated": "Nenn-COP",
           "has_heating_element": "Elektrischer Heizstab vorhanden",
           "has_dhw": "Warmwasserbereitung vorhanden",
+          "storage_volume_l": "Nutzbares Speichervolumen (l)",
           "building_ref": "Gebäudebezeichnung"
         },
         "data_description": {
@@ -32,6 +33,7 @@
           "cop_rated": "Nenn-Leistungszahl laut Datenblatt von 1 bis 10.",
           "has_heating_element": "Aktivieren, wenn die Anlage über einen elektrischen Zusatzheizer verfügt.",
           "has_dhw": "Aktivieren, wenn die Wärmepumpe auch Warmwasser bereitet.",
+          "storage_volume_l": "Erwartet: nutzbares Wasser- oder Puffervolumen laut Datenblatt. Einheit: l. Optional; erst damit kann EAI Temperaturverluste in kWh umrechnen.",
           "building_ref": "Optionale Bezeichnung zur Zuordnung des Gebäudes, zum Beispiel Wohnhaus."
         }
       },
@@ -82,13 +84,19 @@
           "thermal_energy_entity": "Thermische Energie (kWh)",
           "volume_flow_entity": "Volumenstrom",
           "source_temp_entity": "Quellentemperatur (°C)",
-          "storage_temp_entity": "Speichertemperatur (°C)"
+          "storage_temp_entity": "Speichertemperatur (°C)",
+          "storage_ambient_temp_entity": "Temperatur am Speicher / Heizraum (°C)",
+          "circulation_pump_entity": "Zirkulationspumpe aktiv",
+          "circulation_return_temp_entity": "Zirkulations-Rücklauftemperatur (°C)"
         },
         "data_description": {
           "thermal_energy_entity": "Erwartet: kumulativer Wärmemengenzähler für die von der Wärmepumpe abgegebene thermische Energie; die Systemgrenze für Heizung und Warmwasser muss bekannt sein. Einheit: kWh thermisch. Optional.",
           "volume_flow_entity": "Erwartet: Sensor für den aktuellen Volumenstrom im Heizkreis; Medium und Messkreis müssen bekannt sein. Einheit: l/min oder m³/h. Optional.",
           "source_temp_entity": "Erwartet: Temperatursensor der Wärmequelle, also Außenluft, Sole oder Grundwasser. Einheit: °C. Optional.",
-          "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional."
+          "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
+          "storage_ambient_temp_entity": "Erwartet: Temperatursensor unmittelbar am Speicher beziehungsweise im Heizraum, nicht im Wohnraum. Einheit: °C. Optional; zusammen mit Speichertemperatur und Volumen aktiviert er die Verlustanalyse.",
+          "circulation_pump_entity": "Erwartet: Binärsensor für den Betrieb der Warmwasser-Zirkulationspumpe (Ein/Aus) oder numerischer Sensor mit 1/0. Einheit: keine. Optional; ermöglicht die Trennung der Zirkulationsverluste.",
+          "circulation_return_temp_entity": "Erwartet: Temperatursensor am Rücklauf der Warmwasser-Zirkulationsleitung nahe dem Speicher. Einheit: °C. Optional; dient der Plausibilisierung."
         }
       },
       "wallbox_choice": {
@@ -223,13 +231,15 @@
           "manufacturer": "Hersteller",
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
-          "cop_rated": "Nenn-COP"
+          "cop_rated": "Nenn-COP",
+          "storage_volume_l": "Nutzbares Speichervolumen (l)"
         },
         "data_description": {
           "manufacturer": "Optionaler Name des Herstellers.",
           "model": "Optionale Modell- oder Produktbezeichnung.",
           "heating_capacity_kw": "Nenn-Heizleistung laut Datenblatt.",
-          "cop_rated": "Nenn-Leistungszahl laut Datenblatt."
+          "cop_rated": "Nenn-Leistungszahl laut Datenblatt.",
+          "storage_volume_l": "Nutzbares Wasser- oder Puffervolumen laut Datenblatt. Einheit: l. Optional."
         }
       },
       "sensors": {
@@ -251,7 +261,10 @@
           "thermal_energy_entity": "Thermische Energie (kWh)",
           "volume_flow_entity": "Volumenstrom",
           "source_temp_entity": "Quellentemperatur (°C)",
-          "storage_temp_entity": "Speichertemperatur (°C)"
+          "storage_temp_entity": "Speichertemperatur (°C)",
+          "storage_ambient_temp_entity": "Temperatur am Speicher / Heizraum (°C)",
+          "circulation_pump_entity": "Zirkulationspumpe aktiv",
+          "circulation_return_temp_entity": "Zirkulations-Rücklauftemperatur (°C)"
         },
         "data_description": {
           "wp_power_entity": "Erwartet: Sensor für die momentane gesamte elektrische Leistungsaufnahme der Wärmepumpe. Einheit: W. Pflichtfeld bei der Ersteinrichtung.",
@@ -269,7 +282,10 @@
           "thermal_energy_entity": "Erwartet: kumulativer Wärmemengenzähler für die von der Wärmepumpe abgegebene thermische Energie; die Systemgrenze für Heizung und Warmwasser muss bekannt sein. Einheit: kWh thermisch. Optional.",
           "volume_flow_entity": "Erwartet: Sensor für den aktuellen Volumenstrom im Heizkreis; Medium und Messkreis müssen bekannt sein. Einheit: l/min oder m³/h. Optional.",
           "source_temp_entity": "Erwartet: Temperatursensor der Wärmequelle, also Außenluft, Sole oder Grundwasser. Einheit: °C. Optional.",
-          "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional."
+          "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
+          "storage_ambient_temp_entity": "Erwartet: Temperatursensor unmittelbar am Speicher beziehungsweise im Heizraum. Einheit: °C. Optional.",
+          "circulation_pump_entity": "Erwartet: Binärsensor für die Zirkulationspumpe (Ein/Aus) oder 1/0. Einheit: keine. Optional.",
+          "circulation_return_temp_entity": "Erwartet: Temperatursensor am Rücklauf der Zirkulationsleitung nahe dem Speicher. Einheit: °C. Optional."
         }
       },
       "wallbox": {
@@ -347,7 +363,13 @@
       "wallbox_estimated_cost": {"name": "Geschätzte Ladekosten"},
       "wallbox_estimated_cost_advantage": {"name": "Geschätzter Kostenvorteil der Ladeplanung"},
       "wallbox_departure_readiness": {"name": "Abfahrtsbereitschaft"},
-      "wallbox_data_quality": {"name": "Wallbox-Datenqualität"}
+      "wallbox_data_quality": {"name": "Wallbox-Datenqualität"},
+      "storage_heat_loss_coefficient": {"name": "Speicher-Verlustkoeffizient"},
+      "storage_standby_loss": {"name": "Speicher-Bereitschaftsverlust pro Tag"},
+      "circulation_loss": {"name": "Zirkulationsverlust pro Tag"},
+      "thermal_loss_forecast": {"name": "Thermische Verluste nächste 24 Stunden"},
+      "thermal_loss_data_quality": {"name": "Datenqualität der Verlustanalyse"},
+      "thermal_loss_status": {"name": "Status der Verlustanalyse", "state": {"learning": "Lernt", "partial": "Teilweise verfügbar", "ready": "Bereit"}}
     },
     "binary_sensor": {
       "automation_ready": {"name": "Automation bereit"},

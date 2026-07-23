@@ -53,6 +53,17 @@ const ModernEAIPage = {
                     <article class="eai-card wow-card"><span class="eyebrow">Anlagen-Gesundheit</span><div class="health-row"><strong class="health-score">{{ format(diagnostics.health_score, "") }}</strong><span>/ 100</span></div><p>{{ anomalyText }}</p><footer><span :class="originClass">{{ originLabel }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Gebäude-Fingerabdruck</span><h3>{{ format(building.thermal_inertia_hours, " h Wärmespeicher") }}</h3><p>Geschätzter Wärmeverlust: {{ format(building.heat_loss_kw, " kW") }} · Lernfortschritt: {{ format(building.learning_progress_percent, " %") }}</p><div class="learning"><span :style="{ width: (building.learning_progress_percent || 0) + '%' }"></span></div><footer><span :class="originClass">{{ originLabel }}</span></footer></article>
                 </div>
+                <article v-if="thermalLoss.available" class="eai-card thermal-loss-card">
+                    <header><div><span class="eyebrow">Speicher- & Zirkulationsverluste</span><h3>Wo verschwindet die gespeicherte Wärme?</h3></div><span :class="originClass">{{ originLabel }}</span></header>
+                    <p>{{ thermalLoss.explanation }}</p>
+                    <div class="thermal-loss-flow">
+                        <div><span>Speicher</span><strong>{{ format(thermalLoss.storage_temperature_c, " °C") }}</strong><small>{{ format(thermalLoss.storage_volume_l, " l") }}</small></div>
+                        <i>→</i><div><span>Heizraum</span><strong>{{ format(thermalLoss.ambient_temperature_c, " °C") }}</strong><small>Referenztemperatur</small></div>
+                        <i>→</i><div><span>Bereitschaft</span><strong>{{ format(thermalLoss.standby_loss_kwh_day, " kWh/Tag") }}</strong><small>{{ format(thermalLoss.standby_loss_coefficient_w_k, " W/K") }}</small></div>
+                        <i>+</i><div><span>Zirkulation</span><strong>{{ format(thermalLoss.circulation_loss_kwh_day, " kWh/Tag") }}</strong><small>nur bei ausreichenden Beobachtungen</small></div>
+                    </div>
+                    <footer><strong>24-h-Schätzung: {{ format(thermalLoss.forecast_thermal_loss_kwh_24h, " kWh thermisch") }}</strong><span>Datenqualität {{ format(thermalLoss.data_quality_percent, " %") }} · {{ thermalLoss.passive_cooling_intervals || 0 }} Intervalle</span></footer>
+                </article>
                 <div class="eai-grid metric-grid"><article v-for="metric in overviewMetrics" :key="metric.label" class="eai-card metric-card"><span class="metric-label">{{ metric.label }}</span><strong>{{ metric.value }}</strong><span :class="originClass">{{ originLabel }}</span></article></div>
             </template>
 
@@ -146,6 +157,7 @@ const ModernEAIPage = {
         const forecast = computed(() => sections.forecast || {});
         const diagnostics = computed(() => sections.diagnostics || {});
         const building = computed(() => sections.building || {});
+        const thermalLoss = computed(() => building.value.thermal_loss || {});
         const whyNow = computed(() => overview.value.why_now || operation.value.why_now || {});
         const briefing = computed(() => overview.value.briefing || {});
         const optimization = computed(() => forecast.value.optimization || sections.energy?.optimization || {});
@@ -220,7 +232,7 @@ const ModernEAIPage = {
             return `${time} · ${format(point.forecast_kw, " kWh")} · Band ${format(point.lower_kw, "")}–${format(point.upper_kw, " kWh")} · ± ${format(point.uncertainty_percent, " %")}`;
         };
         onMounted(load);
-        return { tabs, activeTab, loading, error, status, current, operation, forecast, diagnostics, building, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, originLabel, originClass, modeLabel, notice, windowLabel, anomalyText, overviewMetrics, detailItems, locked, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, format, powerHeight, bandStyle, forecastPointTitle };
+        return { tabs, activeTab, loading, error, status, current, operation, forecast, diagnostics, building, thermalLoss, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, originLabel, originClass, modeLabel, notice, windowLabel, anomalyText, overviewMetrics, detailItems, locked, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, format, powerHeight, bandStyle, forecastPointTitle };
     },
 };
 

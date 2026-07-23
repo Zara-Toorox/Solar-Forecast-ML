@@ -16,6 +16,7 @@ from .const import (
     CONF_BUILDING_REF,
     CONF_CAPABILITY_LEVEL,
     CONF_COP_RATED,
+    CONF_STORAGE_VOLUME_L,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_EV_BATTERY_CAPACITY_KWH,
     CONF_EV_DEPARTURE_TIME,
@@ -243,6 +244,15 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Required(CONF_HAS_HEATING_ELEMENT, default=True): bool,
                     vol.Required(CONF_HAS_DHW, default=True): bool,
+                    vol.Optional(CONF_STORAGE_VOLUME_L): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=20,
+                            max=5000,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                            unit_of_measurement="L",
+                        )
+                    ),
                     vol.Optional(CONF_BUILDING_REF): str,
                 }
             ),
@@ -482,6 +492,15 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                     vol.Optional(CONF_MODEL): str,
                     vol.Optional(CONF_HEATING_CAPACITY_KW): vol.Coerce(float),
                     vol.Optional(CONF_COP_RATED): vol.Coerce(float),
+                    vol.Optional(CONF_STORAGE_VOLUME_L): selector.NumberSelector(
+                        selector.NumberSelectorConfig(
+                            min=20,
+                            max=5000,
+                            step=1,
+                            mode=selector.NumberSelectorMode.BOX,
+                            unit_of_measurement="L",
+                        )
+                    ),
                 }
             ),
         )

@@ -15,7 +15,12 @@ from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .automation import EAIRecommendationEngine, device_info, wallbox_enabled
+from .automation import (
+    EAIRecommendationEngine,
+    device_info,
+    thermal_loss_enabled,
+    wallbox_enabled,
+)
 from .const import DOMAIN
 
 
@@ -196,6 +201,43 @@ WALLBOX_SENSORS = (
     ),
 )
 
+THERMAL_LOSS_SENSORS = (
+    EAISensorDescription(
+        key="storage_heat_loss_coefficient",
+        translation_key="storage_heat_loss_coefficient",
+        native_unit_of_measurement="W/K",
+    ),
+    EAISensorDescription(
+        key="storage_standby_loss",
+        translation_key="storage_standby_loss",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    ),
+    EAISensorDescription(
+        key="circulation_loss",
+        translation_key="circulation_loss",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    ),
+    EAISensorDescription(
+        key="thermal_loss_forecast",
+        translation_key="thermal_loss_forecast",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+    ),
+    EAISensorDescription(
+        key="thermal_loss_data_quality",
+        translation_key="thermal_loss_data_quality",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="thermal_loss_status",
+        translation_key="thermal_loss_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=["learning", "partial", "ready"],
+    ),
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -203,7 +245,11 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     runtime = hass.data[DOMAIN][entry.entry_id]
-    descriptions = SENSORS + (WALLBOX_SENSORS if wallbox_enabled(entry) else ())
+    descriptions = SENSORS
+    if wallbox_enabled(entry):
+        descriptions += WALLBOX_SENSORS
+    if thermal_loss_enabled(entry):
+        descriptions += THERMAL_LOSS_SENSORS
     async_add_entities(
         EAISensor(runtime.recommendation_engine, entry, description)
         for description in descriptions

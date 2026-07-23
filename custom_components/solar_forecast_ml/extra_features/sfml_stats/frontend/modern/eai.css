@@ -81,6 +81,14 @@
 .health-score { font-size: 3rem; color: #45c7bb; }
 .learning { height: 7px; overflow: hidden; border-radius: 999px; background: var(--bg-elevated); }
 .learning span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #168f87, #45c7bb); }
+.thermal-loss-card { display: grid; gap: 18px; margin: 14px 0; background: radial-gradient(circle at 100% 0%, color-mix(in srgb, #e6a04b 13%, transparent), transparent 35%), var(--bg-card); }
+.thermal-loss-card > p, .thermal-loss-card footer span { margin: 0; color: var(--text-secondary); }
+.thermal-loss-flow { display: grid; grid-template-columns: repeat(7, auto); align-items: center; gap: 12px; }
+.thermal-loss-flow > div { display: grid; gap: 5px; min-width: 0; border: 1px solid var(--border-default); border-radius: 10px; padding: 14px; background: var(--bg-elevated); }
+.thermal-loss-flow span, .thermal-loss-flow small { color: var(--text-secondary); font-size: .7rem; }
+.thermal-loss-flow strong { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.thermal-loss-flow > i { color: #e6a04b; font-style: normal; font-weight: 700; }
+.thermal-loss-card footer { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--border-default); padding-top: 14px; }
 .eai-card { min-width: 0; padding: 18px; border: 1px solid var(--border-default); border-radius: 12px; background: var(--bg-card); }
 .eai-card header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
 .eai-card h3 { margin: 4px 0 0; }
@@ -117,4 +125,5 @@
 .lock-icon { color: #a88de0; font-size: 2rem; }
 @media (max-width: 900px) { .eai-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.wow-card, .wow-card:nth-child(-n+2) { grid-column: span 3; }.savings-layout { grid-template-columns: 1fr; }.energy-story { grid-template-columns: repeat(4, 1fr); }.energy-path { display: none; }.forecast-intelligence { grid-template-columns: auto 1fr; }.uncertainty-facts { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--border-default); padding: 14px 0 0; } }
 @media (max-width: 600px) { .eai-hero, .eai-demo-banner { flex-direction: column; padding: 20px; }.demo-cta { text-align: left; }.eai-grid { grid-template-columns: 1fr; }.eai-wow-grid { grid-template-columns: 1fr; }.wow-card, .wow-card:nth-child(-n+2) { grid-column: auto; }.eai-span-2 { grid-column: auto; }.forecast-plot { height: 220px; gap: 1px; }.savings-header, .timeline-heading { flex-direction: column; }.energy-story { grid-template-columns: repeat(2, 1fr); }.advisory-timeline { gap: 1px; }.timeline-hour small { font-size: .52rem; }.calculator-controls label > span { align-items: flex-end; }.calculator-controls label strong { text-align: right; }.forecast-intelligence { grid-template-columns: 1fr; }.confidence-orbit { width: 96px; height: 96px; }.confidence-orbit > div { width: 72px; height: 72px; }.uncertainty-facts { grid-column: auto; } }
+@media (max-width: 760px) { .thermal-loss-flow { grid-template-columns: 1fr; }.thermal-loss-flow > i { display: none; }.thermal-loss-card footer { flex-direction: column; } }
 @media (prefers-reduced-motion: reduce) { .eai-page * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }

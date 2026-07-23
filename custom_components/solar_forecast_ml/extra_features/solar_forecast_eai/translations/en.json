@@ -22,6 +22,7 @@
           "cop_rated": "Rated COP",
           "has_heating_element": "Electric auxiliary heater available",
           "has_dhw": "Domestic hot water available",
+          "storage_volume_l": "Usable storage volume (L)",
           "building_ref": "Building designation"
         },
         "data_description": {
@@ -32,6 +33,7 @@
           "cop_rated": "Rated coefficient of performance according to the data sheet, from 1 to 10.",
           "has_heating_element": "Enable this if the system has an electric auxiliary heater.",
           "has_dhw": "Enable this if the heat pump also provides domestic hot water.",
+          "storage_volume_l": "Expected: usable water or buffer volume from the data sheet. Unit: L. Optional; required to convert temperature loss into kWh.",
           "building_ref": "Optional name used to identify the building, for example Residential house."
         }
       },
@@ -82,13 +84,19 @@
           "thermal_energy_entity": "Thermal energy (kWh)",
           "volume_flow_entity": "Volume flow",
           "source_temp_entity": "Heat source temperature (°C)",
-          "storage_temp_entity": "Storage temperature (°C)"
+          "storage_temp_entity": "Storage temperature (°C)",
+          "storage_ambient_temp_entity": "Temperature at storage / plant room (°C)",
+          "circulation_pump_entity": "Circulation pump active",
+          "circulation_return_temp_entity": "Circulation return temperature (°C)"
         },
         "data_description": {
           "thermal_energy_entity": "Expected: cumulative heat meter for thermal energy delivered by the heat pump; the system boundary for space heating and domestic hot water must be known. Unit: thermal kWh. Optional.",
           "volume_flow_entity": "Expected: sensor for the current heating circuit volume flow; the fluid and measured circuit must be known. Unit: l/min or m³/h. Optional.",
           "source_temp_entity": "Expected: heat-source temperature sensor for outdoor air, brine, or groundwater. Unit: °C. Optional.",
-          "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional."
+          "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
+          "storage_ambient_temp_entity": "Expected: temperature sensor directly at the storage tank or in the plant room, not in a living room. Unit: °C. Optional; with storage temperature and volume it enables loss analysis.",
+          "circulation_pump_entity": "Expected: binary sensor for domestic-hot-water circulation pump operation (on/off) or numerical 1/0 sensor. Unit: none. Optional; enables circulation loss separation.",
+          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; used as plausibility evidence."
         }
       },
       "wallbox_choice": {
@@ -189,13 +197,15 @@
           "manufacturer": "Manufacturer",
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
-          "cop_rated": "Rated COP"
+          "cop_rated": "Rated COP",
+          "storage_volume_l": "Usable storage volume (L)"
         },
         "data_description": {
           "manufacturer": "Optional manufacturer name.",
           "model": "Optional model or product designation.",
           "heating_capacity_kw": "Rated heat output according to the data sheet.",
-          "cop_rated": "Rated coefficient of performance according to the data sheet."
+          "cop_rated": "Rated coefficient of performance according to the data sheet.",
+          "storage_volume_l": "Usable water or buffer volume from the data sheet. Unit: L. Optional."
         }
       },
       "sensors": {
@@ -217,7 +227,10 @@
           "thermal_energy_entity": "Thermal energy (kWh)",
           "volume_flow_entity": "Volume flow",
           "source_temp_entity": "Heat source temperature (°C)",
-          "storage_temp_entity": "Storage temperature (°C)"
+          "storage_temp_entity": "Storage temperature (°C)",
+          "storage_ambient_temp_entity": "Temperature at storage / plant room (°C)",
+          "circulation_pump_entity": "Circulation pump active",
+          "circulation_return_temp_entity": "Circulation return temperature (°C)"
         },
         "data_description": {
           "wp_power_entity": "Expected: sensor for the heat pump's current total electrical power input. Unit: W. Required during initial setup.",
@@ -235,7 +248,10 @@
           "thermal_energy_entity": "Expected: cumulative heat meter for thermal energy delivered by the heat pump; the system boundary for space heating and domestic hot water must be known. Unit: thermal kWh. Optional.",
           "volume_flow_entity": "Expected: sensor for the current heating circuit volume flow; the fluid and measured circuit must be known. Unit: l/min or m³/h. Optional.",
           "source_temp_entity": "Expected: heat-source temperature sensor for outdoor air, brine, or groundwater. Unit: °C. Optional.",
-          "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional."
+          "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
+          "storage_ambient_temp_entity": "Expected: temperature sensor directly at the storage tank or in the plant room. Unit: °C. Optional.",
+          "circulation_pump_entity": "Expected: binary sensor for the circulation pump (on/off) or numerical 1/0 sensor. Unit: none. Optional.",
+          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional."
         }
       },
       "wallbox": {
@@ -264,7 +280,8 @@
       "wallbox_recommendation_explanation": {"name": "Wallbox recommendation explanation"},
       "wallbox_recommendation_confidence": {"name": "Wallbox recommendation confidence"},
       "wallbox_forecast_uncertainty": {"name": "Wallbox forecast uncertainty"},
-      "wallbox_next_start": {"name": "Next recommended charging start"}, "wallbox_recommended_end": {"name": "Recommended charging end"}, "wallbox_required_energy": {"name": "Required charging energy"}, "wallbox_expected_pv_share": {"name": "Expected PV charging share"}, "wallbox_estimated_cost": {"name": "Estimated charging cost"}, "wallbox_estimated_cost_advantage": {"name": "Estimated charging-plan cost advantage"}, "wallbox_departure_readiness": {"name": "Departure readiness"}, "wallbox_data_quality": {"name": "Wallbox data quality"}
+      "wallbox_next_start": {"name": "Next recommended charging start"}, "wallbox_recommended_end": {"name": "Recommended charging end"}, "wallbox_required_energy": {"name": "Required charging energy"}, "wallbox_expected_pv_share": {"name": "Expected PV charging share"}, "wallbox_estimated_cost": {"name": "Estimated charging cost"}, "wallbox_estimated_cost_advantage": {"name": "Estimated charging-plan cost advantage"}, "wallbox_departure_readiness": {"name": "Departure readiness"}, "wallbox_data_quality": {"name": "Wallbox data quality"},
+      "storage_heat_loss_coefficient": {"name": "Storage heat-loss coefficient"}, "storage_standby_loss": {"name": "Storage standby loss per day"}, "circulation_loss": {"name": "Circulation loss per day"}, "thermal_loss_forecast": {"name": "Thermal loss next 24 hours"}, "thermal_loss_data_quality": {"name": "Thermal-loss data quality"}, "thermal_loss_status": {"name": "Thermal-loss analysis status", "state": {"learning": "Learning", "partial": "Partially available", "ready": "Ready"}}
     },
     "binary_sensor": {"automation_ready": {"name": "Automation ready"}, "pv_window_active": {"name": "PV window active"}, "dhw_recommended": {"name": "Domestic hot water recommended"}, "heating_recommended": {"name": "Heating recommended"}, "thermal_storage_recommended": {"name": "Thermal storage recommended"}, "low_price_window_active": {"name": "Low-price window active"}, "operation_deferrable": {"name": "Operation deferrable"}, "critical_data_issue": {"name": "Critical data issue"}, "wallbox_charging_window_active": {"name": "Wallbox charging window active"}, "wallbox_pv_charging_recommended": {"name": "PV charging recommended"}, "wallbox_low_price_charging_recommended": {"name": "Low-price charging recommended"}, "wallbox_departure_risk": {"name": "Departure target at risk"}},
     "switch": {"automation_signals": {"name": "Enable automation signals"}, "pv_optimization": {"name": "PV signals"}, "tariff_optimization": {"name": "Tariff signals"}, "wallbox_optimization": {"name": "Wallbox signals"}}
