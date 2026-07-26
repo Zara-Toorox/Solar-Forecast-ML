@@ -1,0 +1,92 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Weather Fusion AI Setup",
+        "description": "Configure your location for local weather learning.",
+        "data": {
+          "location_name": "Location Name",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "update_interval": "Update Interval (minutes)"
+        },
+        "data_description": {
+          "location_name": "A friendly name for this weather location",
+          "latitude": "Your location's latitude (-90 to 90)",
+          "longitude": "Your location's longitude (-180 to 180)",
+          "update_interval": "How often to update weather data (10-120 minutes)"
+        }
+      },
+      "sensors": {
+        "title": "Local Weather Sensors",
+        "description": "Select your local weather station sensors. These are used to learn and improve forecast accuracy for your specific location.",
+        "data": {
+          "temperature_sensor": "Temperature Sensor",
+          "humidity_sensor": "Humidity Sensor",
+          "pressure_sensor": "Pressure Sensor",
+          "wind_speed_sensor": "Wind Speed Sensor",
+          "rain_sensor": "Rain Sensor"
+        },
+        "data_description": {
+          "temperature_sensor": "Local temperature sensor (recommended)",
+          "humidity_sensor": "Local humidity sensor",
+          "pressure_sensor": "Local barometric pressure sensor",
+          "wind_speed_sensor": "Local wind speed sensor",
+          "rain_sensor": "Local rain sensor (mm/h or daily accumulation)"
+        }
+      },
+      "api_keys": {
+        "title": "Optional API Keys",
+        "description": "Add optional API keys for additional weather sources. All fields are optional - the integration works without any API keys using free sources.",
+        "data": {
+          "pirate_weather_api_key": "Pirate Weather API Key"
+        },
+        "data_description": {
+          "pirate_weather_api_key": "Free API key from pirate-weather.apiable.io (20,000 calls/month)"
+        }
+      }
+    },
+    "error": {
+      "invalid_latitude": "Latitude must be between -90 and 90",
+      "invalid_longitude": "Longitude must be between -180 and 180",
+      "cannot_connect": "Failed to connect to weather services",
+      "no_sensors": "At least one weather sensor is required. This integration learns from your local weather station to improve forecasts."
+    },
+    "abort": {
+      "already_configured": "This location is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Weather Fusion AI Options",
+        "description": "Adjust settings for your weather integration.",
+        "data": {
+          "update_interval": "Update Interval (minutes)",
+          "temperature_sensor": "Temperature Sensor",
+          "humidity_sensor": "Humidity Sensor",
+          "pressure_sensor": "Pressure Sensor",
+          "wind_speed_sensor": "Wind Speed Sensor",
+          "rain_sensor": "Rain Sensor",
+          "pirate_weather_api_key": "Pirate Weather API Key"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "forecast_accuracy": {
+        "name": "Forecast Accuracy"
+      },
+      "learning_days": {
+        "name": "Learning Days"
+      },
+      "active_sources": {
+        "name": "Active Weather Sources"
+      },
+      "last_learning_update": {
+        "name": "Last Learning Update"
+      }
+    }
+  }
+}

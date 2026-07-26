@@ -1,0 +1,92 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Weather Fusion AI Einrichtung",
+        "description": "Konfiguriere deinen Standort für lokales Wetter-Lernen.",
+        "data": {
+          "location_name": "Standortname",
+          "latitude": "Breitengrad",
+          "longitude": "Längengrad",
+          "update_interval": "Aktualisierungsintervall (Minuten)"
+        },
+        "data_description": {
+          "location_name": "Ein freundlicher Name für diesen Wetter-Standort",
+          "latitude": "Breitengrad deines Standorts (-90 bis 90)",
+          "longitude": "Längengrad deines Standorts (-180 bis 180)",
+          "update_interval": "Wie oft Wetterdaten aktualisiert werden (10-120 Minuten)"
+        }
+      },
+      "sensors": {
+        "title": "Lokale Wetter-Sensoren",
+        "description": "Wähle deine lokalen Wetterstation-Sensoren. Diese werden verwendet, um die Vorhersagegenauigkeit für deinen spezifischen Standort zu lernen und zu verbessern.",
+        "data": {
+          "temperature_sensor": "Temperatursensor",
+          "humidity_sensor": "Luftfeuchtigkeitssensor",
+          "pressure_sensor": "Luftdrucksensor",
+          "wind_speed_sensor": "Windgeschwindigkeitssensor",
+          "rain_sensor": "Regensensor"
+        },
+        "data_description": {
+          "temperature_sensor": "Lokaler Temperatursensor (empfohlen)",
+          "humidity_sensor": "Lokaler Luftfeuchtigkeitssensor",
+          "pressure_sensor": "Lokaler Barometer-Sensor",
+          "wind_speed_sensor": "Lokaler Windgeschwindigkeitssensor",
+          "rain_sensor": "Lokaler Regensensor (mm/h oder Tagesakkumulation)"
+        }
+      },
+      "api_keys": {
+        "title": "Optionale API-Schlüssel",
+        "description": "Füge optionale API-Schlüssel für zusätzliche Wetterquellen hinzu. Alle Felder sind optional - die Integration funktioniert auch ohne API-Schlüssel mit kostenlosen Quellen.",
+        "data": {
+          "pirate_weather_api_key": "Pirate Weather API-Schlüssel"
+        },
+        "data_description": {
+          "pirate_weather_api_key": "Kostenloser API-Schlüssel von pirate-weather.apiable.io (20.000 Aufrufe/Monat)"
+        }
+      }
+    },
+    "error": {
+      "invalid_latitude": "Breitengrad muss zwischen -90 und 90 liegen",
+      "invalid_longitude": "Längengrad muss zwischen -180 und 180 liegen",
+      "cannot_connect": "Verbindung zu Wetterdiensten fehlgeschlagen",
+      "no_sensors": "Mindestens ein Wettersensor ist erforderlich. Diese Integration lernt von deiner lokalen Wetterstation, um Vorhersagen zu verbessern."
+    },
+    "abort": {
+      "already_configured": "Dieser Standort ist bereits konfiguriert"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Weather Fusion AI Optionen",
+        "description": "Passe die Einstellungen für deine Wetter-Integration an.",
+        "data": {
+          "update_interval": "Aktualisierungsintervall (Minuten)",
+          "temperature_sensor": "Temperatursensor",
+          "humidity_sensor": "Luftfeuchtigkeitssensor",
+          "pressure_sensor": "Luftdrucksensor",
+          "wind_speed_sensor": "Windgeschwindigkeitssensor",
+          "rain_sensor": "Regensensor",
+          "pirate_weather_api_key": "Pirate Weather API-Schlüssel"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "forecast_accuracy": {
+        "name": "Vorhersagegenauigkeit"
+      },
+      "learning_progress": {
+        "name": "Lernfortschritt"
+      },
+      "active_sources": {
+        "name": "Aktive Wetterquellen"
+      },
+      "last_learning_update": {
+        "name": "Letztes Lern-Update"
+      }
+    }
+  }
+}

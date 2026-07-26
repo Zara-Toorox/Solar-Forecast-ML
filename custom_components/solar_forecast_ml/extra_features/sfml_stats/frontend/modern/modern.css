@@ -105,6 +105,7 @@ html {
 
 body {
     min-width: 320px;
+    overflow-x: hidden;
     background: var(--bg-app);
     color: var(--text-primary);
     font-family: var(--font-family);
@@ -256,7 +257,7 @@ textarea:focus-visible,
     width: 100%;
     min-height: 42px;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 11px;
     padding: 9px 10px;
     border: 1px solid transparent;
@@ -289,11 +290,13 @@ textarea:focus-visible,
 
 .nav-item span {
     min-width: 0;
-    overflow: hidden;
     font-size: 0.86rem;
     font-weight: 620;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.25;
+    hyphens: none;
+    overflow-wrap: normal;
+    word-break: normal;
+    white-space: normal;
 }
 
 .sidebar-footer {
@@ -363,6 +366,7 @@ textarea:focus-visible,
     border-bottom: 1px solid var(--border-default);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
+    container-type: inline-size;
 }
 
 .topbar-title {
@@ -404,6 +408,7 @@ textarea:focus-visible,
 }
 
 .topbar-actions {
+    min-width: 0;
     flex: 0 0 auto;
     display: flex;
     align-items: center;
@@ -488,9 +493,17 @@ textarea:focus-visible,
 
 .modern-content {
     width: min(100%, var(--modern-content-max));
+    min-width: 0;
     min-height: calc(100vh - var(--modern-topbar-height));
     margin: 0 auto;
     padding: clamp(18px, 2.5vw, 36px) clamp(20px, 3vw, 44px) 72px;
+    container-type: inline-size;
+}
+
+.modern-page-frame,
+.modern-page-frame > * {
+    min-width: 0;
+    max-width: 100%;
 }
 
 .modern-content:focus {

@@ -28,7 +28,12 @@ const SFMLApi = {
         // Make the request
         const requestPromise = (async () => {
             try {
-                const response = await fetch(endpoint);
+                // The in-memory TTL is the single cache authority. Browser HTTP
+                // caches must not retain volatile Home Assistant API snapshots.
+                const response = await fetch(endpoint, {
+                    cache: "no-store",
+                    credentials: "same-origin"
+                });
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }

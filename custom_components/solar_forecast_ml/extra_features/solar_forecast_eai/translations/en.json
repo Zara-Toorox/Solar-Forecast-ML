@@ -11,6 +11,20 @@
           "license_key": "The license key starts with EAI1. and is issued by your EAI provider."
         }
       },
+      "features": {
+        "title": "EAI Premium functions",
+        "description": "One EAI Premium license enables every function. Select only the equipment and data sources available in this home.",
+        "data": {
+          "heat_pump_enabled": "Use heat-pump intelligence",
+          "wallbox_enabled": "Use e-mobility intelligence",
+          "weather_intelligence_enabled": "Use Weather Fusion intelligence"
+        },
+        "data_description": {
+          "heat_pump_enabled": "Configure heat-pump, building and thermal analysis.",
+          "wallbox_enabled": "Configure passive charging recommendations for a wallbox or vehicle.",
+          "weather_intelligence_enabled": "Evaluate an installed Weather Fusion AI forecast, local observations and weather risks."
+        }
+      },
       "heat_pump": {
         "title": "Heat pump and building",
         "description": "Enter the technical details of the heat pump and its installation.",
@@ -19,7 +33,7 @@
           "manufacturer": "Manufacturer",
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
-          "cop_rated": "Rated COP",
+          "cop_rated": "COP at the data-sheet test point",
           "has_heating_element": "Electric auxiliary heater available",
           "has_dhw": "Domestic hot water available",
           "storage_volume_l": "Usable storage volume (L)",
@@ -30,7 +44,7 @@
           "manufacturer": "Optional manufacturer name.",
           "model": "Optional model or product designation.",
           "heating_capacity_kw": "Rated heat output according to the data sheet, from 1 to 100 kW.",
-          "cop_rated": "Rated coefficient of performance according to the data sheet, from 1 to 10.",
+          "cop_rated": "COP stated for a data-sheet test point such as A7/W35 or B0/W35. This is neither a live reading nor an annual performance factor. Keep the default 4.0 if unknown.",
           "has_heating_element": "Enable this if the system has an electric auxiliary heater.",
           "has_dhw": "Enable this if the heat pump also provides domestic hot water.",
           "storage_volume_l": "Expected: usable water or buffer volume from the data sheet. Unit: L. Optional; required to convert temperature loss into kWh.",
@@ -47,7 +61,7 @@
         },
         "data_description": {
           "wp_power_entity": "Expected: sensor for the heat pump's current total electrical power input. Unit: W. Required.",
-          "wp_energy_today": "Expected: electrical energy meter accumulated daily since 00:00 that resets to 0 at midnight. Unit: kWh. Required.",
+          "wp_energy_today": "Expected: electrical daily consumption meter for the heat pump, accumulated since 00:00 and reset at midnight. Unit: kWh. Required.",
           "outdoor_temp_entity": "Expected: sensor for the current outdoor air temperature at the building. Unit: °C. Required."
         }
       },
@@ -62,26 +76,31 @@
           "dhw_temp_entity": "Domestic hot water temperature (°C)",
           "flow_temp_entity": "Flow temperature (°C)",
           "return_temp_entity": "Return temperature (°C)",
-          "starts_entity": "Compressor starts",
-          "runtime_entity": "Compressor runtime"
+          "starts_entity": "Compressor-start counter",
+          "runtime_entity": "Total compressor operating-hours meter",
+          "runtime_heating_entity": "Space-heating operating-hours meter",
+          "runtime_dhw_entity": "Domestic-hot-water operating-hours meter"
         },
         "data_description": {
           "indoor_temp_entity": "Expected: temperature sensor in a representative indoor or reference room. Unit: °C. Optional.",
           "target_temp_entity": "Expected: sensor for the currently configured room target temperature. Unit: °C. Optional.",
           "operation_mode_entity": "Expected: sensor with a stable text state for the operating mode, such as heating, domestic hot water, defrost, or off. Unit: none. Optional.",
-          "compressor_entity": "Expected: binary sensor for compressor operation (on/off) or numerical sensor using 1/0. Unit: none. Optional.",
+          "compressor_entity": "Expected: binary sensor, switch, or numeric compressor status. Unit: none. Optional; if absent, EAI uses the operating mode first and electrical power second.",
           "dhw_temp_entity": "Expected: temperature sensor in the domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
           "flow_temp_entity": "Expected: sensor for the current heating circuit flow temperature. Unit: °C. Optional.",
           "return_temp_entity": "Expected: sensor for the current return temperature of the same heating circuit. Unit: °C. Optional.",
-          "starts_entity": "Expected: cumulative compressor-start counter; counter resets must be detectable. Unit: count. Optional.",
-          "runtime_entity": "Expected: cumulative compressor runtime counter. Unit: h. Optional."
+          "starts_entity": "Expected: current compressor-start counter reading; counter resets must be detectable. Unit: count. Optional.",
+          "runtime_entity": "Expected: operating-hours meter for total compressor runtime. Unit: h. Optional.",
+          "runtime_heating_entity": "Expected: operating-hours meter for space heating only. Unit: h. Optional; combined with domestic hot water when no total meter exists.",
+          "runtime_dhw_entity": "Expected: operating-hours meter for domestic hot water only. Unit: h. Optional; combined with space heating when no total meter exists."
         }
       },
       "advanced_sensors": {
         "title": "Advanced sensors",
         "description": "Assign additional measurements for advanced analysis. All fields on this page are optional.",
         "data": {
-          "thermal_energy_entity": "Thermal energy (kWh)",
+          "thermal_energy_entity": "Thermal daily consumption meter (kWh)",
+          "jaz_entity": "Annual / measured performance factor",
           "volume_flow_entity": "Volume flow",
           "source_temp_entity": "Heat source temperature (°C)",
           "storage_temp_entity": "Storage temperature (°C)",
@@ -90,13 +109,14 @@
           "circulation_return_temp_entity": "Circulation return temperature (°C)"
         },
         "data_description": {
-          "thermal_energy_entity": "Expected: cumulative heat meter for thermal energy delivered by the heat pump; the system boundary for space heating and domestic hot water must be known. Unit: thermal kWh. Optional.",
-          "volume_flow_entity": "Expected: sensor for the current heating circuit volume flow; the fluid and measured circuit must be known. Unit: l/min or m³/h. Optional.",
+          "thermal_energy_entity": "Expected: thermal consumption meter covering the same daily period and system boundary as the electrical daily consumption meter. Unit: thermal kWh. Optional; enables today's performance factor.",
+          "jaz_entity": "Expected: an annual or measured performance factor already calculated by the system or a verified source. Unit: none. Optional; EAI does not invent one without matching heat and electricity meters.",
+          "volume_flow_entity": "Expected: current heating-circuit volume flow with known fluid and measured circuit. Unit: l/min or m³/h. Optional; needed only for instantaneous COP calculation.",
           "source_temp_entity": "Expected: heat-source temperature sensor for outdoor air, brine, or groundwater. Unit: °C. Optional.",
           "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
           "storage_ambient_temp_entity": "Expected: temperature sensor directly at the storage tank or in the plant room, not in a living room. Unit: °C. Optional; with storage temperature and volume it enables loss analysis.",
-          "circulation_pump_entity": "Expected: binary sensor for domestic-hot-water circulation pump operation (on/off) or numerical 1/0 sensor. Unit: none. Optional; enables circulation loss separation.",
-          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; used as plausibility evidence."
+          "circulation_pump_entity": "Expected: switch, binary sensor, or numeric state for the domestic-hot-water circulation pump. Unit: none. Optional; a smart plug is suitable and enables circulation-loss separation.",
+          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; used only as plausibility evidence."
         }
       },
       "wallbox_choice": {
@@ -108,8 +128,52 @@
       "wallbox": {
         "title": "Wallbox and vehicle",
         "description": "Assign measurements and charging targets for the primary wallbox. EAI only exposes passive advice and automation triggers.",
-        "data": {"wallbox_name": "Name", "wallbox_power_entity": "Current wallbox power (W)", "wallbox_energy_today_entity": "Wallbox daily energy (kWh)", "wallbox_connected_entity": "Vehicle connected", "wallbox_charging_entity": "Charging active", "ev_soc_entity": "Vehicle state of charge (%)", "ev_battery_capacity_kwh": "Usable battery capacity (kWh)", "ev_target_soc": "Target state of charge (%)", "ev_departure_time": "Regular departure time", "wallbox_max_power_kw": "Maximum charging power (kW)"},
-        "data_description": {"wallbox_name": "Free name for the vehicle or wallbox. Unit: none.", "wallbox_power_entity": "Expected: sensor for current wallbox charging power. Unit: W. Required.", "wallbox_energy_today_entity": "Expected: charging energy accumulated since midnight. Unit: kWh. Optional.", "wallbox_connected_entity": "Expected: binary sensor indicating that a vehicle is connected. Unit: none. Optional.", "wallbox_charging_entity": "Expected: binary sensor indicating active charging. Unit: none. Optional.", "ev_soc_entity": "Expected: current vehicle battery state of charge. Unit: %. Required.", "ev_battery_capacity_kwh": "Usable vehicle battery capacity. Unit: kWh. Required.", "ev_target_soc": "Desired state of charge at departure. Unit: %. Required.", "ev_departure_time": "Regular local time by which the charging target should be reached. Unit: local time. Required.", "wallbox_max_power_kw": "Maximum charging power available to the vehicle. Unit: kW. Required."}
+        "data": {
+          "wallbox_name": "Name",
+          "wallbox_power_entity": "Current wallbox power (W)",
+          "wallbox_energy_today_entity": "Wallbox daily energy (kWh)",
+          "wallbox_connected_entity": "Vehicle connected",
+          "wallbox_charging_entity": "Charging active",
+          "ev_demand_mode": "Charging demand source",
+          "ev_soc_entity": "Vehicle state of charge (%) - optional",
+          "ev_required_energy_entity": "Requested additional energy (kWh) - optional",
+          "ev_planned_distance_entity": "Planned distance (km) - optional",
+          "ev_battery_capacity_kwh": "Usable battery capacity (kWh)",
+          "ev_target_soc": "Target state of charge (%)",
+          "ev_consumption_kwh_per_100km": "Vehicle consumption (kWh/100 km)",
+          "ev_charging_efficiency_percent": "Charging efficiency (%)",
+          "ev_departure_time": "Regular departure time",
+          "wallbox_max_power_kw": "Maximum charging power (kW)"
+        },
+        "data_description": {
+          "wallbox_name": "Free name for the vehicle or wallbox. Unit: none.",
+          "wallbox_power_entity": "Expected: sensor for current wallbox charging power. Unit: W. Required.",
+          "wallbox_energy_today_entity": "Expected: charging energy accumulated since midnight. Unit: kWh. Optional.",
+          "wallbox_connected_entity": "Expected: binary sensor indicating that a vehicle is connected. Unit: none. Optional.",
+          "wallbox_charging_entity": "Expected: binary sensor indicating active charging. Unit: none. Optional.",
+          "ev_demand_mode": "Expected: method used to determine charging demand. Unit: none. Select SoC, requested energy, or planned distance.",
+          "ev_soc_entity": "Expected: current vehicle battery state of charge. Unit: %. Optional for SoC-based planning.",
+          "ev_required_energy_entity": "Expected: requested additional battery energy from a Home Assistant helper or sensor. Unit: kWh. Optional alternative to SoC.",
+          "ev_planned_distance_entity": "Expected: planned distance until the next departure from a Home Assistant helper or sensor. Unit: km. Optional alternative to SoC.",
+          "ev_battery_capacity_kwh": "Usable vehicle battery capacity. Unit: kWh. Required for SoC-based planning.",
+          "ev_target_soc": "Desired state of charge at departure. Unit: %. Required for SoC-based planning.",
+          "ev_consumption_kwh_per_100km": "Expected average vehicle consumption. Unit: kWh/100 km. Required for distance-based planning.",
+          "ev_charging_efficiency_percent": "Expected share of wallbox energy stored in the vehicle battery. Unit: %. Used for every planning mode.",
+          "ev_departure_time": "Regular local time by which the charging target should be reached. Unit: local time. Required.",
+          "wallbox_max_power_kw": "Maximum charging power available to the vehicle. Unit: kW. Required."
+        }
+      },
+      "weather_intelligence": {
+        "title": "Weather intelligence",
+        "description": "Connect Weather Fusion AI for local forecast quality, uncertainty, history and explainable weather risks. Weather Fusion AI remains independently usable.",
+        "data": {
+          "weather_fusion_entry_id": "Weather Fusion AI location",
+          "weather_history_days": "Evaluation retention (days)"
+        },
+        "data_description": {
+          "weather_fusion_entry_id": "Select the Weather Fusion AI configuration for this EAI installation.",
+          "weather_history_days": "Keep EAI forecast-evaluation records for 7 to 365 days. This does not copy the complete WFAI raw history."
+        }
       },
       "validation": {
         "title": "Sensor validation",
@@ -123,9 +187,9 @@
       },
       "automation_inputs": {
         "title": "Prices for automation signals",
-        "description": "Optional: Assign electricity price and feed-in tariff sensors. EAI never controls equipment and only exposes passive signals.",
-        "data": {"electricity_price_entity": "Current electricity price", "feed_in_tariff_entity": "Current feed-in tariff", "low_price_threshold_ct": "Low-price threshold (ct/kWh)"},
-        "data_description": {"electricity_price_entity": "Expected: sensor for the current import price. Unit: EUR/kWh or ct/kWh. Optional.", "feed_in_tariff_entity": "Expected: sensor for the current feed-in tariff. Unit: EUR/kWh or ct/kWh. Optional.", "low_price_threshold_ct": "Price below which EAI signals a low-price window. Unit: ct/kWh."}
+        "description": "Optional: Assign electricity price and feed-in tariff data. EAI never controls equipment and only exposes passive signals.",
+        "data": {"electricity_price_entity": "Current electricity price or helper", "electricity_price_unit": "Electricity-price unit", "feed_in_tariff_entity": "Feed-in tariff or helper", "feed_in_tariff_unit": "Feed-in-tariff unit", "low_price_threshold_ct": "Low-price threshold (ct/kWh)"},
+        "data_description": {"electricity_price_entity": "Expected: sensor or input_number helper for the current import price. Unit: EUR/kWh or ct/kWh. Optional.", "electricity_price_unit": "Use automatic detection from the sensor or select a fixed unit for helpers without one.", "feed_in_tariff_entity": "Expected: sensor or input_number helper for the current feed-in tariff. Unit: EUR/kWh or ct/kWh. Optional.", "feed_in_tariff_unit": "Use automatic detection from the sensor or select a fixed unit for helpers without one.", "low_price_threshold_ct": "Price below which EAI signals a low-price window. Unit: ct/kWh."}
       },
       "summary": {
         "title": "Summary",
@@ -159,8 +223,11 @@
       "license_expired": "The license has expired.",
       "license_missing_entitlement": "The EAI entitlement is missing.",
       "license_validation_error": "The license could not be validated safely.",
+      "feature_required": "Select at least one Premium function.",
+      "weather_fusion_required": "Install and configure Weather Fusion AI before enabling weather intelligence.",
       "validation_required": "Review and accept the sensor warnings.",
-      "wallbox_required": "Wallbox analytics require at least wallbox power and vehicle state of charge."
+      "wallbox_required": "Wallbox analytics require wallbox power and at least one charging-demand source.",
+      "wallbox_demand_required": "Select at least one demand source: vehicle state of charge, requested energy, or planned distance."
     },
     "abort": {
       "not_confirmed": "Setup was not confirmed.",
@@ -174,10 +241,26 @@
         "description": "Select the area you want to change.",
         "menu_options": {
           "license": "Renew license",
+          "features": "Premium functions",
           "heat_pump": "Heat pump details",
           "sensors": "Sensor assignments",
           "wallbox": "E-mobility and wallbox",
+          "weather_intelligence": "Weather intelligence",
           "automation": "Automation signals"
+        }
+      },
+      "features": {
+        "title": "EAI Premium functions",
+        "description": "Every function is included in the same license. Enable the areas available in this home.",
+        "data": {
+          "heat_pump_enabled": "Use heat-pump intelligence",
+          "wallbox_enabled": "Use e-mobility intelligence",
+          "weather_intelligence_enabled": "Use Weather Fusion intelligence"
+        },
+        "data_description": {
+          "heat_pump_enabled": "Enable heat-pump and building analysis.",
+          "wallbox_enabled": "Enable wallbox and vehicle recommendations.",
+          "weather_intelligence_enabled": "Enable WFAI forecast evaluation and weather risks."
         }
       },
       "license": {
@@ -197,14 +280,14 @@
           "manufacturer": "Manufacturer",
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
-          "cop_rated": "Rated COP",
+          "cop_rated": "COP at the data-sheet test point",
           "storage_volume_l": "Usable storage volume (L)"
         },
         "data_description": {
           "manufacturer": "Optional manufacturer name.",
           "model": "Optional model or product designation.",
           "heating_capacity_kw": "Rated heat output according to the data sheet.",
-          "cop_rated": "Rated coefficient of performance according to the data sheet.",
+          "cop_rated": "COP stated for a data-sheet test point such as A7/W35 or B0/W35; neither a live efficiency reading nor an annual performance factor. Keep 4.0 if unknown.",
           "storage_volume_l": "Usable water or buffer volume from the data sheet. Unit: L. Optional."
         }
       },
@@ -223,8 +306,11 @@
           "flow_temp_entity": "Flow temperature (°C)",
           "return_temp_entity": "Return temperature (°C)",
           "starts_entity": "Compressor starts",
-          "runtime_entity": "Compressor runtime",
-          "thermal_energy_entity": "Thermal energy (kWh)",
+          "runtime_entity": "Total compressor operating-hours meter",
+          "runtime_heating_entity": "Space-heating operating-hours meter",
+          "runtime_dhw_entity": "Domestic-hot-water operating-hours meter",
+          "thermal_energy_entity": "Thermal daily consumption meter (kWh)",
+          "jaz_entity": "Annual / measured performance factor",
           "volume_flow_entity": "Volume flow",
           "source_temp_entity": "Heat source temperature (°C)",
           "storage_temp_entity": "Storage temperature (°C)",
@@ -234,37 +320,86 @@
         },
         "data_description": {
           "wp_power_entity": "Expected: sensor for the heat pump's current total electrical power input. Unit: W. Required during initial setup.",
-          "wp_energy_today": "Expected: electrical energy meter accumulated daily since 00:00 that resets to 0 at midnight. Unit: kWh. Required during initial setup.",
+          "wp_energy_today": "Expected: electrical daily consumption meter accumulated since 00:00 and reset at midnight. Unit: kWh. Required during initial setup.",
           "outdoor_temp_entity": "Expected: sensor for the current outdoor air temperature at the building. Unit: °C. Required during initial setup.",
           "indoor_temp_entity": "Expected: temperature sensor in a representative indoor or reference room. Unit: °C. Optional.",
           "target_temp_entity": "Expected: sensor for the currently configured room target temperature. Unit: °C. Optional.",
           "operation_mode_entity": "Expected: sensor with a stable text state for the operating mode, such as heating, domestic hot water, defrost, or off. Unit: none. Optional.",
-          "compressor_entity": "Expected: binary sensor for compressor operation (on/off) or numerical sensor using 1/0. Unit: none. Optional.",
+          "compressor_entity": "Expected: binary sensor, switch, or numeric compressor status. Unit: none. Optional; operating mode and electrical power are fallbacks.",
           "dhw_temp_entity": "Expected: temperature sensor in the domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
           "flow_temp_entity": "Expected: sensor for the current heating circuit flow temperature. Unit: °C. Optional.",
           "return_temp_entity": "Expected: sensor for the current return temperature of the same heating circuit. Unit: °C. Optional.",
-          "starts_entity": "Expected: cumulative compressor-start counter; counter resets must be detectable. Unit: count. Optional.",
-          "runtime_entity": "Expected: cumulative compressor runtime counter. Unit: h. Optional.",
-          "thermal_energy_entity": "Expected: cumulative heat meter for thermal energy delivered by the heat pump; the system boundary for space heating and domestic hot water must be known. Unit: thermal kWh. Optional.",
-          "volume_flow_entity": "Expected: sensor for the current heating circuit volume flow; the fluid and measured circuit must be known. Unit: l/min or m³/h. Optional.",
+          "starts_entity": "Expected: current compressor-start counter reading; counter resets must be detectable. Unit: count. Optional.",
+          "runtime_entity": "Expected: operating-hours meter for total compressor runtime. Unit: h. Optional.",
+          "runtime_heating_entity": "Expected: operating-hours meter for space heating only. Unit: h. Optional.",
+          "runtime_dhw_entity": "Expected: operating-hours meter for domestic hot water only. Unit: h. Optional.",
+          "thermal_energy_entity": "Expected: thermal consumption meter for the same daily period and system boundary as the electrical daily meter. Unit: thermal kWh. Optional.",
+          "jaz_entity": "Expected: an annual or measured performance factor already calculated by the system or a verified source. Unit: none. Optional.",
+          "volume_flow_entity": "Expected: current heating-circuit volume flow with known fluid and circuit. Unit: l/min or m³/h. Optional; needed only for instantaneous COP.",
           "source_temp_entity": "Expected: heat-source temperature sensor for outdoor air, brine, or groundwater. Unit: °C. Optional.",
           "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
           "storage_ambient_temp_entity": "Expected: temperature sensor directly at the storage tank or in the plant room. Unit: °C. Optional.",
-          "circulation_pump_entity": "Expected: binary sensor for the circulation pump (on/off) or numerical 1/0 sensor. Unit: none. Optional.",
-          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional."
+          "circulation_pump_entity": "Expected: switch, binary sensor, or numeric state for the circulation pump. Unit: none. Optional; a smart plug is suitable.",
+          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; plausibility evidence only."
         }
       },
       "wallbox": {
         "title": "E-mobility and wallbox",
         "description": "Update wallbox measurements and charging targets. EAI never switches the wallbox itself.",
-        "data": {"wallbox_enabled": "Enable wallbox analytics", "wallbox_name": "Name", "wallbox_power_entity": "Current wallbox power (W)", "wallbox_energy_today_entity": "Wallbox daily energy (kWh)", "wallbox_connected_entity": "Vehicle connected", "wallbox_charging_entity": "Charging active", "ev_soc_entity": "Vehicle state of charge (%)", "ev_battery_capacity_kwh": "Usable battery capacity (kWh)", "ev_target_soc": "Target state of charge (%)", "ev_departure_time": "Regular departure time", "wallbox_max_power_kw": "Maximum charging power (kW)"},
-        "data_description": {"wallbox_enabled": "Enables or disables all wallbox analytics and wallbox entities.", "wallbox_name": "Free name. Unit: none.", "wallbox_power_entity": "Expected: current charging power. Unit: W. Required when wallbox analytics are enabled.", "wallbox_energy_today_entity": "Expected: charging energy accumulated since midnight. Unit: kWh. Optional.", "wallbox_connected_entity": "Expected: binary sensor for the vehicle connection. Unit: none. Optional.", "wallbox_charging_entity": "Expected: binary sensor for active charging. Unit: none. Optional.", "ev_soc_entity": "Expected: current vehicle state of charge. Unit: %. Required when wallbox analytics are enabled.", "ev_battery_capacity_kwh": "Usable battery capacity. Unit: kWh.", "ev_target_soc": "Desired state of charge at departure. Unit: %.", "ev_departure_time": "Regular local departure time. Unit: time.", "wallbox_max_power_kw": "Maximum available charging power. Unit: kW."}
+        "data": {
+          "wallbox_enabled": "Enable wallbox analytics",
+          "wallbox_name": "Name",
+          "wallbox_power_entity": "Current wallbox power (W)",
+          "wallbox_energy_today_entity": "Wallbox daily energy (kWh)",
+          "wallbox_connected_entity": "Vehicle connected",
+          "wallbox_charging_entity": "Charging active",
+          "ev_demand_mode": "Charging demand source",
+          "ev_soc_entity": "Vehicle state of charge (%) - optional",
+          "ev_required_energy_entity": "Requested additional energy (kWh) - optional",
+          "ev_planned_distance_entity": "Planned distance (km) - optional",
+          "ev_battery_capacity_kwh": "Usable battery capacity (kWh)",
+          "ev_target_soc": "Target state of charge (%)",
+          "ev_consumption_kwh_per_100km": "Vehicle consumption (kWh/100 km)",
+          "ev_charging_efficiency_percent": "Charging efficiency (%)",
+          "ev_departure_time": "Regular departure time",
+          "wallbox_max_power_kw": "Maximum charging power (kW)"
+        },
+        "data_description": {
+          "wallbox_enabled": "Enables or disables all wallbox analytics and wallbox entities.",
+          "wallbox_name": "Free name. Unit: none.",
+          "wallbox_power_entity": "Expected: current charging power. Unit: W. Required when wallbox analytics are enabled.",
+          "wallbox_energy_today_entity": "Expected: charging energy accumulated since midnight. Unit: kWh. Optional.",
+          "wallbox_connected_entity": "Expected: binary sensor for the vehicle connection. Unit: none. Optional.",
+          "wallbox_charging_entity": "Expected: binary sensor for active charging. Unit: none. Optional.",
+          "ev_demand_mode": "Expected: method used to determine charging demand. Unit: none. Select SoC, requested energy, or planned distance.",
+          "ev_soc_entity": "Expected: current vehicle state of charge. Unit: %. Optional for SoC-based planning.",
+          "ev_required_energy_entity": "Expected: requested additional battery energy from a sensor or helper. Unit: kWh. Optional.",
+          "ev_planned_distance_entity": "Expected: planned driving distance from a sensor or helper. Unit: km. Optional.",
+          "ev_battery_capacity_kwh": "Usable battery capacity. Unit: kWh.",
+          "ev_target_soc": "Desired state of charge at departure. Unit: %.",
+          "ev_consumption_kwh_per_100km": "Expected average vehicle consumption. Unit: kWh/100 km.",
+          "ev_charging_efficiency_percent": "Expected charging efficiency between wallbox and vehicle battery. Unit: %.",
+          "ev_departure_time": "Regular local departure time. Unit: time.",
+          "wallbox_max_power_kw": "Maximum available charging power. Unit: kW."
+        }
+      },
+      "weather_intelligence": {
+        "title": "Weather intelligence",
+        "description": "Choose the Weather Fusion AI location and local evaluation retention.",
+        "data": {
+          "weather_fusion_entry_id": "Weather Fusion AI location",
+          "weather_history_days": "Evaluation retention (days)"
+        },
+        "data_description": {
+          "weather_fusion_entry_id": "Select the matching Weather Fusion AI configuration.",
+          "weather_history_days": "Retain only EAI forecast-evaluation records for this many days."
+        }
       },
       "automation": {
         "title": "Automation signals",
         "description": "Configure optional price data for passive EAI triggers and conditions.",
-        "data": {"electricity_price_entity": "Current electricity price", "feed_in_tariff_entity": "Current feed-in tariff", "low_price_threshold_ct": "Low-price threshold (ct/kWh)"},
-        "data_description": {"electricity_price_entity": "Expected: sensor for the current import price. Unit: EUR/kWh or ct/kWh. Optional.", "feed_in_tariff_entity": "Expected: sensor for the current feed-in tariff. Unit: EUR/kWh or ct/kWh. Optional.", "low_price_threshold_ct": "Price below which EAI signals a low-price window. Unit: ct/kWh."}
+        "data": {"electricity_price_entity": "Current electricity price or helper", "electricity_price_unit": "Electricity-price unit", "feed_in_tariff_entity": "Feed-in tariff or helper", "feed_in_tariff_unit": "Feed-in-tariff unit", "low_price_threshold_ct": "Low-price threshold (ct/kWh)"},
+        "data_description": {"electricity_price_entity": "Expected: sensor or input_number helper for the current import price. Unit: EUR/kWh or ct/kWh. Optional.", "electricity_price_unit": "Use automatic detection from the sensor or select a fixed unit for helpers without one.", "feed_in_tariff_entity": "Expected: sensor or input_number helper for the current feed-in tariff. Unit: EUR/kWh or ct/kWh. Optional.", "feed_in_tariff_unit": "Use automatic detection from the sensor or select a fixed unit for helpers without one.", "low_price_threshold_ct": "Price below which EAI signals a low-price window. Unit: ct/kWh."}
       }
     }
   },
@@ -275,18 +410,55 @@
       "recommendation_explanation": {"name": "Recommendation explanation"},
       "recommendation_confidence": {"name": "Recommendation confidence"}, "forecast_uncertainty": {"name": "Forecast uncertainty"}, "next_action_start": {"name": "Next recommended start"}, "recommendation_valid_until": {"name": "Recommendation valid until"}, "recommended_duration": {"name": "Recommended duration"}, "consumption_next_hour": {"name": "Consumption next hour"}, "consumption_today": {"name": "Expected consumption today"}, "consumption_tomorrow": {"name": "Expected consumption tomorrow"}, "expected_pv_surplus": {"name": "Expected PV surplus"}, "estimated_cost_advantage": {"name": "Estimated cost advantage"}, "data_quality": {"name": "Data quality"},
       "model_status": {"name": "Model status", "state": {"learning": "Learning", "ready": "Ready", "degraded": "Degraded"}},
+      "weather_intelligence_status": {"name": "Weather intelligence status", "state": {"disabled": "Disabled", "degraded": "Degraded", "cold_start": "Learning", "ready": "Ready"}},
+      "weather_data_quality": {"name": "Weather data quality"},
+      "weather_paired_samples": {"name": "Weather forecast/observation pairs"},
+      "weather_temperature_mae": {"name": "Local temperature forecast MAE"},
+      "weather_temperature_bias": {"name": "Local temperature forecast bias"},
+      "weather_temperature_uncertainty": {"name": "Local temperature uncertainty"},
+      "weather_active_event": {"name": "Active weather event", "state": {"none": "None", "forecast_stale": "Forecast stale", "forecast_unavailable": "Forecast unavailable", "freeze_risk": "Freeze risk", "heat_stress": "Heat stress", "heavy_precipitation": "Heavy rain", "high_precipitation_probability": "High precipitation probability", "strong_wind": "Strong wind", "storm_wind": "Storm wind"}},
+      "weather_forecast_valid_until": {"name": "Weather forecast valid until"},
+      "weather_next_event": {"name": "Next weather event", "state": {"none": "None", "forecast_stale": "Forecast stale", "forecast_unavailable": "Forecast unavailable", "freeze_risk": "Freeze risk", "heat_stress": "Heat stress", "heavy_precipitation": "Heavy rain", "high_precipitation_probability": "High precipitation probability", "strong_wind": "Strong wind", "storm_wind": "Storm wind"}},
+      "weather_next_event_severity": {"name": "Next weather event severity", "state": {"none": "None", "advisory": "Advisory", "warning": "Warning", "critical": "Critical"}},
+      "weather_next_event_start": {"name": "Next weather event starts"}, "weather_next_event_end": {"name": "Next weather event ends"}, "weather_precipitation_next_24h": {"name": "Forecast precipitation next 24 hours"}, "weather_precipitation_probability_next_24h": {"name": "Maximum precipitation probability next 24 hours"}, "weather_temperature_min_next_24h": {"name": "Minimum temperature next 24 hours"}, "weather_temperature_max_next_24h": {"name": "Maximum temperature next 24 hours"}, "weather_wind_speed_max_next_24h": {"name": "Maximum wind speed next 24 hours"}, "weather_forecast_confidence": {"name": "Weather forecast confidence"},
       "wallbox_recommended_action": {"name": "Wallbox recommendation", "state": {"data_unavailable": "Data unavailable", "connect": "Connect vehicle", "charge": "Charge", "defer": "Wait", "complete": "Target reached"}},
       "wallbox_recommendation_reason": {"name": "Wallbox recommendation reason", "state": {"data_unavailable": "Data unavailable", "pv_surplus": "Residual PV surplus", "pv_window_upcoming": "PV window upcoming", "low_price": "Low electricity price", "departure_deadline": "Departure target", "deadline_plan": "Charging plan to departure", "target_reached": "Target reached"}},
       "wallbox_recommendation_explanation": {"name": "Wallbox recommendation explanation"},
       "wallbox_recommendation_confidence": {"name": "Wallbox recommendation confidence"},
       "wallbox_forecast_uncertainty": {"name": "Wallbox forecast uncertainty"},
-      "wallbox_next_start": {"name": "Next recommended charging start"}, "wallbox_recommended_end": {"name": "Recommended charging end"}, "wallbox_required_energy": {"name": "Required charging energy"}, "wallbox_expected_pv_share": {"name": "Expected PV charging share"}, "wallbox_estimated_cost": {"name": "Estimated charging cost"}, "wallbox_estimated_cost_advantage": {"name": "Estimated charging-plan cost advantage"}, "wallbox_departure_readiness": {"name": "Departure readiness"}, "wallbox_data_quality": {"name": "Wallbox data quality"},
-      "storage_heat_loss_coefficient": {"name": "Storage heat-loss coefficient"}, "storage_standby_loss": {"name": "Storage standby loss per day"}, "circulation_loss": {"name": "Circulation loss per day"}, "thermal_loss_forecast": {"name": "Thermal loss next 24 hours"}, "thermal_loss_data_quality": {"name": "Thermal-loss data quality"}, "thermal_loss_status": {"name": "Thermal-loss analysis status", "state": {"learning": "Learning", "partial": "Partially available", "ready": "Ready"}}
+      "wallbox_next_start": {"name": "Next recommended charging start"},
+      "wallbox_recommended_end": {"name": "Recommended charging end"},
+      "wallbox_required_energy": {"name": "Required charging energy"},
+      "wallbox_expected_pv_share": {"name": "Expected PV charging share"},
+      "wallbox_estimated_cost": {"name": "Estimated charging cost"},
+      "wallbox_estimated_cost_advantage": {"name": "Estimated charging-plan cost advantage"},
+      "wallbox_departure_readiness": {"name": "Departure readiness"},
+      "wallbox_data_quality": {"name": "Wallbox data quality"},
+      "storage_heat_loss_coefficient": {"name": "Storage heat-loss coefficient"},
+      "storage_standby_loss": {"name": "Storage standby loss per day"},
+      "circulation_loss": {"name": "Circulation loss per day"},
+      "thermal_loss_forecast": {"name": "Thermal loss next 24 hours"},
+      "thermal_loss_data_quality": {"name": "Thermal-loss data quality"},
+      "thermal_loss_status": {"name": "Thermal-loss analysis status", "state": {"not_configured": "Not configured", "learning": "Learning", "partial": "Partially available", "implausible": "Implausible", "ready": "Ready"}}
     },
-    "binary_sensor": {"automation_ready": {"name": "Automation ready"}, "pv_window_active": {"name": "PV window active"}, "dhw_recommended": {"name": "Domestic hot water recommended"}, "heating_recommended": {"name": "Heating recommended"}, "thermal_storage_recommended": {"name": "Thermal storage recommended"}, "low_price_window_active": {"name": "Low-price window active"}, "operation_deferrable": {"name": "Operation deferrable"}, "critical_data_issue": {"name": "Critical data issue"}, "wallbox_charging_window_active": {"name": "Wallbox charging window active"}, "wallbox_pv_charging_recommended": {"name": "PV charging recommended"}, "wallbox_low_price_charging_recommended": {"name": "Low-price charging recommended"}, "wallbox_departure_risk": {"name": "Departure target at risk"}},
+    "binary_sensor": {"automation_ready": {"name": "Automation ready"}, "pv_window_active": {"name": "Heat-pump PV window active"}, "dhw_recommended": {"name": "Domestic hot water recommended"}, "heating_recommended": {"name": "Heating recommended"}, "thermal_storage_recommended": {"name": "Thermal storage recommended"}, "low_price_window_active": {"name": "Low-price window active"}, "operation_deferrable": {"name": "Operation deferrable"}, "critical_data_issue": {"name": "Critical data issue"}, "wallbox_charging_window_active": {"name": "Wallbox charging window active"}, "wallbox_pv_charging_recommended": {"name": "PV charging recommended"}, "wallbox_residual_pv_window_active": {"name": "Wallbox residual-PV window active"}, "wallbox_low_price_charging_recommended": {"name": "Low-price charging recommended"}, "wallbox_departure_risk": {"name": "Departure target at risk"}},
     "switch": {"automation_signals": {"name": "Enable automation signals"}, "pv_optimization": {"name": "PV signals"}, "tariff_optimization": {"name": "Tariff signals"}, "wallbox_optimization": {"name": "Wallbox signals"}}
   },
   "selector": {
+    "ev_demand_mode": {
+      "options": {
+        "soc": "Vehicle state of charge",
+        "energy": "Requested additional energy",
+        "distance": "Planned distance"
+      }
+    },
+    "price_unit": {
+      "options": {
+        "auto": "Detect automatically from sensor",
+        "ct_per_kwh": "Cents per kWh",
+        "eur_per_kwh": "Euros per kWh"
+      }
+    },
     "wp_type": {
       "options": {
         "air_water": "Air/water",

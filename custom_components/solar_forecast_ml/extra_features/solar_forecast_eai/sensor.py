@@ -11,7 +11,14 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfTime
+from homeassistant.const import (
+    PERCENTAGE,
+    UnitOfEnergy,
+    UnitOfPrecipitationDepth,
+    UnitOfSpeed,
+    UnitOfTemperature,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -21,12 +28,29 @@ from .automation import (
     thermal_loss_enabled,
     wallbox_enabled,
 )
-from .const import DOMAIN
+from .const import (
+    CONF_HEAT_PUMP_ENABLED,
+    CONF_WEATHER_INTELLIGENCE_ENABLED,
+    DOMAIN,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
 class EAISensorDescription(SensorEntityDescription):
     pass
+
+
+WEATHER_EVENT_OPTIONS = [
+    "none",
+    "forecast_stale",
+    "forecast_unavailable",
+    "freeze_risk",
+    "heat_stress",
+    "heavy_precipitation",
+    "high_precipitation_probability",
+    "strong_wind",
+    "storm_wind",
+]
 
 
 SENSORS = (
@@ -234,8 +258,70 @@ THERMAL_LOSS_SENSORS = (
         key="thermal_loss_status",
         translation_key="thermal_loss_status",
         device_class=SensorDeviceClass.ENUM,
-        options=["learning", "partial", "ready"],
+        options=["not_configured", "learning", "partial", "implausible", "ready"],
     ),
+)
+
+WEATHER_INTELLIGENCE_SENSORS = (
+    EAISensorDescription(
+        key="weather_intelligence_status",
+        translation_key="weather_intelligence_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=["disabled", "degraded", "cold_start", "ready"],
+    ),
+    EAISensorDescription(
+        key="weather_data_quality",
+        translation_key="weather_data_quality",
+        native_unit_of_measurement=PERCENTAGE,
+    ),
+    EAISensorDescription(
+        key="weather_paired_samples",
+        translation_key="weather_paired_samples",
+    ),
+    EAISensorDescription(
+        key="weather_temperature_mae",
+        translation_key="weather_temperature_mae",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+    ),
+    EAISensorDescription(
+        key="weather_temperature_bias",
+        translation_key="weather_temperature_bias",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+    ),
+    EAISensorDescription(
+        key="weather_temperature_uncertainty",
+        translation_key="weather_temperature_uncertainty",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+    ),
+    EAISensorDescription(
+        key="weather_active_event",
+        translation_key="weather_active_event",
+        device_class=SensorDeviceClass.ENUM,
+        options=WEATHER_EVENT_OPTIONS,
+    ),
+    EAISensorDescription(
+        key="weather_forecast_valid_until",
+        translation_key="weather_forecast_valid_until",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    EAISensorDescription(
+        key="weather_next_event",
+        translation_key="weather_next_event",
+        device_class=SensorDeviceClass.ENUM,
+        options=WEATHER_EVENT_OPTIONS,
+    ),
+    EAISensorDescription(key="weather_next_event_severity", translation_key="weather_next_event_severity", device_class=SensorDeviceClass.ENUM, options=["none", "advisory", "warning", "critical"]),
+    EAISensorDescription(key="weather_next_event_start", translation_key="weather_next_event_start", device_class=SensorDeviceClass.TIMESTAMP),
+    EAISensorDescription(key="weather_next_event_end", translation_key="weather_next_event_end", device_class=SensorDeviceClass.TIMESTAMP),
+    EAISensorDescription(key="weather_precipitation_next_24h", translation_key="weather_precipitation_next_24h", device_class=SensorDeviceClass.PRECIPITATION, native_unit_of_measurement=UnitOfPrecipitationDepth.MILLIMETERS),
+    EAISensorDescription(key="weather_precipitation_probability_next_24h", translation_key="weather_precipitation_probability_next_24h", native_unit_of_measurement=PERCENTAGE),
+    EAISensorDescription(key="weather_temperature_min_next_24h", translation_key="weather_temperature_min_next_24h", device_class=SensorDeviceClass.TEMPERATURE, native_unit_of_measurement=UnitOfTemperature.CELSIUS),
+    EAISensorDescription(key="weather_temperature_max_next_24h", translation_key="weather_temperature_max_next_24h", device_class=SensorDeviceClass.TEMPERATURE, native_unit_of_measurement=UnitOfTemperature.CELSIUS),
+    EAISensorDescription(key="weather_wind_speed_max_next_24h", translation_key="weather_wind_speed_max_next_24h", device_class=SensorDeviceClass.WIND_SPEED, native_unit_of_measurement=UnitOfSpeed.KILOMETERS_PER_HOUR),
+    EAISensorDescription(key="weather_forecast_confidence", translation_key="weather_forecast_confidence", native_unit_of_measurement=PERCENTAGE),
 )
 
 
@@ -245,7 +331,8 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     runtime = hass.data[DOMAIN][entry.entry_id]
-    descriptions = SENSORS
+    config = {**entry.data, **entry.options}
+    descriptions = SENSORS if config.get(CONF_HEAT_PUMP_ENABLED, True) else ()
     if wallbox_enabled(entry):
         descriptions += WALLBOX_SENSORS
     if thermal_loss_enabled(entry):
@@ -254,6 +341,11 @@ async def async_setup_entry(
         EAISensor(runtime.recommendation_engine, entry, description)
         for description in descriptions
     )
+    if config.get(CONF_WEATHER_INTELLIGENCE_ENABLED, False):
+        async_add_entities(
+            EAIWeatherIntelligenceSensor(runtime, entry, description)
+            for description in WEATHER_INTELLIGENCE_SENSORS
+        )
 
 
 class EAISensor(SensorEntity):
@@ -280,3 +372,123 @@ class EAISensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         return self.engine.snapshot().attributes[self.entity_description.key]
+
+
+class EAIWeatherIntelligenceSensor(SensorEntity):
+    """Expose bounded, explainable weather-intelligence results."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        runtime: Any,
+        entry: ConfigEntry,
+        description: EAISensorDescription,
+    ) -> None:
+        self.runtime = runtime
+        self.entity_description = description
+        self._attr_unique_id = (
+            f"{entry.entry_id}_weather_intelligence_{description.key}"
+        )
+        self._attr_device_info = device_info(entry.entry_id)
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self.runtime.add_weather_intelligence_listener(self.async_write_ha_state)
+        )
+
+    @property
+    def native_value(self) -> Any:
+        snapshot = self.runtime.weather_intelligence_snapshot
+        key = self.entity_description.key
+        quality = snapshot.get("data_quality", {})
+        if key == "weather_intelligence_status":
+            return snapshot.get("status", "degraded")
+        if key == "weather_data_quality":
+            return quality.get("score_percent", 0)
+        if key == "weather_paired_samples":
+            return quality.get("paired_samples", 0)
+        if key == "weather_temperature_mae":
+            return self._accuracy_value("mae")
+        if key == "weather_temperature_bias":
+            return self._accuracy_value("bias")
+        if key == "weather_temperature_uncertainty":
+            uncertainty = snapshot.get("uncertainty", {})
+            return (
+                uncertainty.get("temperature_c")
+                if uncertainty.get("available")
+                else None
+            )
+        if key == "weather_active_event":
+            events = snapshot.get("events", [])
+            return events[0].get("code", "none") if events else "none"
+        if key == "weather_forecast_valid_until":
+            return self._timestamp(snapshot.get("valid_at"))
+        event = self._event(snapshot)
+        if key == "weather_next_event":
+            return event.get("code", "none")
+        if key == "weather_next_event_severity":
+            return event.get("severity", "none")
+        if key == "weather_next_event_start":
+            return self._timestamp(event.get("start"))
+        if key == "weather_next_event_end":
+            return self._timestamp(event.get("end"))
+        outlook = snapshot.get("outlook", {}).get("next_hours", {})
+        if key == "weather_precipitation_next_24h":
+            return outlook.get("precipitation_forecast_mm")
+        if key == "weather_precipitation_probability_next_24h":
+            return outlook.get("precipitation_probability_max")
+        if key == "weather_temperature_min_next_24h":
+            return outlook.get("temperature_min_c")
+        if key == "weather_temperature_max_next_24h":
+            return outlook.get("temperature_max_c")
+        if key == "weather_wind_speed_max_next_24h":
+            return outlook.get("wind_speed_max")
+        if key == "weather_forecast_confidence":
+            return quality.get("score_percent", 0)
+        return None
+
+    @staticmethod
+    def _event(snapshot: dict[str, Any]) -> dict[str, Any]:
+        events = snapshot.get("events", [])
+        return events[0] if isinstance(events, list) and events else {}
+
+    @staticmethod
+    def _timestamp(value: Any) -> Any:
+        if not value:
+            return None
+        from datetime import datetime
+        try:
+            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    def _accuracy_value(self, metric: str) -> float | None:
+        accuracy = self.runtime.weather_intelligence_snapshot.get("accuracy", {})
+        for bucket in ("0_6h", "6_24h", "24_72h"):
+            value = accuracy.get(bucket, {}).get(metric)
+            if value is not None:
+                return float(value)
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        snapshot = self.runtime.weather_intelligence_snapshot
+        key = self.entity_description.key
+        if key == "weather_intelligence_status":
+            return {
+                "source_status": snapshot.get("source_status"),
+                "cold_start": snapshot.get("cold_start", True),
+                "data_quality": snapshot.get("data_quality", {}),
+            }
+        if key in {"weather_temperature_mae", "weather_temperature_bias"}:
+            return {"accuracy_by_horizon": snapshot.get("accuracy", {})}
+        if key == "weather_temperature_uncertainty":
+            return snapshot.get("uncertainty", {})
+        if key == "weather_active_event":
+            return {"events": snapshot.get("events", [])}
+        if key.startswith("weather_next_event"):
+            return {"event": self._event(snapshot)}
+        if key.endswith("next_24h"):
+            return {"hours": snapshot.get("outlook", {}).get("next_hours", {}).get("hours", 0)}
+        return {}

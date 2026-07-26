@@ -400,6 +400,8 @@ CREATE TABLE IF NOT EXISTS hourly_predictions (
     target_month INTEGER,
     target_season TEXT,
     prediction_kwh REAL NOT NULL,
+    prediction_kwh_raw REAL,
+    correction_factor REAL NOT NULL DEFAULT 1.0,
     prediction_kwh_uncapped REAL,
     prediction_method TEXT,
     ml_contribution_percent INTEGER,

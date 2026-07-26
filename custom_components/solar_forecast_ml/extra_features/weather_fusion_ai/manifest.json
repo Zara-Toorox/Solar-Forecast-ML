@@ -1,0 +1,16 @@
+{
+  "domain": "weather_fusion_ai",
+  "name": "Weather Fusion AI",
+  "codeowners": ["@Zara-Toorox"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/Zara-Toorox/weather-fusion-ai",
+  "iot_class": "cloud_polling",
+  "homeassistant": "2026.3.0",
+  "issue_tracker": "https://github.com/Zara-Toorox/weather-fusion-ai/issues",
+  "requirements": [
+    "aiohttp>=3.8.0",
+    "aiofiles>=23.0.0"
+  ],
+  "version": "40.0.0"
+}

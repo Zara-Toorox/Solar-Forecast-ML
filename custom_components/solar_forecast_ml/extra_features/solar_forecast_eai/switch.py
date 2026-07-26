@@ -15,7 +15,7 @@ from .automation import (
     device_info,
     wallbox_enabled,
 )
-from .const import DOMAIN
+from .const import CONF_HEAT_PUMP_ENABLED, DOMAIN
 
 SWITCHES = tuple(
     SwitchEntityDescription(
@@ -31,6 +31,9 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     runtime = hass.data[DOMAIN][entry.entry_id]
+    config = {**entry.data, **entry.options}
+    if not (config.get(CONF_HEAT_PUMP_ENABLED, True) or wallbox_enabled(entry)):
+        return
     descriptions = tuple(
         description
         for description in SWITCHES

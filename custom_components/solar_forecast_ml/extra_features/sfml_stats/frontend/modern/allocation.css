@@ -1,0 +1,30 @@
+.allocation-panel { display: grid; gap: 12px; min-width: 0; }
+.allocation-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.allocation-header > div { display: grid; gap: 3px; }
+.allocation-header span { color: var(--text-secondary); font-size: .8rem; line-height: 1.4; }
+.allocation-waterfall { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 0; list-style: none; }
+.allocation-step { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; min-width: 0; border: 1px solid var(--border-default); border-radius: 12px; padding: 14px; background: var(--bg-card); }
+.allocation-index { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: color-mix(in srgb, #45c7bb 18%, var(--bg-elevated)); color: #17867d; font-weight: 800; }
+.allocation-heading { display: grid; gap: 4px; min-width: 0; }
+.allocation-heading small { color: var(--text-secondary); font-size: .8rem; line-height: 1.4; }
+.allocation-step dl { grid-column: 1 / -1; display: grid; gap: 7px; margin: 2px 0 0; }
+.allocation-step dl > div { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border-default); padding-top: 7px; }
+.allocation-step dt { color: var(--text-secondary); font-size: .8rem; }
+.allocation-step dd { margin: 0; color: var(--text-primary); font-size: .84rem; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.allocation-step:last-of-type { border-color: color-mix(in srgb, #6f8cff 48%, var(--border-default)); }
+.allocation-result { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr); align-items: start; gap: 16px; border: 1px solid color-mix(in srgb, #45c7bb 48%, var(--border-default)); border-radius: 12px; padding: 14px; background: color-mix(in srgb, #45c7bb 7%, var(--bg-card)); }
+.allocation-result div { display: grid; gap: 4px; }
+.allocation-result small { color: var(--text-secondary); line-height: 1.4; }
+.allocation-result dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 14px; margin: 0; }
+.allocation-result dl > div { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--border-default); padding-bottom: 6px; }
+.allocation-result dt { color: var(--text-secondary); font-size: .8rem; }
+.allocation-result dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.allocation-export { display: flex; align-items: center; justify-content: space-between; gap: 16px; border: 1px solid var(--border-default); border-radius: 12px; padding: 12px 14px; background: var(--bg-card); }
+.allocation-export > div { display: grid; gap: 3px; }
+.allocation-export small { color: var(--text-secondary); line-height: 1.4; }
+.allocation-export > span { color: var(--text-primary); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.allocation-warning { margin: 0; border-left: 3px solid #e6a04b; padding: 10px 12px; background: color-mix(in srgb, #e6a04b 7%, var(--bg-card)); color: var(--text-secondary); line-height: 1.5; }
+[data-theme="light"] .allocation-index { color: #0b6f68; }
+@media (max-width: 1280px) { .allocation-waterfall { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 900px) { .allocation-waterfall { grid-template-columns: repeat(2, minmax(0, 1fr)); }.allocation-result { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .allocation-header, .allocation-export { align-items: flex-start; flex-direction: column; gap: 8px; }.allocation-waterfall, .allocation-result dl { grid-template-columns: 1fr; } }

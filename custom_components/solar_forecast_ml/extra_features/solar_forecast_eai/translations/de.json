@@ -11,6 +11,20 @@
           "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt."
         }
       },
+      "features": {
+        "title": "EAI-Premium-Funktionen",
+        "description": "Eine EAI-Premium-Lizenz aktiviert alle Funktionen. Wähle nur die Geräte und Datenquellen aus, die in diesem Zuhause vorhanden sind.",
+        "data": {
+          "heat_pump_enabled": "Wärmepumpen-Intelligenz verwenden",
+          "wallbox_enabled": "E-Mobilitäts-Intelligenz verwenden",
+          "weather_intelligence_enabled": "Weather-Fusion-Intelligenz verwenden"
+        },
+        "data_description": {
+          "heat_pump_enabled": "Richtet Wärmepumpen-, Gebäude- und Thermikanalysen ein.",
+          "wallbox_enabled": "Richtet passive Ladeempfehlungen für Wallbox oder Fahrzeug ein.",
+          "weather_intelligence_enabled": "Wertet eine installierte Weather-Fusion-AI-Prognose, lokale Messungen und Wetterrisiken aus."
+        }
+      },
       "heat_pump": {
         "title": "Wärmepumpe und Gebäude",
         "description": "Hinterlege die technischen Grunddaten der Wärmepumpe und ihrer Installation.",
@@ -19,7 +33,7 @@
           "manufacturer": "Hersteller",
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
-          "cop_rated": "Nenn-COP",
+          "cop_rated": "COP am Datenblatt-Prüfpunkt",
           "has_heating_element": "Elektrischer Heizstab vorhanden",
           "has_dhw": "Warmwasserbereitung vorhanden",
           "storage_volume_l": "Nutzbares Speichervolumen (l)",
@@ -30,7 +44,7 @@
           "manufacturer": "Optionaler Name des Herstellers.",
           "model": "Optionale Modell- oder Produktbezeichnung.",
           "heating_capacity_kw": "Nenn-Heizleistung laut Datenblatt von 1 bis 100 kW.",
-          "cop_rated": "Nenn-Leistungszahl laut Datenblatt von 1 bis 10.",
+          "cop_rated": "COP laut Datenblatt an einem angegebenen Prüfpunkt, zum Beispiel A7/W35 oder B0/W35. Das ist kein aktueller Messwert und keine JAZ. Falls unbekannt, kann der Standardwert 4,0 beibehalten werden.",
           "has_heating_element": "Aktivieren, wenn die Anlage über einen elektrischen Zusatzheizer verfügt.",
           "has_dhw": "Aktivieren, wenn die Wärmepumpe auch Warmwasser bereitet.",
           "storage_volume_l": "Erwartet: nutzbares Wasser- oder Puffervolumen laut Datenblatt. Einheit: l. Optional; erst damit kann EAI Temperaturverluste in kWh umrechnen.",
@@ -47,7 +61,7 @@
         },
         "data_description": {
           "wp_power_entity": "Erwartet: Sensor für die momentane gesamte elektrische Leistungsaufnahme der Wärmepumpe. Einheit: W. Pflichtfeld.",
-          "wp_energy_today": "Erwartet: täglich seit 00:00 Uhr kumulierter elektrischer Energiezähler der Wärmepumpe, der um Mitternacht auf 0 zurückgesetzt wird. Einheit: kWh. Pflichtfeld.",
+          "wp_energy_today": "Erwartet: elektrischer Tages-Verbrauchszähler der Wärmepumpe seit 00:00 Uhr, der um Mitternacht auf 0 zurückgesetzt wird. Einheit: kWh. Pflichtfeld.",
           "outdoor_temp_entity": "Erwartet: Sensor für die aktuelle Außenlufttemperatur am Gebäude. Einheit: °C. Pflichtfeld."
         }
       },
@@ -63,25 +77,30 @@
           "flow_temp_entity": "Vorlauftemperatur (°C)",
           "return_temp_entity": "Rücklauftemperatur (°C)",
           "starts_entity": "Kompressorstarts",
-          "runtime_entity": "Kompressorlaufzeit"
+          "runtime_entity": "Betriebsstundenzähler Kompressor gesamt",
+          "runtime_heating_entity": "Betriebsstundenzähler Heizung",
+          "runtime_dhw_entity": "Betriebsstundenzähler Warmwasser"
         },
         "data_description": {
           "indoor_temp_entity": "Erwartet: Temperatursensor eines repräsentativen Innen- oder Referenzraums. Einheit: °C. Optional.",
           "target_temp_entity": "Erwartet: Sensor mit der aktuell eingestellten Raum-Solltemperatur. Einheit: °C. Optional.",
           "operation_mode_entity": "Erwartet: Sensor mit einem stabilen Textzustand für den Betriebsmodus, zum Beispiel Heizen, Warmwasser, Abtauen oder Aus. Einheit: keine. Optional.",
-          "compressor_entity": "Erwartet: Binärsensor für den Kompressorbetrieb (Ein/Aus) oder numerischer Sensor mit 1/0. Einheit: keine. Optional.",
+          "compressor_entity": "Erwartet: Binärsensor, Schalter oder numerischer Status für den Kompressorbetrieb. Einheit: keine. Optional; fehlt er, verwendet EAI zuerst den Betriebsmodus und danach die elektrische Leistung.",
           "dhw_temp_entity": "Erwartet: Temperatursensor im Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
           "flow_temp_entity": "Erwartet: Sensor für die aktuelle Vorlauftemperatur des Heizkreises. Einheit: °C. Optional.",
           "return_temp_entity": "Erwartet: Sensor für die aktuelle Rücklauftemperatur desselben Heizkreises. Einheit: °C. Optional.",
-          "starts_entity": "Erwartet: kumulativer Zähler der Kompressorstarts; Zählerresets müssen erkennbar sein. Einheit: Anzahl. Optional.",
-          "runtime_entity": "Erwartet: kumulativer Zähler der Kompressorlaufzeit. Einheit: h. Optional."
+          "starts_entity": "Erwartet: Zählerstand der Kompressorstarts; Zählerresets müssen erkennbar sein. Einheit: Anzahl. Optional.",
+          "runtime_entity": "Erwartet: Betriebsstundenzähler für die gesamte Kompressorlaufzeit. Einheit: h. Optional.",
+          "runtime_heating_entity": "Erwartet: Betriebsstundenzähler nur für Raumheizung. Einheit: h. Optional; wird zusammen mit Warmwasser zur Gesamtlaufzeit addiert, wenn kein Gesamtzähler vorhanden ist.",
+          "runtime_dhw_entity": "Erwartet: Betriebsstundenzähler nur für Warmwasserbereitung. Einheit: h. Optional; wird zusammen mit Heizung zur Gesamtlaufzeit addiert, wenn kein Gesamtzähler vorhanden ist."
         }
       },
       "advanced_sensors": {
         "title": "Erweiterte Sensoren",
         "description": "Ordne zusätzliche Messwerte für erweiterte Analysen zu. Alle Felder auf dieser Seite sind optional.",
         "data": {
-          "thermal_energy_entity": "Thermische Energie (kWh)",
+          "thermal_energy_entity": "Thermischer Tages-Verbrauchszähler (kWh)",
+          "jaz_entity": "JAZ / gemessene Arbeitszahl",
           "volume_flow_entity": "Volumenstrom",
           "source_temp_entity": "Quellentemperatur (°C)",
           "storage_temp_entity": "Speichertemperatur (°C)",
@@ -90,12 +109,13 @@
           "circulation_return_temp_entity": "Zirkulations-Rücklauftemperatur (°C)"
         },
         "data_description": {
-          "thermal_energy_entity": "Erwartet: kumulativer Wärmemengenzähler für die von der Wärmepumpe abgegebene thermische Energie; die Systemgrenze für Heizung und Warmwasser muss bekannt sein. Einheit: kWh thermisch. Optional.",
-          "volume_flow_entity": "Erwartet: Sensor für den aktuellen Volumenstrom im Heizkreis; Medium und Messkreis müssen bekannt sein. Einheit: l/min oder m³/h. Optional.",
+          "thermal_energy_entity": "Erwartet: thermischer Verbrauchszähler für denselben Tageszeitraum und dieselbe Systemgrenze wie der elektrische Tages-Verbrauchszähler. Einheit: kWh thermisch. Optional; ermöglicht die Arbeitszahl des laufenden Tages.",
+          "jaz_entity": "Erwartet: bereits von der Anlage oder einer geprüften Auswertung berechnete JAZ beziehungsweise Arbeitszahl. Einheit: keine. Optional; EAI erfindet ohne passende Wärme- und Stromzähler keine JAZ.",
+          "volume_flow_entity": "Erwartet: Sensor für den aktuellen Volumenstrom im Heizkreis; Medium und Messkreis müssen bekannt sein. Einheit: l/min oder m³/h. Optional und nur für die Berechnung des momentanen COP erforderlich.",
           "source_temp_entity": "Erwartet: Temperatursensor der Wärmequelle, also Außenluft, Sole oder Grundwasser. Einheit: °C. Optional.",
           "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
           "storage_ambient_temp_entity": "Erwartet: Temperatursensor unmittelbar am Speicher beziehungsweise im Heizraum, nicht im Wohnraum. Einheit: °C. Optional; zusammen mit Speichertemperatur und Volumen aktiviert er die Verlustanalyse.",
-          "circulation_pump_entity": "Erwartet: Binärsensor für den Betrieb der Warmwasser-Zirkulationspumpe (Ein/Aus) oder numerischer Sensor mit 1/0. Einheit: keine. Optional; ermöglicht die Trennung der Zirkulationsverluste.",
+          "circulation_pump_entity": "Erwartet: Schalter, Binärsensor oder numerischer Sensor für den Betrieb der Warmwasser-Zirkulationspumpe. Einheit: keine. Optional; ein Smart-Plug-Schalter ist geeignet und ermöglicht die Trennung der Zirkulationsverluste.",
           "circulation_return_temp_entity": "Erwartet: Temperatursensor am Rücklauf der Warmwasser-Zirkulationsleitung nahe dem Speicher. Einheit: °C. Optional; dient der Plausibilisierung."
         }
       },
@@ -118,9 +138,14 @@
           "wallbox_energy_today_entity": "Wallbox-Tagesenergie (kWh)",
           "wallbox_connected_entity": "Fahrzeug verbunden",
           "wallbox_charging_entity": "Ladevorgang aktiv",
-          "ev_soc_entity": "Fahrzeug-Ladezustand (%)",
+          "ev_demand_mode": "Quelle des Ladebedarfs",
+          "ev_soc_entity": "Fahrzeug-Ladezustand (%) – optional",
+          "ev_required_energy_entity": "Gewünschte Zusatzenergie (kWh) – optional",
+          "ev_planned_distance_entity": "Geplante Strecke (km) – optional",
           "ev_battery_capacity_kwh": "Nutzbare Batteriekapazität (kWh)",
           "ev_target_soc": "Ziel-Ladezustand (%)",
+          "ev_consumption_kwh_per_100km": "Fahrzeugverbrauch (kWh/100 km)",
+          "ev_charging_efficiency_percent": "Ladeeffizienz (%)",
           "ev_departure_time": "Reguläre Abfahrtszeit",
           "wallbox_max_power_kw": "Maximale Ladeleistung (kW)"
         },
@@ -130,11 +155,28 @@
           "wallbox_energy_today_entity": "Erwartet: seit Mitternacht kumulierte Ladeenergie. Einheit: kWh. Optional.",
           "wallbox_connected_entity": "Erwartet: Binärsensor, der eine bestehende Fahrzeugverbindung meldet. Einheit: keine. Optional.",
           "wallbox_charging_entity": "Erwartet: Binärsensor für einen aktiven Ladevorgang. Einheit: keine. Optional.",
-          "ev_soc_entity": "Erwartet: aktueller Ladezustand des Fahrzeugakkus. Einheit: %. Pflichtfeld.",
-          "ev_battery_capacity_kwh": "Erwartet: nutzbare Fahrzeug-Batteriekapazität laut Hersteller oder Fahrzeug. Einheit: kWh. Pflichtfeld.",
-          "ev_target_soc": "Erwartet: gewünschter Ladezustand zur Abfahrt. Einheit: %. Pflichtfeld.",
+          "ev_demand_mode": "Erwartet: Verfahren zur Ermittlung des Ladebedarfs. Einheit: keine. Wähle Ladezustand, Zusatzenergie oder Strecke.",
+          "ev_soc_entity": "Erwartet: aktueller Ladezustand des Fahrzeugakkus. Einheit: %. Optional; nur für die SoC-basierte Planung.",
+          "ev_required_energy_entity": "Erwartet: gewünschte zusätzliche Energie im Fahrzeugakku aus einem Sensor oder Home-Assistant-Helfer. Einheit: kWh. Optional; Alternative zum Ladezustand.",
+          "ev_planned_distance_entity": "Erwartet: bis zur nächsten Abfahrt geplante Fahrstrecke aus einem Sensor oder Home-Assistant-Helfer. Einheit: km. Optional; Alternative zum Ladezustand.",
+          "ev_battery_capacity_kwh": "Erwartet: nutzbare Fahrzeug-Batteriekapazität laut Hersteller oder Fahrzeug. Einheit: kWh. Für die SoC-basierte Planung erforderlich.",
+          "ev_target_soc": "Erwartet: gewünschter Ladezustand zur Abfahrt. Einheit: %. Für die SoC-basierte Planung erforderlich.",
+          "ev_consumption_kwh_per_100km": "Erwartet: realistischer durchschnittlicher Fahrzeugverbrauch. Einheit: kWh/100 km. Für die streckenbasierte Planung erforderlich.",
+          "ev_charging_efficiency_percent": "Erwartet: Anteil der Wallbox-Energie, der im Fahrzeugakku ankommt. Einheit: %. Wird für alle Planungsarten berücksichtigt.",
           "ev_departure_time": "Erwartet: regelmäßige Uhrzeit, zu der das Ladeziel erreicht sein soll. Einheit: lokale Uhrzeit. Pflichtfeld.",
           "wallbox_max_power_kw": "Erwartet: maximal nutzbare Ladeleistung des Fahrzeugs an dieser Wallbox. Einheit: kW. Pflichtfeld."
+        }
+      },
+      "weather_intelligence": {
+        "title": "Wetterintelligenz",
+        "description": "Verbinde Weather Fusion AI für lokale Prognosegüte, Unsicherheit, Historie und erklärbare Wetterrisiken. Weather Fusion AI bleibt eigenständig nutzbar.",
+        "data": {
+          "weather_fusion_entry_id": "Weather-Fusion-AI-Standort",
+          "weather_history_days": "Aufbewahrung der Auswertung (Tage)"
+        },
+        "data_description": {
+          "weather_fusion_entry_id": "Wähle die Weather-Fusion-AI-Konfiguration für diese EAI-Installation aus.",
+          "weather_history_days": "Bewahre EAI-Prognoseauswertungen 7 bis 365 Tage auf. Die vollständige WFAI-Rohhistorie wird nicht kopiert."
         }
       },
       "validation": {
@@ -151,13 +193,17 @@
         "title": "Preise für Automationssignale",
         "description": "Optional: Ordne Strompreis und Einspeisevergütung zu. EAI steuert keine Anlage, sondern stellt daraus ausschließlich passive Signale bereit.",
         "data": {
-          "electricity_price_entity": "Aktueller Strompreis",
-          "feed_in_tariff_entity": "Aktuelle Einspeisevergütung",
+          "electricity_price_entity": "Aktueller Strompreis oder Helfer",
+          "electricity_price_unit": "Einheit des Strompreises",
+          "feed_in_tariff_entity": "Einspeisevergütung oder Helfer",
+          "feed_in_tariff_unit": "Einheit der Einspeisevergütung",
           "low_price_threshold_ct": "Niedrigpreisgrenze (ct/kWh)"
         },
         "data_description": {
-          "electricity_price_entity": "Erwartet: Sensor für den aktuellen Bezugspreis. Einheit: EUR/kWh oder ct/kWh. Optional.",
-          "feed_in_tariff_entity": "Erwartet: Sensor für die aktuelle Einspeisevergütung. Einheit: EUR/kWh oder ct/kWh. Optional.",
+          "electricity_price_entity": "Erwartet: Sensor oder input_number-Helfer für den aktuellen Bezugspreis. Einheit: EUR/kWh oder ct/kWh. Optional.",
+          "electricity_price_unit": "Erwartet: automatische Erkennung aus dem Sensor oder eine feste Auswahl für Helfer ohne Einheit. Einheit: EUR/kWh oder ct/kWh.",
+          "feed_in_tariff_entity": "Erwartet: Sensor oder input_number-Helfer für die Einspeisevergütung. Einheit: EUR/kWh oder ct/kWh. Optional.",
+          "feed_in_tariff_unit": "Erwartet: automatische Erkennung aus dem Sensor oder eine feste Auswahl für Helfer ohne Einheit. Einheit: EUR/kWh oder ct/kWh.",
           "low_price_threshold_ct": "Preis, unterhalb dessen EAI ein Niedrigpreisfenster signalisiert. Einheit: ct/kWh."
         }
       },
@@ -193,8 +239,11 @@
       "license_expired": "Die Lizenz ist abgelaufen.",
       "license_missing_entitlement": "Die EAI-Berechtigung fehlt.",
       "license_validation_error": "Die Lizenz konnte nicht sicher geprüft werden.",
+      "feature_required": "Wähle mindestens eine Premium-Funktion aus.",
+      "weather_fusion_required": "Installiere und konfiguriere Weather Fusion AI, bevor du die Wetterintelligenz aktivierst.",
       "validation_required": "Prüfe und bestätige die Sensorwarnungen.",
-      "wallbox_required": "Für die Wallbox-Analyse werden mindestens Wallbox-Leistung und Fahrzeug-Ladezustand benötigt."
+      "wallbox_required": "Für die Wallbox-Analyse werden die Wallbox-Leistung und mindestens eine Bedarfsquelle benötigt.",
+      "wallbox_demand_required": "Wähle mindestens eine Bedarfsquelle: Fahrzeug-Ladezustand, gewünschte Zusatzenergie oder geplante Strecke."
     },
     "abort": {
       "not_confirmed": "Die Einrichtung wurde nicht bestätigt.",
@@ -208,10 +257,26 @@
         "description": "Wähle den Bereich aus, den du ändern möchtest.",
         "menu_options": {
           "license": "Lizenz erneuern",
+          "features": "Premium-Funktionen",
           "heat_pump": "Wärmepumpendaten",
           "sensors": "Sensorzuordnungen",
           "wallbox": "E-Mobilität und Wallbox",
+          "weather_intelligence": "Wetterintelligenz",
           "automation": "Automationssignale"
+        }
+      },
+      "features": {
+        "title": "EAI-Premium-Funktionen",
+        "description": "Alle Funktionen sind in derselben Lizenz enthalten. Aktiviere die in diesem Zuhause vorhandenen Bereiche.",
+        "data": {
+          "heat_pump_enabled": "Wärmepumpen-Intelligenz verwenden",
+          "wallbox_enabled": "E-Mobilitäts-Intelligenz verwenden",
+          "weather_intelligence_enabled": "Weather-Fusion-Intelligenz verwenden"
+        },
+        "data_description": {
+          "heat_pump_enabled": "Aktiviert Wärmepumpen- und Gebäudeanalysen.",
+          "wallbox_enabled": "Aktiviert Wallbox- und Fahrzeugempfehlungen.",
+          "weather_intelligence_enabled": "Aktiviert WFAI-Prognoseauswertung und Wetterrisiken."
         }
       },
       "license": {
@@ -231,14 +296,14 @@
           "manufacturer": "Hersteller",
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
-          "cop_rated": "Nenn-COP",
+          "cop_rated": "COP am Datenblatt-Prüfpunkt",
           "storage_volume_l": "Nutzbares Speichervolumen (l)"
         },
         "data_description": {
           "manufacturer": "Optionaler Name des Herstellers.",
           "model": "Optionale Modell- oder Produktbezeichnung.",
           "heating_capacity_kw": "Nenn-Heizleistung laut Datenblatt.",
-          "cop_rated": "Nenn-Leistungszahl laut Datenblatt.",
+          "cop_rated": "COP laut Datenblatt an einem Prüfpunkt wie A7/W35 oder B0/W35; keine aktuelle Effizienz und keine JAZ. Ist der Wert unbekannt, Standard 4,0 beibehalten.",
           "storage_volume_l": "Nutzbares Wasser- oder Puffervolumen laut Datenblatt. Einheit: l. Optional."
         }
       },
@@ -257,8 +322,11 @@
           "flow_temp_entity": "Vorlauftemperatur (°C)",
           "return_temp_entity": "Rücklauftemperatur (°C)",
           "starts_entity": "Kompressorstarts",
-          "runtime_entity": "Kompressorlaufzeit",
-          "thermal_energy_entity": "Thermische Energie (kWh)",
+          "runtime_entity": "Betriebsstundenzähler Kompressor gesamt",
+          "runtime_heating_entity": "Betriebsstundenzähler Heizung",
+          "runtime_dhw_entity": "Betriebsstundenzähler Warmwasser",
+          "thermal_energy_entity": "Thermischer Tages-Verbrauchszähler (kWh)",
+          "jaz_entity": "JAZ / gemessene Arbeitszahl",
           "volume_flow_entity": "Volumenstrom",
           "source_temp_entity": "Quellentemperatur (°C)",
           "storage_temp_entity": "Speichertemperatur (°C)",
@@ -268,23 +336,26 @@
         },
         "data_description": {
           "wp_power_entity": "Erwartet: Sensor für die momentane gesamte elektrische Leistungsaufnahme der Wärmepumpe. Einheit: W. Pflichtfeld bei der Ersteinrichtung.",
-          "wp_energy_today": "Erwartet: täglich seit 00:00 Uhr kumulierter elektrischer Energiezähler der Wärmepumpe, der um Mitternacht auf 0 zurückgesetzt wird. Einheit: kWh. Pflichtfeld bei der Ersteinrichtung.",
+          "wp_energy_today": "Erwartet: elektrischer Tages-Verbrauchszähler der Wärmepumpe seit 00:00 Uhr, der um Mitternacht auf 0 zurückgesetzt wird. Einheit: kWh. Pflichtfeld bei der Ersteinrichtung.",
           "outdoor_temp_entity": "Erwartet: Sensor für die aktuelle Außenlufttemperatur am Gebäude. Einheit: °C. Pflichtfeld bei der Ersteinrichtung.",
           "indoor_temp_entity": "Erwartet: Temperatursensor eines repräsentativen Innen- oder Referenzraums. Einheit: °C. Optional.",
           "target_temp_entity": "Erwartet: Sensor mit der aktuell eingestellten Raum-Solltemperatur. Einheit: °C. Optional.",
           "operation_mode_entity": "Erwartet: Sensor mit einem stabilen Textzustand für den Betriebsmodus, zum Beispiel Heizen, Warmwasser, Abtauen oder Aus. Einheit: keine. Optional.",
-          "compressor_entity": "Erwartet: Binärsensor für den Kompressorbetrieb (Ein/Aus) oder numerischer Sensor mit 1/0. Einheit: keine. Optional.",
+          "compressor_entity": "Erwartet: Binärsensor, Schalter oder numerischer Status für den Kompressorbetrieb. Einheit: keine. Optional; Betriebsmodus und Leistung dienen als Fallback.",
           "dhw_temp_entity": "Erwartet: Temperatursensor im Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
           "flow_temp_entity": "Erwartet: Sensor für die aktuelle Vorlauftemperatur des Heizkreises. Einheit: °C. Optional.",
           "return_temp_entity": "Erwartet: Sensor für die aktuelle Rücklauftemperatur desselben Heizkreises. Einheit: °C. Optional.",
-          "starts_entity": "Erwartet: kumulativer Zähler der Kompressorstarts; Zählerresets müssen erkennbar sein. Einheit: Anzahl. Optional.",
-          "runtime_entity": "Erwartet: kumulativer Zähler der Kompressorlaufzeit. Einheit: h. Optional.",
-          "thermal_energy_entity": "Erwartet: kumulativer Wärmemengenzähler für die von der Wärmepumpe abgegebene thermische Energie; die Systemgrenze für Heizung und Warmwasser muss bekannt sein. Einheit: kWh thermisch. Optional.",
-          "volume_flow_entity": "Erwartet: Sensor für den aktuellen Volumenstrom im Heizkreis; Medium und Messkreis müssen bekannt sein. Einheit: l/min oder m³/h. Optional.",
+          "starts_entity": "Erwartet: Zählerstand der Kompressorstarts; Zählerresets müssen erkennbar sein. Einheit: Anzahl. Optional.",
+          "runtime_entity": "Erwartet: Betriebsstundenzähler für die gesamte Kompressorlaufzeit. Einheit: h. Optional.",
+          "runtime_heating_entity": "Erwartet: Betriebsstundenzähler nur für Raumheizung. Einheit: h. Optional.",
+          "runtime_dhw_entity": "Erwartet: Betriebsstundenzähler nur für Warmwasserbereitung. Einheit: h. Optional.",
+          "thermal_energy_entity": "Erwartet: thermischer Verbrauchszähler für denselben Tageszeitraum wie der elektrische Tages-Verbrauchszähler. Einheit: kWh thermisch. Optional.",
+          "jaz_entity": "Erwartet: bereits berechnete JAZ oder Arbeitszahl. Einheit: keine. Optional.",
+          "volume_flow_entity": "Erwartet: Sensor für den aktuellen Volumenstrom im Heizkreis; Medium und Messkreis müssen bekannt sein. Einheit: l/min oder m³/h. Optional und nur für die Berechnung des momentanen COP erforderlich.",
           "source_temp_entity": "Erwartet: Temperatursensor der Wärmequelle, also Außenluft, Sole oder Grundwasser. Einheit: °C. Optional.",
           "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
           "storage_ambient_temp_entity": "Erwartet: Temperatursensor unmittelbar am Speicher beziehungsweise im Heizraum. Einheit: °C. Optional.",
-          "circulation_pump_entity": "Erwartet: Binärsensor für die Zirkulationspumpe (Ein/Aus) oder 1/0. Einheit: keine. Optional.",
+          "circulation_pump_entity": "Erwartet: Schalter, Binärsensor oder numerischer Sensor für die Zirkulationspumpe. Einheit: keine. Optional; ein Smart Plug ist geeignet.",
           "circulation_return_temp_entity": "Erwartet: Temperatursensor am Rücklauf der Zirkulationsleitung nahe dem Speicher. Einheit: °C. Optional."
         }
       },
@@ -298,9 +369,14 @@
           "wallbox_energy_today_entity": "Wallbox-Tagesenergie (kWh)",
           "wallbox_connected_entity": "Fahrzeug verbunden",
           "wallbox_charging_entity": "Ladevorgang aktiv",
-          "ev_soc_entity": "Fahrzeug-Ladezustand (%)",
+          "ev_demand_mode": "Quelle des Ladebedarfs",
+          "ev_soc_entity": "Fahrzeug-Ladezustand (%) – optional",
+          "ev_required_energy_entity": "Gewünschte Zusatzenergie (kWh) – optional",
+          "ev_planned_distance_entity": "Geplante Strecke (km) – optional",
           "ev_battery_capacity_kwh": "Nutzbare Batteriekapazität (kWh)",
           "ev_target_soc": "Ziel-Ladezustand (%)",
+          "ev_consumption_kwh_per_100km": "Fahrzeugverbrauch (kWh/100 km)",
+          "ev_charging_efficiency_percent": "Ladeeffizienz (%)",
           "ev_departure_time": "Reguläre Abfahrtszeit",
           "wallbox_max_power_kw": "Maximale Ladeleistung (kW)"
         },
@@ -311,24 +387,45 @@
           "wallbox_energy_today_entity": "Erwartet: seit Mitternacht kumulierte Ladeenergie. Einheit: kWh. Optional.",
           "wallbox_connected_entity": "Erwartet: Binärsensor für die Fahrzeugverbindung. Einheit: keine. Optional.",
           "wallbox_charging_entity": "Erwartet: Binärsensor für einen aktiven Ladevorgang. Einheit: keine. Optional.",
-          "ev_soc_entity": "Erwartet: aktueller Fahrzeug-Ladezustand. Einheit: %. Pflichtfeld bei aktivierter Wallbox-Analyse.",
+          "ev_demand_mode": "Erwartet: Verfahren zur Ermittlung des Ladebedarfs. Einheit: keine. Wähle Ladezustand, Zusatzenergie oder Strecke.",
+          "ev_soc_entity": "Erwartet: aktueller Fahrzeug-Ladezustand. Einheit: %. Optional; nur für die SoC-basierte Planung.",
+          "ev_required_energy_entity": "Erwartet: gewünschte zusätzliche Energie im Fahrzeugakku aus einem Sensor oder Helfer. Einheit: kWh. Optional.",
+          "ev_planned_distance_entity": "Erwartet: geplante Fahrstrecke aus einem Sensor oder Helfer. Einheit: km. Optional.",
           "ev_battery_capacity_kwh": "Erwartet: nutzbare Batteriekapazität laut Hersteller oder Fahrzeug. Einheit: kWh.",
           "ev_target_soc": "Erwartet: gewünschter Ladezustand zur Abfahrt. Einheit: %.",
+          "ev_consumption_kwh_per_100km": "Erwartet: durchschnittlicher Fahrzeugverbrauch. Einheit: kWh/100 km.",
+          "ev_charging_efficiency_percent": "Erwartet: Ladeeffizienz zwischen Wallbox und Fahrzeugakku. Einheit: %.",
           "ev_departure_time": "Erwartet: regelmäßige lokale Abfahrtszeit. Einheit: Uhrzeit.",
           "wallbox_max_power_kw": "Erwartet: maximal nutzbare Ladeleistung von Fahrzeug und Wallbox. Einheit: kW."
+        }
+      },
+      "weather_intelligence": {
+        "title": "Wetterintelligenz",
+        "description": "Wähle den Weather-Fusion-AI-Standort und die lokale Aufbewahrungsdauer der Auswertung.",
+        "data": {
+          "weather_fusion_entry_id": "Weather-Fusion-AI-Standort",
+          "weather_history_days": "Aufbewahrung der Auswertung (Tage)"
+        },
+        "data_description": {
+          "weather_fusion_entry_id": "Wähle die passende Weather-Fusion-AI-Konfiguration aus.",
+          "weather_history_days": "Bewahre nur EAI-Prognoseauswertungen für diese Anzahl Tage auf."
         }
       },
       "automation": {
         "title": "Automationssignale",
         "description": "Konfiguriere optionale Preisdaten für passive EAI-Trigger und Bedingungen.",
         "data": {
-          "electricity_price_entity": "Aktueller Strompreis",
-          "feed_in_tariff_entity": "Aktuelle Einspeisevergütung",
+          "electricity_price_entity": "Aktueller Strompreis oder Helfer",
+          "electricity_price_unit": "Einheit des Strompreises",
+          "feed_in_tariff_entity": "Einspeisevergütung oder Helfer",
+          "feed_in_tariff_unit": "Einheit der Einspeisevergütung",
           "low_price_threshold_ct": "Niedrigpreisgrenze (ct/kWh)"
         },
         "data_description": {
-          "electricity_price_entity": "Erwartet: Sensor für den aktuellen Bezugspreis. Einheit: EUR/kWh oder ct/kWh. Optional.",
-          "feed_in_tariff_entity": "Erwartet: Sensor für die aktuelle Einspeisevergütung. Einheit: EUR/kWh oder ct/kWh. Optional.",
+          "electricity_price_entity": "Erwartet: Sensor oder input_number-Helfer für den aktuellen Bezugspreis. Einheit: EUR/kWh oder ct/kWh. Optional.",
+          "electricity_price_unit": "Erwartet: automatische Erkennung oder feste Auswahl. Einheit: EUR/kWh oder ct/kWh.",
+          "feed_in_tariff_entity": "Erwartet: Sensor oder input_number-Helfer für die Einspeisevergütung. Einheit: EUR/kWh oder ct/kWh. Optional.",
+          "feed_in_tariff_unit": "Erwartet: automatische Erkennung oder feste Auswahl. Einheit: EUR/kWh oder ct/kWh.",
           "low_price_threshold_ct": "Preis, unterhalb dessen EAI ein Niedrigpreisfenster signalisiert. Einheit: ct/kWh."
         }
       }
@@ -351,6 +448,17 @@
       "estimated_cost_advantage": {"name": "Geschätzter Kostenvorteil"},
       "data_quality": {"name": "Datenqualität"},
       "model_status": {"name": "Modellstatus", "state": {"learning": "Lernt", "ready": "Bereit", "degraded": "Eingeschränkt"}},
+      "weather_intelligence_status": {"name": "Status der Wetterintelligenz", "state": {"disabled": "Deaktiviert", "degraded": "Eingeschränkt", "cold_start": "Lernt", "ready": "Bereit"}},
+      "weather_data_quality": {"name": "Wetterdatenqualität"},
+      "weather_paired_samples": {"name": "Wetter-Prognose-Ist-Paare"},
+      "weather_temperature_mae": {"name": "Lokaler Temperaturprognose-MAE"},
+      "weather_temperature_bias": {"name": "Lokale Temperaturprognose-Abweichung"},
+      "weather_temperature_uncertainty": {"name": "Lokale Temperaturunsicherheit"},
+      "weather_active_event": {"name": "Aktives Wetterereignis", "state": {"none": "Keines", "forecast_stale": "Prognose veraltet", "forecast_unavailable": "Prognose nicht verfügbar", "freeze_risk": "Frostgefahr", "heat_stress": "Hitzebelastung", "heavy_precipitation": "Starkregen", "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit", "strong_wind": "Starker Wind", "storm_wind": "Sturmwind"}},
+      "weather_forecast_valid_until": {"name": "Wetterprognose gültig bis"},
+      "weather_next_event": {"name": "Nächstes Wetterereignis", "state": {"none": "Keines", "forecast_stale": "Prognose veraltet", "forecast_unavailable": "Prognose nicht verfügbar", "freeze_risk": "Frostgefahr", "heat_stress": "Hitzebelastung", "heavy_precipitation": "Starkregen", "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit", "strong_wind": "Starker Wind", "storm_wind": "Sturmwind"}},
+      "weather_next_event_severity": {"name": "Schweregrad des nächsten Wetterereignisses", "state": {"none": "Keiner", "advisory": "Hinweis", "warning": "Warnung", "critical": "Kritisch"}},
+      "weather_next_event_start": {"name": "Beginn des nächsten Wetterereignisses"}, "weather_next_event_end": {"name": "Ende des nächsten Wetterereignisses"}, "weather_precipitation_next_24h": {"name": "Prognostizierter Niederschlag nächste 24 Stunden"}, "weather_precipitation_probability_next_24h": {"name": "Maximale Niederschlagswahrscheinlichkeit nächste 24 Stunden"}, "weather_temperature_min_next_24h": {"name": "Minimale Temperatur nächste 24 Stunden"}, "weather_temperature_max_next_24h": {"name": "Maximale Temperatur nächste 24 Stunden"}, "weather_wind_speed_max_next_24h": {"name": "Maximale Windgeschwindigkeit nächste 24 Stunden"}, "weather_forecast_confidence": {"name": "Verlässlichkeit der Wetterprognose"},
       "wallbox_recommended_action": {"name": "Wallbox-Empfehlung", "state": {"data_unavailable": "Daten fehlen", "connect": "Fahrzeug verbinden", "charge": "Laden", "defer": "Warten", "complete": "Ladeziel erreicht"}},
       "wallbox_recommendation_reason": {"name": "Grund der Wallbox-Empfehlung", "state": {"data_unavailable": "Daten fehlen", "pv_surplus": "Verbleibender PV-Überschuss", "pv_window_upcoming": "PV-Fenster folgt", "low_price": "Niedriger Strompreis", "departure_deadline": "Abfahrtsziel", "deadline_plan": "Ladeplan bis Abfahrt", "target_reached": "Ladeziel erreicht"}},
       "wallbox_recommendation_explanation": {"name": "Erklärung der Wallbox-Empfehlung"},
@@ -369,11 +477,11 @@
       "circulation_loss": {"name": "Zirkulationsverlust pro Tag"},
       "thermal_loss_forecast": {"name": "Thermische Verluste nächste 24 Stunden"},
       "thermal_loss_data_quality": {"name": "Datenqualität der Verlustanalyse"},
-      "thermal_loss_status": {"name": "Status der Verlustanalyse", "state": {"learning": "Lernt", "partial": "Teilweise verfügbar", "ready": "Bereit"}}
+      "thermal_loss_status": {"name": "Status der Verlustanalyse", "state": {"not_configured": "Nicht konfiguriert", "learning": "Lernt", "partial": "Teilweise verfügbar", "implausible": "Unplausibel", "ready": "Bereit"}}
     },
     "binary_sensor": {
       "automation_ready": {"name": "Automation bereit"},
-      "pv_window_active": {"name": "PV-Fenster aktiv"},
+      "pv_window_active": {"name": "Wärmepumpen-PV-Fenster aktiv"},
       "dhw_recommended": {"name": "Warmwasser empfohlen"},
       "heating_recommended": {"name": "Heizen empfohlen"},
       "thermal_storage_recommended": {"name": "Thermischer Speicher empfohlen"},
@@ -382,6 +490,7 @@
       "critical_data_issue": {"name": "Kritisches Datenproblem"},
       "wallbox_charging_window_active": {"name": "Wallbox-Ladefenster aktiv"},
       "wallbox_pv_charging_recommended": {"name": "PV-Laden empfohlen"},
+      "wallbox_residual_pv_window_active": {"name": "Wallbox-Rest-PV-Fenster aktiv"},
       "wallbox_low_price_charging_recommended": {"name": "Niedrigpreis-Laden empfohlen"},
       "wallbox_departure_risk": {"name": "Abfahrtsziel gefährdet"}
     },
@@ -393,6 +502,20 @@
     }
   },
   "selector": {
+    "ev_demand_mode": {
+      "options": {
+        "soc": "Fahrzeug-Ladezustand",
+        "energy": "Gewünschte Zusatzenergie",
+        "distance": "Geplante Strecke"
+      }
+    },
+    "price_unit": {
+      "options": {
+        "auto": "Automatisch aus Sensor erkennen",
+        "ct_per_kwh": "Cent pro kWh",
+        "eur_per_kwh": "Euro pro kWh"
+      }
+    },
     "wp_type": {
       "options": {
         "air_water": "Luft/Wasser",

@@ -58,9 +58,10 @@ const COPY = {
     de: {
         product: "Solar Forecast Stats",
         sections: { live: "Monitoring", analysis: "Analyse", system: "Steuerung" },
-        mobile: { home: "Übersicht", solar: "Solar", energy: "Energie" },
+        mobile: { dashboard: "Cockpit", home: "Übersicht", solar: "Solar", energy: "Energie" },
         pages: {
-            home: ["Übersicht", "Live-Energiefluss und Prognosestatus"],
+            dashboard: ["Solar Cockpit", "Energie, Prognose und Premium Intelligence auf einen Blick"],
+            home: ["Live & Prognose", "Ausführlicher Energiefluss und Prognosestatus"],
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],
             weather: ["Wetter", "Prognose, Strahlung und Historie"],
             energy: ["Energie & Finanzen", "Bilanz, Verbraucher, Tarife und Amortisation"],
@@ -68,8 +69,9 @@ const COPY = {
             settings: ["Systemstatus", "Konfiguration, Sensoren und Datenqualität"],
             quality: ["Forecast Intelligence", "Qualität, Modelle und Entwicklung nachvollziehen"],
             weather_energy: ["Wetter & Energie", "Bedingungen, Prognose und Ertrag gemeinsam analysieren"],
-            eai: ["Wärmepumpe & Gebäude", "Verbrauch, Betrieb, Effizienz und Gebäudeverhalten"],
+            eai: ["Wärmepumpe", "Verbrauch, Betrieb, Effizienz und Gebäudeverhalten"],
             mobility: ["E-Mobilität & Wallbox", "PV, Preise, Wärmepumpe und Abfahrtsziel gemeinsam planen"],
+            eai_weather: ["Weather Intelligence", "Lokale Prognose, Historie, Genauigkeit und Wetterrisiken"],
         },
         status: { live: "Aktuell", stale: "Veraltet", offline: "Nicht erreichbar", loading: "Verbinden" },
         theme: { label: "Darstellung", auto: "Automatisch", light: "Hell", dark: "Dunkel" },
@@ -84,9 +86,10 @@ const COPY = {
     en: {
         product: "Solar Forecast Stats",
         sections: { live: "Monitoring", analysis: "Analysis", system: "Control" },
-        mobile: { home: "Overview", solar: "Solar", energy: "Energy" },
+        mobile: { dashboard: "Cockpit", home: "Overview", solar: "Solar", energy: "Energy" },
         pages: {
-            home: ["Overview", "Live energy flow and forecast status"],
+            dashboard: ["Solar Cockpit", "Energy, forecast and premium intelligence at a glance"],
+            home: ["Live & Forecast", "Detailed energy flow and forecast status"],
             solar: ["Solar & Forecast", "Yield, models, deviations and shading"],
             weather: ["Weather", "Forecast, radiation and history"],
             energy: ["Energy & Finance", "Balance, consumers, tariffs and payback"],
@@ -94,8 +97,9 @@ const COPY = {
             settings: ["System Status", "Configuration, sensors and data quality"],
             quality: ["Forecast Intelligence", "Understand quality, models and development"],
             weather_energy: ["Weather & Energy", "Analyse conditions, forecast and yield together"],
-            eai: ["Heat Pump & Building", "Consumption, operation, efficiency and building response"],
+            eai: ["Heat Pump", "Consumption, operation, efficiency and building response"],
             mobility: ["E-Mobility & Wallbox", "Plan PV, prices, heat-pump demand and departure target together"],
+            eai_weather: ["Weather Intelligence", "Local forecast, history, accuracy and weather risks"],
         },
         status: { live: "Current", stale: "Stale", offline: "Unavailable", loading: "Connecting" },
         theme: { label: "Appearance", auto: "Automatic", light: "Light", dark: "Dark" },
@@ -110,9 +114,10 @@ const COPY = {
     pl: {
         product: "Solar Forecast Stats",
         sections: { live: "Monitoring", analysis: "Analiza", system: "Sterowanie" },
-        mobile: { home: "Przegląd", solar: "Solar", energy: "Energia" },
+        mobile: { dashboard: "Kokpit", home: "Przegląd", solar: "Solar", energy: "Energia" },
         pages: {
-            home: ["Przegląd", "Przepływ energii i stan prognozy"],
+            dashboard: ["Solar Cockpit", "Energia, prognoza i funkcje Premium w jednym miejscu"],
+            home: ["Na żywo i prognoza", "Szczegółowy przepływ energii i stan prognozy"],
             solar: ["Energia słoneczna", "Produkcja, modele, odchylenia i cień"],
             weather: ["Pogoda", "Prognoza, promieniowanie i historia"],
             energy: ["Energia i finanse", "Bilans, odbiorniki, taryfy i amortyzacja"],
@@ -120,8 +125,9 @@ const COPY = {
             settings: ["Stan systemu", "Konfiguracja, czujniki i jakość danych"],
             quality: ["Forecast Intelligence", "Jakość, modele i długoterminowy rozwój"],
             weather_energy: ["Pogoda i energia", "Wspólna analiza warunków, prognozy i uzysku"],
-            eai: ["Pompa ciepła i budynek", "Zużycie, praca, efektywność i reakcja budynku"],
+            eai: ["Pompa ciepła", "Zużycie, praca, efektywność i reakcja budynku"],
             mobility: ["E-mobilność i wallbox", "Wspólne planowanie PV, cen, pompy ciepła i wyjazdu"],
+            eai_weather: ["Weather Intelligence", "Lokalna prognoza, historia, dokładność i ryzyka pogodowe"],
         },
         status: { live: "Aktualne", stale: "Nieaktualne", offline: "Niedostępne", loading: "Łączenie" },
         theme: { label: "Wygląd", auto: "Automatyczny", light: "Jasny", dark: "Ciemny" },
@@ -275,7 +281,10 @@ function installModernChartDefaults() {
 const ModernApp = {
     components: { UiIcon },
     template: `
-        <div class="modern-app" :class="{ 'drawer-open': drawerOpen }">
+        <div class="modern-app" :class="{
+            'drawer-open': drawerOpen,
+            'orbit-mode': currentPage === 'dashboard',
+        }">
             <a class="skip-link" href="#main-content">{{ copy.skip }}</a>
 
             <div v-if="drawerOpen" class="drawer-backdrop" @click="closeDrawer" aria-hidden="true"></div>
@@ -332,7 +341,8 @@ const ModernApp = {
                     </div>
 
                     <div class="topbar-actions">
-                        <div class="live-metrics" aria-label="Live status">
+                        <div v-if="currentPage !== 'dashboard'"
+                             class="live-metrics" aria-label="Live status">
                             <div v-if="liveData.solar_power != null" class="live-metric">
                                 <span>PV</span><strong>{{ formatPower(liveData.solar_power) }}</strong>
                             </div>
@@ -368,7 +378,8 @@ const ModernApp = {
                 </div>
 
                 <main id="main-content" class="modern-content" tabindex="-1">
-                    <div v-if="!hasLoaded" class="initial-state" role="status" aria-live="polite">
+                    <div v-if="currentPage !== 'dashboard' && !hasLoaded"
+                         class="initial-state" role="status" aria-live="polite">
                         <span class="loading-indicator" aria-hidden="true"></span>
                         <strong>{{ copy.status.loading }}</strong>
                     </div>
@@ -379,6 +390,7 @@ const ModernApp = {
                                        :config="appConfig"
                                        :initial-section="currentDetail"
                                        @navigate="navigate"
+                                       @mode-change="handleDashboardMode"
                                        @change-theme="handlePageTheme" />
                             <modern-intelligence-overview
                                 v-if="currentPage === 'home'"
@@ -408,6 +420,7 @@ const ModernApp = {
         const copy = COPY[locale] || COPY.en;
         const currentPage = ref("home");
         const currentDetail = ref("");
+        const dashboardMode = ref("loading");
         const drawerOpen = ref(false);
         const hasLoaded = ref(false);
         const requestPending = ref(false);
@@ -435,7 +448,13 @@ const ModernApp = {
         });
 
         const navigation = [
-            { id: "live", items: [{ id: "home", icon: "home" }] },
+            {
+                id: "live",
+                items: [
+                    { id: "home", icon: "home" },
+                    { id: "dashboard", icon: "solar" },
+                ],
+            },
             {
                 id: "analysis",
                 items: [
@@ -446,6 +465,7 @@ const ModernApp = {
                     { id: "energy", icon: "energy" },
                     { id: "eai", icon: "heatpump" },
                     { id: "mobility", icon: "mobility" },
+                    { id: "eai_weather", icon: "weather" },
                 ],
             },
             {
@@ -471,6 +491,7 @@ const ModernApp = {
         ];
 
         const pages = {
+            dashboard: window.PremiumDashboardPage,
             home: window.HomePage,
             solar: window.SolarPage,
             quality: window.ModernQualityPage,
@@ -479,6 +500,7 @@ const ModernApp = {
             energy: window.EnergyPage,
             eai: window.ModernEAIPage,
             mobility: window.ModernMobilityPage,
+            eai_weather: window.ModernEAIWeatherPage,
             smart_charging: window.SmartChargingPage,
             settings: window.SettingsPage,
         };
@@ -538,8 +560,14 @@ const ModernApp = {
             setThemeMode(theme === "light" ? "light" : "dark");
         }
 
+        function handleDashboardMode(mode) {
+            dashboardMode.value = mode === "live" ? "live" : "mock";
+            syncShellPolling();
+        }
+
         function navigate(page, detail = "") {
             if (!pages[page]) return;
+            if (page === "dashboard") dashboardMode.value = "loading";
             currentPage.value = page;
             currentDetail.value = detail || "";
             window.location.hash = detail ? `${page}/${detail}` : page;
@@ -551,6 +579,9 @@ const ModernApp = {
         function handleHashChange() {
             const [hashPage, hashDetail = ""] = window.location.hash.slice(1).split("/");
             const page = pages[hashPage] ? hashPage : "home";
+            if (page === "dashboard" && currentPage.value !== "dashboard") {
+                dashboardMode.value = "loading";
+            }
             currentPage.value = page;
             currentDetail.value = ["quality", "weather_energy"].includes(page) ? hashDetail : "";
             document.title = `${pageCopy(page)[0]} · ${copy.product}`;
@@ -565,6 +596,9 @@ const ModernApp = {
         }
 
         async function fetchData(forceRefresh = false) {
+            if (currentPage.value === "dashboard") {
+                return;
+            }
             if (requestPending.value) return;
             requestPending.value = true;
             try {
@@ -574,6 +608,9 @@ const ModernApp = {
                     SFMLApi.fetch("/api/sfml_stats/gpm_prices", options),
                     SFMLApi.fetch("/api/sfml_stats/energy_flow", options),
                 ]);
+                if (currentPage.value === "dashboard") {
+                    return;
+                }
 
                 const flows = energyFlow?.flows || {};
                 const battery = energyFlow?.battery || {};
@@ -593,13 +630,63 @@ const ModernApp = {
                 console.error("[SFML Stats] Dashboard data request failed", error);
                 connectionState.value = "offline";
             } finally {
-                hasLoaded.value = true;
+                if (currentPage.value !== "dashboard") {
+                    hasLoaded.value = true;
+                }
                 requestPending.value = false;
             }
         }
 
         let pollTimer = null;
         let freshnessTimer = null;
+        function clearShellData() {
+            Object.assign(liveData, {
+                total_price: null,
+                battery_soc: null,
+                solar_power: null,
+                home_consumption: null,
+                solar_to_house: null,
+                solar_to_battery: null,
+                battery_to_house: null,
+                grid_to_house: null,
+                grid_export: null,
+            });
+            lastUpdated.value = null;
+            connectionState.value = "loading";
+            hasLoaded.value = false;
+        }
+
+        function stopShellPolling(clearData = false) {
+            window.clearInterval(pollTimer);
+            window.clearInterval(freshnessTimer);
+            pollTimer = null;
+            freshnessTimer = null;
+            if (clearData) clearShellData();
+        }
+
+        function startShellPolling() {
+            if (pollTimer !== null) return;
+            fetchData();
+            pollTimer = window.setInterval(fetchData, 10000);
+            freshnessTimer = window.setInterval(() => {
+                if (
+                    connectionState.value === "live"
+                    && lastUpdated.value
+                    && Date.now() - lastUpdated.value.getTime() > 30000
+                ) {
+                    connectionState.value = "stale";
+                }
+            }, 5000);
+        }
+
+        function syncShellPolling() {
+            if (currentPage.value === "dashboard") {
+                stopShellPolling(true);
+            } else {
+                startShellPolling();
+            }
+        }
+
         const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
         const handleColorScheme = (event) => {
             systemDark.value = event.matches;
@@ -612,35 +699,26 @@ const ModernApp = {
             window.addEventListener("hashchange", handleHashChange);
             window.addEventListener("keydown", handleKeydown);
             colorScheme.addEventListener("change", handleColorScheme);
-            fetchData();
-            pollTimer = window.setInterval(fetchData, 10000);
-            freshnessTimer = window.setInterval(() => {
-                if (
-                    connectionState.value === "live"
-                    && lastUpdated.value
-                    && Date.now() - lastUpdated.value.getTime() > 30000
-                ) {
-                    connectionState.value = "stale";
-                }
-            }, 5000);
+            syncShellPolling();
         });
 
         onUnmounted(() => {
             window.removeEventListener("hashchange", handleHashChange);
             window.removeEventListener("keydown", handleKeydown);
             colorScheme.removeEventListener("change", handleColorScheme);
-            window.clearInterval(pollTimer);
-            window.clearInterval(freshnessTimer);
+            stopShellPolling();
         });
 
         watch(currentPage, () => {
             window.scrollTo({ top: 0, behavior: "auto" });
+            syncShellPolling();
         });
 
         return {
             copy,
             currentPage,
             currentDetail,
+            dashboardMode,
             currentPageCopy,
             currentPageComponent,
             navigation,
@@ -661,6 +739,7 @@ const ModernApp = {
             closeDrawer,
             setThemeMode,
             handlePageTheme,
+            handleDashboardMode,
             fetchData,
         };
     },
