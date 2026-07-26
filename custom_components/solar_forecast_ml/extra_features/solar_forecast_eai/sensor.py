@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -21,6 +23,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from .automation import (
     EAIRecommendationEngine,
@@ -313,6 +316,24 @@ WEATHER_INTELLIGENCE_SENSORS = (
         device_class=SensorDeviceClass.ENUM,
         options=WEATHER_EVENT_OPTIONS,
     ),
+    EAISensorDescription(
+        key="weather_event_today",
+        translation_key="weather_event_today",
+        device_class=SensorDeviceClass.ENUM,
+        options=WEATHER_EVENT_OPTIONS,
+    ),
+    EAISensorDescription(
+        key="weather_event_tomorrow",
+        translation_key="weather_event_tomorrow",
+        device_class=SensorDeviceClass.ENUM,
+        options=WEATHER_EVENT_OPTIONS,
+    ),
+    EAISensorDescription(
+        key="weather_event_day_after_tomorrow",
+        translation_key="weather_event_day_after_tomorrow",
+        device_class=SensorDeviceClass.ENUM,
+        options=WEATHER_EVENT_OPTIONS,
+    ),
     EAISensorDescription(key="weather_next_event_severity", translation_key="weather_next_event_severity", device_class=SensorDeviceClass.ENUM, options=["none", "advisory", "warning", "critical"]),
     EAISensorDescription(key="weather_next_event_start", translation_key="weather_next_event_start", device_class=SensorDeviceClass.TIMESTAMP),
     EAISensorDescription(key="weather_next_event_end", translation_key="weather_next_event_end", device_class=SensorDeviceClass.TIMESTAMP),
@@ -420,13 +441,19 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
                 else None
             )
         if key == "weather_active_event":
-            events = snapshot.get("events", [])
-            return events[0].get("code", "none") if events else "none"
+            return self._active_event(snapshot).get("code", "none")
         if key == "weather_forecast_valid_until":
             return self._timestamp(snapshot.get("valid_at"))
-        event = self._event(snapshot)
+        event = self._next_event(snapshot)
         if key == "weather_next_event":
             return event.get("code", "none")
+        day_offsets = {
+            "weather_event_today": 0,
+            "weather_event_tomorrow": 1,
+            "weather_event_day_after_tomorrow": 2,
+        }
+        if key in day_offsets:
+            return self._event_for_day(snapshot, day_offsets[key]).get("code", "none")
         if key == "weather_next_event_severity":
             return event.get("severity", "none")
         if key == "weather_next_event_start":
@@ -448,16 +475,86 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
             return quality.get("score_percent", 0)
         return None
 
+    @classmethod
+    def _active_event(cls, snapshot: dict[str, Any]) -> dict[str, Any]:
+        now = dt_util.utcnow()
+        for event in cls._events(snapshot):
+            start = cls._timestamp(event.get("start"))
+            end = cls._timestamp(event.get("end"))
+            if start is None and end is None:
+                return event
+            if start is not None and start <= now and (end is None or now < end):
+                return event
+        return {}
+
+    @classmethod
+    def _next_event(cls, snapshot: dict[str, Any]) -> dict[str, Any]:
+        now = dt_util.utcnow()
+        for event in cls._events(snapshot):
+            start = cls._timestamp(event.get("start"))
+            if start is None or start > now:
+                return event
+        return {}
+
     @staticmethod
-    def _event(snapshot: dict[str, Any]) -> dict[str, Any]:
+    def _events(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
         events = snapshot.get("events", [])
-        return events[0] if isinstance(events, list) and events else {}
+        return [event for event in events if isinstance(event, dict)]
+
+    def _event_for_day(
+        self, snapshot: dict[str, Any], day_offset: int
+    ) -> dict[str, Any]:
+        events = self._events_for_day(snapshot, day_offset)
+        return events[0] if events else {}
+
+    def _events_for_day(
+        self, snapshot: dict[str, Any], day_offset: int
+    ) -> list[dict[str, Any]]:
+        time_zone_name = getattr(
+            getattr(self.runtime.hass, "config", None), "time_zone", None
+        )
+        try:
+            local_zone = ZoneInfo(time_zone_name) if time_zone_name else None
+        except (TypeError, ValueError):
+            local_zone = None
+        now = dt_util.utcnow()
+        now = now.astimezone(local_zone) if local_zone else now.astimezone()
+        target_date = now.date() + timedelta(days=day_offset)
+        day_start = datetime.combine(
+            target_date, datetime.min.time(), tzinfo=now.tzinfo
+        )
+        day_end = datetime.combine(
+            target_date + timedelta(days=1),
+            datetime.min.time(),
+            tzinfo=now.tzinfo,
+        )
+        matching: list[dict[str, Any]] = []
+        events = snapshot.get("events", [])
+        for event in events if isinstance(events, list) else []:
+            if not isinstance(event, dict):
+                continue
+            start = self._timestamp(event.get("start"))
+            if start is None:
+                if day_offset == 0:
+                    matching.append(event)
+                continue
+            local_start = start.astimezone(local_zone) if local_zone else start.astimezone()
+            end = self._timestamp(event.get("end"))
+            local_end = (
+                end.astimezone(local_zone) if end is not None and local_zone
+                else end.astimezone() if end is not None
+                else None
+            )
+            if local_start < day_end and (
+                local_end is None or local_end > day_start
+            ):
+                matching.append(event)
+        return matching
 
     @staticmethod
     def _timestamp(value: Any) -> Any:
         if not value:
             return None
-        from datetime import datetime
         try:
             return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
         except ValueError:
@@ -486,9 +583,20 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
         if key == "weather_temperature_uncertainty":
             return snapshot.get("uncertainty", {})
         if key == "weather_active_event":
-            return {"events": snapshot.get("events", [])}
+            return {
+                "event": self._active_event(snapshot) or None,
+                "events": snapshot.get("events", []),
+            }
         if key.startswith("weather_next_event"):
-            return {"event": self._event(snapshot)}
+            return {"event": self._next_event(snapshot)}
+        day_offsets = {
+            "weather_event_today": 0,
+            "weather_event_tomorrow": 1,
+            "weather_event_day_after_tomorrow": 2,
+        }
+        if key in day_offsets:
+            events = self._events_for_day(snapshot, day_offsets[key])
+            return {"event": events[0] if events else None, "events": events}
         if key.endswith("next_24h"):
             return {"hours": snapshot.get("outlook", {}).get("next_hours", {}).get("hours", 0)}
         return {}

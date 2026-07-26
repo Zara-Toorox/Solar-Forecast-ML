@@ -210,6 +210,43 @@
         "data_description": {
           "license_key": "The new license key is validated locally before it is stored."
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure EAI",
+        "description": "Update heat-pump details and sensor assignments.",
+        "data": {
+          "wp_type": "Heat pump type",
+          "manufacturer": "Manufacturer",
+          "model": "Model designation",
+          "heating_capacity_kw": "Rated heating output (kW)",
+          "cop_rated": "COP at the data-sheet test point",
+          "has_heating_element": "Electric backup heater installed",
+          "has_dhw": "Domestic hot water enabled",
+          "storage_volume_l": "Usable storage volume (L)",
+          "building_ref": "Building reference",
+          "wp_power_entity": "Heat pump electrical power",
+          "wp_energy_today": "Heat pump daily energy",
+          "outdoor_temp_entity": "Outdoor temperature",
+          "indoor_temp_entity": "Indoor temperature",
+          "target_temp_entity": "Room target temperature",
+          "operation_mode_entity": "Operating mode",
+          "compressor_entity": "Compressor status",
+          "dhw_temp_entity": "Domestic hot water temperature",
+          "flow_temp_entity": "Flow temperature",
+          "return_temp_entity": "Return temperature",
+          "starts_entity": "Compressor starts",
+          "runtime_entity": "Total compressor operating hours",
+          "runtime_heating_entity": "Space-heating operating hours",
+          "runtime_dhw_entity": "Domestic-hot-water operating hours",
+          "thermal_energy_entity": "Thermal daily energy",
+          "jaz_entity": "Measured performance factor",
+          "volume_flow_entity": "Volume flow",
+          "source_temp_entity": "Heat source temperature",
+          "storage_temp_entity": "Storage temperature",
+          "storage_ambient_temp_entity": "Storage ambient temperature",
+          "circulation_pump_entity": "Circulation pump active",
+          "circulation_return_temp_entity": "Circulation return temperature"
+        }
       }
     },
     "error": {
@@ -226,12 +263,14 @@
       "feature_required": "Select at least one Premium function.",
       "weather_fusion_required": "Install and configure Weather Fusion AI before enabling weather intelligence.",
       "validation_required": "Review and accept the sensor warnings.",
+      "invalid_heat_pump_values": "Enter finite numeric values: heating output from 1 to 100 kW and COP from 1 to 10.",
       "wallbox_required": "Wallbox analytics require wallbox power and at least one charging-demand source.",
       "wallbox_demand_required": "Select at least one demand source: vehicle state of charge, requested energy, or planned distance."
     },
     "abort": {
       "not_confirmed": "Setup was not confirmed.",
-      "reauth_successful": "The license was renewed successfully."
+      "reauth_successful": "The license was renewed successfully.",
+      "reconfigure_successful": "The EAI configuration was updated successfully."
     }
   },
   "options": {
@@ -277,18 +316,26 @@
         "title": "Heat pump details",
         "description": "Update the technical details of the configured heat pump.",
         "data": {
+          "wp_type": "Heat pump type",
           "manufacturer": "Manufacturer",
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
           "cop_rated": "COP at the data-sheet test point",
-          "storage_volume_l": "Usable storage volume (L)"
+          "has_heating_element": "Electric backup heater installed",
+          "has_dhw": "Domestic hot water enabled",
+          "storage_volume_l": "Usable storage volume (L)",
+          "building_ref": "Building reference"
         },
         "data_description": {
+          "wp_type": "Select the heat source and system type.",
           "manufacturer": "Optional manufacturer name.",
           "model": "Optional model or product designation.",
           "heating_capacity_kw": "Rated heat output according to the data sheet.",
           "cop_rated": "COP stated for a data-sheet test point such as A7/W35 or B0/W35; neither a live efficiency reading nor an annual performance factor. Keep 4.0 if unknown.",
-          "storage_volume_l": "Usable water or buffer volume from the data sheet. Unit: L. Optional."
+          "has_heating_element": "Enable if an electric backup heater is installed.",
+          "has_dhw": "Enable if the heat pump also prepares domestic hot water.",
+          "storage_volume_l": "Usable water or buffer volume from the data sheet. Unit: L. Optional.",
+          "building_ref": "Optional name for the supplied building or heating zone."
         }
       },
       "sensors": {
@@ -401,6 +448,23 @@
         "data": {"electricity_price_entity": "Current electricity price or helper", "electricity_price_unit": "Electricity-price unit", "feed_in_tariff_entity": "Feed-in tariff or helper", "feed_in_tariff_unit": "Feed-in-tariff unit", "low_price_threshold_ct": "Low-price threshold (ct/kWh)"},
         "data_description": {"electricity_price_entity": "Expected: sensor or input_number helper for the current import price. Unit: EUR/kWh or ct/kWh. Optional.", "electricity_price_unit": "Use automatic detection from the sensor or select a fixed unit for helpers without one.", "feed_in_tariff_entity": "Expected: sensor or input_number helper for the current feed-in tariff. Unit: EUR/kWh or ct/kWh. Optional.", "feed_in_tariff_unit": "Use automatic detection from the sensor or select a fixed unit for helpers without one.", "low_price_threshold_ct": "Price below which EAI signals a low-price window. Unit: ct/kWh."}
       }
+    },
+    "error": {
+      "license_not_provided": "Enter an EAI license key.",
+      "license_invalid_format": "The license format is invalid.",
+      "license_invalid_signature": "The signature is invalid.",
+      "license_wrong_product": "The license belongs to another product.",
+      "license_unsupported_version": "The license version is not supported.",
+      "license_unknown_key_id": "The signing key is not recognized.",
+      "license_not_yet_valid": "The license is not valid yet.",
+      "license_expired": "The license has expired.",
+      "license_missing_entitlement": "The EAI entitlement is missing.",
+      "license_validation_error": "The license could not be validated safely.",
+      "feature_required": "Select at least one Premium function.",
+      "weather_fusion_required": "Install and configure Weather Fusion AI before enabling weather intelligence.",
+      "validation_required": "Review the sensor assignments and resolve missing or duplicate entries.",
+      "invalid_heat_pump_values": "Enter finite numeric values: heating output from 1 to 100 kW and COP from 1 to 10.",
+      "wallbox_required": "Wallbox analytics require wallbox power and at least one charging-demand source."
     }
   },
   "entity": {
@@ -419,6 +483,9 @@
       "weather_active_event": {"name": "Active weather event", "state": {"none": "None", "forecast_stale": "Forecast stale", "forecast_unavailable": "Forecast unavailable", "freeze_risk": "Freeze risk", "heat_stress": "Heat stress", "heavy_precipitation": "Heavy rain", "high_precipitation_probability": "High precipitation probability", "strong_wind": "Strong wind", "storm_wind": "Storm wind"}},
       "weather_forecast_valid_until": {"name": "Weather forecast valid until"},
       "weather_next_event": {"name": "Next weather event", "state": {"none": "None", "forecast_stale": "Forecast stale", "forecast_unavailable": "Forecast unavailable", "freeze_risk": "Freeze risk", "heat_stress": "Heat stress", "heavy_precipitation": "Heavy rain", "high_precipitation_probability": "High precipitation probability", "strong_wind": "Strong wind", "storm_wind": "Storm wind"}},
+      "weather_event_today": {"name": "Weather event today", "state": {"none": "None", "forecast_stale": "Forecast stale", "forecast_unavailable": "Forecast unavailable", "freeze_risk": "Freeze risk", "heat_stress": "Heat stress", "heavy_precipitation": "Heavy rain", "high_precipitation_probability": "High precipitation probability", "strong_wind": "Strong wind", "storm_wind": "Storm wind"}},
+      "weather_event_tomorrow": {"name": "Weather event tomorrow", "state": {"none": "None", "forecast_stale": "Forecast stale", "forecast_unavailable": "Forecast unavailable", "freeze_risk": "Freeze risk", "heat_stress": "Heat stress", "heavy_precipitation": "Heavy rain", "high_precipitation_probability": "High precipitation probability", "strong_wind": "Strong wind", "storm_wind": "Storm wind"}},
+      "weather_event_day_after_tomorrow": {"name": "Weather event day after tomorrow", "state": {"none": "None", "forecast_stale": "Forecast stale", "forecast_unavailable": "Forecast unavailable", "freeze_risk": "Freeze risk", "heat_stress": "Heat stress", "heavy_precipitation": "Heavy rain", "high_precipitation_probability": "High precipitation probability", "strong_wind": "Strong wind", "storm_wind": "Storm wind"}},
       "weather_next_event_severity": {"name": "Next weather event severity", "state": {"none": "None", "advisory": "Advisory", "warning": "Warning", "critical": "Critical"}},
       "weather_next_event_start": {"name": "Next weather event starts"}, "weather_next_event_end": {"name": "Next weather event ends"}, "weather_precipitation_next_24h": {"name": "Forecast precipitation next 24 hours"}, "weather_precipitation_probability_next_24h": {"name": "Maximum precipitation probability next 24 hours"}, "weather_temperature_min_next_24h": {"name": "Minimum temperature next 24 hours"}, "weather_temperature_max_next_24h": {"name": "Maximum temperature next 24 hours"}, "weather_wind_speed_max_next_24h": {"name": "Maximum wind speed next 24 hours"}, "weather_forecast_confidence": {"name": "Weather forecast confidence"},
       "wallbox_recommended_action": {"name": "Wallbox recommendation", "state": {"data_unavailable": "Data unavailable", "connect": "Connect vehicle", "charge": "Charge", "defer": "Wait", "complete": "Target reached"}},
@@ -441,7 +508,7 @@
       "thermal_loss_data_quality": {"name": "Thermal-loss data quality"},
       "thermal_loss_status": {"name": "Thermal-loss analysis status", "state": {"not_configured": "Not configured", "learning": "Learning", "partial": "Partially available", "implausible": "Implausible", "ready": "Ready"}}
     },
-    "binary_sensor": {"automation_ready": {"name": "Automation ready"}, "pv_window_active": {"name": "Heat-pump PV window active"}, "dhw_recommended": {"name": "Domestic hot water recommended"}, "heating_recommended": {"name": "Heating recommended"}, "thermal_storage_recommended": {"name": "Thermal storage recommended"}, "low_price_window_active": {"name": "Low-price window active"}, "operation_deferrable": {"name": "Operation deferrable"}, "critical_data_issue": {"name": "Critical data issue"}, "wallbox_charging_window_active": {"name": "Wallbox charging window active"}, "wallbox_pv_charging_recommended": {"name": "PV charging recommended"}, "wallbox_residual_pv_window_active": {"name": "Wallbox residual-PV window active"}, "wallbox_low_price_charging_recommended": {"name": "Low-price charging recommended"}, "wallbox_departure_risk": {"name": "Departure target at risk"}},
+    "binary_sensor": {"automation_ready": {"name": "Automation ready"}, "pv_window_active": {"name": "Heat-pump PV window active"}, "dhw_recommended": {"name": "Domestic hot water recommended"}, "heating_recommended": {"name": "Heating recommended"}, "thermal_storage_recommended": {"name": "Thermal storage recommended"}, "low_price_window_active": {"name": "Low-price window active"}, "operation_deferrable": {"name": "Operation deferrable"}, "critical_data_issue": {"name": "Critical data issue"}, "wallbox_charging_window_active": {"name": "Wallbox charging window active"}, "wallbox_pv_charging_recommended": {"name": "PV charging recommended"}, "wallbox_residual_pv_window_active": {"name": "Wallbox residual-PV window active"}, "wallbox_low_price_charging_recommended": {"name": "Low-price charging recommended"}, "wallbox_departure_risk": {"name": "Departure target at risk"}, "weather_alert_active": {"name": "Weather alert active"}, "weather_frost_risk": {"name": "Frost risk"}, "weather_heavy_rain_risk": {"name": "Heavy-rain risk"}, "weather_high_wind_risk": {"name": "High-wind risk"}, "weather_heat_stress_risk": {"name": "Heat-stress risk"}, "weather_forecast_stale": {"name": "Weather forecast stale"}},
     "switch": {"automation_signals": {"name": "Enable automation signals"}, "pv_optimization": {"name": "PV signals"}, "tariff_optimization": {"name": "Tariff signals"}, "wallbox_optimization": {"name": "Wallbox signals"}}
   },
   "selector": {

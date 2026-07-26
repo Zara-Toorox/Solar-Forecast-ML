@@ -94,6 +94,18 @@ WALLBOX_OPTION_KEYS = (
     CONF_WALLBOX_MAX_POWER_KW,
 )
 
+HEAT_PUMP_OPTION_KEYS = (
+    CONF_WP_TYPE,
+    CONF_MANUFACTURER,
+    CONF_MODEL,
+    CONF_HEATING_CAPACITY_KW,
+    CONF_COP_RATED,
+    CONF_HAS_HEATING_ELEMENT,
+    CONF_HAS_DHW,
+    CONF_STORAGE_VOLUME_L,
+    CONF_BUILDING_REF,
+)
+
 NUMERIC_HEAT_PUMP_ENTITY_KEYS = frozenset(
     REQUIRED_SENSORS
     + tuple(
@@ -111,7 +123,12 @@ NUMERIC_HEAT_PUMP_ENTITY_KEYS = frozenset(
 
 def _finite_range(minimum: float, maximum: float):
     def validate(value: Any) -> float:
-        parsed = float(value)
+        if isinstance(value, bool):
+            raise vol.Invalid("boolean values are not valid numbers")
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError) as err:
+            raise vol.Invalid("value must be a number") from err
         if not isfinite(parsed) or not minimum <= parsed <= maximum:
             raise vol.Invalid(
                 f"value must be finite and between {minimum} and {maximum}"
@@ -119,6 +136,142 @@ def _finite_range(minimum: float, maximum: float):
         return parsed
 
     return validate
+
+
+def _safe_number_default(
+    value: Any,
+    fallback: float,
+    minimum: float,
+    maximum: float,
+) -> float:
+    try:
+        return _finite_range(minimum, maximum)(value)
+    except vol.Invalid:
+        return fallback
+
+
+def _validated_heat_pump_input(user_input: dict[str, Any]) -> dict[str, Any]:
+    validated = dict(user_input)
+    validated[CONF_HEATING_CAPACITY_KW] = _finite_range(1.0, 100.0)(
+        user_input.get(CONF_HEATING_CAPACITY_KW)
+    )
+    validated[CONF_COP_RATED] = _finite_range(1.0, 10.0)(
+        user_input.get(CONF_COP_RATED)
+    )
+    return validated
+
+
+def _safe_bool_default(value: Any, fallback: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+    if isinstance(value, (int, float)) and value in {0, 1}:
+        return bool(value)
+    return fallback
+
+
+def _safe_choice_default(value: Any, choices: set[str] | frozenset[str], fallback: str) -> str:
+    return value if isinstance(value, str) and value in choices else fallback
+
+
+def _optional_text_marker(key: str, defaults: dict[str, Any]) -> vol.Optional:
+    value = defaults.get(key)
+    return (
+        vol.Optional(key, default=value)
+        if isinstance(value, str) and value
+        else vol.Optional(key)
+    )
+
+
+def _heat_pump_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    defaults = defaults or {}
+    storage_value = defaults.get(CONF_STORAGE_VOLUME_L)
+    storage_marker = vol.Optional(CONF_STORAGE_VOLUME_L)
+    if storage_value not in (None, ""):
+        normalized_storage = _safe_number_default(storage_value, 0.0, 20.0, 5000.0)
+        if normalized_storage:
+            storage_marker = vol.Optional(
+                CONF_STORAGE_VOLUME_L,
+                default=normalized_storage,
+            )
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_WP_TYPE,
+                default=_safe_choice_default(
+                    defaults.get(CONF_WP_TYPE),
+                    SUPPORTED_WP_TYPES,
+                    DEFAULT_WP_TYPE,
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=sorted(SUPPORTED_WP_TYPES),
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="wp_type",
+                )
+            ),
+            _optional_text_marker(CONF_MANUFACTURER, defaults): str,
+            _optional_text_marker(CONF_MODEL, defaults): str,
+            vol.Required(
+                CONF_HEATING_CAPACITY_KW,
+                default=_safe_number_default(
+                    defaults.get(CONF_HEATING_CAPACITY_KW),
+                    DEFAULT_HEATING_CAPACITY_KW,
+                    1.0,
+                    100.0,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=100,
+                    step=0.1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="kW",
+                )
+            ),
+            vol.Required(
+                CONF_COP_RATED,
+                default=_safe_number_default(
+                    defaults.get(CONF_COP_RATED),
+                    DEFAULT_COP_RATED,
+                    1.0,
+                    10.0,
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1,
+                    max=10,
+                    step=0.1,
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Required(
+                CONF_HAS_HEATING_ELEMENT,
+                default=_safe_bool_default(
+                    defaults.get(CONF_HAS_HEATING_ELEMENT), True
+                ),
+            ): bool,
+            vol.Required(
+                CONF_HAS_DHW,
+                default=_safe_bool_default(defaults.get(CONF_HAS_DHW), True),
+            ): bool,
+            storage_marker: selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=20,
+                    max=5000,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="L",
+                )
+            ),
+            _optional_text_marker(CONF_BUILDING_REF, defaults): str,
+        }
+    )
 
 
 def _replace_options(
@@ -140,15 +293,21 @@ def _features_schema(defaults: dict[str, Any]) -> vol.Schema:
         {
             vol.Required(
                 CONF_HEAT_PUMP_ENABLED,
-                default=bool(defaults.get(CONF_HEAT_PUMP_ENABLED, True)),
+                default=_safe_bool_default(
+                    defaults.get(CONF_HEAT_PUMP_ENABLED), True
+                ),
             ): bool,
             vol.Required(
                 CONF_WALLBOX_ENABLED,
-                default=bool(defaults.get(CONF_WALLBOX_ENABLED, False)),
+                default=_safe_bool_default(
+                    defaults.get(CONF_WALLBOX_ENABLED), False
+                ),
             ): bool,
             vol.Required(
                 CONF_WEATHER_INTELLIGENCE_ENABLED,
-                default=bool(defaults.get(CONF_WEATHER_INTELLIGENCE_ENABLED, False)),
+                default=_safe_bool_default(
+                    defaults.get(CONF_WEATHER_INTELLIGENCE_ENABLED), False
+                ),
             ): bool,
         }
     )
@@ -164,7 +323,12 @@ def _weather_schema(hass: Any, defaults: dict[str, Any]) -> vol.Schema:
         vol.Required(
             CONF_WEATHER_HISTORY_DAYS,
             default=int(
-                defaults.get(CONF_WEATHER_HISTORY_DAYS, DEFAULT_WEATHER_HISTORY_DAYS)
+                _safe_number_default(
+                    defaults.get(CONF_WEATHER_HISTORY_DAYS),
+                    float(DEFAULT_WEATHER_HISTORY_DAYS),
+                    7.0,
+                    365.0,
+                )
             ),
         ): selector.NumberSelector(
             selector.NumberSelectorConfig(
@@ -246,7 +410,7 @@ def _entity_schema(
         if required:
             marker = (
                 vol.Required(key, default=defaults[key])
-                if key in defaults
+                if isinstance(defaults.get(key), str) and defaults.get(key)
                 else vol.Required(key)
             )
         else:
@@ -314,7 +478,11 @@ def _automation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_ELECTRICITY_PRICE_UNIT,
-                default=defaults.get(CONF_ELECTRICITY_PRICE_UNIT, DEFAULT_PRICE_UNIT),
+                default=_safe_choice_default(
+                    defaults.get(CONF_ELECTRICITY_PRICE_UNIT),
+                    {"auto", "ct_per_kwh", "eur_per_kwh"},
+                    DEFAULT_PRICE_UNIT,
+                ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=["auto", "ct_per_kwh", "eur_per_kwh"],
@@ -327,7 +495,11 @@ def _automation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_FEED_IN_TARIFF_UNIT,
-                default=defaults.get(CONF_FEED_IN_TARIFF_UNIT, DEFAULT_PRICE_UNIT),
+                default=_safe_choice_default(
+                    defaults.get(CONF_FEED_IN_TARIFF_UNIT),
+                    {"auto", "ct_per_kwh", "eur_per_kwh"},
+                    DEFAULT_PRICE_UNIT,
+                ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=["auto", "ct_per_kwh", "eur_per_kwh"],
@@ -337,8 +509,11 @@ def _automation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ),
             vol.Optional(
                 CONF_LOW_PRICE_THRESHOLD_CT,
-                default=defaults.get(
-                    CONF_LOW_PRICE_THRESHOLD_CT, DEFAULT_LOW_PRICE_THRESHOLD_CT
+                default=_safe_number_default(
+                    defaults.get(CONF_LOW_PRICE_THRESHOLD_CT),
+                    DEFAULT_LOW_PRICE_THRESHOLD_CT,
+                    0.0,
+                    200.0,
                 ),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
@@ -390,7 +565,11 @@ def _wallbox_schema(
             ),
             vol.Optional(
                 CONF_EV_DEMAND_MODE,
-                default=defaults.get(CONF_EV_DEMAND_MODE, DEFAULT_EV_DEMAND_MODE),
+                default=_safe_choice_default(
+                    defaults.get(CONF_EV_DEMAND_MODE),
+                    {"soc", "energy", "distance"},
+                    DEFAULT_EV_DEMAND_MODE,
+                ),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=["soc", "energy", "distance"],
@@ -409,9 +588,11 @@ def _wallbox_schema(
             ),
             vol.Optional(
                 CONF_EV_BATTERY_CAPACITY_KWH,
-                default=defaults.get(
-                    CONF_EV_BATTERY_CAPACITY_KWH,
+                default=_safe_number_default(
+                    defaults.get(CONF_EV_BATTERY_CAPACITY_KWH),
                     DEFAULT_EV_BATTERY_CAPACITY_KWH,
+                    5.0,
+                    250.0,
                 ),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
@@ -424,7 +605,12 @@ def _wallbox_schema(
             ),
             vol.Optional(
                 CONF_EV_TARGET_SOC,
-                default=defaults.get(CONF_EV_TARGET_SOC, DEFAULT_EV_TARGET_SOC),
+                default=_safe_number_default(
+                    defaults.get(CONF_EV_TARGET_SOC),
+                    DEFAULT_EV_TARGET_SOC,
+                    10.0,
+                    100.0,
+                ),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
                     min=10,
@@ -436,9 +622,11 @@ def _wallbox_schema(
             ),
             vol.Optional(
                 CONF_EV_CONSUMPTION_KWH_PER_100KM,
-                default=defaults.get(
-                    CONF_EV_CONSUMPTION_KWH_PER_100KM,
+                default=_safe_number_default(
+                    defaults.get(CONF_EV_CONSUMPTION_KWH_PER_100KM),
                     DEFAULT_EV_CONSUMPTION_KWH_PER_100KM,
+                    5.0,
+                    60.0,
                 ),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
@@ -451,9 +639,11 @@ def _wallbox_schema(
             ),
             vol.Optional(
                 CONF_EV_CHARGING_EFFICIENCY_PERCENT,
-                default=defaults.get(
-                    CONF_EV_CHARGING_EFFICIENCY_PERCENT,
+                default=_safe_number_default(
+                    defaults.get(CONF_EV_CHARGING_EFFICIENCY_PERCENT),
                     DEFAULT_EV_CHARGING_EFFICIENCY_PERCENT,
+                    50.0,
+                    100.0,
                 ),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
@@ -472,8 +662,11 @@ def _wallbox_schema(
             ): selector.TimeSelector(),
             marker(
                 CONF_WALLBOX_MAX_POWER_KW,
-                default=defaults.get(
-                    CONF_WALLBOX_MAX_POWER_KW, DEFAULT_WALLBOX_MAX_POWER_KW
+                default=_safe_number_default(
+                    defaults.get(CONF_WALLBOX_MAX_POWER_KW),
+                    DEFAULT_WALLBOX_MAX_POWER_KW,
+                    1.0,
+                    50.0,
                 ),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(
@@ -542,27 +735,32 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         current = {**entry.data, **entry.options}
         sensor_keys = REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS
         if user_input is not None:
+            try:
+                user_input = _validated_heat_pump_input(user_input)
+            except vol.Invalid:
+                return self.async_show_form(
+                    step_id="reconfigure",
+                    data_schema=self._reconfigure_schema(
+                        {**current, **user_input}
+                    ),
+                    errors={"base": "invalid_heat_pump_values"},
+                )
             updated = dict(entry.data)
             updated_options = dict(entry.options)
             _replace_options(updated_options, user_input, sensor_keys)
-            for key in (
-                CONF_WP_TYPE,
-                CONF_HEATING_CAPACITY_KW,
-                CONF_COP_RATED,
-                CONF_MANUFACTURER,
-                CONF_MODEL,
-            ):
-                if key in user_input:
-                    updated_options[key] = user_input[key]
+            _replace_options(updated_options, user_input, HEAT_PUMP_OPTION_KEYS)
             merged = {**updated, **updated_options}
-            if _required_sensor_errors(self.hass, merged):
+            if _required_sensor_errors(self.hass, merged) or (
+                merged.get(CONF_HEAT_PUMP_ENABLED, True)
+                and _has_disallowed_duplicate_assignments(merged, sensor_keys)
+            ):
                 return self.async_show_form(
                     step_id="reconfigure",
                     data_schema=self._reconfigure_schema(current),
                     errors={"base": "validation_required"},
                 )
             updated_options[CONF_CAPABILITY_LEVEL] = _capability(merged)
-            return self.async_update_reload_and_abort(
+            return self.async_update_and_abort(
                 entry,
                 options=updated_options,
                 reason="reconfigure_successful",
@@ -576,24 +774,8 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     def _reconfigure_schema(current: dict[str, Any]) -> vol.Schema:
         sensors = _sensor_options_schema(current)
-        return vol.Schema(
-            {
-                vol.Required(
-                    CONF_WP_TYPE, default=current.get(CONF_WP_TYPE, DEFAULT_WP_TYPE)
-                ): vol.In(sorted(SUPPORTED_WP_TYPES)),
-                vol.Required(
-                    CONF_HEATING_CAPACITY_KW,
-                    default=current.get(
-                        CONF_HEATING_CAPACITY_KW, DEFAULT_HEATING_CAPACITY_KW
-                    ),
-                ): _finite_range(1.0, 100.0),
-                vol.Required(
-                    CONF_COP_RATED,
-                    default=current.get(CONF_COP_RATED, DEFAULT_COP_RATED),
-                ): _finite_range(1.0, 10.0),
-                **sensors.schema,
-            }
-        )
+        heat_pump = _heat_pump_schema(current)
+        return vol.Schema({**heat_pump.schema, **sensors.schema})
 
     async def async_step_license(
         self, user_input: dict[str, Any] | None = None
@@ -665,45 +847,18 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_heat_pump(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_required_sensors()
+            try:
+                self._data.update(_validated_heat_pump_input(user_input))
+            except vol.Invalid:
+                errors["base"] = "invalid_heat_pump_values"
+            else:
+                return await self.async_step_required_sensors()
         return self.async_show_form(
             step_id="heat_pump",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(
-                        CONF_WP_TYPE, default=DEFAULT_WP_TYPE
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=sorted(SUPPORTED_WP_TYPES),
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                            translation_key="wp_type",
-                        )
-                    ),
-                    vol.Optional(CONF_MANUFACTURER): str,
-                    vol.Optional(CONF_MODEL): str,
-                    vol.Required(
-                        CONF_HEATING_CAPACITY_KW,
-                        default=DEFAULT_HEATING_CAPACITY_KW,
-                    ): _finite_range(1.0, 100.0),
-                    vol.Required(
-                        CONF_COP_RATED, default=DEFAULT_COP_RATED
-                    ): _finite_range(1.0, 10.0),
-                    vol.Required(CONF_HAS_HEATING_ELEMENT, default=True): bool,
-                    vol.Required(CONF_HAS_DHW, default=True): bool,
-                    vol.Optional(CONF_STORAGE_VOLUME_L): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=20,
-                            max=5000,
-                            step=1,
-                            mode=selector.NumberSelectorMode.BOX,
-                            unit_of_measurement="L",
-                        )
-                    ),
-                    vol.Optional(CONF_BUILDING_REF): str,
-                }
-            ),
+            data_schema=_heat_pump_schema(user_input),
+            errors=errors,
         )
 
     async def async_step_required_sensors(
@@ -811,6 +966,9 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             sensor_keys += WALLBOX_SENSORS
         duplicates = _has_disallowed_duplicate_assignments(self._data, sensor_keys)
         if missing or duplicates:
+            if user_input is not None and user_input.get("acknowledge_warnings"):
+                self._data[CONF_CAPABILITY_LEVEL] = _capability(self._data)
+                return await self.async_step_summary()
             return self.async_show_form(
                 step_id="validation",
                 data_schema=vol.Schema(
@@ -869,11 +1027,11 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_LICENSE_ID: result.payload.license_id,
                     }
                 )
-                self.hass.config_entries.async_update_entry(
-                    self._reauth_entry, data=data
+                return self.async_update_and_abort(
+                    self._reauth_entry,
+                    data=data,
+                    reason="reauth_successful",
                 )
-                await self.hass.config_entries.async_reload(self._reauth_entry.entry_id)
-                return self.async_abort(reason="reauth_successful")
             errors["base"] = result.message_key
         return self.async_show_form(
             step_id="reauth_confirm", data_schema=_license_schema(), errors=errors
@@ -983,52 +1141,27 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
     async def async_step_heat_pump(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            self._options.update(user_input)
-            return await self._async_finish_feature_sequence()
+            try:
+                validated = _validated_heat_pump_input(user_input)
+            except vol.Invalid:
+                errors["base"] = "invalid_heat_pump_values"
+            else:
+                _replace_options(
+                    self._options, validated, HEAT_PUMP_OPTION_KEYS
+                )
+                return await self._async_finish_feature_sequence()
         return self.async_show_form(
             step_id="heat_pump",
-            data_schema=vol.Schema(
+            data_schema=_heat_pump_schema(
                 {
-                    vol.Required(
-                        CONF_WP_TYPE,
-                        default=self._options.get(
-                            CONF_WP_TYPE,
-                            self.config_entry.data.get(CONF_WP_TYPE, DEFAULT_WP_TYPE),
-                        ),
-                    ): vol.In(sorted(SUPPORTED_WP_TYPES)),
-                    vol.Optional(CONF_MANUFACTURER): str,
-                    vol.Optional(CONF_MODEL): str,
-                    vol.Required(
-                        CONF_HEATING_CAPACITY_KW,
-                        default=self._options.get(
-                            CONF_HEATING_CAPACITY_KW,
-                            self.config_entry.data.get(
-                                CONF_HEATING_CAPACITY_KW,
-                                DEFAULT_HEATING_CAPACITY_KW,
-                            ),
-                        ),
-                    ): _finite_range(1.0, 100.0),
-                    vol.Required(
-                        CONF_COP_RATED,
-                        default=self._options.get(
-                            CONF_COP_RATED,
-                            self.config_entry.data.get(
-                                CONF_COP_RATED, DEFAULT_COP_RATED
-                            ),
-                        ),
-                    ): _finite_range(1.0, 10.0),
-                    vol.Optional(CONF_STORAGE_VOLUME_L): selector.NumberSelector(
-                        selector.NumberSelectorConfig(
-                            min=20,
-                            max=5000,
-                            step=1,
-                            mode=selector.NumberSelectorMode.BOX,
-                            unit_of_measurement="L",
-                        )
-                    ),
+                    **self.config_entry.data,
+                    **self._options,
+                    **(user_input or {}),
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_sensors(
@@ -1043,7 +1176,11 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS,
             )
             merged = {**self.config_entry.data, **proposed}
-            if _required_sensor_errors(self.hass, merged):
+            sensor_keys = REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS
+            if _required_sensor_errors(self.hass, merged) or (
+                merged.get(CONF_HEAT_PUMP_ENABLED, True)
+                and _has_disallowed_duplicate_assignments(merged, sensor_keys)
+            ):
                 errors["base"] = "validation_required"
             else:
                 proposed[CONF_CAPABILITY_LEVEL] = _capability(merged)
@@ -1122,7 +1259,8 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                     _replace_options(self._options, user_input, WALLBOX_OPTION_KEYS)
                 else:
                     for key in WALLBOX_OPTION_KEYS:
-                        self._options.pop(key, None)
+                        # Explicitly mask legacy values from ConfigEntry.data.
+                        self._options[key] = None
                 return await self._async_finish_feature_sequence()
         return self.async_show_form(
             step_id="wallbox",

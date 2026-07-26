@@ -4,6 +4,7 @@ from __future__ import annotations
 
 # ruff: noqa: E402
 
+import math
 import sys
 from pathlib import Path
 
@@ -106,9 +107,20 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         changed = True
     try:
         configured_cop = float(options.get(CONF_COP_RATED, data.get(CONF_COP_RATED)))
+        configured_capacity = float(
+            options.get(
+                CONF_HEATING_CAPACITY_KW,
+                data.get(CONF_HEATING_CAPACITY_KW),
+            )
+        )
     except (TypeError, ValueError):
         return False
-    if not 1.0 <= configured_cop <= 10.0:
+    if (
+        not math.isfinite(configured_cop)
+        or not 1.0 <= configured_cop <= 10.0
+        or not math.isfinite(configured_capacity)
+        or not 1.0 <= configured_capacity <= 100.0
+    ):
         return False
     if changed or entry.version < 3:
         hass.config_entries.async_update_entry(
