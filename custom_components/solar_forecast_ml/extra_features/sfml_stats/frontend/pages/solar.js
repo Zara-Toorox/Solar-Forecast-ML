@@ -148,8 +148,8 @@ const _SolarPage = {
                         <div class="annual-kpi-label">{{ $t('solar.shadow.avgEfficiency') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #06b6d4;">
-                        <div class="annual-kpi-value" style="color: #06b6d4;">{{ shadowStats.daysLearned }}</div>
-                        <div class="annual-kpi-label">{{ $t('solar.shadow.aiLearningDays') }}</div>
+                        <div class="annual-kpi-value" style="color: #06b6d4;">{{ shadowStats.daysAnalyzed }}</div>
+                        <div class="annual-kpi-label">{{ $t('solar.shadow.daysAnalyzed') }}</div>
                     </div>
                 </div>
 
@@ -171,8 +171,8 @@ const _SolarPage = {
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
                     <span class="chart-title">🌓 {{ $t('solar.fingerprint.title') }}</span>
                     <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: var(--space-sm);">{{ $t('solar.fingerprint.subtitle', {
-                        historySamples: shadowFingerprint.summary.seasonal_evaluated_samples || 0,
-                        currentSamples: shadowFingerprint.summary.current_window_samples || shadowFingerprint.summary.evaluated_samples || 0
+                        currentSamples: shadowFingerprint.summary.current_window_samples || shadowFingerprint.summary.evaluated_samples || 0,
+                        historySamples: shadowFingerprint.summary.seasonal_evaluated_samples || 0
                     }) }}</span>
                 </div>
 
@@ -183,7 +183,7 @@ const _SolarPage = {
                         <div class="annual-kpi-label">{{ $t('solar.fingerprint.fixedObstructions') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #f59e0b;">
-                        <div class="annual-kpi-value" style="color: #f59e0b;">{{ shadowFingerprint.summary.shadow_hours || 0 }}h</div>
+                        <div class="annual-kpi-value" style="color: #f59e0b;">{{ shadowFingerprint.summary.shadow_hours || 0 }}</div>
                         <div class="annual-kpi-label">{{ $t('solar.fingerprint.localShadowHours') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #a855f7;">
@@ -1303,7 +1303,7 @@ const _SolarPage = {
                     efficiency: sh.stats.avg_efficiency != null
                         ? (sh.stats.avg_efficiency * 100).toFixed(0)
                         : null,
-                    daysLearned: sh.learning?.days_learned || 0,
+                    daysAnalyzed: sh.stats.days_analyzed || 0,
                 };
             }
         }

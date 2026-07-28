@@ -352,13 +352,17 @@ const ModernQualityPage = {
             <section v-else-if="activeSection === 'calendar' && heatmap" class="iq-detail-section">
                 <div class="iq-section-heading"><div><span class="iq-kicker">{{ heatmap.period?.start }} – {{ heatmap.period?.end }}</span><h2>{{ copy.heatmap }}</h2></div><strong>{{ heatmap.valid_days }} {{ copy.validDays }}</strong></div>
                 <div class="iq-heatmap-scroll">
-                    <div class="iq-month-labels"><span v-for="month in heatmapMonths" :key="month.key">{{ month.label }}</span></div>
-                    <div class="iq-heatmap" role="grid">
-                        <span v-for="blank in heatmapOffset" :key="'blank-' + blank" class="iq-heat-blank"></span>
-                        <button v-for="day in heatmap.days" :key="day.date" type="button" role="gridcell"
-                                class="iq-heat-cell" :class="heatClass(day)"
-                                :title="heatTitle(day)" :aria-label="heatTitle(day)"
-                                @click="selectHeatDay(day)"></button>
+                    <div class="iq-heatmap-canvas" :style="heatmapCanvasStyle">
+                        <div class="iq-month-labels" aria-hidden="true">
+                            <span v-for="month in heatmapMonths" :key="month.key" :style="heatmapMonthStyle(month)">{{ month.label }}</span>
+                        </div>
+                        <div class="iq-heatmap" role="grid">
+                            <span v-for="blank in heatmapOffset" :key="'blank-' + blank" class="iq-heat-blank"></span>
+                            <button v-for="day in heatmap.days" :key="day.date" type="button" role="gridcell"
+                                    class="iq-heat-cell" :class="heatClass(day)"
+                                    :title="heatTitle(day)" :aria-label="heatTitle(day)"
+                                    @click="selectHeatDay(day)"></button>
+                        </div>
                     </div>
                 </div>
                 <div class="iq-heat-legend"><span class="state-missing">{{ copy.missingDay }}</span><span class="quality-critical">0–39</span><span class="quality-weak">40–59</span><span class="quality-moderate">60–74</span><span class="quality-good">75–89</span><span class="quality-excellent">90–100</span></div>
@@ -428,13 +432,30 @@ const ModernQualityPage = {
         });
         const heatmapMonths = iqComputed(() => {
             const seen = new Set();
-            return (heatmap.value?.days || []).filter((day) => {
+            const labels = (heatmap.value?.days || []).filter((day) => {
                 const key = day.date.slice(0, 7);
                 if (seen.has(key)) return false;
                 seen.add(key);
                 return true;
-            }).map((day) => ({ key: day.date.slice(0, 7), label: iqFormatDate(day.date, { month: "short" }) }));
+            }).map((day) => ({
+                key: day.date.slice(0, 7),
+                label: iqFormatDate(day.date, { month: "short" }),
+                week: Math.floor((heatmapOffset.value + (heatmap.value.days || []).findIndex((item) => item.date === day.date)) / 7) + 1,
+            }));
+            const labelsPerWeek = new Map();
+            return labels.map((month) => {
+                const row = (labelsPerWeek.get(month.week) || 0) + 1;
+                labelsPerWeek.set(month.week, row);
+                return { ...month, row };
+            });
         });
+        const heatmapWeeks = iqComputed(() => Math.max(1, Math.ceil((heatmapOffset.value + (heatmap.value?.days?.length || 0)) / 7)));
+        const heatmapLabelRows = iqComputed(() => Math.max(1, ...heatmapMonths.value.map((month) => month.row)));
+        const heatmapCanvasStyle = iqComputed(() => ({
+            "--iq-heatmap-weeks": heatmapWeeks.value,
+            "--iq-month-label-rows": heatmapLabelRows.value,
+            "--iq-heatmap-width": `${heatmapWeeks.value * 17 - 3}px`,
+        }));
         let replayTimer = null;
         let replayChartInstance = null;
         let modelChartInstance = null;
@@ -611,6 +632,10 @@ const ModernQualityPage = {
             return `${iqFormatDate(day.date)} · ${iqFormatNumber(day.quality)}% · ${copy.rank} ${day.rank}/${day.rank_basis}`;
         }
 
+        function heatmapMonthStyle(month) {
+            return { gridColumn: month.week, gridRow: month.row };
+        }
+
         function selectHeatDay(day) {
             selectedHeatDay.value = day;
         }
@@ -680,9 +705,9 @@ const ModernQualityPage = {
             copy, tabs, activeSection, loading, errors, dashboard, replay, models, heatmap, milestones, trends,
             replayDate, activeHourIndex, playing, playbackSpeed, replayChart, modelChart, trendChart,
             modelDays, modelMode, selectedHeatDay, visibleSeries, replaySeries, currentReplayHour,
-            heatmapOffset, heatmapMonths, selectSection, loadSection, loadReplay, setModelDays, setModelMode,
+            heatmapOffset, heatmapMonths, heatmapCanvasStyle, selectSection, loadSection, loadReplay, setModelDays, setModelMode,
             togglePlayback, pausePlayback, restartReplay, jumpBiggest, componentValue, heatClass, heatTitle,
-            selectHeatDay, milestoneLabel, milestoneValue, hourState, signed, signedClass, healthLabel,
+            heatmapMonthStyle, selectHeatDay, milestoneLabel, milestoneValue, hourState, signed, signedClass, healthLabel,
             format: iqFormatNumber, formatDate: iqFormatDate, statement: iqStatement,
         };
     },

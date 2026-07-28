@@ -1,4 +1,32 @@
 // Copyright (c) 2025 Zara-Toorox. See ../../LICENSE for license terms.
+const PremiumDashboardLogic = {
+    relevantFreshness(dashboard, heatPump, wallbox, weather) {
+        const values = [dashboard.freshness?.energy || null];
+        if (heatPump.configured || wallbox.configured) {
+            values.push(dashboard.freshness?.eai || null);
+        }
+        if (weather.configured) {
+            values.push(dashboard.freshness?.weather || null);
+        }
+        return values;
+    },
+    oldestFreshness(values) {
+        const timestamps = values
+            .map((value) => Date.parse(value))
+            .filter(Number.isFinite);
+        return timestamps.length === values.length
+            ? Math.min(...timestamps)
+            : null;
+    },
+    dataState(dashboard, values, now = Date.now()) {
+        if (dashboard.is_demo) return "mock";
+        if (!dashboard.freshness?.energy) return "unavailable";
+        const oldest = PremiumDashboardLogic.oldestFreshness(values);
+        if (!Number.isFinite(oldest)) return "stale";
+        return now - oldest > 5 * 60 * 1000 ? "stale" : "live";
+    },
+};
+
 const PremiumDashboardPage = ((Vue) => {
     const { ref, reactive, computed, onMounted, onUnmounted } = Vue;
 
@@ -460,6 +488,7 @@ const PremiumDashboardPage = ((Vue) => {
             const heatPump = reactive({});
             const wallbox = reactive({});
             const weather = reactive({ warnings: [] });
+            const hasSnapshot = ref(false);
             let timer = null;
             let requestPending = false;
 
@@ -484,21 +513,24 @@ const PremiumDashboardPage = ((Vue) => {
                     assign(heatPump, data?.heat_pump);
                     assign(wallbox, data?.wallbox);
                     assign(weather, data?.weather);
+                    hasSnapshot.value = true;
                     error.value = null;
                     loaded.value = true;
                     emit("mode-change", dashboard.mode);
                 } catch (err) {
-                    Object.assign(dashboard, {
-                        mode: "unavailable",
-                        is_demo: false,
-                        generated_at: null,
-                    });
-                    assign(energy);
-                    assign(forecast);
-                    assign(price);
-                    assign(heatPump);
-                    assign(wallbox);
-                    assign(weather, { warnings: [] });
+                    if (!hasSnapshot.value) {
+                        Object.assign(dashboard, {
+                            mode: "unavailable",
+                            is_demo: false,
+                            generated_at: null,
+                        });
+                        assign(energy);
+                        assign(forecast);
+                        assign(price);
+                        assign(heatPump);
+                        assign(wallbox);
+                        assign(weather, { warnings: [] });
+                    }
                     error.value = err?.message || copy.unavailable;
                     loaded.value = true;
                     emit("mode-change", "unavailable");
@@ -576,19 +608,23 @@ const PremiumDashboardPage = ((Vue) => {
                 return number !== null && number > 10;
             };
 
-            const energyFreshness = computed(() => dashboard.freshness?.energy || null);
+            const relevantFreshness = computed(() => PremiumDashboardLogic.relevantFreshness(
+                dashboard,
+                heatPump,
+                wallbox,
+                weather,
+            ));
+            const oldestRelevantFreshness = computed(
+                () => PremiumDashboardLogic.oldestFreshness(relevantFreshness.value),
+            );
             const updatedTime = computed(() => {
-                const timestamp = Date.parse(energyFreshness.value);
-                return Number.isFinite(timestamp)
-                    ? new Date(timestamp).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+                return Number.isFinite(oldestRelevantFreshness.value)
+                    ? new Date(oldestRelevantFreshness.value).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
                     : "—";
             });
-            const dataState = computed(() => {
-                if (dashboard.is_demo) return "mock";
-                const timestamp = Date.parse(energyFreshness.value);
-                if (!Number.isFinite(timestamp)) return "unavailable";
-                return Date.now() - timestamp > 5 * 60 * 1000 ? "stale" : "live";
-            });
+            const dataState = computed(
+                () => PremiumDashboardLogic.dataState(dashboard, relevantFreshness.value),
+            );
             const dataStateLabel = computed(() => ({
                 mock: "MOCK",
                 live: "LIVE",
@@ -854,3 +890,4 @@ const PremiumDashboardPage = ((Vue) => {
 })(Vue);
 
 if (typeof window !== "undefined") window.PremiumDashboardPage = PremiumDashboardPage;
+if (typeof module !== "undefined") module.exports = PremiumDashboardLogic;

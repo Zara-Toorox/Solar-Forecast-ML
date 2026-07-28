@@ -55,7 +55,7 @@ const ModernEAIPage = {
                     <article class="eai-card wow-card accent"><span class="eyebrow">Warum läuft sie gerade?</span><h3>{{ whyNow.headline || "Noch keine Erklärung verfügbar" }}</h3><p>{{ whyNow.explanation }}</p><ul><li v-for="item in whyNow.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(whyNow.confidence_percent, " % Vertrauen") }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Tägliches Energie-Briefing</span><h3>{{ briefing.headline || "Briefing wird vorbereitet" }}</h3><p>{{ briefing.summary }}</p><ol><li v-for="item in briefing.actions || []" :key="item">{{ item }}</li></ol></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Bestes Wärmepumpen-PV-Fenster</span><h3>{{ windowLabel }}</h3><strong class="wow-number">{{ format(optimization.pv_surplus_kwh, " kWh") }}</strong><p>{{ optimizationExplanation.summary || optimization.recommendation || "Noch kein belastbares Wärmepumpen-PV-Fenster erkannt." }}</p><ul><li v-for="item in optimizationExplanation.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(optimizationExplanation.confidence_percent, " % Vertrauen") }}</span></footer></article>
-                    <article class="eai-card wow-card"><span class="eyebrow">Anlagenzustand</span><div v-if="healthStatus.scoreAvailable" class="health-row"><strong class="health-score">{{ healthStatus.score }}</strong><span>/ 100</span></div><h3 v-else>{{ healthStatus.title }}</h3><p>{{ healthStatus.text }}</p></article>
+                    <article class="eai-card wow-card"><span class="eyebrow">Betriebsbeobachtung</span><h3>{{ healthStatus.title }}</h3><p>{{ healthStatus.text }}</p></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Gebäude-Fingerabdruck</span><h3>{{ buildingStatus.title }}</h3><p>{{ buildingStatus.text }}</p><div class="learning"><span :style="{ width: buildingStatus.progress + '%' }"></span></div></article>
                 </div>
                 <article v-if="thermalLossDisplay.configured" class="eai-card thermal-loss-card">
@@ -194,6 +194,14 @@ const ModernEAIPage = {
         }
         const isValue = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
         const format = (value, unit = "") => isValue(value) ? `${EAI_NUMBER_FORMAT.format(Number(value))}${unit}` : "Noch nicht verfügbar";
+        const formatDurationMinutes = (value) => {
+            if (!isValue(value) || Number(value) < 0 || Number(value) > 24 * 60) return "Noch nicht verfügbar";
+            const minutes = Math.round(Number(value));
+            if (minutes < 60) return `${minutes} min`;
+            const hours = Math.floor(minutes / 60);
+            const remainder = String(minutes % 60).padStart(2, "0");
+            return `${EAI_NUMBER_FORMAT.format(hours)} h ${remainder} min`;
+        };
         const stateLabels = {
             off: "Aus", heating: "Heizbetrieb", dhw: "Warmwasser", standby: "Bereitschaft",
             defrost: "Abtauung", good: "Gut", critical: "Kritisch", estimated: "Geschätzt",
@@ -201,7 +209,7 @@ const ModernEAIPage = {
             on: "Ein", idle: "Wartet", cooling: "Kühlbetrieb", unavailable: "Nicht verfügbar",
             unknown: "Unbekannt", warning: "Warnung", error: "Fehler", degraded: "Eingeschränkt",
             configured: "Eingerichtet", incomplete: "Unvollständig", missing: "Fehlt", valid: "Gültig",
-            invalid: "Ungültig", stale: "Veraltet", fresh: "Aktuell", ready: "Bereit",
+            invalid: "Ungültig", stale: "Veraltet", fresh: "Aktuell", ready: "Bereit", partial: "Teilweise",
         };
         const displayState = (value) => value == null || value === "" ? "Noch nicht verfügbar" : stateLabels[String(value).toLowerCase()] || "Unbekannter Zustand";
         const containsTechnicalId = (value) => /(?:^|[^a-z0-9])(?:sensor|binary_sensor|switch|climate|number|input_number)\.[a-z0-9_]+|\b[a-z0-9]+_entity\b/i.test(String(value || ""));
@@ -236,34 +244,104 @@ const ModernEAIPage = {
         }[status.capability_level] || "Vorschau"));
         const dataStatus = computed(() => {
             if (status.is_demo) return { title: "Datenstatus: Premium-Demo", text: "Alle Werte dieser Ansicht sind gekennzeichnete Beispieldaten." };
+            const dataReadiness = readiness.value.data || {};
+            const dataState = dataReadiness.status ?? diagnostics.value.sensor_quality;
+            if (dataReadiness.ready === true || dataState === "ready") return { title: "Datenstatus: bereit", text: "Messwerte, Prognosen und Modellergebnisse werden in ihren Beschreibungen getrennt ausgewiesen." };
+            if (dataState === "degraded") return { title: "Datenstatus: eingeschränkt", text: "Mindestens eine zugeordnete Messgröße ist nicht aktuell oder nicht ausreichend belastbar; abhängige Werte werden zurückgehalten." };
+            if (dataState === "unavailable") return { title: "Datenstatus: nicht verfügbar", text: "Die erforderliche Datengrundlage ist noch nicht vollständig nutzbar. Details stehen in der Diagnose." };
             if (status.data_mode === "degraded") return { title: "Datenstatus: eingeschränkt", text: "Messwerte, Prognosen und Modellergebnisse werden nur angezeigt, wenn ihre Grundlage belastbar ist." };
-            return { title: "Datenstatus: Anlage", text: "Messwerte, Prognosen und gelernte Modellergebnisse sind in den Beschreibungen getrennt ausgewiesen." };
+            return { title: "Datenstatus: nicht prüfbar", text: "Der Provider liefert keinen eindeutigen Datenstatus. Details stehen in der Diagnose." };
         });
-        const configuredSensorCount = computed(() => {
-            if (isValue(diagnostics.value.sensor_count_available) && isValue(diagnostics.value.sensor_count_configured)) {
-                return {
-                    configured: Number(diagnostics.value.sensor_count_available),
-                    total: Number(diagnostics.value.sensor_count_configured),
+        const sensorAvailability = computed(() => {
+            if (!isValue(diagnostics.value.sensor_count_available)
+                || !isValue(diagnostics.value.sensor_count_configured)) return null;
+            return {
+                available: Number(diagnostics.value.sensor_count_available),
+                configured: Number(diagnostics.value.sensor_count_configured),
+                supported: isValue(diagnostics.value.sensor_count_supported)
+                    ? Number(diagnostics.value.sensor_count_supported)
+                    : null,
+            };
+        });
+        const metricReason = (key) => {
+            const metricStatus = current.value.metric_status?.[key]
+                ?? current.value.metric_reasons?.[key]
+                ?? current.value[`${key}_status`]
+                ?? current.value[`${key}_reason`];
+            if (!metricStatus) return null;
+            const reasonText = {
+                volume_flow_non_positive: "Der Volumenstrom ist null oder negativ; daraus kann keine thermische Leistung berechnet werden.",
+                flow_temperature_not_above_return: "Die Vorlauftemperatur liegt nicht über der Rücklauftemperatur; daraus kann keine positive Wärmeleistung berechnet werden.",
+                hydraulic_inputs_not_synchronous: "Vorlauf, Rücklauf und Volumenstrom wurden nicht zeitgleich aktualisiert.",
+                electrical_power_too_low: "Die elektrische Leistung liegt unter 100 W; ein momentaner COP wäre nicht belastbar.",
+                electrical_power_boundary_incomplete: "Bei getrennter Messung fehlt die Heizstableistung; der gesamte elektrische Bedarf ist deshalb nicht vollständig erfasst.",
+                cop_inputs_not_synchronous: "Elektrische und hydraulische Messwerte wurden nicht zeitgleich aktualisiert.",
+                cop_outside_plausible_range: "Der berechnete COP liegt außerhalb des plausiblen Bereichs von 0,5 bis 12.",
+                runtime_unavailable: "Der kumulierte Laufzeitzähler ist nicht verfügbar.",
+                starts_unavailable: "Der kumulierte Startzähler ist nicht verfügbar.",
+                starts_zero: "Der Startzähler steht bei null; eine mittlere Laufzeit kann noch nicht berechnet werden.",
+                starts_invalid: "Der Startzähler liefert keinen gültigen, nichtnegativen Ganzzahlwert.",
+                counter_scope_unverified: "Die Zeiträume von Laufzeit- und Startzähler sind noch nicht bestätigt. Wähle beide Zählerzeiträume in der EAI-Konfiguration aus.",
+                counter_scope_mismatch: "Laufzeit- und Startzähler decken unterschiedliche Zeiträume ab und dürfen nicht miteinander verrechnet werden.",
+                runtime_scope_implausible: "Der als täglich konfigurierte Laufzeitzähler überschreitet selbst unter Berücksichtigung der Zeitumstellung einen Kalendertag.",
+                learning_samples_insufficient: "Das Gebäudemodell hat noch nicht mindestens 12 gültige Temperaturmesspunkte gesammelt.",
+                observation_window_too_short: "Die gültigen Temperaturmesspunkte decken noch keine volle Stunde ab.",
+                temperature_change_insufficient: "Die Innentemperatur hat sich im Beobachtungszeitraum um weniger als 0,1 °C verändert; daraus lässt sich noch keine thermische Reaktion bestimmen.",
+                thermal_power_unavailable: "Für den Gebäude-Wärmeverlust fehlt noch eine belastbare thermische Leistung aus zeitgleichen Vorlauf-, Rücklauf- und Volumenstromwerten.",
+                compressor_not_running: "Der Wärmeverlust wird erst in einer geeigneten Heizphase mit laufendem Kompressor bestimmt.",
+                comfort_reference_unavailable: "Für den stationären Wärmeverlust werden Innen- und Solltemperatur benötigt.",
+                steady_state_not_reached: "Die Anlage befindet sich noch nicht in einem stationären Heizpunkt nahe der Solltemperatur.",
+                steady_state_samples_insufficient: "Für die Wärmeverlustschätzung werden mindestens sechs geeignete Heizpunkte benötigt.",
+                steady_state_observation_too_short: "Die geeigneten Heizpunkte decken noch keine zwei Stunden ab.",
+                indoor_temperature_not_stable: "Die Innentemperatur war in den geeigneten Heizpunkten noch nicht stabil genug.",
+                heat_loss_coefficient_implausible: "Aus den geeigneten Heizpunkten lässt sich noch kein plausibler Wärmeverlustkoeffizient ableiten.",
+                temperature_spread_unavailable: "Für die Hochrechnung fehlt der aktuelle Unterschied zwischen Innen- und Außentemperatur.",
+                temperature_spread_insufficient: "Der aktuelle Unterschied zwischen Innen- und Außentemperatur ist für eine belastbare Hochrechnung zu klein.",
+                average_cycle_implausible: "Das Ergebnis liegt außerhalb des sicheren Plausibilitätsbereichs und wird deshalb nicht angezeigt.",
+            };
+            if (typeof metricStatus === "string") {
+                if (reasonText[metricStatus]) return reasonText[metricStatus];
+                const fields = {
+                    flow_temperature: "Vorlauftemperatur",
+                    return_temperature: "Rücklauftemperatur",
+                    volume_flow: "Volumenstrom",
+                    electrical_power: "Elektrische Leistung",
                 };
+                const match = metricStatus.match(/^(flow_temperature|return_temperature|volume_flow|electrical_power)_(stale|not_configured|unavailable|not_numeric|unsupported_unit)$/);
+                if (match) {
+                    const [, field, reason] = match;
+                    const messages = {
+                        stale: "wurde nicht rechtzeitig aktualisiert",
+                        not_configured: "ist noch nicht zugeordnet",
+                        unavailable: "liefert aktuell keinen verfügbaren Wert",
+                        not_numeric: "liefert keinen numerischen Messwert",
+                        unsupported_unit: "verwendet eine nicht unterstützte Einheit",
+                    };
+                    return `${fields[field]} ${messages[reason]}.`;
+                }
+                return "Die Berechnungsgrundlage ist aktuell nicht belastbar. Details stehen in der Diagnose.";
             }
-            const checks = diagnostics.value.checks;
-            if (!checks || typeof checks !== "object") return null;
-            const values = Object.values(checks);
-            return { configured: values.filter(Boolean).length, total: values.length };
-        });
+            const message = metricStatus.customer_message
+                ?? metricStatus.message
+                ?? metricStatus.reason_text
+                ?? metricStatus.reason;
+            return safeCustomerText(message, null) || reasonText[metricStatus.reason_code ?? metricStatus.code] || null;
+        };
         const diagnosticIssues = computed(() => {
             const issues = Array.isArray(diagnostics.value.issues) ? diagnostics.value.issues : [];
             return issues.map((issue, index) => {
                 const structured = issue && typeof issue === "object" ? issue : { code: issue };
                 const signal = `${structured.category || ""} ${structured.type || ""} ${structured.code || ""}`.toLowerCase();
-                const category = /setup|config|assign|mapping/.test(signal) ? "setup"
+                const category = structured.code === "duplicate_assignment" || /duplicate|assign|mapping/.test(signal) ? "assignment"
+                    : /setup|config/.test(signal) ? "setup"
                     : /model|learn|forecast|confidence/.test(signal) ? "model"
                         : /plant|system|equipment|compressor|fault|drift/.test(signal) ? "plant"
                             : "source";
                 const copy = {
                     setup: ["Einrichtung ergänzen", "Öffne die EAI-Einrichtung und ordne diese Messgröße einer Datenquelle zu."],
+                    assignment: ["Doppelte Zuordnung korrigieren", "Ordne jeder betroffenen Messgröße eine eigenständige Datenquelle zu."],
                     source: ["Datenquelle prüfen", "Prüfe Verfügbarkeit, Aktualität und Einheit der zugeordneten Messung."],
-                    model: ["Prognosegrundlage prüfen", "Stelle eine aktuelle Außentemperaturprognose bereit und aktualisiere die Auswertung."],
+                    model: ["Temperaturprognose prüfen", "Stelle eine aktuelle stündliche Temperaturprognose bereit und aktualisiere die Auswertung."],
                     plant: ["Anlagenhinweis prüfen", "Prüfe den realen Betriebszustand der Wärmepumpe und die zugehörigen Messwerte."],
                 }[category];
                 const affectedInputs = Array.isArray(structured.affected_inputs) ? structured.affected_inputs : [];
@@ -279,8 +357,9 @@ const ModernEAIPage = {
                     not_configured: `Ohne ${affected} kann EAI die grundlegende Wärmepumpenbewertung nicht vollständig berechnen.`,
                     unavailable: `${affected} liefert aktuell keinen gültigen Wert. Abhängige Auswertungen bleiben deshalb nicht verfügbar.`,
                     stale: `${affected} ist nicht mehr aktuell. Abhängige Aussagen werden bis zur nächsten gültigen Aktualisierung zurückgehalten.`,
-                    duplicate_assignment: `${affected} ist keiner unabhängigen Datenquelle zugeordnet. Dadurch können Auswertungen verfälscht werden.`,
-                    forecast_temperature_fallback: `Für ${affected} wird derzeit ein Ersatzwert verwendet. Das reduziert die Prognosequalität.`,
+                    duplicate_assignment: `${affected} verwenden dieselbe Datenquelle. EAI kann daraus keine unabhängigen Messwerte ableiten und hält betroffene Auswertungen zurück.`,
+                    forecast_temperature_fallback: `Der aktuelle Außentemperatursensor funktioniert. Für Teile des zukünftigen Prognosezeitraums fehlen jedoch stündliche Temperaturwerte; nur dort verwendet EAI ersatzweise den aktuellen Messwert.`,
+                    short_cycling_observed: `Bei mindestens fünf bestätigten Kompressorstarts liegt die mittlere Laufzeit unter zehn Minuten. Das kann auf häufiges Takten hinweisen.`,
                 }[structured.code] || `${affected} kann derzeit nicht belastbar ausgewertet werden.`;
                 const instruction = safeCustomerText(
                     structured.remediation?.instruction,
@@ -291,42 +370,58 @@ const ModernEAIPage = {
         });
         const plantIssues = computed(() => diagnosticIssues.value.filter((issue) => issue.category === "plant"));
         const diagnosticGroups = computed(() => {
-            const count = configuredSensorCount.value;
+            const availability = sensorAvailability.value;
             const setupState = setupComplete.value;
             const dataState = displayState(readiness.value.data?.status ?? diagnostics.value.sensor_quality);
             const modelState = displayState(readiness.value.model?.status ?? diagnostics.value.model_status);
+            const hasAssignmentIssue = diagnosticIssues.value.some((issue) => issue.category === "assignment");
             const groups = [
-                { id: "setup", eyebrow: "Einrichtung", title: setupState === true ? "Einrichtung vollständig" : setupState === false ? "Einrichtung unvollständig" : "Einrichtungsstatus nicht prüfbar", text: setupState == null ? "Der Provider hat keinen eindeutigen Einrichtungsstatus geliefert." : count ? `${count.configured} von ${count.total} Datenprüfungen bestanden.` : "Der Einrichtungsumfang ist noch nicht vollständig prüfbar." },
-                { id: "source", eyebrow: "Datenquellen", title: dataState, text: "Verfügbarkeit, Aktualität und Plausibilität der Messdaten – keine Anlagenbewertung." },
+                { id: "setup", eyebrow: "Einrichtung", title: setupState === true ? "Einrichtung vollständig" : setupState === false ? "Einrichtung unvollständig" : "Einrichtungsstatus nicht prüfbar", text: setupState === true ? "Alle erforderlichen Eingaben sind eingerichtet." : setupState === false ? "Mindestens eine erforderliche Eingabe fehlt noch." : "Der Provider hat keinen eindeutigen Einrichtungsstatus geliefert." },
+                { id: "source", eyebrow: "Datenquellen", title: dataState, text: availability ? `${availability.available} von ${availability.configured} zugeordneten Messgrößen aktuell nutzbar. Verfügbarkeit und Aktualität der Messdaten – keine Anlagenbewertung.` : "Verfügbarkeit und Aktualität der Messdaten – keine Anlagenbewertung." },
+                { id: "assignment", eyebrow: "Messgrößen-Zuordnung", title: hasAssignmentIssue ? "Zuordnungen prüfen" : "Keine Zuordnungskonflikte erkannt", text: hasAssignmentIssue ? "Mindestens zwei nicht gleichbedeutende Messgrößen verwenden dieselbe Datenquelle." : "Zulässige gemeinsame Sensoren werden passend zur Anlagenkonfiguration berücksichtigt." },
                 { id: "model", eyebrow: "Modell", title: modelState, text: "Lernreife und Prognosegrundlage – getrennt vom technischen Anlagenzustand." },
-                { id: "plant", eyebrow: "Echter Anlagenzustand", title: healthStatus.value.scoreAvailable ? `${healthStatus.value.score} von 100` : healthStatus.value.title, text: healthStatus.value.text },
+                { id: "plant", eyebrow: "Betriebsbeobachtung", title: healthStatus.value.title, text: healthStatus.value.text },
             ];
             return groups.map((group) => ({ ...group, issues: diagnosticIssues.value.filter((issue) => issue.category === group.id) }));
         });
         const healthStatus = computed(() => {
             const plantReadiness = readiness.value.plant || {};
-            const reliable = typeof plantReadiness.reliable === "boolean"
-                ? plantReadiness.reliable
-                : diagnostics.value.health_score_reliable === true
-                    || diagnostics.value.plant_assessment_reliable === true
-                    || diagnostics.value.plant_assessment?.reliable === true;
-            const score = plantReadiness.score ?? diagnostics.value.health_score;
-            if (setupComplete.value !== true) {
-                const count = configuredSensorCount.value;
-                const setup = count ? `${count.configured} von ${count.total} Datenprüfungen bestanden.` : "Die Datengrundlage ist noch nicht vollständig.";
-                return { scoreAvailable: false, title: "Einrichtung noch unvollständig", text: `${setup} Das ist kein nachgewiesener Defekt der Wärmepumpe.` };
+            const plantStatus = plantReadiness.status ?? diagnostics.value.plant_assessment?.status;
+            const observedHours = Number(plantReadiness.observed_hours ?? diagnostics.value.plant_assessment?.observed_hours ?? 0);
+            const requiredHours = Number(plantReadiness.required_hours ?? diagnostics.value.plant_assessment?.required_hours ?? 24);
+            if (plantStatus === "learning") {
+                return { title: "Betriebsbeobachtung läuft", text: `${EAI_NUMBER_FORMAT.format(observedHours)} von ${EAI_NUMBER_FORMAT.format(requiredHours)} erforderlichen Beobachtungsstunden liegen vor. Home Assistant muss lediglich weiterlaufen; zusätzliche Eingaben sind nicht erforderlich.` };
             }
-            if (!reliable || !isValue(score)) return { scoreAvailable: false, title: "Anlagenzustand noch nicht bewertbar", text: "Einrichtung, Datenquellen und Modell reichen noch nicht für eine belastbare Anlagenbewertung." };
-            return { scoreAvailable: true, score: EAI_NUMBER_FORMAT.format(Number(score)), title: "", text: plantIssues.value.length ? "Belastbare Anlagenhinweise sind in der Diagnose zusammengefasst." : "Keine belastbare technische Abweichung erkannt." };
+            if (plantStatus === "data_required") {
+                return { title: "Messdaten für Betriebsbeobachtung fehlen", text: "Prüfe die unter Datenquellen genannten Pflichtmessungen. Nach gültigen Messwerten beginnt die 24-stündige Betriebsbeobachtung automatisch." };
+            }
+            if (plantStatus === "operation_data_required") {
+                return { title: "Taktbeobachtung wartet auf vergleichbare Zähler", text: "Bestätige in der EAI-Konfiguration für Laufzeit und Kompressorstarts denselben Zählerzeitraum. Nach mindestens fünf Starts kann EAI das Taktverhalten einordnen." };
+            }
+            if (plantStatus === "cycle_attention") {
+                return { title: "Kurze Kompressortakte erkannt", text: "Die mindestens 24-stündige Beobachtung zeigt bei mindestens fünf Starts eine mittlere Laufzeit unter zehn Minuten. Das ist ein Hinweis zum Taktverhalten, keine allgemeine Anlagen- oder Wartungsdiagnose." };
+            }
+            if (plantStatus === "cycle_observed") {
+                return { title: "Taktverhalten beobachtet", text: "Die mindestens 24-stündige Beobachtung zeigt anhand der bestätigten Zähler keine kurzen Kompressortakte. Das ist ausschließlich eine Aussage zum Taktverhalten, keine allgemeine Anlagen- oder Wartungsdiagnose." };
+            }
+            if (plantStatus === "not_assessed") {
+                return { title: "Taktbeobachtung nicht bereitgestellt", text: "Diese EAI-Vertragsversion liefert noch keine Taktbeobachtung. Dafür gibt es keine fehlende Kundeneingabe; die Anzeige wird mit einem Provider aktualisiert, der den aktuellen Vertrag unterstützt." };
+            }
+            if (setupComplete.value !== true) {
+                return { title: "Einrichtung noch unvollständig", text: "Mindestens eine erforderliche Eingabe fehlt noch. Das ist kein nachgewiesener Defekt der Wärmepumpe." };
+            }
+            return { title: "Taktbeobachtung noch nicht möglich", text: "Die konkrete fehlende Voraussetzung steht in dieser Diagnose. Die Auswertung startet automatisch, sobald sie erfüllt ist." };
         });
         const buildingStatus = computed(() => {
             const progress = Math.min(100, Math.max(0, Number(building.value.learning_progress_percent || 0)));
             if (!isValue(building.value.thermal_inertia_hours) || !isValue(building.value.heat_loss_kw)) {
                 const missingIndoor = !isValue(building.value.indoor_c);
+                const observed = Number(building.value.learning_observed_hours || 0);
+                const required = Number(building.value.learning_required_hours || 24);
                 return {
                     progress,
                     title: missingIndoor ? "Innenraumsensor noch nicht verfügbar" : "Gebäudemodell lernt noch",
-                    text: `${missingIndoor ? "Ohne Innentemperatur kann das Gebäudeverhalten nicht belastbar gelernt werden. " : ""}Lernfortschritt: ${Math.round(progress)} %.`,
+                    text: `${missingIndoor ? "Ohne Innentemperatur kann das Gebäudeverhalten nicht belastbar gelernt werden. " : ""}${EAI_NUMBER_FORMAT.format(observed)} von ${EAI_NUMBER_FORMAT.format(required)} Beobachtungsstunden · Lernfortschritt: ${Math.round(progress)} %.`,
                 };
             }
             return { progress, title: `${building.value.thermal_inertia_hours} h Wärmespeicher`, text: `Geschätzter Wärmeverlust: ${building.value.heat_loss_kw} kW · Modellfortschritt: ${Math.round(progress)} %.` };
@@ -338,14 +433,16 @@ const ModernEAIPage = {
             const daily = Number(loss.standby_loss_kwh_day);
             const forecastLoss = Number(loss.forecast_thermal_loss_kwh_24h);
             const enoughSamples = intervals >= 24;
-            const plausible = [coefficient, daily, forecastLoss].every(Number.isFinite)
+            const hasPlausibilityValues = [coefficient, daily, forecastLoss].every(Number.isFinite);
+            const plausible = hasPlausibilityValues
                 && coefficient > 0 && coefficient <= 15
                 && daily > 0 && daily <= 12
                 && forecastLoss > 0 && forecastLoss <= 16;
             const available = loss.available === true && enoughSamples && plausible;
             const reasons = [];
             if (!enoughSamples) reasons.push(`erst ${intervals} von mindestens 24 geeigneten Abkühlintervallen`);
-            if (!plausible) reasons.push("physikalische Plausibilitätsgrenze nicht bestanden");
+            else if (!hasPlausibilityValues) reasons.push("Plausibilitätsprüfung läuft");
+            else if (!plausible) reasons.push("physikalische Plausibilitätsgrenze nicht bestanden");
             return {
                 ...loss,
                 configured: loss.configured !== false && Object.keys(loss).length > 0,
@@ -417,11 +514,8 @@ const ModernEAIPage = {
         const energyItems = computed(() => {
             const energy = sections.energy || {};
             const providerResidual = energyAudit.value.valid ? energy.unallocated_or_export_kwh : null;
-            const coverage = Number(energy.pv_coverage_percent);
-            const heatPump = Number(energy.heat_pump_kwh);
-            const calculatedGrid = Number.isFinite(coverage) && Number.isFinite(heatPump)
-                ? Math.round(Math.max(0, heatPump * (1 - coverage / 100)) * 100) / 100
-                : null;
+            const heatPumpGridImport = energy.heat_pump_grid_import_kwh
+                ?? energy.expected_grid_import_kwh;
             const householdPower = liveEnergyFlow.household_kw ?? energy.household_power_kw ?? overview.value.household_power_kw;
             return [
                 { label: "PV-Prognose", value: format(energy.pv_forecast_kwh, " kWh"), description: "Erwartete PV-Energie im ausgewiesenen Prognosezeitraum." },
@@ -437,7 +531,7 @@ const ModernEAIPage = {
                 { label: "Rest-PV", value: format(providerResidual, " kWh"), description: energyAudit.value.valid ? "Nach allen bestätigten Allokationen nicht zugeordnet oder zur Einspeisung verfügbar; keine Wallbox-Zusage." : "Wegen einer nicht geschlossenen Energiebilanz unterdrückt." },
                 { label: "Konservativer Sicherheitsabschlag", value: format(energy.pv_calibration_reserve_kwh, " kWh"), description: "Nicht zusätzlich verplante PV-Energie aufgrund historischer Prognose- und Überschussabweichungen." },
                 { label: "PV-Anteil Wärmepumpe", value: format(energy.pv_coverage_percent, " %"), description: "Anteil des elektrischen Wärmepumpenbedarfs, den PV voraussichtlich deckt." },
-                { label: "Netzbezug Wärmepumpe", value: format(calculatedGrid, " kWh"), description: "Aus Wärmepumpenbedarf und PV-Anteil rechnerisch erwarteter Netzbezug." },
+                { label: "Netzbezug Wärmepumpe", value: format(heatPumpGridImport, " kWh"), description: "Vom EAI-Provider für denselben Prognosezeitraum ausgewiesener Netzbezug." },
                 { label: "Energiekontext-Abdeckung", value: format(energy.energy_context_quality_percent, " %"), description: "Abdeckung der benötigten STATS-Kontextdaten; keine Gesamtbewertung der Modellqualität." },
             ];
         });
@@ -492,7 +586,7 @@ const ModernEAIPage = {
                 runtime_heating_hours: ["Laufzeit Heizung", " h", "Davon für Raumheizung."],
                 runtime_dhw_hours: ["Laufzeit Warmwasser", " h", "Davon für Warmwasserbereitung."],
                 starts: ["Kompressorstarts", "", "Kumulierter Startzähler des Kompressors."],
-                average_cycle_minutes: ["Durchschnittliche Laufzeit je Start", " min", "Mittlere Kompressorlaufzeit pro Start."],
+                average_cycle_minutes: ["Durchschnittliche Laufzeit je Start", "", "Mittlere Kompressorlaufzeit pro Start."],
                 sensor_coverage_percent: ["Datenabdeckung", " %", "Anteil verfügbarer Betriebsdaten; Details stehen in Diagnose."],
             },
             efficiency: {
@@ -503,6 +597,8 @@ const ModernEAIPage = {
                 cop: ["Momentaner COP", "", "Nur aus zeitgleichen elektrischen und thermischen Leistungswerten."],
                 electric_power_kw: ["Elektrische Leistung", " kW", "Momentane elektrische Aufnahmeleistung."],
                 thermal_power_kw: ["Thermische Leistung", " kW", "Momentane Wärmeleistung aus synchronen Messgrößen."],
+                flow_c: ["Vorlauftemperatur", " °C", "Für die hydraulische Wärmeleistung verwendete Vorlauftemperatur."],
+                return_c: ["Rücklauftemperatur", " °C", "Für die hydraulische Wärmeleistung verwendete Rücklauftemperatur."],
                 volume_flow_l_min: ["Volumenstrom", " l/min", "Aktueller Volumenstrom des Heizkreises."],
             },
             building: {
@@ -510,7 +606,7 @@ const ModernEAIPage = {
                 outdoor_c: ["Außentemperatur", " °C", "Aktuelle Außentemperatur der verwendeten Datenquelle."],
                 comfort_delta_c: ["Abweichung vom Komfortziel", " K", "Differenz zwischen Innenraumtemperatur und Komfortziel."],
                 thermal_inertia_hours: ["Thermische Trägheit", " h", "Gelernte Reaktionsdauer des Gebäudes."],
-                heat_loss_kw: ["Geschätzter Gebäude-Wärmeverlust", " kW", "Modellergebnis, kein geeichter Wärmemesswert."],
+                heat_loss_kw: ["Geschätzter Gebäude-Wärmeverlust am aktuellen Temperaturpunkt", " kW", "Aus stabilen Heizphasen abgeleitete Schätzung über den Wärmeverlustkoeffizienten; kein geeichter Wärmemesswert."],
                 learning_progress_percent: ["Fortschritt Gebäudemodell", " %", "Reife des Gebäudemodells, nicht die Messdatenqualität."],
             },
             diagnostics: {
@@ -522,13 +618,38 @@ const ModernEAIPage = {
                 drift: ["Modellabweichung", "", "Zeigt, ob sich das Anlagenverhalten gegenüber dem gelernten Muster verändert.", true],
             },
         };
-        const detailItems = computed(() => Object.entries(labels[activeTab.value] || {}).map(([key, [label, unit, description, isState]]) => ({
-            label,
-            value: isState ? displayState(current.value[key]) : format(current.value[key], unit),
-            description: key === "sensor_coverage_percent" && configuredSensorCount.value
-                ? `${configuredSensorCount.value.configured} von ${configuredSensorCount.value.total} Datenprüfungen bestanden.`
-                : description,
-        })));
+        const detailItems = computed(() => Object.entries(labels[activeTab.value] || {}).map(([key, [label, unit, description, isState]]) => {
+            const missingReason = !isState ? metricReason(key) : null;
+            const scope = key === "starts" ? current.value.starts_scope
+                : ["runtime_hours", "runtime_heating_hours", "runtime_dhw_hours"].includes(key) ? current.value.runtime_scope
+                    : null;
+            const scopedLabel = key === "starts" && scope === "daily" ? "Kompressorstarts heute"
+                : key === "runtime_hours" ? scope === "daily" ? "Laufzeit heute"
+                    : scope === "lifetime" ? "Gesamtlaufzeit"
+                        : "Kompressorlaufzeit"
+                    : key === "runtime_heating_hours" && scope === "daily" ? "Laufzeit Heizung heute"
+                    : key === "runtime_dhw_hours" && scope === "daily" ? "Laufzeit Warmwasser heute"
+                    : label;
+            const scopedDescription = key === "starts"
+                ? scope === "daily" ? "Seit Tagesbeginn gezählte Kompressorstarts."
+                    : scope === "lifetime" ? "Kumulierter Startzähler seit Inbetriebnahme."
+                        : "Zeitraum des Startzählers noch nicht bestätigt."
+                : ["runtime_hours", "runtime_heating_hours", "runtime_dhw_hours"].includes(key)
+                    ? scope === "daily" ? "Kompressorlaufzeit seit Tagesbeginn."
+                        : scope === "lifetime" ? "Kumulierter Betriebsstundenzähler seit Inbetriebnahme."
+                            : "Zeitraum des Laufzeitzählers noch nicht bestätigt."
+                    : description;
+            return {
+                label: scopedLabel,
+                value: key === "average_cycle_minutes"
+                    ? (missingReason ? "Noch nicht verfügbar" : formatDurationMinutes(current.value[key]))
+                    : isState ? displayState(current.value[key]) : format(current.value[key], unit),
+                description: missingReason
+                    || (key === "sensor_coverage_percent" && sensorAvailability.value
+                        ? `${sensorAvailability.value.available} von ${sensorAvailability.value.configured} zugeordneten Messgrößen aktuell nutzbar.`
+                        : scopedDescription),
+            };
+        }));
         const locked = computed(() => current.value.locked === true);
         const powerHeight = (value) => `${Math.min(100, Math.max(2, Number(value || 0) * 26))}%`;
         const bandStyle = (point) => ({ bottom: powerHeight(point.lower_kw), height: `${Math.max(2, (point.upper_kw - point.lower_kw) * 26)}%` });
@@ -537,7 +658,7 @@ const ModernEAIPage = {
             return `${time} · ${format(point.forecast_kw, " kW")} · Band ${format(point.lower_kw, "")}–${format(point.upper_kw, " kW")} · ± ${format(point.uncertainty_percent, " %")}`;
         };
         onMounted(load);
-        return { tabs, activeTab, selectTab, handleTabKeydown, loading, error, status, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, powerHeight, bandStyle, forecastPointTitle };
+        return { tabs, activeTab, selectTab, handleTabKeydown, loading, error, status, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle };
     },
 };
 

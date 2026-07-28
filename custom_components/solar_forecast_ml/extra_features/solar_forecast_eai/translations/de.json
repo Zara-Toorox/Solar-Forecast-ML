@@ -25,6 +25,22 @@
           "weather_intelligence_enabled": "Wertet eine installierte Weather-Fusion-AI-Prognose, lokale Messungen und Wetterrisiken aus."
         }
       },
+      "sensor_sources": {
+        "title": "Vorhandene Sensorzuordnungen übernehmen",
+        "description": "EAI hat lokal veröffentlichte, kompatible Zuordnungen installierter Toorox-Integrationen gefunden. Es wird nichts übernommen, bevor du die Übernahme aktivierst und eine Quelle bestätigst. Manuelle Zuordnungen haben immer Vorrang.",
+        "data": {
+          "use_discovered_sensor_mappings": "Kompatible Zuordnungen übernehmen",
+          "environment_sensor_source": "Quelle für Außenbedingungen",
+          "heat_pump_sensor_source": "Quelle für Wärmepumpenmessungen",
+          "wallbox_sensor_source": "Quelle für Wallboxmessungen"
+        },
+        "data_description": {
+          "use_discovered_sensor_mappings": "Prüfe alle vorgeschlagenen Entitäten auf den folgenden Seiten, bevor die Konfiguration gespeichert wird.",
+          "environment_sensor_source": "Liefert eine kompatible Entität für die Außentemperatur.",
+          "heat_pump_sensor_source": "Liefert kompatible Verdichter- und, sofern vorhanden, Heizstab-Entitäten.",
+          "wallbox_sensor_source": "Liefert kompatible Entitäten für Wallbox-Leistung und -Energie."
+        }
+      },
       "heat_pump": {
         "title": "Wärmepumpe und Gebäude",
         "description": "Hinterlege die technischen Grunddaten der Wärmepumpe und ihrer Installation.",
@@ -34,6 +50,7 @@
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
           "cop_rated": "COP am Datenblatt-Prüfpunkt",
+          "electrical_measurement_topology": "Topologie der elektrischen Messung",
           "has_heating_element": "Elektrischer Heizstab vorhanden",
           "has_dhw": "Warmwasserbereitung vorhanden",
           "storage_volume_l": "Nutzbares Speichervolumen (l)",
@@ -45,6 +62,7 @@
           "model": "Optionale Modell- oder Produktbezeichnung.",
           "heating_capacity_kw": "Nenn-Heizleistung laut Datenblatt von 1 bis 100 kW.",
           "cop_rated": "COP laut Datenblatt an einem angegebenen Prüfpunkt, zum Beispiel A7/W35 oder B0/W35. Das ist kein aktueller Messwert und keine JAZ. Falls unbekannt, kann der Standardwert 4,0 beibehalten werden.",
+          "electrical_measurement_topology": "Nutze Gesamtmessung, wenn Wärmepumpenleistung und Tagesenergie alle elektrischen Verbraucher enthalten. Nutze getrennte Messung, wenn sie nur den Kompressor abbilden und Heizstabmessungen separat zugeordnet werden.",
           "has_heating_element": "Aktivieren, wenn die Anlage über einen elektrischen Zusatzheizer verfügt.",
           "has_dhw": "Aktivieren, wenn die Wärmepumpe auch Warmwasser bereitet.",
           "storage_volume_l": "Erwartet: nutzbares Wasser- oder Puffervolumen laut Datenblatt. Einheit: l. Optional; erst damit kann EAI Temperaturverluste in kWh umrechnen.",
@@ -73,26 +91,36 @@
           "target_temp_entity": "Raum-Solltemperatur (°C)",
           "operation_mode_entity": "Betriebsmodus",
           "compressor_entity": "Kompressorstatus",
+          "heating_element_entity": "Heizstabstatus",
+          "heating_element_power_entity": "Heizstableistung (W)",
+          "heating_element_energy_today_entity": "Heizstab-Tagesenergie (kWh)",
           "dhw_temp_entity": "Warmwassertemperatur (°C)",
           "flow_temp_entity": "Vorlauftemperatur (°C)",
           "return_temp_entity": "Rücklauftemperatur (°C)",
           "starts_entity": "Kompressorstarts",
           "runtime_entity": "Betriebsstundenzähler Kompressor gesamt",
           "runtime_heating_entity": "Betriebsstundenzähler Heizung",
-          "runtime_dhw_entity": "Betriebsstundenzähler Warmwasser"
+          "runtime_dhw_entity": "Betriebsstundenzähler Warmwasser",
+          "runtime_counter_scope": "Zeitraum des Betriebsstundenzählers",
+          "starts_counter_scope": "Zeitraum des Kompressor-Startzählers"
         },
         "data_description": {
           "indoor_temp_entity": "Erwartet: Temperatursensor eines repräsentativen Innen- oder Referenzraums. Einheit: °C. Optional.",
           "target_temp_entity": "Erwartet: Sensor mit der aktuell eingestellten Raum-Solltemperatur. Einheit: °C. Optional.",
           "operation_mode_entity": "Erwartet: Sensor mit einem stabilen Textzustand für den Betriebsmodus, zum Beispiel Heizen, Warmwasser, Abtauen oder Aus. Einheit: keine. Optional.",
           "compressor_entity": "Erwartet: Binärsensor, Schalter oder numerischer Status für den Kompressorbetrieb. Einheit: keine. Optional; fehlt er, verwendet EAI zuerst den Betriebsmodus und danach die elektrische Leistung.",
+          "heating_element_entity": "Erwartet: Binärsensor oder Schalter für den elektrischen Heizstab. Einheit: keine. Optional; verhindert eine mehrdeutige Kompressorerkennung.",
+          "heating_element_power_entity": "Erwartet: aktuelle elektrische Heizstableistung. Einheit: W. Optional.",
+          "heating_element_energy_today_entity": "Erwartet: seit Mitternacht aufsummierte Heizstabenergie. Einheit: kWh. Optional.",
           "dhw_temp_entity": "Erwartet: Temperatursensor im Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
           "flow_temp_entity": "Erwartet: Sensor für die aktuelle Vorlauftemperatur des Heizkreises. Einheit: °C. Optional.",
           "return_temp_entity": "Erwartet: Sensor für die aktuelle Rücklauftemperatur desselben Heizkreises. Einheit: °C. Optional.",
           "starts_entity": "Erwartet: Zählerstand der Kompressorstarts; Zählerresets müssen erkennbar sein. Einheit: Anzahl. Optional.",
           "runtime_entity": "Erwartet: Betriebsstundenzähler für die gesamte Kompressorlaufzeit. Einheit: h. Optional.",
           "runtime_heating_entity": "Erwartet: Betriebsstundenzähler nur für Raumheizung. Einheit: h. Optional; wird zusammen mit Warmwasser zur Gesamtlaufzeit addiert, wenn kein Gesamtzähler vorhanden ist.",
-          "runtime_dhw_entity": "Erwartet: Betriebsstundenzähler nur für Warmwasserbereitung. Einheit: h. Optional; wird zusammen mit Heizung zur Gesamtlaufzeit addiert, wenn kein Gesamtzähler vorhanden ist."
+          "runtime_dhw_entity": "Erwartet: Betriebsstundenzähler nur für Warmwasserbereitung. Einheit: h. Optional; wird zusammen mit Heizung zur Gesamtlaufzeit addiert, wenn kein Gesamtzähler vorhanden ist.",
+          "runtime_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Betriebsstundenzähler abdeckt. Einheit: keine. Die mittlere Laufzeit je Start wird nur bei übereinstimmenden Zählerzeiträumen berechnet.",
+          "starts_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Startzähler abdeckt. Einheit: keine. Starts seit Mitternacht dürfen nicht mit Betriebsstunden seit Inbetriebnahme verrechnet werden."
         }
       },
       "advanced_sensors": {
@@ -169,7 +197,7 @@
       },
       "weather_intelligence": {
         "title": "Wetterintelligenz",
-        "description": "Verbinde Weather Fusion AI für lokale Prognosegüte, Unsicherheit, Historie und erklärbare Wetterrisiken. Weather Fusion AI bleibt eigenständig nutzbar.",
+        "description": "Erfordert Solar Forecast ML mit eigener Wetterstation, SFML STATS und Weather Fusion AI. Live-Werte und Recorder-Historie kommen automatisch von den in SFML hinterlegten Stationssensoren; Prognosen ausschließlich von WFAI.",
         "data": {
           "weather_fusion_entry_id": "Weather-Fusion-AI-Standort",
           "weather_history_days": "Aufbewahrung der Auswertung (Tage)"
@@ -181,13 +209,8 @@
       },
       "validation": {
         "title": "Sensorprüfung",
-        "description": "Die Sensorzuordnung enthält Warnungen. Fehlende Entitäten: {missing}. Doppelte Zuordnungen: {duplicates}.",
-        "data": {
-          "acknowledge_warnings": "Warnungen geprüft und akzeptiert"
-        },
-        "data_description": {
-          "acknowledge_warnings": "Bestätige, dass du die aufgeführten Warnungen geprüft hast und mit dieser Zuordnung fortfahren möchtest."
-        }
+        "description": "Die Sensorzuordnung muss vor dem Fortfahren korrigiert werden. Fehlende Entitäten: {missing}. Doppelte Zuordnungen: {duplicates}.",
+        "data": {}
       },
       "automation_inputs": {
         "title": "Preise für Automationssignale",
@@ -236,6 +259,7 @@
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
           "cop_rated": "COP am Datenblatt-Prüfpunkt",
+          "electrical_measurement_topology": "Topologie der elektrischen Messung",
           "has_heating_element": "Elektrischer Heizstab vorhanden",
           "has_dhw": "Warmwasserbereitung vorhanden",
           "storage_volume_l": "Nutzbares Speichervolumen (l)",
@@ -247,6 +271,9 @@
           "target_temp_entity": "Raum-Solltemperatur",
           "operation_mode_entity": "Betriebsart",
           "compressor_entity": "Verdichterstatus",
+          "heating_element_entity": "Heizstabstatus",
+          "heating_element_power_entity": "Heizstableistung (W)",
+          "heating_element_energy_today_entity": "Heizstab-Tagesenergie (kWh)",
           "dhw_temp_entity": "Warmwassertemperatur",
           "flow_temp_entity": "Vorlauftemperatur",
           "return_temp_entity": "Rücklauftemperatur",
@@ -254,6 +281,8 @@
           "runtime_entity": "Gesamt-Betriebsstunden",
           "runtime_heating_entity": "Heiz-Betriebsstunden",
           "runtime_dhw_entity": "Warmwasser-Betriebsstunden",
+          "runtime_counter_scope": "Zeitraum des Betriebsstundenzählers",
+          "starts_counter_scope": "Zeitraum des Kompressor-Startzählers",
           "thermal_energy_entity": "Thermische Tagesenergie",
           "jaz_entity": "Gemessene Arbeitszahl",
           "volume_flow_entity": "Volumenstrom",
@@ -277,11 +306,16 @@
       "license_missing_entitlement": "Die EAI-Berechtigung fehlt.",
       "license_validation_error": "Die Lizenz konnte nicht sicher geprüft werden.",
       "feature_required": "Wähle mindestens eine Premium-Funktion aus.",
+      "sfml_required": "Installiere und konfiguriere Solar Forecast ML, bevor du die Wetterintelligenz aktivierst.",
+      "stats_required": "Installiere und konfiguriere SFML STATS, bevor du die Wetterintelligenz aktivierst.",
+      "weather_station_required": "Hinterlege in Solar Forecast ML eine lokale Wetterstation mit mindestens Temperatur und einem weiteren Wettersensor.",
+      "weather_station_ambiguous": "Die Wetterintelligenz hat mehrere Solar-Forecast-ML-Stationen gefunden. Lass genau eine SFML-Konfiguration aktiv.",
       "weather_fusion_required": "Installiere und konfiguriere Weather Fusion AI, bevor du die Wetterintelligenz aktivierst.",
-      "validation_required": "Prüfe und bestätige die Sensorwarnungen.",
+      "validation_required": "Korrigiere fehlende oder doppelt zugeordnete Sensoren.",
       "invalid_heat_pump_values": "Gib endliche Zahlenwerte ein: Heizleistung von 1 bis 100 kW und COP von 1 bis 10.",
       "wallbox_required": "Für die Wallbox-Analyse werden die Wallbox-Leistung und mindestens eine Bedarfsquelle benötigt.",
-      "wallbox_demand_required": "Wähle mindestens eine Bedarfsquelle: Fahrzeug-Ladezustand, gewünschte Zusatzenergie oder geplante Strecke."
+      "wallbox_demand_required": "Wähle mindestens eine Bedarfsquelle: Fahrzeug-Ladezustand, gewünschte Zusatzenergie oder geplante Strecke.",
+      "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort."
     },
     "abort": {
       "not_confirmed": "Die Einrichtung wurde nicht bestätigt.",
@@ -297,6 +331,7 @@
         "menu_options": {
           "license": "Lizenz erneuern",
           "features": "Premium-Funktionen",
+          "sensor_sources": "Sensorzuordnungen übernehmen",
           "heat_pump": "Wärmepumpendaten",
           "sensors": "Sensorzuordnungen",
           "wallbox": "E-Mobilität und Wallbox",
@@ -318,6 +353,22 @@
           "weather_intelligence_enabled": "Aktiviert WFAI-Prognoseauswertung und Wetterrisiken."
         }
       },
+      "sensor_sources": {
+        "title": "Vorhandene Sensorzuordnungen übernehmen",
+        "description": "Wähle nur Zuordnungen aus, die EAI vorschlagen soll. Manuelle Zuordnungen werden nie überschrieben; die gewählten Entitäten werden anschließend noch einmal zur Prüfung angezeigt.",
+        "data": {
+          "use_discovered_sensor_mappings": "Kompatible Zuordnungen übernehmen",
+          "environment_sensor_source": "Quelle für Außenbedingungen",
+          "heat_pump_sensor_source": "Quelle für Wärmepumpenmessungen",
+          "wallbox_sensor_source": "Quelle für Wallboxmessungen"
+        },
+        "data_description": {
+          "use_discovered_sensor_mappings": "Ohne Aktivierung dieser Option wird keine Zuordnung geändert.",
+          "environment_sensor_source": "Liefert eine kompatible Entität für die Außentemperatur.",
+          "heat_pump_sensor_source": "Liefert kompatible Verdichter- und Heizstab-Entitäten.",
+          "wallbox_sensor_source": "Liefert kompatible Entitäten für Wallbox-Leistung und -Energie."
+        }
+      },
       "license": {
         "title": "Lizenz erneuern",
         "description": "Gib einen neuen signierten EAI-Lizenzschlüssel ein, um die aktuelle Lizenz zu ersetzen.",
@@ -337,6 +388,7 @@
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
           "cop_rated": "COP am Datenblatt-Prüfpunkt",
+          "electrical_measurement_topology": "Topologie der elektrischen Messung",
           "has_heating_element": "Elektrischer Heizstab vorhanden",
           "has_dhw": "Warmwasserbereitung vorhanden",
           "storage_volume_l": "Nutzbares Speichervolumen (l)",
@@ -348,6 +400,7 @@
           "model": "Optionale Modell- oder Produktbezeichnung.",
           "heating_capacity_kw": "Nenn-Heizleistung laut Datenblatt.",
           "cop_rated": "COP laut Datenblatt an einem Prüfpunkt wie A7/W35 oder B0/W35; keine aktuelle Effizienz und keine JAZ. Ist der Wert unbekannt, Standard 4,0 beibehalten.",
+          "electrical_measurement_topology": "Nutze Gesamtmessung, wenn Wärmepumpenleistung und Tagesenergie alle elektrischen Verbraucher enthalten. Nutze getrennte Messung, wenn sie nur den Kompressor abbilden und Heizstabmessungen separat zugeordnet werden.",
           "has_heating_element": "Aktivieren, wenn ein elektrischer Zusatzheizer installiert ist.",
           "has_dhw": "Aktivieren, wenn die Wärmepumpe auch Warmwasser bereitet.",
           "storage_volume_l": "Nutzbares Wasser- oder Puffervolumen laut Datenblatt. Einheit: l. Optional.",
@@ -365,6 +418,9 @@
           "target_temp_entity": "Raum-Solltemperatur (°C)",
           "operation_mode_entity": "Betriebsmodus",
           "compressor_entity": "Kompressorstatus",
+          "heating_element_entity": "Heizstabstatus",
+          "heating_element_power_entity": "Heizstableistung (W)",
+          "heating_element_energy_today_entity": "Heizstab-Tagesenergie (kWh)",
           "dhw_temp_entity": "Warmwassertemperatur (°C)",
           "flow_temp_entity": "Vorlauftemperatur (°C)",
           "return_temp_entity": "Rücklauftemperatur (°C)",
@@ -372,6 +428,8 @@
           "runtime_entity": "Betriebsstundenzähler Kompressor gesamt",
           "runtime_heating_entity": "Betriebsstundenzähler Heizung",
           "runtime_dhw_entity": "Betriebsstundenzähler Warmwasser",
+          "runtime_counter_scope": "Zeitraum des Betriebsstundenzählers",
+          "starts_counter_scope": "Zeitraum des Kompressor-Startzählers",
           "thermal_energy_entity": "Thermischer Tages-Verbrauchszähler (kWh)",
           "jaz_entity": "JAZ / gemessene Arbeitszahl",
           "volume_flow_entity": "Volumenstrom",
@@ -389,6 +447,9 @@
           "target_temp_entity": "Erwartet: Sensor mit der aktuell eingestellten Raum-Solltemperatur. Einheit: °C. Optional.",
           "operation_mode_entity": "Erwartet: Sensor mit einem stabilen Textzustand für den Betriebsmodus, zum Beispiel Heizen, Warmwasser, Abtauen oder Aus. Einheit: keine. Optional.",
           "compressor_entity": "Erwartet: Binärsensor, Schalter oder numerischer Status für den Kompressorbetrieb. Einheit: keine. Optional; Betriebsmodus und Leistung dienen als Fallback.",
+          "heating_element_entity": "Erwartet: Binärsensor oder Schalter für den elektrischen Heizstab. Einheit: keine. Optional; verhindert eine mehrdeutige Kompressorerkennung.",
+          "heating_element_power_entity": "Erwartet: aktuelle elektrische Heizstableistung. Einheit: W. Optional.",
+          "heating_element_energy_today_entity": "Erwartet: seit Mitternacht aufsummierte Heizstabenergie. Einheit: kWh. Optional.",
           "dhw_temp_entity": "Erwartet: Temperatursensor im Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
           "flow_temp_entity": "Erwartet: Sensor für die aktuelle Vorlauftemperatur des Heizkreises. Einheit: °C. Optional.",
           "return_temp_entity": "Erwartet: Sensor für die aktuelle Rücklauftemperatur desselben Heizkreises. Einheit: °C. Optional.",
@@ -403,7 +464,9 @@
           "storage_temp_entity": "Erwartet: Temperatursensor im Puffer- oder Warmwasserspeicher; die Fühlerposition sollte bekannt sein. Einheit: °C. Optional.",
           "storage_ambient_temp_entity": "Erwartet: Temperatursensor unmittelbar am Speicher beziehungsweise im Heizraum. Einheit: °C. Optional.",
           "circulation_pump_entity": "Erwartet: Schalter, Binärsensor oder numerischer Sensor für die Zirkulationspumpe. Einheit: keine. Optional; ein Smart Plug ist geeignet.",
-          "circulation_return_temp_entity": "Erwartet: Temperatursensor am Rücklauf der Zirkulationsleitung nahe dem Speicher. Einheit: °C. Optional."
+          "circulation_return_temp_entity": "Erwartet: Temperatursensor am Rücklauf der Zirkulationsleitung nahe dem Speicher. Einheit: °C. Optional.",
+          "runtime_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Betriebsstundenzähler abdeckt. Einheit: keine. Die mittlere Laufzeit je Start wird nur bei übereinstimmenden Zählerzeiträumen berechnet.",
+          "starts_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Startzähler abdeckt. Einheit: keine. Starts seit Mitternacht dürfen nicht mit Betriebsstunden seit Inbetriebnahme verrechnet werden."
         }
       },
       "wallbox": {
@@ -448,7 +511,7 @@
       },
       "weather_intelligence": {
         "title": "Wetterintelligenz",
-        "description": "Wähle den Weather-Fusion-AI-Standort und die lokale Aufbewahrungsdauer der Auswertung.",
+        "description": "Erfordert Solar Forecast ML mit eigener Wetterstation, SFML STATS und Weather Fusion AI. Die in SFML hinterlegten Stationssensoren werden automatisch für Live-Werte und Recorder-Historie verwendet.",
         "data": {
           "weather_fusion_entry_id": "Weather-Fusion-AI-Standort",
           "weather_history_days": "Aufbewahrung der Auswertung (Tage)"
@@ -489,10 +552,15 @@
       "license_missing_entitlement": "Die EAI-Berechtigung fehlt.",
       "license_validation_error": "Die Lizenz konnte nicht sicher geprüft werden.",
       "feature_required": "Wähle mindestens eine Premium-Funktion aus.",
+      "sfml_required": "Installiere und konfiguriere Solar Forecast ML vor der Aktivierung.",
+      "stats_required": "Installiere und konfiguriere SFML STATS vor der Aktivierung.",
+      "weather_station_required": "Hinterlege in Solar Forecast ML eine lokale Wetterstation mit mindestens Temperatur und einem weiteren Wettersensor.",
+      "weather_station_ambiguous": "Die Wetterintelligenz hat mehrere Solar-Forecast-ML-Stationen gefunden. Lass genau eine SFML-Konfiguration aktiv.",
       "weather_fusion_required": "Installiere und konfiguriere Weather Fusion AI vor der Aktivierung.",
       "validation_required": "Prüfe fehlende oder doppelt zugeordnete Sensoren.",
       "invalid_heat_pump_values": "Gib endliche Zahlenwerte ein: Heizleistung von 1 bis 100 kW und COP von 1 bis 10.",
-      "wallbox_required": "Für die Wallbox-Analyse werden Leistung und eine Ladebedarfsquelle benötigt."
+      "wallbox_required": "Für die Wallbox-Analyse werden Leistung und eine Ladebedarfsquelle benötigt.",
+      "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort."
     }
   },
   "entity": {
@@ -512,7 +580,7 @@
       "estimated_cost_advantage": {"name": "Geschätzter Kostenvorteil"},
       "data_quality": {"name": "Datenqualität"},
       "model_status": {"name": "Modellstatus", "state": {"learning": "Lernt", "ready": "Bereit", "degraded": "Eingeschränkt"}},
-      "weather_intelligence_status": {"name": "Status der Wetterintelligenz", "state": {"disabled": "Deaktiviert", "degraded": "Eingeschränkt", "cold_start": "Lernt", "ready": "Bereit"}},
+      "weather_intelligence_status": {"name": "Status der Wetterintelligenz", "state": {"disabled": "Deaktiviert", "dependency_missing": "Voraussetzung fehlt", "degraded": "Eingeschränkt", "cold_start": "Lernt", "ready": "Bereit"}},
       "weather_data_quality": {"name": "Wetterdatenqualität"},
       "weather_paired_samples": {"name": "Wetter-Prognose-Ist-Paare"},
       "weather_temperature_mae": {"name": "Lokaler Temperaturprognose-MAE"},
@@ -587,6 +655,13 @@
         "auto": "Automatisch aus Sensor erkennen",
         "ct_per_kwh": "Cent pro kWh",
         "eur_per_kwh": "Euro pro kWh"
+      }
+    },
+    "counter_scope": {
+      "options": {
+        "unknown": "Unbekannt — Durchschnitt nicht berechnen",
+        "lifetime": "Gesamt seit Inbetriebnahme",
+        "daily": "Täglich — Rücksetzung um Mitternacht"
       }
     },
     "wp_type": {

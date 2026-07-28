@@ -56,6 +56,11 @@ WEATHER_EVENT_OPTIONS = [
 ]
 
 
+def _weather_event_code(value: Any) -> str:
+    """Keep enum sensors valid when a stale snapshot contains an old code."""
+    return value if isinstance(value, str) and value in WEATHER_EVENT_OPTIONS else "none"
+
+
 SENSORS = (
     EAISensorDescription(
         key="recommended_action",
@@ -270,7 +275,7 @@ WEATHER_INTELLIGENCE_SENSORS = (
         key="weather_intelligence_status",
         translation_key="weather_intelligence_status",
         device_class=SensorDeviceClass.ENUM,
-        options=["disabled", "degraded", "cold_start", "ready"],
+        options=["disabled", "dependency_missing", "degraded", "cold_start", "ready"],
     ),
     EAISensorDescription(
         key="weather_data_quality",
@@ -441,19 +446,21 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
                 else None
             )
         if key == "weather_active_event":
-            return self._active_event(snapshot).get("code", "none")
+            return _weather_event_code(self._active_event(snapshot).get("code"))
         if key == "weather_forecast_valid_until":
             return self._timestamp(snapshot.get("valid_at"))
         event = self._next_event(snapshot)
         if key == "weather_next_event":
-            return event.get("code", "none")
+            return _weather_event_code(event.get("code"))
         day_offsets = {
             "weather_event_today": 0,
             "weather_event_tomorrow": 1,
             "weather_event_day_after_tomorrow": 2,
         }
         if key in day_offsets:
-            return self._event_for_day(snapshot, day_offsets[key]).get("code", "none")
+            return _weather_event_code(
+                self._event_for_day(snapshot, day_offsets[key]).get("code")
+            )
         if key == "weather_next_event_severity":
             return event.get("severity", "none")
         if key == "weather_next_event_start":
@@ -573,10 +580,45 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
         snapshot = self.runtime.weather_intelligence_snapshot
         key = self.entity_description.key
         if key == "weather_intelligence_status":
+            raw_history = snapshot.get("actual_history")
+            history = raw_history if isinstance(raw_history, dict) else {}
+            precipitation = (
+                dict(history.get("precipitation", {}))
+                if isinstance(history, dict)
+                and isinstance(history.get("precipitation"), dict)
+                else {}
+            )
+            precipitation.pop("daily", None)
             return {
                 "source_status": snapshot.get("source_status"),
                 "cold_start": snapshot.get("cold_start", True),
                 "data_quality": snapshot.get("data_quality", {}),
+                "history": {
+                    "available": history.get("available", False),
+                    "status": history.get("status"),
+                    "source": history.get("source"),
+                    "data_since": history.get("data_since"),
+                    "data_to": history.get("data_to"),
+                    "coverage_percent": history.get("coverage"),
+                    "coverage_by_metric": history.get(
+                        "coverage_by_metric", {}
+                    ),
+                    "complete_recorder_history": history.get(
+                        "complete_recorder_history", False
+                    ),
+                    "history_truncated": history.get(
+                        "history_truncated", False
+                    ),
+                    "daily_points": len(history.get("timeline", [])),
+                    "recent_hourly_points": len(
+                        history.get("recent_timeline", [])
+                    ),
+                    "monthly_points": len(
+                        history.get("monthly_series", [])
+                    ),
+                    "days": history.get("days", {}),
+                    "precipitation": precipitation,
+                },
             }
         if key in {"weather_temperature_mae", "weather_temperature_bias"}:
             return {"accuracy_by_horizon": snapshot.get("accuracy", {})}

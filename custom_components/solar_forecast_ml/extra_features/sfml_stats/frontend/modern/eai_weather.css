@@ -383,6 +383,23 @@
     font-size: 1.08rem;
 }
 
+.eai-weather-hour-condition {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    line-height: 1.25;
+}
+
+.eai-weather-hour-condition i {
+    flex: 0 0 auto;
+    font-style: normal;
+}
+
+.eai-weather-hour-note {
+    color: var(--warning);
+    line-height: 1.25;
+}
+
 .eai-weather-days {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -619,10 +636,9 @@
 .eai-weather-rain-bars {
     height: 150px;
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(34px, 1fr);
+    grid-template-columns: repeat(7, minmax(64px, 1fr));
     align-items: end;
-    gap: 5px;
+    gap: 10px;
     overflow-x: auto;
     margin-top: 14px;
     padding-top: 8px;

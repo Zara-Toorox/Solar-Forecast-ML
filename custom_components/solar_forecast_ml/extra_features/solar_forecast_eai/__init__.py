@@ -5,6 +5,7 @@ from __future__ import annotations
 # ruff: noqa: E402
 
 import math
+import logging
 import sys
 from pathlib import Path
 
@@ -27,6 +28,7 @@ from .automation import is_legacy_eai_unique_id
 from .const import (
     CONF_CAPABILITY_LEVEL,
     CONF_COP_RATED,
+    CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY,
     CONF_HEAT_PUMP_ENABLED,
     CONF_HEATING_CAPACITY_KW,
     CONF_LICENSE_KEY,
@@ -35,6 +37,7 @@ from .const import (
     CONF_WEATHER_INTELLIGENCE_ENABLED,
     CONF_WP_TYPE,
     DEFAULT_COP_RATED,
+    DEFAULT_ELECTRICAL_MEASUREMENT_TOPOLOGY,
     DEFAULT_HEATING_CAPACITY_KW,
     DEFAULT_WP_TYPE,
     DOMAIN,
@@ -42,6 +45,8 @@ from .const import (
 )
 from .license import OfflineLicenseValidator
 from .runtime import EAIRuntime
+
+_LOGGER = logging.getLogger(__name__)
 
 PROVIDER_KEY = "capability_provider"
 VALIDATOR_KEY = "license_validator"
@@ -92,6 +97,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         changed = True
     if CONF_HEATING_CAPACITY_KW not in data and CONF_HEATING_CAPACITY_KW not in options:
         data[CONF_HEATING_CAPACITY_KW] = DEFAULT_HEATING_CAPACITY_KW
+        changed = True
+    if (
+        CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY not in data
+        and CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY not in options
+    ):
+        data[CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY] = (
+            DEFAULT_ELECTRICAL_MEASUREMENT_TOPOLOGY
+        )
         changed = True
     if CONF_WALLBOX_ENABLED not in data and CONF_WALLBOX_ENABLED not in options:
         data[CONF_WALLBOX_ENABLED] = False
@@ -202,8 +215,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Delete the entry-scoped Premium weather evaluation on removal."""
     from homeassistant.helpers.storage import Store
 
-    await Store(
-        hass,
-        1,
-        f"{DOMAIN}.weather_intelligence.{entry.entry_id}",
-    ).async_remove()
+    for label, key in (
+        ("weather_intelligence", f"{DOMAIN}.weather_intelligence.{entry.entry_id}"),
+        ("insights_learning", f"{DOMAIN}.insights_learning.{entry.entry_id}"),
+    ):
+        try:
+            await Store(hass, 1, key).async_remove()
+        except Exception:  # noqa: BLE001
+            _LOGGER.warning("EAI entry-scoped %s storage could not be removed", label)

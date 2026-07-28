@@ -12,6 +12,7 @@ from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
 
 from . import get_license_validator
+from .assignment_policy import is_allowed_shared_assignment
 from .const import (
     ADVANCED_SENSORS,
     CONF_BUILDING_REF,
@@ -22,6 +23,7 @@ from .const import (
     CONF_STORAGE_VOLUME_L,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_ELECTRICITY_PRICE_UNIT,
+    CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY,
     CONF_EV_BATTERY_CAPACITY_KWH,
     CONF_EV_CHARGING_EFFICIENCY_PERCENT,
     CONF_EV_CONSUMPTION_KWH_PER_100KM,
@@ -37,6 +39,9 @@ from .const import (
     CONF_HAS_HEATING_ELEMENT,
     CONF_HEAT_PUMP_ENABLED,
     CONF_HEATING_CAPACITY_KW,
+    CONF_HEATING_ELEMENT_ENTITY,
+    CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
+    CONF_HEATING_ELEMENT_POWER_ENTITY,
     CONF_INDOOR_TEMP_ENTITY,
     CONF_LICENSE_ID,
     CONF_LICENSE_KEY,
@@ -46,6 +51,8 @@ from .const import (
     CONF_MODEL,
     CONF_ONBOARDING_STATE,
     CONF_OPERATION_MODE_ENTITY,
+    CONF_RUNTIME_COUNTER_SCOPE,
+    CONF_STARTS_COUNTER_SCOPE,
     CONF_TARGET_TEMP_ENTITY,
     CONF_WP_TYPE,
     CONF_WALLBOX_CHARGING_ENTITY,
@@ -65,27 +72,48 @@ from .const import (
     DEFAULT_EV_DEPARTURE_TIME,
     DEFAULT_EV_TARGET_SOC,
     DEFAULT_COP_RATED,
+    DEFAULT_ELECTRICAL_MEASUREMENT_TOPOLOGY,
     DEFAULT_HEATING_CAPACITY_KW,
     DEFAULT_WP_TYPE,
     DOMAIN,
     DEFAULT_LOW_PRICE_THRESHOLD_CT,
     DEFAULT_PRICE_UNIT,
     DEFAULT_WALLBOX_MAX_POWER_KW,
+    ELECTRICAL_TOPOLOGY_LEGACY_AGGREGATE,
+    ELECTRICAL_TOPOLOGY_SEPARATE,
     DEFAULT_WEATHER_HISTORY_DAYS,
+    COUNTER_SCOPE_UNKNOWN,
     REQUIRED_SENSORS,
     STANDARD_SENSORS,
     SUPPORTED_WP_TYPES,
+    SUPPORTED_COUNTER_SCOPES,
     WALLBOX_SENSORS,
 )
+from .sensor_mapping import (
+    SensorMappingCandidate,
+    discover_sensor_mapping_candidates,
+)
+from .weather_station_adapter import SFMLWeatherStationAdapter
 
 WEATHER_FUSION_DOMAIN = "weather_fusion_ai"
+SFML_DOMAIN = "solar_forecast_ml"
+STATS_DOMAIN = "sfml_stats"
+CONF_USE_DISCOVERED_MAPPINGS = "use_discovered_sensor_mappings"
+SENSOR_SOURCE_FIELDS = {
+    "environment": "environment_sensor_source",
+    "heat_pump": "heat_pump_sensor_source",
+    "wallbox": "wallbox_sensor_source",
+}
+SENSOR_SOURCE_LABELS = {
+    "solar_forecast_ml": "SFML",
+    "sfml_stats": "STATS",
+    "weather_fusion_ai": "Weather Fusion AI",
+}
 
 WALLBOX_OPTION_KEYS = (
     CONF_WALLBOX_NAME,
     *WALLBOX_SENSORS,
     CONF_EV_DEMAND_MODE,
-    CONF_EV_REQUIRED_ENERGY_ENTITY,
-    CONF_EV_PLANNED_DISTANCE_ENTITY,
     CONF_EV_BATTERY_CAPACITY_KWH,
     CONF_EV_TARGET_SOC,
     CONF_EV_CONSUMPTION_KWH_PER_100KM,
@@ -94,12 +122,125 @@ WALLBOX_OPTION_KEYS = (
     CONF_WALLBOX_MAX_POWER_KW,
 )
 
+
+def _sensor_source_schema(
+    candidates: tuple[SensorMappingCandidate, ...],
+    enabled: dict[str, bool],
+) -> vol.Schema:
+    fields: dict[Any, Any] = {
+        vol.Required(CONF_USE_DISCOVERED_MAPPINGS, default=False): bool
+    }
+    ordinals: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for candidate in candidates:
+        ordinals[candidate.source_domain] = ordinals.get(candidate.source_domain, 0) + 1
+        labels[candidate.source_id] = (
+            f"{SENSOR_SOURCE_LABELS[candidate.source_domain]} "
+            f"{ordinals[candidate.source_domain]}"
+        )
+    for category, field in SENSOR_SOURCE_FIELDS.items():
+        if not enabled.get(category):
+            continue
+        available = [
+            candidate
+            for candidate in candidates
+            if candidate.values_for(category)
+        ]
+        if not available:
+            continue
+        marker: Any = vol.Optional(field)
+        if len(available) == 1:
+            marker = vol.Optional(field, default=available[0].source_id)
+        fields[marker] = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=[
+                    {"value": candidate.source_id, "label": labels[candidate.source_id]}
+                    for candidate in available
+                ],
+                mode=selector.SelectSelectorMode.DROPDOWN,
+            )
+        )
+    return vol.Schema(fields)
+
+
+def _source_enabled(data: dict[str, Any]) -> dict[str, bool]:
+    return {
+        "environment": bool(data.get(CONF_HEAT_PUMP_ENABLED)),
+        "heat_pump": bool(data.get(CONF_HEAT_PUMP_ENABLED)),
+        "wallbox": bool(data.get(CONF_WALLBOX_ENABLED)),
+    }
+
+
+def _mapping_suggestions(
+    candidates: tuple[SensorMappingCandidate, ...],
+    user_input: dict[str, Any],
+    enabled: dict[str, bool],
+) -> tuple[dict[str, str], set[str]]:
+    if not user_input.get(CONF_USE_DISCOVERED_MAPPINGS):
+        return {}, set()
+    by_id = {candidate.source_id: candidate for candidate in candidates}
+    suggestions: dict[str, str] = {}
+    selected_categories: set[str] = set()
+    for category, field in SENSOR_SOURCE_FIELDS.items():
+        source_id = user_input.get(field)
+        if not enabled.get(category) or not source_id:
+            continue
+        candidate = by_id.get(source_id)
+        if candidate is None:
+            raise vol.Invalid("sensor mapping source is no longer available")
+        values = candidate.values_for(category)
+        if not values:
+            raise vol.Invalid("sensor mapping source has no compatible values")
+        selected_categories.add(category)
+        for target, entity_id in values.items():
+            existing = suggestions.get(target)
+            if existing is not None and existing != entity_id:
+                raise vol.Invalid("sensor mapping sources conflict")
+            suggestions[target] = entity_id
+    if not selected_categories:
+        raise vol.Invalid("select at least one sensor mapping source")
+    return suggestions, selected_categories
+
+
+def _apply_mapping_suggestions(
+    target: dict[str, Any],
+    suggestions: dict[str, str],
+    selected_categories: set[str],
+    *,
+    existing: dict[str, Any] | None = None,
+) -> None:
+    baseline = existing if existing is not None else target
+    heater_disabled = baseline.get(CONF_HAS_HEATING_ELEMENT) is False
+    for key, entity_id in suggestions.items():
+        if heater_disabled and key in {
+            CONF_HEATING_ELEMENT_POWER_ENTITY,
+            CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
+        }:
+            continue
+        if baseline.get(key) in (None, "") and target.get(key) in (None, ""):
+            target[key] = entity_id
+    if "heat_pump" in selected_categories:
+        if baseline.get(CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY) in (None, ""):
+            target.setdefault(
+                CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY,
+                ELECTRICAL_TOPOLOGY_SEPARATE,
+            )
+        if not heater_disabled and any(
+            key in suggestions
+            for key in (
+                CONF_HEATING_ELEMENT_POWER_ENTITY,
+                CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
+            )
+        ):
+            target.setdefault(CONF_HAS_HEATING_ELEMENT, True)
+
 HEAT_PUMP_OPTION_KEYS = (
     CONF_WP_TYPE,
     CONF_MANUFACTURER,
     CONF_MODEL,
     CONF_HEATING_CAPACITY_KW,
     CONF_COP_RATED,
+    CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY,
     CONF_HAS_HEATING_ELEMENT,
     CONF_HAS_DHW,
     CONF_STORAGE_VOLUME_L,
@@ -251,9 +392,29 @@ def _heat_pump_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 )
             ),
             vol.Required(
+                CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY,
+                default=_safe_choice_default(
+                    defaults.get(CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY),
+                    {
+                        ELECTRICAL_TOPOLOGY_LEGACY_AGGREGATE,
+                        ELECTRICAL_TOPOLOGY_SEPARATE,
+                    },
+                    DEFAULT_ELECTRICAL_MEASUREMENT_TOPOLOGY,
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        ELECTRICAL_TOPOLOGY_LEGACY_AGGREGATE,
+                        ELECTRICAL_TOPOLOGY_SEPARATE,
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="electrical_measurement_topology",
+                )
+            ),
+            vol.Required(
                 CONF_HAS_HEATING_ELEMENT,
                 default=_safe_bool_default(
-                    defaults.get(CONF_HAS_HEATING_ELEMENT), True
+                    defaults.get(CONF_HAS_HEATING_ELEMENT), False
                 ),
             ): bool,
             vol.Required(
@@ -286,6 +447,18 @@ def _replace_options(
             options[key] = None
         else:
             options[key] = value
+
+
+def _mask_disabled_heating_element(
+    options: dict[str, Any], data: dict[str, Any]
+) -> None:
+    if data.get(CONF_HAS_HEATING_ELEMENT) is False:
+        for key in (
+            CONF_HEATING_ELEMENT_ENTITY,
+            CONF_HEATING_ELEMENT_POWER_ENTITY,
+            CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
+        ):
+            options[key] = None
 
 
 def _features_schema(defaults: dict[str, Any]) -> vol.Schema:
@@ -356,6 +529,24 @@ def _weather_schema(hass: Any, defaults: dict[str, Any]) -> vol.Schema:
     return vol.Schema(fields)
 
 
+def _weather_dependency_error(hass: Any) -> str | None:
+    """Return the first unmet prerequisite for Weather Intelligence."""
+    if not hass.config_entries.async_entries(SFML_DOMAIN):
+        return "sfml_required"
+    if not hass.config_entries.async_entries(STATS_DOMAIN):
+        return "stats_required"
+    station_status = SFMLWeatherStationAdapter(hass).dependency_status()[
+        "station_status"
+    ]
+    if station_status == "sfml_sensor_provider_ambiguous":
+        return "weather_station_ambiguous"
+    if station_status != "available":
+        return "weather_station_required"
+    if not hass.config_entries.async_entries(WEATHER_FUSION_DOMAIN):
+        return "weather_fusion_required"
+    return None
+
+
 def _required_sensor_errors(hass: Any, data: dict[str, Any]) -> list[str]:
     if not data.get(CONF_HEAT_PUMP_ENABLED, True):
         return []
@@ -387,13 +578,9 @@ def _has_disallowed_duplicate_assignments(
         entity_id = data.get(key)
         if entity_id:
             assignments.setdefault(entity_id, set()).add(key)
-    allowed_climate_pair = {CONF_INDOOR_TEMP_ENTITY, CONF_TARGET_TEMP_ENTITY}
     return any(
         len(assigned_keys) > 1
-        and not (
-            entity_id.startswith("climate.")
-            and assigned_keys == allowed_climate_pair
-        )
+        and not is_allowed_shared_assignment(data, entity_id, assigned_keys)
         for entity_id, assigned_keys in assignments.items()
     )
 
@@ -420,7 +607,11 @@ def _entity_schema(
                 else vol.Optional(key)
             )
         domains = ["sensor", "binary_sensor"]
-        if key in {CONF_CIRCULATION_PUMP_ENTITY, CONF_COMPRESSOR_ENTITY}:
+        if key in {
+            CONF_CIRCULATION_PUMP_ENTITY,
+            CONF_COMPRESSOR_ENTITY,
+            CONF_HEATING_ELEMENT_ENTITY,
+        }:
             domains.append("switch")
         if key in NUMERIC_HEAT_PUMP_ENTITY_KEYS:
             domains.append("input_number")
@@ -450,7 +641,26 @@ def _sensor_options_schema(defaults: dict[str, Any]) -> vol.Schema:
         required=False,
         defaults=defaults,
     )
-    return vol.Schema({**required.schema, **optional.schema})
+    scopes = _counter_scope_schema(defaults)
+    return vol.Schema(
+        {**required.schema, **optional.schema, **scopes.schema}
+    )
+
+
+def _counter_scope_schema(defaults: dict[str, Any]) -> vol.Schema:
+    fields: dict[Any, Any] = {}
+    for key in (CONF_RUNTIME_COUNTER_SCOPE, CONF_STARTS_COUNTER_SCOPE):
+        value = defaults.get(key, COUNTER_SCOPE_UNKNOWN)
+        if value not in SUPPORTED_COUNTER_SCOPES:
+            value = COUNTER_SCOPE_UNKNOWN
+        fields[vol.Required(key, default=value)] = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=list(SUPPORTED_COUNTER_SCOPES),
+                mode=selector.SelectSelectorMode.DROPDOWN,
+                translation_key="counter_scope",
+            )
+        )
+    return vol.Schema(fields)
 
 
 def _automation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -538,10 +748,11 @@ def _wallbox_schema(
     defaults = defaults or {}
     marker = vol.Required if required else vol.Optional
 
-    def entity_marker(key: str):
+    def entity_marker(key: str, *, is_required: bool = False):
+        field_marker = marker if is_required else vol.Optional
         if key in defaults and defaults[key] is not None:
-            return marker(key, default=defaults[key])
-        return marker(key)
+            return field_marker(key, default=defaults[key])
+        return field_marker(key)
 
     return vol.Schema(
         {
@@ -549,7 +760,9 @@ def _wallbox_schema(
                 CONF_WALLBOX_NAME,
                 default=defaults.get(CONF_WALLBOX_NAME, "Wallbox"),
             ): str,
-            entity_marker(CONF_WALLBOX_POWER_ENTITY): selector.EntitySelector(
+            entity_marker(
+                CONF_WALLBOX_POWER_ENTITY, is_required=required
+            ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["sensor", "input_number"])
             ),
             entity_marker(
@@ -688,9 +901,7 @@ def _has_wallbox_demand_source(data: dict[str, Any]) -> bool:
         "distance": CONF_EV_PLANNED_DISTANCE_ENTITY,
     }
     mode = data.get(CONF_EV_DEMAND_MODE)
-    if mode in sources:
-        return bool(data.get(sources[mode]))
-    return any(data.get(key) for key in sources.values())
+    return bool(data.get(sources.get(mode, "")))
 
 
 def _capability(data: dict[str, Any]) -> str:
@@ -747,8 +958,14 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             updated = dict(entry.data)
             updated_options = dict(entry.options)
-            _replace_options(updated_options, user_input, sensor_keys)
+            _replace_options(
+                updated_options,
+                user_input,
+                sensor_keys
+                + (CONF_RUNTIME_COUNTER_SCOPE, CONF_STARTS_COUNTER_SCOPE),
+            )
             _replace_options(updated_options, user_input, HEAT_PUMP_OPTION_KEYS)
+            _mask_disabled_heating_element(updated_options, user_input)
             merged = {**updated, **updated_options}
             if _required_sensor_errors(self.hass, merged) or (
                 merged.get(CONF_HEAT_PUMP_ENABLED, True)
@@ -819,11 +1036,7 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "weather_fusion_required"
             else:
                 self._data.update(user_input)
-                if self._data[CONF_HEAT_PUMP_ENABLED]:
-                    return await self.async_step_heat_pump()
-                if self._data[CONF_WALLBOX_ENABLED]:
-                    return await self.async_step_wallbox()
-                return await self.async_step_weather_intelligence()
+                return await self.async_step_sensor_sources()
         defaults = dict(self._data)
         defaults.setdefault(
             CONF_WEATHER_INTELLIGENCE_ENABLED,
@@ -835,9 +1048,41 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def _async_step_after_sensor_sources(self) -> FlowResult:
+        if self._data.get(CONF_HEAT_PUMP_ENABLED):
+            return await self.async_step_heat_pump()
+        if self._data.get(CONF_WALLBOX_ENABLED):
+            return await self.async_step_wallbox()
+        return await self.async_step_weather_intelligence()
+
+    async def async_step_sensor_sources(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        candidates = discover_sensor_mapping_candidates(self.hass)
+        if not candidates and user_input is None:
+            return await self._async_step_after_sensor_sources()
+        enabled = _source_enabled(self._data)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                suggestions, selected = _mapping_suggestions(
+                    candidates, user_input, enabled
+                )
+            except vol.Invalid:
+                errors["base"] = "sensor_source_invalid"
+            else:
+                _apply_mapping_suggestions(self._data, suggestions, selected)
+                return await self._async_step_after_sensor_sources()
+        return self.async_show_form(
+            step_id="sensor_sources",
+            data_schema=_sensor_source_schema(candidates, enabled),
+            errors=errors,
+        )
+
     async def _async_step_after_optional_hardware(self) -> FlowResult:
-        if self._data.get(CONF_WALLBOX_ENABLED) and not self._data.get(
-            CONF_WALLBOX_POWER_ENTITY
+        if self._data.get(CONF_WALLBOX_ENABLED) and (
+            not self._data.get(CONF_WALLBOX_POWER_ENTITY)
+            or not _has_wallbox_demand_source(self._data)
         ):
             return await self.async_step_wallbox()
         if self._data.get(CONF_WEATHER_INTELLIGENCE_ENABLED):
@@ -857,7 +1102,7 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_required_sensors()
         return self.async_show_form(
             step_id="heat_pump",
-            data_schema=_heat_pump_schema(user_input),
+            data_schema=_heat_pump_schema({**self._data, **(user_input or {})}),
             errors=errors,
         )
 
@@ -869,7 +1114,9 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_standard_sensors()
         return self.async_show_form(
             step_id="required_sensors",
-            data_schema=_entity_schema(REQUIRED_SENSORS, required=True),
+            data_schema=_entity_schema(
+                REQUIRED_SENSORS, required=True, defaults=self._data
+            ),
         )
 
     async def async_step_standard_sensors(
@@ -877,12 +1124,20 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         if user_input is not None:
             self._data.update(
-                {key: value for key, value in user_input.items() if value}
+                {
+                    key: value
+                    for key, value in user_input.items()
+                    if value not in (None, "")
+                }
             )
             return await self.async_step_advanced_sensors()
+        sensors = _entity_schema(
+            STANDARD_SENSORS, required=False, defaults=self._data
+        )
+        scopes = _counter_scope_schema(self._data)
         return self.async_show_form(
             step_id="standard_sensors",
-            data_schema=_entity_schema(STANDARD_SENSORS, required=False),
+            data_schema=vol.Schema({**sensors.schema, **scopes.schema}),
         )
 
     async def async_step_advanced_sensors(
@@ -895,7 +1150,9 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self._async_step_after_optional_hardware()
         return self.async_show_form(
             step_id="advanced_sensors",
-            data_schema=_entity_schema(ADVANCED_SENSORS, required=False),
+            data_schema=_entity_schema(
+                ADVANCED_SENSORS, required=False, defaults=self._data
+            ),
         )
 
     async def async_step_wallbox_choice(
@@ -918,7 +1175,10 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            if _has_wallbox_demand_source(user_input):
+            merged = {**self._data, **user_input}
+            if merged.get(CONF_WALLBOX_POWER_ENTITY) and _has_wallbox_demand_source(
+                merged
+            ):
                 self._data.update(user_input)
                 if self._data.get(CONF_WEATHER_INTELLIGENCE_ENABLED):
                     return await self.async_step_weather_intelligence()
@@ -926,19 +1186,32 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["base"] = "wallbox_demand_required"
         return self.async_show_form(
             step_id="wallbox",
-            data_schema=_wallbox_schema(required=True),
+            data_schema=_wallbox_schema(required=True, defaults=self._data),
             errors=errors,
         )
 
     async def async_step_weather_intelligence(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
+        errors: dict[str, str] = {}
+        dependency_error = _weather_dependency_error(self.hass)
         if user_input is not None:
-            self._data.update(user_input)
-            return await self.async_step_automation_inputs()
+            if dependency_error is not None:
+                errors["base"] = dependency_error
+            else:
+                self._data.update(user_input)
+                if not (
+                    self._data.get(CONF_HEAT_PUMP_ENABLED)
+                    or self._data.get(CONF_WALLBOX_ENABLED)
+                ):
+                    return await self.async_step_validation()
+                return await self.async_step_automation_inputs()
+        elif dependency_error is not None:
+            errors["base"] = dependency_error
         return self.async_show_form(
             step_id="weather_intelligence",
             data_schema=_weather_schema(self.hass, self._data),
+            errors=errors,
         )
 
     async def async_step_automation_inputs(
@@ -965,16 +1238,27 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self._data.get(CONF_WALLBOX_ENABLED):
             sensor_keys += WALLBOX_SENSORS
         duplicates = _has_disallowed_duplicate_assignments(self._data, sensor_keys)
-        if missing or duplicates:
-            if user_input is not None and user_input.get("acknowledge_warnings"):
-                self._data[CONF_CAPABILITY_LEVEL] = _capability(self._data)
-                return await self.async_step_summary()
+        wallbox_invalid = self._data.get(CONF_WALLBOX_ENABLED) and (
+            not self._data.get(CONF_WALLBOX_POWER_ENTITY)
+            or not _has_wallbox_demand_source(self._data)
+        )
+        weather_error = (
+            _weather_dependency_error(self.hass)
+            if self._data.get(CONF_WEATHER_INTELLIGENCE_ENABLED)
+            else None
+        )
+        if missing or duplicates or wallbox_invalid or weather_error:
+            errors = (
+                {"base": "wallbox_required"}
+                if wallbox_invalid
+                else {"base": "validation_required"}
+            )
+            if weather_error is not None:
+                errors = {"base": weather_error}
             return self.async_show_form(
                 step_id="validation",
-                data_schema=vol.Schema(
-                    {vol.Required("acknowledge_warnings", default=False): bool}
-                ),
-                errors={"base": "validation_required"},
+                data_schema=vol.Schema({}),
+                errors=errors,
                 description_placeholders={
                     "missing": ", ".join(missing) or "none",
                     "duplicates": str(duplicates).lower(),
@@ -1057,6 +1341,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
             menu_options=[
                 "license",
                 "features",
+                "sensor_sources",
                 "heat_pump",
                 "sensors",
                 "wallbox",
@@ -1080,7 +1365,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 previous = {**self.config_entry.data, **self._options}
                 self._options.update(user_input)
                 merged = {**self.config_entry.data, **self._options}
-                self._pending_feature_steps = []
+                self._pending_feature_steps = ["sensor_sources"]
                 if merged.get(CONF_HEAT_PUMP_ENABLED):
                     if not previous.get(CONF_HEAT_PUMP_ENABLED):
                         self._pending_feature_steps.append("heat_pump")
@@ -1109,6 +1394,43 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="features",
             data_schema=_features_schema({**self.config_entry.data, **self._options}),
+            errors=errors,
+        )
+
+    async def async_step_sensor_sources(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        current = {**self.config_entry.data, **self._options}
+        candidates = discover_sensor_mapping_candidates(self.hass)
+        if not candidates and user_input is None:
+            return await self._async_finish_feature_sequence()
+        enabled = _source_enabled(current)
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                suggestions, selected = _mapping_suggestions(
+                    candidates, user_input, enabled
+                )
+            except vol.Invalid:
+                errors["base"] = "sensor_source_invalid"
+            else:
+                _apply_mapping_suggestions(
+                    self._options,
+                    suggestions,
+                    selected,
+                    existing=current,
+                )
+                pending = getattr(self, "_pending_feature_steps", [])
+                review_steps: list[str] = []
+                if selected & {"environment", "heat_pump"} and "sensors" not in pending:
+                    review_steps.append("sensors")
+                if "wallbox" in selected and "wallbox" not in pending:
+                    review_steps.append("wallbox")
+                self._pending_feature_steps = review_steps + pending
+                return await self._async_finish_feature_sequence()
+        return self.async_show_form(
+            step_id="sensor_sources",
+            data_schema=_sensor_source_schema(candidates, enabled),
             errors=errors,
         )
 
@@ -1151,6 +1473,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 _replace_options(
                     self._options, validated, HEAT_PUMP_OPTION_KEYS
                 )
+                _mask_disabled_heating_element(self._options, validated)
                 return await self._async_finish_feature_sequence()
         return self.async_show_form(
             step_id="heat_pump",
@@ -1173,7 +1496,10 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
             _replace_options(
                 proposed,
                 user_input,
-                REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS,
+                REQUIRED_SENSORS
+                + STANDARD_SENSORS
+                + ADVANCED_SENSORS
+                + (CONF_RUNTIME_COUNTER_SCOPE, CONF_STARTS_COUNTER_SCOPE),
             )
             merged = {**self.config_entry.data, **proposed}
             sensor_keys = REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS
@@ -1219,10 +1545,10 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         errors: dict[str, str] = {}
-        entries = self.hass.config_entries.async_entries(WEATHER_FUSION_DOMAIN)
+        dependency_error = _weather_dependency_error(self.hass)
         if user_input is not None:
-            if not entries:
-                errors["base"] = "weather_fusion_required"
+            if dependency_error is not None:
+                errors["base"] = dependency_error
             else:
                 _replace_options(
                     self._options,
@@ -1230,8 +1556,8 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                     (CONF_WEATHER_FUSION_ENTRY_ID, CONF_WEATHER_HISTORY_DAYS),
                 )
                 return await self._async_finish_feature_sequence()
-        elif not entries:
-            errors["base"] = "weather_fusion_required"
+        elif dependency_error is not None:
+            errors["base"] = dependency_error
         return self.async_show_form(
             step_id="weather_intelligence",
             data_schema=_weather_schema(

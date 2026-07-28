@@ -640,6 +640,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as err:
         _LOGGER.warning("Could not auto-register Lovelace resources: %s", err)
 
+    from .sensor_mapping_provider import SensorMappingProvider, register_provider
+
+    sensor_mapping_provider = SensorMappingProvider(entry.entry_id, entry_config)
+    sensor_mapping_providers = hass.data[DOMAIN].setdefault(
+        "sensor_mapping_providers", {}
+    )
+    register_provider(sensor_mapping_providers, entry.entry_id, sensor_mapping_provider)
+
     _LOGGER.info("%s v%s successfully set up", NAME, VERSION)
     return True
 
@@ -653,6 +661,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Unload sensor platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if not unload_ok:
+        _LOGGER.warning(
+            "Platform unload failed for Entry %s; keeping runtime state intact",
+            entry.entry_id,
+        )
+        return False
 
     entry_data = hass.data[DOMAIN][entry.entry_id]
 
@@ -704,6 +718,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await DatabaseConnectionManager.close_instance()
     except Exception as err:
         _LOGGER.warning("Error closing database: %s", err)
+
+    sensor_mapping_providers = hass.data[DOMAIN].get("sensor_mapping_providers")
+    if isinstance(sensor_mapping_providers, dict):
+        sensor_mapping_provider = sensor_mapping_providers.get(entry.entry_id)
+        if sensor_mapping_provider is not None:
+            sensor_mapping_provider.invalidate()
+            if sensor_mapping_providers.get(entry.entry_id) is sensor_mapping_provider:
+                sensor_mapping_providers.pop(entry.entry_id, None)
+        if not sensor_mapping_providers:
+            hass.data[DOMAIN].pop("sensor_mapping_providers", None)
 
     del hass.data[DOMAIN][entry.entry_id]
     return unload_ok
@@ -827,5 +851,13 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                 _LOGGER.info("Smart charging disabled dynamically")
         except Exception as err:
             _LOGGER.warning("Error updating smart charging dynamically: %s", err)
+
+    from .sensor_mapping_provider import SensorMappingProvider, register_provider
+
+    sensor_mapping_provider = SensorMappingProvider(entry.entry_id, new_config)
+    sensor_mapping_providers = hass.data[DOMAIN].setdefault(
+        "sensor_mapping_providers", {}
+    )
+    register_provider(sensor_mapping_providers, entry.entry_id, sensor_mapping_provider)
 
     _LOGGER.info("Configuration refresh complete")

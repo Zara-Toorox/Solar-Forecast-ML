@@ -25,6 +25,22 @@
           "weather_intelligence_enabled": "Evaluate an installed Weather Fusion AI forecast, local observations and weather risks."
         }
       },
+      "sensor_sources": {
+        "title": "Reuse existing sensor assignments",
+        "description": "EAI found compatible assignments published locally by installed Toorox integrations. Nothing is copied unless you enable reuse and confirm a source. Existing manual assignments always take precedence.",
+        "data": {
+          "use_discovered_sensor_mappings": "Reuse compatible assignments",
+          "environment_sensor_source": "Source for outdoor conditions",
+          "heat_pump_sensor_source": "Source for heat-pump measurements",
+          "wallbox_sensor_source": "Source for wallbox measurements"
+        },
+        "data_description": {
+          "use_discovered_sensor_mappings": "Review all proposed entities on the following pages before the configuration is saved.",
+          "environment_sensor_source": "Provides a compatible outdoor-temperature entity.",
+          "heat_pump_sensor_source": "Provides compatible compressor and, where available, backup-heater entities.",
+          "wallbox_sensor_source": "Provides compatible wallbox power and energy entities."
+        }
+      },
       "heat_pump": {
         "title": "Heat pump and building",
         "description": "Enter the technical details of the heat pump and its installation.",
@@ -34,6 +50,7 @@
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
           "cop_rated": "COP at the data-sheet test point",
+          "electrical_measurement_topology": "Electrical measurement topology",
           "has_heating_element": "Electric auxiliary heater available",
           "has_dhw": "Domestic hot water available",
           "storage_volume_l": "Usable storage volume (L)",
@@ -45,6 +62,7 @@
           "model": "Optional model or product designation.",
           "heating_capacity_kw": "Rated heat output according to the data sheet, from 1 to 100 kW.",
           "cop_rated": "COP stated for a data-sheet test point such as A7/W35 or B0/W35. This is neither a live reading nor an annual performance factor. Keep the default 4.0 if unknown.",
+          "electrical_measurement_topology": "Use legacy aggregate when heat-pump power and daily energy include every electrical component. Use separate when they represent the compressor only and backup-heater measurements are configured separately.",
           "has_heating_element": "Enable this if the system has an electric auxiliary heater.",
           "has_dhw": "Enable this if the heat pump also provides domestic hot water.",
           "storage_volume_l": "Expected: usable water or buffer volume from the data sheet. Unit: L. Optional; required to convert temperature loss into kWh.",
@@ -73,26 +91,36 @@
           "target_temp_entity": "Room target temperature (°C)",
           "operation_mode_entity": "Operating mode",
           "compressor_entity": "Compressor status",
+          "heating_element_entity": "Backup heater status",
+          "heating_element_power_entity": "Backup heater power (W)",
+          "heating_element_energy_today_entity": "Backup heater daily energy (kWh)",
           "dhw_temp_entity": "Domestic hot water temperature (°C)",
           "flow_temp_entity": "Flow temperature (°C)",
           "return_temp_entity": "Return temperature (°C)",
           "starts_entity": "Compressor-start counter",
           "runtime_entity": "Total compressor operating-hours meter",
           "runtime_heating_entity": "Space-heating operating-hours meter",
-          "runtime_dhw_entity": "Domestic-hot-water operating-hours meter"
+          "runtime_dhw_entity": "Domestic-hot-water operating-hours meter",
+          "runtime_counter_scope": "Operating-hours counter period",
+          "starts_counter_scope": "Compressor-start counter period"
         },
         "data_description": {
           "indoor_temp_entity": "Expected: temperature sensor in a representative indoor or reference room. Unit: °C. Optional.",
           "target_temp_entity": "Expected: sensor for the currently configured room target temperature. Unit: °C. Optional.",
           "operation_mode_entity": "Expected: sensor with a stable text state for the operating mode, such as heating, domestic hot water, defrost, or off. Unit: none. Optional.",
           "compressor_entity": "Expected: binary sensor, switch, or numeric compressor status. Unit: none. Optional; if absent, EAI uses the operating mode first and electrical power second.",
+          "heating_element_entity": "Expected: binary sensor or switch for the electric backup heater. Unit: none. Optional; prevents ambiguous compressor inference.",
+          "heating_element_power_entity": "Expected: current backup-heater electrical power. Unit: W. Optional.",
+          "heating_element_energy_today_entity": "Expected: backup-heater energy accumulated since midnight. Unit: kWh. Optional.",
           "dhw_temp_entity": "Expected: temperature sensor in the domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
           "flow_temp_entity": "Expected: sensor for the current heating circuit flow temperature. Unit: °C. Optional.",
           "return_temp_entity": "Expected: sensor for the current return temperature of the same heating circuit. Unit: °C. Optional.",
           "starts_entity": "Expected: current compressor-start counter reading; counter resets must be detectable. Unit: count. Optional.",
           "runtime_entity": "Expected: operating-hours meter for total compressor runtime. Unit: h. Optional.",
           "runtime_heating_entity": "Expected: operating-hours meter for space heating only. Unit: h. Optional; combined with domestic hot water when no total meter exists.",
-          "runtime_dhw_entity": "Expected: operating-hours meter for domestic hot water only. Unit: h. Optional; combined with space heating when no total meter exists."
+          "runtime_dhw_entity": "Expected: operating-hours meter for domestic hot water only. Unit: h. Optional; combined with space heating when no total meter exists.",
+          "runtime_counter_scope": "Select the period covered by the operating-hours counter. The average runtime per start is calculated only when both counter periods match.",
+          "starts_counter_scope": "Select the period covered by the start counter. Do not combine starts since midnight with lifetime operating hours."
         }
       },
       "advanced_sensors": {
@@ -165,7 +193,7 @@
       },
       "weather_intelligence": {
         "title": "Weather intelligence",
-        "description": "Connect Weather Fusion AI for local forecast quality, uncertainty, history and explainable weather risks. Weather Fusion AI remains independently usable.",
+        "description": "Requires Solar Forecast ML with a local weather station, SFML STATS and Weather Fusion AI. Live values and Recorder history come automatically from the station configured in SFML; forecasts come only from WFAI.",
         "data": {
           "weather_fusion_entry_id": "Weather Fusion AI location",
           "weather_history_days": "Evaluation retention (days)"
@@ -177,13 +205,8 @@
       },
       "validation": {
         "title": "Sensor validation",
-        "description": "The sensor assignment contains warnings. Missing entities: {missing}. Duplicate assignments: {duplicates}.",
-        "data": {
-          "acknowledge_warnings": "Warnings reviewed and accepted"
-        },
-        "data_description": {
-          "acknowledge_warnings": "Confirm that you reviewed the listed warnings and want to continue with this assignment."
-        }
+        "description": "The sensor assignment must be corrected before setup can continue. Missing entities: {missing}. Duplicate assignments: {duplicates}.",
+        "data": {}
       },
       "automation_inputs": {
         "title": "Prices for automation signals",
@@ -220,6 +243,7 @@
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
           "cop_rated": "COP at the data-sheet test point",
+          "electrical_measurement_topology": "Electrical measurement topology",
           "has_heating_element": "Electric backup heater installed",
           "has_dhw": "Domestic hot water enabled",
           "storage_volume_l": "Usable storage volume (L)",
@@ -231,6 +255,9 @@
           "target_temp_entity": "Room target temperature",
           "operation_mode_entity": "Operating mode",
           "compressor_entity": "Compressor status",
+          "heating_element_entity": "Backup heater status",
+          "heating_element_power_entity": "Backup heater power (W)",
+          "heating_element_energy_today_entity": "Backup heater daily energy (kWh)",
           "dhw_temp_entity": "Domestic hot water temperature",
           "flow_temp_entity": "Flow temperature",
           "return_temp_entity": "Return temperature",
@@ -238,6 +265,8 @@
           "runtime_entity": "Total compressor operating hours",
           "runtime_heating_entity": "Space-heating operating hours",
           "runtime_dhw_entity": "Domestic-hot-water operating hours",
+          "runtime_counter_scope": "Operating-hours counter period",
+          "starts_counter_scope": "Compressor-start counter period",
           "thermal_energy_entity": "Thermal daily energy",
           "jaz_entity": "Measured performance factor",
           "volume_flow_entity": "Volume flow",
@@ -261,11 +290,16 @@
       "license_missing_entitlement": "The EAI entitlement is missing.",
       "license_validation_error": "The license could not be validated safely.",
       "feature_required": "Select at least one Premium function.",
+      "sfml_required": "Install and configure Solar Forecast ML before enabling weather intelligence.",
+      "stats_required": "Install and configure SFML STATS before enabling weather intelligence.",
+      "weather_station_required": "Configure a local weather station in Solar Forecast ML with at least temperature and one additional weather sensor.",
+      "weather_station_ambiguous": "Weather intelligence found multiple Solar Forecast ML stations. Keep exactly one SFML configuration active.",
       "weather_fusion_required": "Install and configure Weather Fusion AI before enabling weather intelligence.",
-      "validation_required": "Review and accept the sensor warnings.",
+      "validation_required": "Correct the missing or duplicate sensor assignments.",
       "invalid_heat_pump_values": "Enter finite numeric values: heating output from 1 to 100 kW and COP from 1 to 10.",
       "wallbox_required": "Wallbox analytics require wallbox power and at least one charging-demand source.",
       "wallbox_demand_required": "Select at least one demand source: vehicle state of charge, requested energy, or planned distance."
+      ,"sensor_source_invalid": "The selected sensor source changed, is incompatible, or is no longer available. Select it again or continue without reuse."
     },
     "abort": {
       "not_confirmed": "Setup was not confirmed.",
@@ -281,6 +315,7 @@
         "menu_options": {
           "license": "Renew license",
           "features": "Premium functions",
+          "sensor_sources": "Reuse sensor assignments",
           "heat_pump": "Heat pump details",
           "sensors": "Sensor assignments",
           "wallbox": "E-mobility and wallbox",
@@ -302,6 +337,22 @@
           "weather_intelligence_enabled": "Enable WFAI forecast evaluation and weather risks."
         }
       },
+      "sensor_sources": {
+        "title": "Reuse existing sensor assignments",
+        "description": "Select only assignments you want EAI to propose. Existing manual assignments are never overwritten, and the selected entities are shown again for review.",
+        "data": {
+          "use_discovered_sensor_mappings": "Reuse compatible assignments",
+          "environment_sensor_source": "Source for outdoor conditions",
+          "heat_pump_sensor_source": "Source for heat-pump measurements",
+          "wallbox_sensor_source": "Source for wallbox measurements"
+        },
+        "data_description": {
+          "use_discovered_sensor_mappings": "No assignment is changed unless this option is enabled.",
+          "environment_sensor_source": "Provides a compatible outdoor-temperature entity.",
+          "heat_pump_sensor_source": "Provides compatible compressor and backup-heater entities.",
+          "wallbox_sensor_source": "Provides compatible wallbox power and energy entities."
+        }
+      },
       "license": {
         "title": "Renew license",
         "description": "Enter a new signed EAI license key to replace the current license.",
@@ -321,6 +372,7 @@
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
           "cop_rated": "COP at the data-sheet test point",
+          "electrical_measurement_topology": "Electrical measurement topology",
           "has_heating_element": "Electric backup heater installed",
           "has_dhw": "Domestic hot water enabled",
           "storage_volume_l": "Usable storage volume (L)",
@@ -332,6 +384,7 @@
           "model": "Optional model or product designation.",
           "heating_capacity_kw": "Rated heat output according to the data sheet.",
           "cop_rated": "COP stated for a data-sheet test point such as A7/W35 or B0/W35; neither a live efficiency reading nor an annual performance factor. Keep 4.0 if unknown.",
+          "electrical_measurement_topology": "Use legacy aggregate when heat-pump power and daily energy include every electrical component. Use separate when they represent the compressor only and backup-heater measurements are configured separately.",
           "has_heating_element": "Enable if an electric backup heater is installed.",
           "has_dhw": "Enable if the heat pump also prepares domestic hot water.",
           "storage_volume_l": "Usable water or buffer volume from the data sheet. Unit: L. Optional.",
@@ -349,6 +402,9 @@
           "target_temp_entity": "Room target temperature (°C)",
           "operation_mode_entity": "Operating mode",
           "compressor_entity": "Compressor status",
+          "heating_element_entity": "Backup heater status",
+          "heating_element_power_entity": "Backup heater power (W)",
+          "heating_element_energy_today_entity": "Backup heater daily energy (kWh)",
           "dhw_temp_entity": "Domestic hot water temperature (°C)",
           "flow_temp_entity": "Flow temperature (°C)",
           "return_temp_entity": "Return temperature (°C)",
@@ -356,6 +412,8 @@
           "runtime_entity": "Total compressor operating-hours meter",
           "runtime_heating_entity": "Space-heating operating-hours meter",
           "runtime_dhw_entity": "Domestic-hot-water operating-hours meter",
+          "runtime_counter_scope": "Operating-hours counter period",
+          "starts_counter_scope": "Compressor-start counter period",
           "thermal_energy_entity": "Thermal daily consumption meter (kWh)",
           "jaz_entity": "Annual / measured performance factor",
           "volume_flow_entity": "Volume flow",
@@ -373,6 +431,9 @@
           "target_temp_entity": "Expected: sensor for the currently configured room target temperature. Unit: °C. Optional.",
           "operation_mode_entity": "Expected: sensor with a stable text state for the operating mode, such as heating, domestic hot water, defrost, or off. Unit: none. Optional.",
           "compressor_entity": "Expected: binary sensor, switch, or numeric compressor status. Unit: none. Optional; operating mode and electrical power are fallbacks.",
+          "heating_element_entity": "Expected: binary sensor or switch for the electric backup heater. Unit: none. Optional; prevents ambiguous compressor inference.",
+          "heating_element_power_entity": "Expected: current backup-heater electrical power. Unit: W. Optional.",
+          "heating_element_energy_today_entity": "Expected: backup-heater energy accumulated since midnight. Unit: kWh. Optional.",
           "dhw_temp_entity": "Expected: temperature sensor in the domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
           "flow_temp_entity": "Expected: sensor for the current heating circuit flow temperature. Unit: °C. Optional.",
           "return_temp_entity": "Expected: sensor for the current return temperature of the same heating circuit. Unit: °C. Optional.",
@@ -387,7 +448,9 @@
           "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
           "storage_ambient_temp_entity": "Expected: temperature sensor directly at the storage tank or in the plant room. Unit: °C. Optional.",
           "circulation_pump_entity": "Expected: switch, binary sensor, or numeric state for the circulation pump. Unit: none. Optional; a smart plug is suitable.",
-          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; plausibility evidence only."
+          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; plausibility evidence only.",
+          "runtime_counter_scope": "Select the period covered by the operating-hours counter. The average runtime per start is calculated only when both counter periods match.",
+          "starts_counter_scope": "Select the period covered by the start counter. Do not combine starts since midnight with lifetime operating hours."
         }
       },
       "wallbox": {
@@ -432,7 +495,7 @@
       },
       "weather_intelligence": {
         "title": "Weather intelligence",
-        "description": "Choose the Weather Fusion AI location and local evaluation retention.",
+        "description": "Requires Solar Forecast ML with a local weather station, SFML STATS and Weather Fusion AI. SFML station sensors are used automatically for live values and Recorder history.",
         "data": {
           "weather_fusion_entry_id": "Weather Fusion AI location",
           "weather_history_days": "Evaluation retention (days)"
@@ -461,10 +524,15 @@
       "license_missing_entitlement": "The EAI entitlement is missing.",
       "license_validation_error": "The license could not be validated safely.",
       "feature_required": "Select at least one Premium function.",
+      "sfml_required": "Install and configure Solar Forecast ML before enabling weather intelligence.",
+      "stats_required": "Install and configure SFML STATS before enabling weather intelligence.",
+      "weather_station_required": "Configure a local weather station in Solar Forecast ML with at least temperature and one additional weather sensor.",
+      "weather_station_ambiguous": "Weather intelligence found multiple Solar Forecast ML stations. Keep exactly one SFML configuration active.",
       "weather_fusion_required": "Install and configure Weather Fusion AI before enabling weather intelligence.",
       "validation_required": "Review the sensor assignments and resolve missing or duplicate entries.",
       "invalid_heat_pump_values": "Enter finite numeric values: heating output from 1 to 100 kW and COP from 1 to 10.",
       "wallbox_required": "Wallbox analytics require wallbox power and at least one charging-demand source."
+      ,"sensor_source_invalid": "The selected sensor source changed, is incompatible, or is no longer available. Select it again or continue without reuse."
     }
   },
   "entity": {
@@ -474,7 +542,7 @@
       "recommendation_explanation": {"name": "Recommendation explanation"},
       "recommendation_confidence": {"name": "Recommendation confidence"}, "forecast_uncertainty": {"name": "Forecast uncertainty"}, "next_action_start": {"name": "Next recommended start"}, "recommendation_valid_until": {"name": "Recommendation valid until"}, "recommended_duration": {"name": "Recommended duration"}, "consumption_next_hour": {"name": "Consumption next hour"}, "consumption_today": {"name": "Expected consumption today"}, "consumption_tomorrow": {"name": "Expected consumption tomorrow"}, "expected_pv_surplus": {"name": "Expected PV surplus"}, "estimated_cost_advantage": {"name": "Estimated cost advantage"}, "data_quality": {"name": "Data quality"},
       "model_status": {"name": "Model status", "state": {"learning": "Learning", "ready": "Ready", "degraded": "Degraded"}},
-      "weather_intelligence_status": {"name": "Weather intelligence status", "state": {"disabled": "Disabled", "degraded": "Degraded", "cold_start": "Learning", "ready": "Ready"}},
+      "weather_intelligence_status": {"name": "Weather intelligence status", "state": {"disabled": "Disabled", "dependency_missing": "Prerequisite missing", "degraded": "Degraded", "cold_start": "Learning", "ready": "Ready"}},
       "weather_data_quality": {"name": "Weather data quality"},
       "weather_paired_samples": {"name": "Weather forecast/observation pairs"},
       "weather_temperature_mae": {"name": "Local temperature forecast MAE"},
@@ -524,6 +592,13 @@
         "auto": "Detect automatically from sensor",
         "ct_per_kwh": "Cents per kWh",
         "eur_per_kwh": "Euros per kWh"
+      }
+    },
+    "counter_scope": {
+      "options": {
+        "unknown": "Unknown — do not calculate an average",
+        "lifetime": "Lifetime total",
+        "daily": "Daily — resets at midnight"
       }
     },
     "wp_type": {

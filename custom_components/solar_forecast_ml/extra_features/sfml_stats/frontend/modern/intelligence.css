@@ -550,32 +550,51 @@
 
 .iq-heatmap-scroll {
     padding: 18px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-gutter: stable;
+}
+
+.iq-heatmap-canvas {
+    --iq-heatmap-cell-size: 14px;
+    --iq-heatmap-gap: 3px;
+    display: grid;
+    grid-template-columns: repeat(var(--iq-heatmap-weeks), var(--iq-heatmap-cell-size));
+    gap: 9px var(--iq-heatmap-gap);
+    width: var(--iq-heatmap-width);
 }
 
 .iq-month-labels {
-    display: flex;
-    min-width: 820px;
-    justify-content: space-around;
-    margin-bottom: 9px;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(var(--iq-heatmap-weeks), var(--iq-heatmap-cell-size));
+    grid-template-rows: repeat(var(--iq-month-label-rows), minmax(0, 1fr));
+    gap: 2px var(--iq-heatmap-gap);
     color: var(--text-secondary);
     font-size: 0.68rem;
+    line-height: 1.1;
     text-transform: uppercase;
+}
+
+.iq-month-labels span {
+    width: max-content;
+    white-space: nowrap;
 }
 
 .iq-heatmap {
     display: grid;
+    grid-column: 1 / -1;
     grid-auto-flow: column;
-    grid-auto-columns: 14px;
-    grid-template-rows: repeat(7, 14px);
-    gap: 3px;
-    width: max-content;
-    min-width: 820px;
+    grid-auto-columns: var(--iq-heatmap-cell-size);
+    grid-template-columns: repeat(var(--iq-heatmap-weeks), var(--iq-heatmap-cell-size));
+    grid-template-rows: repeat(7, var(--iq-heatmap-cell-size));
+    gap: var(--iq-heatmap-gap);
 }
 
 .iq-heat-cell,
 .iq-heat-blank {
-    width: 14px;
-    height: 14px;
+    width: var(--iq-heatmap-cell-size);
+    height: var(--iq-heatmap-cell-size);
 }
 
 .iq-heat-cell {

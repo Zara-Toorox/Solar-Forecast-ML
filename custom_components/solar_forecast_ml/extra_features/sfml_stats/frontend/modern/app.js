@@ -561,7 +561,15 @@ const ModernApp = {
         }
 
         function handleDashboardMode(mode) {
-            dashboardMode.value = mode === "live" ? "live" : "mock";
+            dashboardMode.value = [
+                "loading",
+                "live",
+                "mock",
+                "degraded",
+                "unavailable",
+            ].includes(mode)
+                ? mode
+                : "unavailable";
             syncShellPolling();
         }
 

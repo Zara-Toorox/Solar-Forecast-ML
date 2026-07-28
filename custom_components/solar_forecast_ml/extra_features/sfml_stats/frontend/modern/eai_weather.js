@@ -132,6 +132,39 @@ const EAI_WEATHER_DEMO = {
     cold_start: false,
 };
 
+const assessAccuracyProvenance = (provenance) => {
+    if (!provenance || typeof provenance !== "object") {
+        return { kind: "unknown", hasProvenance: false };
+    }
+    const actualSources = provenance.actual_sources;
+    const sources = actualSources && typeof actualSources === "object"
+        ? Object.entries(actualSources)
+            .filter(([, value]) => value !== false && value !== null && value !== 0)
+            .map(([source]) => String(source).trim().toLowerCase())
+            .filter(Boolean)
+        : [];
+    const stationSources = new Set([
+        "sfml_database",
+        "sfml_station",
+        "local_weather_station",
+    ]);
+    if (provenance.station_independent === true
+        && sources.length > 0
+        && sources.every((source) => stationSources.has(source))) {
+        return { kind: "station", hasProvenance: true };
+    }
+    const wfaiSources = new Set([
+        "weather_fusion_ai",
+        "weather_fusion",
+        "weather_fusion_tracker",
+        "wfai",
+    ]);
+    if (sources.length > 0 && sources.every((source) => wfaiSources.has(source))) {
+        return { kind: "wfai", hasProvenance: true };
+    }
+    return { kind: sources.length > 1 ? "mixed" : "unknown", hasProvenance: true };
+};
+
 const ModernEAIWeatherPage = {
     template: `
         <section class="eai-weather-page" aria-labelledby="eai-weather-title">
@@ -158,7 +191,7 @@ const ModernEAIWeatherPage = {
 
             <template v-else>
                 <section class="eai-weather-now" aria-labelledby="weather-now-title">
-                    <header><div><span class="eai-weather-eyebrow">Jetzt an deiner Wetterstation</span><h3 id="weather-now-title">Aktuelle Messwerte</h3></div><time>{{ dateTime(current.observed_at) }}</time></header>
+                    <header><div><span class="eai-weather-eyebrow">{{ currentSourceEyebrow }}</span><h3 id="weather-now-title">Aktuelle Messwerte</h3></div><time>{{ dateTime(current.observed_at) }}</time></header>
                     <div class="eai-weather-now-grid">
                         <article v-for="metric in currentMetrics" :key="metric.label"><span>{{ metric.label }}</span><strong>{{ metric.value }}</strong><small>{{ metric.detail }}</small></article>
                     </div>
@@ -180,7 +213,7 @@ const ModernEAIWeatherPage = {
                     </header>
                     <div class="eai-weather-chart-readout" aria-live="polite">
                         <strong>{{ selectedChartPoint ? chartValue(selectedChartPoint) : chartTitle }}</strong>
-                        <span>{{ selectedChartPoint ? chartPointLabel(selectedChartPoint) : "Messungen links, Vorhersage rechts" }}</span>
+                        <span>{{ selectedChartPoint ? chartPointLabel(selectedChartPoint) : chartSubtitle }}</span>
                     </div>
                     <div class="eai-weather-chart-wrap">
                         <svg class="eai-weather-chart" viewBox="0 0 1000 300" role="img" :aria-label="chartTitle">
@@ -193,7 +226,7 @@ const ModernEAIWeatherPage = {
                             <circle v-for="point in chartModel.points" :key="point.key" :cx="point.x" :cy="point.y" r="4.5" :class="['weather-point', point.source]" tabindex="0" @mouseenter="selectedChartPoint = point" @focus="selectedChartPoint = point"><title>{{ chartPointLabel(point) }} · {{ chartValue(point) }}</title></circle>
                         </svg>
                     </div>
-                    <footer class="eai-weather-legend"><span class="actual">SFML / Stationsmessung</span><span class="forecast">Weather Fusion Prognose</span><span class="uncertainty">Prognose-Spielraum ± {{ temperature(weather.uncertainty?.temperature_c) }}</span></footer>
+                    <footer class="eai-weather-legend"><span v-if="hasActualTimeline" class="actual">{{ actualTimelineLabel }}</span><span class="forecast">Weather Fusion Prognose</span><span class="uncertainty">Prognose-Spielraum ± {{ temperature(weather.uncertainty?.temperature_c) }}</span></footer>
                 </article>
 
                 <div class="eai-weather-dashboard-grid">
@@ -202,8 +235,10 @@ const ModernEAIWeatherPage = {
                         <div v-if="hourly.length" class="eai-weather-timeline" role="list" aria-label="Stündliche Wetterprognose">
                             <div v-for="point in hourly" :key="point.valid_at" class="eai-weather-hour" role="listitem">
                                 <time>{{ time(point.valid_at) }}</time><strong>{{ temperature(point.temperature_c) }}</strong>
-                                <span>{{ weatherSymbol(point) }} {{ percent(point.precipitation_probability) }}</span>
+                                <span class="eai-weather-hour-condition"><i aria-hidden="true">{{ weatherSymbol(point) }}</i>{{ weatherDescription(point) }}</span>
+                                <span>{{ percent(point.precipitation_probability) }} Regen</span>
                                 <small>{{ precipitation(point.precipitation) }} · {{ number(point.wind_speed) }} km/h</small>
+                                <small v-if="precipitationInconsistent(point)" class="eai-weather-hour-note" title="Niederschlagsmenge und Regenwahrscheinlichkeit der Prognosequelle widersprechen sich.">⚠ Quelldaten widersprüchlich</small>
                             </div>
                         </div>
                         <p v-else>Für die stündliche Ansicht liegen noch keine belastbaren Prognosepunkte vor.</p>
@@ -232,14 +267,14 @@ const ModernEAIWeatherPage = {
                         <article v-for="day in daily" :key="day.date">
                             <header><div class="eai-weather-day-title"><i aria-hidden="true">{{ dayIcon(day.summary_code) }}</i><strong>{{ dayName(day.date) }}</strong></div><span>{{ daySummary(day.summary_code) }}</span></header>
                             <b>{{ temperature(day.temperature_min_c) }} – {{ temperature(day.temperature_max_c) }}</b>
-                            <span>{{ precipitation(day.precipitation_forecast_mm) }} · {{ percent(day.precipitation_probability_max) }} Regenrisiko</span>
+                            <span>{{ precipitationOutlook(day.precipitation_forecast_mm, day.precipitation_probability_max) }}</span>
                             <small>Wind bis {{ number(day.wind_speed_max) }} km/h</small>
                         </article>
                     </div>
                 </article>
 
                 <article class="eai-weather-card">
-                    <header><div><span class="eai-weather-eyebrow">Vier Wetterlinsen</span><h3>Messung, lokale KI, HUBBLE AI und Kepler AI</h3></div><span class="eai-weather-chip">SFML Datenbank</span></header>
+                    <header><div><span class="eai-weather-eyebrow">Vier Wetterlinsen</span><h3>WFAI, HUBBLE, Kepler und Wetterstation</h3></div><span class="eai-weather-chip">{{ sourceAvailabilityLabel }}</span></header>
                     <div class="eai-weather-source-matrix">
                         <article v-for="source in sourceCards" :key="source.id">
                             <span>{{ source.icon }} {{ source.label }}</span>
@@ -253,7 +288,7 @@ const ModernEAIWeatherPage = {
                             <tr v-for="row in sourceComparisonRows" :key="row.valid_at"><th>{{ time(row.valid_at) }}</th><td>{{ temperature(row.wfai) }}</td><td>{{ temperature(row.blend) }}</td><td>{{ temperature(row.kepler) }}</td><td>{{ temperature(row.spread) }}</td></tr>
                         </tbody></table>
                     </div>
-                    <footer>Kepler AI zeigt den Wetter-Snapshot, mit dem die Energieprognose tatsächlich gerechnet hat. HUBBLE AI stellt den korrigierten SFML-Wetterblend gegenüber.</footer>
+                    <footer>Wetterstation zeigt die in SFML hinterlegten Sensoren. HUBBLE zeigt den Wetterblend aus der SFML-Datenbank, WFAI die lokale Prognose und Kepler den Prognose-Snapshot.</footer>
                 </article>
 
                 <div class="eai-weather-grid">
@@ -267,8 +302,10 @@ const ModernEAIWeatherPage = {
                             <span>Daten seit <strong>{{ historySince }}</strong></span>
                             <span>Ø {{ yearComparison.current?.year || "dieses Jahr" }} <strong>{{ temperature(yearComparison.current?.temperature_avg_c) }}</strong><small>{{ integer(yearComparison.current?.valid_days) }} Tage</small></span>
                             <span>Ø {{ yearComparison.previous?.year || "Vorjahr" }} <strong>{{ temperature(yearComparison.previous?.temperature_avg_c) }}</strong><small>{{ integer(yearComparison.previous?.valid_days) }} Tage</small></span>
-                            <span>Regen {{ yearComparison.current?.year || "aktuell" }} <strong>{{ precipitation(yearComparison.current?.precipitation_total_mm) }}</strong></span>
-                            <span>Regen {{ yearComparison.previous?.year || "Vorjahr" }} <strong>{{ precipitation(yearComparison.previous?.precipitation_total_mm) }}</strong></span>
+                            <span v-if="rainfallRateAvailable">Regentage {{ yearComparison.current?.year || "aktuell" }} <strong>{{ integer(yearComparison.current?.rain_days) }}</strong></span>
+                            <span v-else>Regen {{ yearComparison.current?.year || "aktuell" }} <strong>{{ precipitation(yearComparison.current?.precipitation_total_mm) }}</strong></span>
+                            <span v-if="rainfallRateAvailable">Regentage {{ yearComparison.previous?.year || "Vorjahr" }} <strong>{{ integer(yearComparison.previous?.rain_days) }}</strong></span>
+                            <span v-else>Regen {{ yearComparison.previous?.year || "Vorjahr" }} <strong>{{ precipitation(yearComparison.previous?.precipitation_total_mm) }}</strong></span>
                             <span>Ø Globalstrahlung <strong>{{ irradiance(aggregates.solar_radiation_avg_wm2) }}</strong></span>
                             <span>Maximum Globalstrahlung <strong>{{ irradiance(aggregates.solar_radiation_max_wm2) }}</strong></span>
                         </div>
@@ -284,16 +321,24 @@ const ModernEAIWeatherPage = {
 
                 <div class="eai-weather-grid">
                     <article class="eai-weather-card">
-                        <span class="eai-weather-eyebrow">Regenbilanz</span><h3>Menge, Regentage und Trockenphasen</h3>
+                        <span class="eai-weather-eyebrow">Regenbilanz</span><h3>{{ rainfallTitle }}</h3>
                         <div v-if="rainfallAvailable" class="eai-weather-rain-summary">
                             <div><strong>{{ precipitation(rainfall.total_mm) }}</strong><span>im verfügbaren Zeitraum</span></div>
                             <div><strong>{{ integer(rainfall.rain_days) }}</strong><span>Regentage</span></div>
                             <div><strong>{{ integer(rainfall.dry_spell_days) }}</strong><span>längste Trockenphase</span></div>
                         </div>
+                        <div v-else-if="rainfallRateAvailable" class="eai-weather-rain-summary">
+                            <div><strong>{{ precipitationRate(rainfall.max_rate_mm_per_h) }}</strong><span>höchste gemessene Regenrate</span></div>
+                            <div><strong>{{ integer(rainfall.rain_days) }}</strong><span>Tage mit Regen</span></div>
+                            <div><strong>{{ integer(rainfall.dry_spell_days) }}</strong><span>längste Trockenphase</span></div>
+                        </div>
                         <div v-if="rainDays.length" class="eai-weather-rain-bars" aria-label="Niederschlag der letzten Tage">
                             <div v-for="day in rainDays" :key="day.date"><i :style="{ height: rainBar(day.total_mm) }"></i><strong>{{ precipitation(day.total_mm) }}</strong><small>{{ shortDate(day.date) }}</small></div>
                         </div>
-                        <p v-else-if="!rainfallAvailable" class="eai-weather-unavailable">Die Messbedeutung des Regensensors ist nicht eindeutig genug. Deshalb zeigen wir keine erfundene Summe.</p>
+                        <div v-else-if="rainRateDays.length" class="eai-weather-rain-bars" aria-label="Maximale Regenrate der letzten Tage">
+                            <div v-for="day in rainRateDays" :key="day.date"><i :style="{ height: rainBar(day.max_mm_per_h) }"></i><strong>{{ precipitationRate(day.max_mm_per_h) }}</strong><small>{{ shortDate(day.date) }}</small></div>
+                        </div>
+                        <p v-else-if="!rainfallAvailable && !rainfallRateAvailable" class="eai-weather-unavailable">Für eine Regenbilanz fehlen eindeutige Messwerte.</p>
                     </article>
                     <article class="eai-weather-card">
                         <span class="eai-weather-eyebrow">Lokale Rekorde</span><h3>Was deine Station wirklich gemessen hat</h3>
@@ -303,9 +348,9 @@ const ModernEAIWeatherPage = {
                 </div>
 
                 <article class="eai-weather-card">
-                    <header><div><span class="eai-weather-eyebrow">Prognose gegen Messung</span><h3>Wie gut trifft Weather Fusion deinen Standort?</h3></div><span class="eai-weather-chip">{{ trendLabel }}</span></header>
+                    <header><div><span class="eai-weather-eyebrow">{{ qualityEyebrow }}</span><h3>{{ qualityTitle }}</h3></div><span class="eai-weather-chip">{{ trendLabel }}</span></header>
                     <div class="eai-weather-table-wrap"><table><thead><tr><th>Vorlauf</th><th>Vergleiche</th><th>Typische Abweichung</th><th>Bias</th></tr></thead><tbody><tr v-for="row in qualityRows" :key="row.key"><th>{{ row.label }}</th><td>{{ integer(row.values.pairs) }}</td><td>{{ temperature(row.values.mae) }}</td><td>{{ signedTemperature(row.values.bias) }}</td></tr></tbody></table></div>
-                    <footer>SFML-Stationsmessungen werden mit früher gespeicherten Prognosen gepaart. Das zeigt die tatsächliche Güte an diesem Standort.</footer>
+                    <footer>{{ qualityProvenance }}</footer>
                 </article>
             </template>
         </section>`,
@@ -447,8 +492,38 @@ const ModernEAIWeatherPage = {
         const forecastAvailable = computed(() => weather.available === true && hourly.value.length > 0);
         const history = computed(() => weather.actual_history || weather.history || {});
         const current = computed(() => history.value.current || {});
+        const normalizedSource = (value) => String(value || "").trim().toLowerCase();
+        const currentSource = computed(() => normalizedSource(current.value.source));
+        const timelineSource = computed(() => normalizedSource(history.value.timeline_source || history.value.source));
+        const isStationSource = (source) => ["sfml_database", "sfml_station", "local_weather_station"].includes(source);
+        const isStationHistorySource = (source) => isStationSource(source) || source === "home_assistant_recorder";
+        const isWfaiSource = (source) => ["weather_fusion_ai", "weather_fusion", "wfai"].includes(source);
+        const currentSourceLabel = computed(() => isStationSource(currentSource.value)
+            ? "Wetterstation"
+            : isWfaiSource(currentSource.value)
+                ? "Weather Fusion AI"
+                : currentSource.value ? "Gelieferte Wetterquelle" : "Aktuelle Wetterquelle nicht bestätigt");
+        const currentSourceEyebrow = computed(() => `Jetzt · ${currentSourceLabel.value}`);
+        const hasActualTimeline = computed(() => Array.isArray(history.value.timeline)
+            && history.value.timeline.length > 0);
+        const actualTimelineLabel = computed(() => isStationHistorySource(timelineSource.value)
+            ? "SFML-Wetterstation / Recorder"
+            : isWfaiSource(timelineSource.value)
+                ? "Weather Fusion AI · Beobachtung"
+                : "Historische Beobachtung · Quelle nicht bestätigt");
         const aggregates = computed(() => history.value.aggregates || {});
-        const monthly = computed(() => Array.isArray(history.value.monthly_series) ? history.value.monthly_series : []);
+        const monthly = computed(() => Array.isArray(history.value.monthly_series)
+            ? history.value.monthly_series.map((month) => {
+                const temperatureValues = month?.values?.temperature;
+                if (!temperatureValues || typeof temperatureValues !== "object") return month;
+                return {
+                    ...month,
+                    temperature_min_c: temperatureValues.min,
+                    temperature_max_c: temperatureValues.max,
+                    temperature_avg_c: temperatureValues.avg,
+                };
+            })
+            : []);
         const records = computed(() => Array.isArray(history.value.records) ? history.value.records : []);
         const warnings = computed(() => {
             const items = Array.isArray(weather.warnings) ? weather.warnings : (Array.isArray(weather.events) ? weather.events : []);
@@ -462,19 +537,49 @@ const ModernEAIWeatherPage = {
         const rainfall = computed(() => history.value.precipitation || {});
         const yearComparison = computed(() => history.value.year_comparison || {});
         const sourceComparison = computed(() => history.value.source_comparison || {});
-        const rainDays = computed(() => Array.isArray(rainfall.value.daily) ? rainfall.value.daily.slice(-14) : []);
+        const rainDays = computed(() => Array.isArray(rainfall.value.daily)
+            ? rainfall.value.daily.filter((item) => isFiniteValue(item?.total_mm)).slice(-7)
+            : []);
         const rainfallAvailable = computed(() => rainfall.value.available === true && isFiniteValue(rainfall.value.total_mm));
+        const rainfallRateAvailable = computed(() => rainfall.value.available === true
+            && rainfall.value.semantics === "rate"
+            && rainfall.value.unit === "mm/h");
+        const rainRateDays = computed(() => Array.isArray(rainfall.value.daily)
+            ? rainfall.value.daily.filter((item) => isFiniteValue(item?.max_mm_per_h)).slice(-7)
+            : []);
+        const rainfallTitle = computed(() => rainfallRateAvailable.value
+            ? "Intensität, Regentage und Trockenphasen"
+            : "Menge, Regentage und Trockenphasen");
         const todayRainfall = computed(() => {
-            if (rainfall.value.source !== "sfml_database") return null;
+            if (!["sfml_database", "home_assistant_recorder"].includes(rainfall.value.source)) return null;
             const observationDate = String(current.value.observation_date || "");
             const day = rainDays.value.find((item) => item.date === observationDate);
             return isFiniteValue(day?.total_mm) ? Number(day.total_mm) : null;
         });
+        const currentRainMetric = computed(() => rainfallRateAvailable.value
+            ? {
+                label: "Aktuelle Regenrate",
+                value: precipitationRate(current.value.precipitation),
+                detail: "Wetterstation · Intensität",
+            }
+            : {
+                label: "Regen seit 00:00",
+                value: precipitation(todayRainfall.value),
+                detail: todayRainfall.value === null ? "Keine gesicherte Tagessumme" : "Wetterstation · Tagesstatistik",
+            });
         const historySince = computed(() => dateOnly(aggregates.value.data_since || history.value.data_since || weather.data_quality?.data_since) || "noch im Aufbau");
         const coverageLabel = computed(() => Number.isFinite(Number(aggregates.value.coverage_percent ?? history.value.coverage ?? weather.data_quality?.coverage_percent)) ? `${integer(aggregates.value.coverage_percent ?? history.value.coverage ?? weather.data_quality?.coverage_percent)} %` : "wird ermittelt");
         const recorderLabel = computed(() => history.value.sources?.sfml_database ? "SFML Datenbank verbunden" : "Lokale Historie");
-        const historySource = computed(() => history.value.sources?.sfml_database ? "SFML Datenbank" : "Historie nicht verfügbar");
+        const historySource = computed(() => isStationHistorySource(timelineSource.value)
+            ? "SFML-Wetterstation · Recorder"
+            : isWfaiSource(timelineSource.value)
+                ? "Weather Fusion AI"
+                : hasActualTimeline.value ? "Historie · Quelle nicht bestätigt" : "Historie nicht verfügbar");
         const forecastRain = computed(() => forecastAvailable.value ? precipitation(nextHours.value.precipitation_forecast_mm) : "—");
+        const forecastPrecipitation = computed(() => precipitationOutlook(
+            nextHours.value.precipitation_forecast_mm,
+            nextHours.value.precipitation_probability_max,
+        ));
         const warningSummary = computed(() => !forecastAvailable.value ? "Prognose lädt" : warnings.value.some((item) => item.severity === "critical") ? "Dringend" : warnings.value.some((item) => item.severity === "warning") ? "Beachten" : warnings.value.length ? "Hinweise" : "Ruhig");
         const narrative = computed(() => {
             if (!forecastAvailable.value) {
@@ -482,7 +587,7 @@ const ModernEAIWeatherPage = {
             }
             const summary = daySummary(nextHours.value.summary_code);
             const range = isFiniteValue(nextHours.value.temperature_min_c) && isFiniteValue(nextHours.value.temperature_max_c) ? ` Die Temperatur liegt zwischen ${temperature(nextHours.value.temperature_min_c)} und ${temperature(nextHours.value.temperature_max_c)}.` : "";
-            return `${summary}.${range} In den nächsten ${nextHours.value.hours || 24} Stunden erwarten wir ${forecastRain.value}, bis zu ${percent(nextHours.value.precipitation_probability_max)} Regenrisiko und Wind bis ${number(nextHours.value.wind_speed_max)} km/h.`;
+            return `${summary}.${range} In den nächsten ${nextHours.value.hours || 24} Stunden meldet die Prognose ${forecastPrecipitation.value} und Wind bis ${number(nextHours.value.wind_speed_max)} km/h.`;
         });
 
         const chartOptions = [
@@ -492,7 +597,12 @@ const ModernEAIWeatherPage = {
             { id: "wind_speed", label: "Wind", unit: "km/h" },
         ];
         const chartConfig = computed(() => chartOptions.find((item) => item.id === chartMetric.value) || chartOptions[0]);
-        const chartTitle = computed(() => `${chartConfig.value.label}: SFML-Messung und Prognose`);
+        const chartTitle = computed(() => hasActualTimeline.value
+            ? `${chartConfig.value.label}: ${actualTimelineLabel.value} und Prognose`
+            : `${chartConfig.value.label}: Weather Fusion Prognose`);
+        const chartSubtitle = computed(() => hasActualTimeline.value
+            ? `${actualTimelineLabel.value} links, Vorhersage rechts`
+            : "Nur verfügbare Weather-Fusion-Prognose");
         const chartModel = computed(() => {
             const actual = (Array.isArray(history.value.timeline) ? history.value.timeline : []).map((point) => ({ ...point, at: point.observed_at, source: "actual" }));
             const forecast = hourly.value.map((point) => ({ ...point, at: point.valid_at, source: "forecast" }));
@@ -551,30 +661,50 @@ const ModernEAIWeatherPage = {
             const blend = matchingPoint(sourceComparison.value.sfml_expert_blend, wfai.valid_at) || {};
             const kepler = matchingPoint(sourceComparison.value.kepler_input, wfai.valid_at) || {};
             return [
-                current.value.available && current.value.source === "sfml_database" && { id: "station", icon: "📡", label: "Wetterstation", temperature: temperature(current.value.temperature_c), detail: `${irradiance(current.value.solar_radiation_wm2)} GHI · gemessen` },
-                isFiniteValue(wfai.temperature_c) && { id: "wfai", icon: "🧠", label: "Weather Fusion AI", temperature: temperature(wfai.temperature_c), detail: `${precipitation(wfai.precipitation)} · lokale Prognose` },
-                isFiniteValue(blend.temperature_c) && { id: "blend", icon: "🛰️", label: "HUBBLE AI", temperature: temperature(blend.temperature_c), detail: `${number(blend.ghi_wm2, 0)} GHI · ${number(blend.dhi_wm2, 0)} DHI W/m²` },
+                isFiniteValue(wfai.temperature_c) && { id: "wfai", icon: "🧠", label: "WFAI", temperature: temperature(wfai.temperature_c), detail: `${precipitation(wfai.precipitation)} · lokale Prognose` },
+                isFiniteValue(blend.temperature_c) && { id: "hubble", icon: "🛰️", label: "HUBBLE AI", temperature: temperature(blend.temperature_c), detail: `${number(blend.ghi_wm2, 0)} GHI · ${number(blend.dhi_wm2, 0)} DHI W/m²` },
                 isFiniteValue(kepler.temperature_c) && { id: "kepler", icon: "✦", label: "Kepler AI", temperature: temperature(kepler.temperature_c), detail: `${number(kepler.dni_wm2, 0)} DNI · ${number(kepler.dhi_wm2, 0)} DHI W/m²` },
+                isFiniteValue(current.value.temperature_c) && { id: "station", icon: "📡", label: "Wetterstation", temperature: temperature(current.value.temperature_c), detail: `${irradiance(current.value.solar_radiation_wm2)} GHI · SFML-Sensoren` },
             ].filter(Boolean);
         });
         const missingSourceLabels = computed(() => {
             const present = new Set(sourceCards.value.map((source) => source.id));
-            return [["station", "Wetterstation"], ["wfai", "Weather Fusion AI"], ["blend", "HUBBLE AI"], ["kepler", "Kepler AI"]]
+            return [["wfai", "WFAI"], ["hubble", "HUBBLE AI"], ["kepler", "Kepler AI"], ["station", "Wetterstation"]]
                 .filter(([id]) => !present.has(id))
                 .map(([, label]) => label);
         });
+        const sourceAvailabilityLabel = computed(() => `${sourceCards.value.length} Quelle${sourceCards.value.length === 1 ? "" : "n"} verfügbar`);
 
         const currentMetrics = computed(() => [
-            { label: "Temperatur", value: temperature(current.value.temperature_c), detail: current.value.source === "sfml_database" ? "Stationsmessung" : "WFAI-Beobachtung" },
+            { label: "Temperatur", value: temperature(current.value.temperature_c), detail: currentSourceLabel.value },
             { label: "Luftfeuchte", value: percent(current.value.humidity), detail: dewPointHint(current.value.temperature_c, current.value.humidity) },
             { label: "Luftdruck", value: isFiniteValue(current.value.pressure) ? `${integer(current.value.pressure)} hPa` : "—", detail: pressureHint(current.value.pressure) },
             { label: "Wind", value: isFiniteValue(current.value.wind_speed) ? `${number(current.value.wind_speed)} km/h` : "—", detail: windDirection(current.value.wind_bearing) },
-            { label: "Regen seit 00:00", value: precipitation(todayRainfall.value), detail: todayRainfall.value === null ? "Keine gesicherte Tagessumme" : "SFML Datenbank · Stationsmessung" },
-            { label: "Datenquelle", value: historySource.value, detail: coverageLabel.value + " Abdeckung" },
+            currentRainMetric.value,
+            { label: "Aktuelle Quelle", value: currentSourceLabel.value, detail: "Quelle des aktuellen Werts" },
+            { label: "Historie", value: historySource.value, detail: coverageLabel.value + " Abdeckung" },
         ]);
         const quality = computed(() => weather.forecast_vs_actual?.temperature_c || { by_horizon: weather.accuracy || {} });
         const qualityRows = computed(() => [["0_6h", "0–6 Stunden"], ["6_24h", "6–24 Stunden"], ["24_72h", "24–72 Stunden"]].map(([key, label]) => ({ key, label, values: quality.value.by_horizon?.[key] || {} })));
         const trendLabel = computed(() => ({ improving: "Treffer werden besser", worsening: "Zuletzt wechselhafter", stable: "Treffer bleiben stabil" }[quality.value.trend?.direction] || "Trend braucht mehr Daten"));
+        const accuracyProvenance = computed(() => assessAccuracyProvenance(
+            quality.value.provenance,
+        ));
+        const qualityEyebrow = computed(() => accuracyProvenance.value.kind === "station"
+            ? "Prognose gegen Messung"
+            : "Prognose gegen Messung · Quelle prüfen");
+        const qualityTitle = computed(() => accuracyProvenance.value.kind === "station"
+            ? "Wie gut trifft Weather Fusion deinen Standort?"
+            : accuracyProvenance.value.kind === "wfai"
+                ? "Wie nah liegen WFAI-Beobachtung und Prognose?"
+                : "Wie entwickeln sich verfügbare Prognosevergleiche?");
+        const qualityProvenance = computed(() => accuracyProvenance.value.kind === "station"
+            ? "Früher gespeicherte Weather-Fusion-Prognosen werden mit SFML-Stationsmessungen gepaart. Das zeigt die Standortgüte für diese Datenbasis."
+            : accuracyProvenance.value.kind === "wfai"
+                ? "WFAI-Beobachtungen und Weather-Fusion-Prognosen stammen aus derselben Quelle. Die Werte sind keine unabhängige Stationsgüte."
+                : accuracyProvenance.value.kind === "mixed"
+                    ? "Die Vergleiche enthalten mehrere Beobachtungsquellen. Sie sind keine unabhängige Stationsgüte."
+                : "Die Herkunft der Vergleichswerte ist nicht bestätigt. Die Tabelle zeigt keine unabhängige Stationsgüte.");
         const modeLabel = computed(() => ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt" }[status.data_mode] || "Vorschau"));
 
         const isFiniteValue = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
@@ -583,6 +713,15 @@ const ModernEAIWeatherPage = {
         const percent = (value) => isFiniteValue(value) ? `${integer(value)} %` : "—";
         const temperature = (value) => isFiniteValue(value) ? `${number(value)} °C` : "—";
         const precipitation = (value) => isFiniteValue(value) ? `${number(value)} mm` : "—";
+        const precipitationRate = (value) => isFiniteValue(value) ? `${number(value)} mm/h` : "—";
+        const precipitationProbability = (amount, probability) => {
+            if (!isFiniteValue(probability)) return "Wahrscheinlichkeit —";
+            const declared = percent(probability);
+            return Number(amount) > 0 && Number(probability) === 0
+                ? `${declared} laut Quelle · widersprüchlich zur Niederschlagsmenge`
+                : declared;
+        };
+        const precipitationOutlook = (amount, probability) => `${precipitation(amount)} · ${precipitationProbability(amount, probability)} Regenrisiko`;
         const irradiance = (value) => isFiniteValue(value) ? `${number(value, 0)} W/m²` : "—";
         const signedTemperature = (value) => isFiniteValue(value) ? `${Number(value) > 0 ? "+" : ""}${number(value)} °C` : "—";
         const dateTime = (value) => value ? new Date(value).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "noch offen";
@@ -592,19 +731,38 @@ const ModernEAIWeatherPage = {
         const dayName = (value) => value ? new Date(`${value}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "2-digit" }) : "—";
         const daySummary = (code) => ({ storm: "Sturm prägt die Wetterlage", heat: "Es wird heiß und belastend", heavy_rain: "Kräftiger Regen ist zu erwarten", rain_likely: "Regen ist wahrscheinlich", strong_wind: "Es wird deutlich windiger", frost: "Frost ist möglich", calm: "Die Wetterlage bleibt überwiegend ruhig" }[code] || "Die Wetterentwicklung wird ausgewertet");
         const weatherSymbol = (point) => Number(point.wind_speed) >= 60 ? "💨" : Number(point.precipitation_probability) >= 70 ? "🌧️" : Number(point.precipitation_probability) >= 35 ? "🌦️" : Number(point.temperature_c) >= 30 ? "☀️" : "⛅";
+        const weatherDescription = (point) => ({
+            "clear-night": "Klare Nacht",
+            cloudy: "Bewölkt",
+            exceptional: "Ungewöhnliche Wetterlage",
+            fog: "Nebelig",
+            hail: "Hagel",
+            lightning: "Gewitter",
+            "lightning-rainy": "Gewitter mit Regen",
+            partlycloudy: "Teilweise bewölkt",
+            pouring: "Starker Regen",
+            rainy: "Regnerisch",
+            snowy: "Schneefall",
+            "snowy-rainy": "Schneeregen",
+            sunny: "Sonnig",
+            windy: "Windig",
+            "windy-variant": "Windig und bewölkt",
+        }[point.condition] || (Number(point.precipitation_probability) >= 70 ? "Regen wahrscheinlich" : Number(point.precipitation_probability) >= 35 ? "Schauer möglich" : Number(point.temperature_c) >= 30 ? "Sonnig und heiß" : "Teilweise bewölkt"));
+        const precipitationInconsistent = (point) => Number(point.precipitation) > 0 && Number(point.precipitation_probability) === 0;
         const dayIcon = (code) => ({ storm: "⛈️", heat: "☀️", heavy_rain: "🌧️", rain_likely: "🌦️", strong_wind: "💨", frost: "❄️", calm: "⛅" }[code] || "🌤️");
-        const warningLabel = (code) => ({ forecast_stale: "Prognose nicht frisch", forecast_unavailable: "Quelle nicht verfügbar", unavailable: "Quelle nicht verfügbar", freeze_risk: "Frostgefahr", heat_stress: "Hitzebelastung", heavy_precipitation: "Starkregen", high_precipitation_probability: "Hohe Regenwahrscheinlichkeit", strong_wind: "Starker Wind", storm_wind: "Sturmböen" }[code] || "Wetterhinweis");
+        const warningLabel = (code) => ({ forecast_stale: "Prognose nicht frisch", forecast_unavailable: "Quelle nicht verfügbar", unavailable: "Quelle nicht verfügbar", freeze_risk: "Frostgefahr", heat_stress: "Hitzebelastung", heavy_precipitation: "Starkregen", high_precipitation_probability: "Hohe Regenwahrscheinlichkeit", precipitation_probability_inconsistent: "Niederschlagsdaten widersprüchlich", strong_wind: "Starker Wind", storm_wind: "Sturmböen" }[code] || "Wetterhinweis");
         const warningIcon = (code, severity) => ({ freeze_risk: "❄️", heat_stress: "🌡️", heavy_precipitation: "🌧️", high_precipitation_probability: "🌦️", strong_wind: "💨", storm_wind: "⛈️", forecast_stale: "🕒", forecast_unavailable: "⚠️", unavailable: "⚠️" }[code] || ({ critical: "⛔", warning: "⚠️", advisory: "ℹ️" }[severity] || "⚠️"));
         const severityLabel = (severity) => ({ advisory: "Hinweis", warning: "Warnung", critical: "Dringend" }[severity] || "Beobachten");
         const impactLabel = (code) => ({
             freeze_precautions: "Glätte und Frostschäden sind möglich. Empfindliche Pflanzen, Außenleitungen und rutschige Wege rechtzeitig schützen.",
             heat_precautions: "Hitze kann Menschen, Tiere und Gebäude belasten. Für Schatten, ausreichend Wasser und möglichst kühle Innenräume sorgen.",
             heavy_rain_precautions: "Lokale Überflutungen und überlastete Abläufe sind möglich. Kellerzugänge, Entwässerung und lose Gegenstände vorsorglich prüfen.",
+            forecast_input_inconsistent: "Niederschlagsmenge und Regenwahrscheinlichkeit der Prognosequelle widersprechen sich. Die Werte werden unverändert angezeigt und nicht für eine eindeutige Regenaussage aufgelöst.",
             rain_planning: "Außenarbeiten und Bewässerung entsprechend planen. Wetterempfindliche Vorhaben möglichst außerhalb dieses Zeitfensters legen.",
             secure_loose_objects: "Lose Gegenstände und empfindliche Pflanzen sichern. Markisen einfahren und exponierte Bereiche frühzeitig kontrollieren.",
             storm_precautions: "Aufenthalt im Freien vermeiden und Sturmschutz prüfen. Fenster schließen, lose Gegenstände sichern und Fahrten wenn möglich verschieben."
         }[code] || "Die weitere Entwicklung und Aktualität der Prognose beobachten. Zeitfenster und Messwerte können sich mit neuen Wetterdaten noch verändern.");
-        const warningEvidence = (warning) => { const evidence = warning.evidence || {}; if (Number.isFinite(Number(evidence.temperature_c))) return temperature(evidence.temperature_c); if (Number.isFinite(Number(evidence.wind_speed))) return `${number(evidence.wind_speed)} km/h`; const rain = evidence.precipitation_forecast_mm ?? evidence.precipitation; return Number.isFinite(Number(rain)) ? `${precipitation(rain)} · ${percent(evidence.precipitation_probability)}` : "Prognosesignal beobachten"; };
+        const warningEvidence = (warning) => { const evidence = warning.evidence || {}; if (Number.isFinite(Number(evidence.temperature_c))) return temperature(evidence.temperature_c); if (Number.isFinite(Number(evidence.wind_speed))) return `${number(evidence.wind_speed)} km/h`; const rain = evidence.precipitation_forecast_mm ?? evidence.precipitation; return Number.isFinite(Number(rain)) ? precipitationOutlook(rain, evidence.precipitation_probability) : "Prognosesignal beobachten"; };
         const warningDate = (value, includeWeekday = true) => value ? new Date(value).toLocaleDateString("de-DE", { weekday: includeWeekday ? "long" : undefined, day: "2-digit", month: "long" }) : "Zeitpunkt noch offen";
         const warningPeriod = (warning) => {
             const startValue = warning.start || warning.valid_at;
@@ -640,12 +798,12 @@ const ModernEAIWeatherPage = {
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         });
         return {
-            loading, error, status, weather, chartMetric, selectedChartPoint, chartOptions, chartTitle, chartModel,
-            modeLabel, recorderLabel, historySource, outlook, nextHours, hourly, daily, history, current, currentMetrics,
-            aggregates, monthly, records, warnings, warningSummary, rainfall, rainDays, rainfallAvailable, historySince,
-            yearComparison, sourceCards, sourceComparisonRows, missingSourceLabels,
-            coverageLabel, forecastRain, narrative, qualityRows, trendLabel, number, integer, percent, temperature,
-            precipitation, irradiance, signedTemperature, dateTime, dateOnly, shortDate, time, dayName, daySummary, weatherSymbol, dayIcon,
+            loading, error, status, weather, chartMetric, selectedChartPoint, chartOptions, chartTitle, chartSubtitle, chartModel,
+            modeLabel, recorderLabel, historySource, outlook, nextHours, hourly, daily, history, current, currentMetrics, currentSourceEyebrow, hasActualTimeline, actualTimelineLabel,
+            aggregates, monthly, records, warnings, warningSummary, rainfall, rainDays, rainRateDays, rainfallAvailable, rainfallRateAvailable, rainfallTitle, historySince,
+            yearComparison, sourceCards, sourceComparisonRows, missingSourceLabels, sourceAvailabilityLabel,
+            coverageLabel, forecastRain, narrative, qualityRows, trendLabel, qualityEyebrow, qualityTitle, qualityProvenance, accuracyProvenance, number, integer, percent, temperature,
+            precipitation, precipitationRate, irradiance, signedTemperature, precipitationProbability, precipitationOutlook, dateTime, dateOnly, shortDate, time, dayName, daySummary, weatherSymbol, weatherDescription, precipitationInconsistent, dayIcon,
             warningLabel, warningIcon, severityLabel, impactLabel, warningEvidence, warningPeriod, monthLabel, monthStyle,
             monthAverageStyle, recordLabel, recordValue, rainBar, chartValue, chartPointLabel,
         };
@@ -653,3 +811,4 @@ const ModernEAIWeatherPage = {
 };
 
 if (typeof window !== "undefined") window.ModernEAIWeatherPage = ModernEAIWeatherPage;
+if (typeof module !== "undefined") module.exports = { assessAccuracyProvenance };

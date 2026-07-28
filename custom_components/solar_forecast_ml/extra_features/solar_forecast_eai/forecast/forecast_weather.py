@@ -146,6 +146,7 @@ class WeatherService:
                 "diffuse_radiation": entry.get("diffuse_radiation", 0.0),
                 "global_tilted_irradiance": entry.get("global_tilted_irradiance"),
                 "_source": "open-meteo",
+                "_issued_at": entry.get("_issued_at"),
             }
             transformed.append(transformed_entry)
 
@@ -205,7 +206,7 @@ class WeatherService:
                 """SELECT forecast_date, hour, temperature, solar_radiation_wm2,
                           wind, humidity, rain, clouds, pressure, direct_radiation,
                           diffuse_radiation, visibility_m, fog_detected, fog_type,
-                          weather_code
+                          weather_code, updated_at
                    FROM weather_forecast
                    WHERE forecast_date >= ?
                    ORDER BY forecast_date, hour""",
@@ -223,14 +224,14 @@ class WeatherService:
                         "date": date_str,
                         "hour": hour,
                         "local_hour": hour,
-                        "temperature": row[2] or DEFAULT_WEATHER_DATA["temperature"],
-                        "humidity": row[5] or DEFAULT_WEATHER_DATA["humidity"],
-                        "cloud_cover": row[7] or DEFAULT_WEATHER_DATA["cloud_cover"],
-                        "clouds": row[7] or DEFAULT_WEATHER_DATA["cloud_cover"],
-                        "wind_speed": row[4] or DEFAULT_WEATHER_DATA["wind_speed"],
-                        "precipitation": row[6] or DEFAULT_WEATHER_DATA["precipitation"],
-                        "rain": row[6] or DEFAULT_WEATHER_DATA["precipitation"],
-                        "pressure": row[8] or DEFAULT_WEATHER_DATA["pressure"],
+                        "temperature": row[2],
+                        "humidity": row[5] if row[5] is not None else DEFAULT_WEATHER_DATA["humidity"],
+                        "cloud_cover": row[7] if row[7] is not None else DEFAULT_WEATHER_DATA["cloud_cover"],
+                        "clouds": row[7] if row[7] is not None else DEFAULT_WEATHER_DATA["cloud_cover"],
+                        "wind_speed": row[4] if row[4] is not None else DEFAULT_WEATHER_DATA["wind_speed"],
+                        "precipitation": row[6] if row[6] is not None else DEFAULT_WEATHER_DATA["precipitation"],
+                        "rain": row[6] if row[6] is not None else DEFAULT_WEATHER_DATA["precipitation"],
+                        "pressure": row[8] if row[8] is not None else DEFAULT_WEATHER_DATA["pressure"],
                         "ghi": row[3] or 0.0,
                         "solar_radiation": row[3] or 0.0,
                         "solar_radiation_wm2": row[3] or 0.0,
@@ -241,6 +242,7 @@ class WeatherService:
                         "fog_type": row[13],
                         "weather_code": row[14],
                         "_source": "database",
+                        "_issued_at": row[15],
                     }
                     result.append(entry)
 
