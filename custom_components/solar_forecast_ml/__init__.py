@@ -1315,9 +1315,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     hass.data[DOMAIN][entry.entry_id] = coordinator
+    if coordinator.data_manager:
+        from .data.sfml_weather_provider import SFMLWeatherIntelligenceProvider
+
+        weather_providers = hass.data[DOMAIN].setdefault(
+            "weather_intelligence_providers", {}
+        )
+        weather_providers[entry.entry_id] = SFMLWeatherIntelligenceProvider(
+            coordinator.data_manager,
+            getattr(hass.config, "time_zone", None),
+        )
 
     # Forward entry setup to platforms @zara
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    from .data.sensor_mapping_provider import SensorMappingProvider, register_provider
+
+    sensor_mapping_provider = SensorMappingProvider(entry.entry_id, entry.data)
+    sensor_mapping_providers = hass.data[DOMAIN].setdefault(
+        "sensor_mapping_providers", {}
+    )
+    register_provider(sensor_mapping_providers, entry.entry_id, sensor_mapping_provider)
 
     # Register services in background to not block bootstrap @zara
     async def _delayed_service_registration():
@@ -1464,6 +1482,20 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if unload_ok:
         coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        sensor_mapping_providers = hass.data[DOMAIN].get("sensor_mapping_providers")
+        if isinstance(sensor_mapping_providers, dict):
+            sensor_mapping_provider = sensor_mapping_providers.get(entry.entry_id)
+            if sensor_mapping_provider is not None:
+                sensor_mapping_provider.invalidate()
+                if sensor_mapping_providers.get(entry.entry_id) is sensor_mapping_provider:
+                    sensor_mapping_providers.pop(entry.entry_id, None)
+            if not sensor_mapping_providers:
+                hass.data[DOMAIN].pop("sensor_mapping_providers", None)
+        weather_providers = hass.data[DOMAIN].get("weather_intelligence_providers")
+        if isinstance(weather_providers, dict):
+            weather_providers.pop(entry.entry_id, None)
+            if not weather_providers:
+                hass.data[DOMAIN].pop("weather_intelligence_providers", None)
 
         await coordinator.async_shutdown()
 

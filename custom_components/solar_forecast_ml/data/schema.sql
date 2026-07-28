@@ -150,6 +150,386 @@ CREATE TABLE IF NOT EXISTS ai_model_weights (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS ai_training_runs (
+    run_id TEXT PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL,
+    dataset_fingerprint TEXT NOT NULL,
+    training_config_hash TEXT NOT NULL,
+    code_source_hash TEXT NOT NULL,
+    sample_count INTEGER NOT NULL,
+    config_json TEXT NOT NULL,
+    schema_version TEXT NOT NULL,
+    eligibility_version TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ai_training_sample_provenance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    sample_index INTEGER NOT NULL,
+    output_index INTEGER NOT NULL,
+    forecast_prediction_id TEXT NOT NULL,
+    forecast_anchor TEXT NOT NULL,
+    target_prediction_id TEXT NOT NULL,
+    target_anchor TEXT NOT NULL,
+    prediction_lineage_id TEXT,
+    group_lineage_id TEXT,
+    group_name TEXT,
+    target_value REAL NOT NULL,
+    feature_digest TEXT NOT NULL,
+    provenance_kind TEXT NOT NULL,
+    eligibility_version TEXT NOT NULL,
+    schema_version TEXT NOT NULL,
+    FOREIGN KEY(run_id) REFERENCES ai_training_runs(run_id),
+    UNIQUE(run_id, sample_index, output_index)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_candidates (
+    candidate_id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    active_model TEXT NOT NULL,
+    training_samples INTEGER NOT NULL,
+    accuracy REAL,
+    rmse REAL,
+    artifact_hash TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'candidate',
+    FOREIGN KEY(run_id) REFERENCES ai_training_runs(run_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_candidate_artifacts (
+    candidate_id TEXT NOT NULL,
+    model_type TEXT NOT NULL,
+    weights_json TEXT NOT NULL,
+    weights_hash TEXT NOT NULL,
+    PRIMARY KEY(candidate_id, model_type),
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_active_model_pointer (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    active_candidate_id TEXT,
+    last_known_good_candidate_id TEXT,
+    promoted_at TIMESTAMP,
+    FOREIGN KEY(active_candidate_id) REFERENCES ai_model_candidates(candidate_id),
+    FOREIGN KEY(last_known_good_candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_evaluations (
+    evaluation_id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    candidate_artifact_hash TEXT NOT NULL,
+    champion_artifact_hash TEXT NOT NULL,
+    dataset_fingerprint TEXT NOT NULL,
+    evaluation_config_hash TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK(decision IN ('GO', 'NO_GO')),
+    reason_codes_json TEXT NOT NULL,
+    eligible_hour_count INTEGER NOT NULL,
+    eligible_independent_day_count INTEGER NOT NULL,
+    evaluation_config_json TEXT NOT NULL,
+    decision_json TEXT NOT NULL,
+    decision_hash TEXT NOT NULL,
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_evaluation_samples (
+    evaluation_id TEXT NOT NULL,
+    sample_index INTEGER NOT NULL,
+    target_date TEXT NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour BETWEEN 0 AND 23),
+    actual REAL NOT NULL,
+    champion_prediction REAL NOT NULL,
+    candidate_prediction REAL NOT NULL,
+    clean_eligible INTEGER NOT NULL CHECK(clean_eligible IN (0, 1)),
+    forecast_anchor TEXT NOT NULL,
+    input_fingerprint TEXT NOT NULL,
+    policy_fingerprint TEXT NOT NULL,
+    weather_regime TEXT,
+    horizon TEXT,
+    PRIMARY KEY(evaluation_id, sample_index),
+    UNIQUE(evaluation_id, target_date, target_hour),
+    FOREIGN KEY(evaluation_id) REFERENCES ai_model_evaluations(evaluation_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_shadow_runs (
+    shadow_run_id TEXT PRIMARY KEY,
+    morning_batch_id TEXT NOT NULL UNIQUE,
+    run_date TEXT NOT NULL,
+    candidate_id TEXT NOT NULL,
+    forecast_anchor TEXT NOT NULL,
+    champion_artifact_hash TEXT NOT NULL,
+    candidate_artifact_hash TEXT NOT NULL,
+    input_snapshot_json TEXT NOT NULL,
+    input_snapshot_hash TEXT NOT NULL,
+    policy_snapshot_json TEXT NOT NULL,
+    policy_snapshot_hash TEXT NOT NULL,
+    contract_version TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY(morning_batch_id) REFERENCES ensemble_shadow_batches(morning_batch_id),
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_shadow_predictions (
+    shadow_prediction_id TEXT PRIMARY KEY,
+    shadow_run_id TEXT NOT NULL,
+    source_prediction_id TEXT NOT NULL,
+    target_date TEXT NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour BETWEEN 0 AND 23),
+    horizon TEXT NOT NULL,
+    champion_prediction REAL NOT NULL,
+    candidate_prediction REAL NOT NULL,
+    weather_regime TEXT,
+    input_fingerprint TEXT NOT NULL,
+    policy_fingerprint TEXT NOT NULL,
+    champion_result_json TEXT NOT NULL,
+    champion_result_hash TEXT NOT NULL,
+    candidate_result_json TEXT NOT NULL,
+    candidate_result_hash TEXT NOT NULL,
+    UNIQUE(shadow_run_id, target_date, target_hour),
+    FOREIGN KEY(shadow_run_id) REFERENCES ai_model_shadow_runs(shadow_run_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_shadow_actual_versions (
+    actual_version_id TEXT PRIMARY KEY,
+    shadow_prediction_id TEXT NOT NULL,
+    evaluation_version INTEGER NOT NULL,
+    actual_fingerprint TEXT NOT NULL,
+    evaluated_at TIMESTAMP NOT NULL,
+    actual_kwh REAL,
+    actual_measured_at TIMESTAMP,
+    clean_eligible INTEGER NOT NULL CHECK(clean_eligible IN (0, 1)),
+    exclusion_reason TEXT,
+    evaluation_status TEXT NOT NULL,
+    UNIQUE(shadow_prediction_id, actual_fingerprint),
+    UNIQUE(shadow_prediction_id, evaluation_version),
+    FOREIGN KEY(shadow_prediction_id)
+        REFERENCES ai_model_shadow_predictions(shadow_prediction_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_training_provenance_run
+ON ai_training_sample_provenance(run_id);
+
+CREATE INDEX IF NOT EXISTS idx_ai_model_evaluations_candidate
+ON ai_model_evaluations(candidate_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_ai_model_shadow_candidate
+ON ai_model_shadow_runs(candidate_id, run_date);
+
+CREATE INDEX IF NOT EXISTS idx_ai_model_shadow_source
+ON ai_model_shadow_predictions(source_prediction_id);
+
+CREATE TRIGGER IF NOT EXISTS ai_training_runs_append_only_update
+BEFORE UPDATE ON ai_training_runs
+BEGIN
+    SELECT RAISE(ABORT, 'ai_training_runs is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_training_runs_append_only_delete
+BEFORE DELETE ON ai_training_runs
+BEGIN
+    SELECT RAISE(ABORT, 'ai_training_runs is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_training_runs_append_only_insert_guard
+BEFORE INSERT ON ai_training_runs
+WHEN EXISTS (
+    SELECT 1 FROM ai_training_runs WHERE run_id = NEW.run_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_training_runs is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_training_sample_provenance_append_only_update
+BEFORE UPDATE ON ai_training_sample_provenance
+BEGIN
+    SELECT RAISE(ABORT, 'ai_training_sample_provenance is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_training_sample_provenance_append_only_delete
+BEFORE DELETE ON ai_training_sample_provenance
+BEGIN
+    SELECT RAISE(ABORT, 'ai_training_sample_provenance is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_training_sample_provenance_append_only_insert_guard
+BEFORE INSERT ON ai_training_sample_provenance
+WHEN EXISTS (
+    SELECT 1 FROM ai_training_sample_provenance
+    WHERE id = NEW.id
+       OR (run_id = NEW.run_id
+           AND sample_index = NEW.sample_index
+           AND output_index = NEW.output_index)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_training_sample_provenance is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidates_append_only_update
+BEFORE UPDATE ON ai_model_candidates
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_candidates is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidates_append_only_delete
+BEFORE DELETE ON ai_model_candidates
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_candidates is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidates_append_only_insert_guard
+BEFORE INSERT ON ai_model_candidates
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_candidates WHERE candidate_id = NEW.candidate_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_candidates is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_artifacts_append_only_update
+BEFORE UPDATE ON ai_model_candidate_artifacts
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_candidate_artifacts is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_artifacts_append_only_delete
+BEFORE DELETE ON ai_model_candidate_artifacts
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_candidate_artifacts is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_artifacts_append_only_insert_guard
+BEFORE INSERT ON ai_model_candidate_artifacts
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_candidate_artifacts
+    WHERE candidate_id = NEW.candidate_id
+      AND model_type = NEW.model_type
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_candidate_artifacts is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_append_only_update
+BEFORE UPDATE ON ai_model_evaluations
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_evaluations is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_append_only_delete
+BEFORE DELETE ON ai_model_evaluations
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_evaluations is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_append_only_insert_guard
+BEFORE INSERT ON ai_model_evaluations
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_evaluations
+    WHERE evaluation_id = NEW.evaluation_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_evaluations is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_samples_append_only_update
+BEFORE UPDATE ON ai_model_evaluation_samples
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_evaluation_samples is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_samples_append_only_delete
+BEFORE DELETE ON ai_model_evaluation_samples
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_evaluation_samples is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_samples_append_only_insert_guard
+BEFORE INSERT ON ai_model_evaluation_samples
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_evaluation_samples
+    WHERE (evaluation_id = NEW.evaluation_id
+           AND sample_index = NEW.sample_index)
+       OR (evaluation_id = NEW.evaluation_id
+           AND target_date = NEW.target_date
+           AND target_hour = NEW.target_hour)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_evaluation_samples is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_runs_append_only_update
+BEFORE UPDATE ON ai_model_shadow_runs
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_runs is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_runs_append_only_delete
+BEFORE DELETE ON ai_model_shadow_runs
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_runs is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_runs_append_only_insert_guard
+BEFORE INSERT ON ai_model_shadow_runs
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_shadow_runs
+    WHERE shadow_run_id = NEW.shadow_run_id
+       OR morning_batch_id = NEW.morning_batch_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_runs is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_predictions_append_only_update
+BEFORE UPDATE ON ai_model_shadow_predictions
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_predictions is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_predictions_append_only_delete
+BEFORE DELETE ON ai_model_shadow_predictions
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_predictions is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_predictions_append_only_insert_guard
+BEFORE INSERT ON ai_model_shadow_predictions
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_shadow_predictions
+    WHERE shadow_prediction_id = NEW.shadow_prediction_id
+       OR (shadow_run_id = NEW.shadow_run_id
+           AND target_date = NEW.target_date
+           AND target_hour = NEW.target_hour)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_predictions is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_actual_versions_append_only_update
+BEFORE UPDATE ON ai_model_shadow_actual_versions
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_actual_versions is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_actual_versions_append_only_delete
+BEFORE DELETE ON ai_model_shadow_actual_versions
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_actual_versions is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_actual_versions_append_only_insert_guard
+BEFORE INSERT ON ai_model_shadow_actual_versions
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_shadow_actual_versions
+    WHERE actual_version_id = NEW.actual_version_id
+       OR (shadow_prediction_id = NEW.shadow_prediction_id
+           AND actual_fingerprint = NEW.actual_fingerprint)
+       OR (shadow_prediction_id = NEW.shadow_prediction_id
+           AND evaluation_version = NEW.evaluation_version)
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_shadow_actual_versions is append-only');
+END;
+
 CREATE TABLE IF NOT EXISTS ai_seasonal_archive_meta (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     season TEXT NOT NULL CHECK(season IN ('winter', 'spring', 'summer', 'autumn')),

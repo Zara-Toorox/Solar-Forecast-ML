@@ -274,7 +274,7 @@ const ModernEAIWeatherPage = {
                 </article>
 
                 <article class="eai-weather-card">
-                    <header><div><span class="eai-weather-eyebrow">Vier Wetterlinsen</span><h3>WFAI, HUBBLE, Kepler und Wetterstation</h3></div><span class="eai-weather-chip">{{ sourceAvailabilityLabel }}</span></header>
+                    <header><div><span class="eai-weather-eyebrow">Verfügbare Wetterquellen</span><h3>Vier Wetterlinsen: WFAI, HUBBLE, Kepler und Wetterstation</h3></div><span class="eai-weather-chip">{{ sourceAvailabilityLabel }}</span></header>
                     <div class="eai-weather-source-matrix">
                         <article v-for="source in sourceCards" :key="source.id">
                             <span>{{ source.icon }} {{ source.label }}</span>
