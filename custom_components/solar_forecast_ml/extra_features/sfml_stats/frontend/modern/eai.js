@@ -101,7 +101,7 @@ const ModernEAIPage = {
             </div>
         </section>`,
     setup() {
-        const { ref, reactive, computed, onMounted, watch } = Vue;
+        const { ref, reactive, computed, onMounted, onUnmounted, watch } = Vue;
         const tabs = [["overview", "Übersicht"], ["operation", "Live-Betrieb"], ["forecast", "Prognose"], ["efficiency", "Effizienz"], ["building", "Gebäude"], ["energy", "Energieeinsatz"], ["diagnostics", "Diagnose"]].map(([id, label]) => ({ id, label }));
         const activeTab = ref("overview");
         const loading = ref(true);
@@ -120,6 +120,10 @@ const ModernEAIPage = {
         const hourlyPrices = ref([31.2, 29.8, 28.6, 27.9, 29.4, 34.8, 41.6, 45.2, 42.8, 35.4, 27.2, 21.8, 18.6, 17.9, 20.4, 26.8, 34.2, 43.7, 49.1, 46.3, 40.8, 36.1, 33.4, 32.0]);
         const scenario = new URLSearchParams(window.location.search).get("eai_scenario");
         const endpoint = (section) => `/api/sfml_stats/modern/eai/${section}${scenario ? `?scenario=${encodeURIComponent(scenario)}` : ""}`;
+        const refreshIntervalMs = 15000;
+        let refreshTimer = null;
+        let loadInFlight = false;
+        let hasLoaded = false;
         const selectTab = (id) => { if (tabs.some((tab) => tab.id === id)) activeTab.value = id; };
         const handleTabKeydown = (event) => {
             const currentIndex = tabs.findIndex((tab) => tab.id === activeTab.value);
@@ -133,13 +137,20 @@ const ModernEAIPage = {
             selectTab(tabs[nextIndex].id);
             Vue.nextTick(() => document.getElementById(`eai-tab-${tabs[nextIndex].id}`)?.focus());
         };
-        async function load() {
-            loading.value = true; error.value = "";
+        async function load(background = false) {
+            if (loadInFlight) return;
+            loadInFlight = true;
+            if (!background) {
+                loading.value = true;
+                error.value = "";
+            }
             try {
-                const responses = await Promise.all(["status", ...tabs.map((tab) => tab.id)].map((section) => SFMLApi.fetch(endpoint(section))));
+                const responses = await Promise.all(["status", ...tabs.map((tab) => tab.id)].map((section) => SFMLApi.fetch(endpoint(section), { forceRefresh: true, ttl: 0 })));
                 const unwrap = (response) => response?.success === true ? response.data : response;
                 Object.assign(status, unwrap(responses[0]));
                 tabs.forEach((tab, index) => { sections[tab.id] = unwrap(responses[index + 1])?.data || {}; });
+                hasLoaded = true;
+                error.value = "";
                 if (status.is_demo) {
                     const mockTariff = sections.overview?.calculator_defaults || {};
                     electricityPrice.value = Number(mockTariff.electricity_price_ct ?? 36.9);
@@ -157,10 +168,10 @@ const ModernEAIPage = {
                     const measuredCop = Number(sections.efficiency?.cop);
                     if (Number.isFinite(forecastElectric) && forecastElectric > 0) annualHeat.value = Math.min(30000, Math.max(3000, Math.round(forecastElectric * (Number.isFinite(measuredCop) ? measuredCop : 3.5) * 365 / 250) * 250));
                     const [billingResult, settingsResult, pricesResult, energyFlowResult] = await Promise.allSettled([
-                        SFMLApi.fetch("/api/sfml_stats/billing"),
-                        SFMLApi.fetch("/api/sfml_stats/settings/dashboard"),
-                        SFMLApi.fetch("/api/sfml_stats/gpm_prices"),
-                        SFMLApi.fetch("/api/sfml_stats/energy_flow"),
+                        SFMLApi.fetch("/api/sfml_stats/billing", { forceRefresh: true, ttl: 0 }),
+                        SFMLApi.fetch("/api/sfml_stats/settings/dashboard", { forceRefresh: true, ttl: 0 }),
+                        SFMLApi.fetch("/api/sfml_stats/gpm_prices", { forceRefresh: true, ttl: 0 }),
+                        SFMLApi.fetch("/api/sfml_stats/energy_flow", { forceRefresh: true, ttl: 0 }),
                     ]);
                     const billing = billingResult.status === "fulfilled" ? billingResult.value : {};
                     const settings = settingsResult.status === "fulfilled" ? settingsResult.value : {};
@@ -189,9 +200,32 @@ const ModernEAIPage = {
                     tariffSourceLabel.value = `${priceOrigin}, ${tariffMode.value}`;
                 }
             } catch {
-                error.value = "EAI-Daten konnten nicht geladen werden. Technische Details stehen im Home-Assistant-Protokoll.";
-            } finally { loading.value = false; }
+                if (!hasLoaded) {
+                    error.value = "EAI-Daten konnten nicht geladen werden. Technische Details stehen im Home-Assistant-Protokoll.";
+                }
+            } finally {
+                if (!background) loading.value = false;
+                loadInFlight = false;
+            }
         }
+        const stopRefresh = () => {
+            if (refreshTimer !== null) {
+                window.clearInterval(refreshTimer);
+                refreshTimer = null;
+            }
+        };
+        const startRefresh = () => {
+            if (document.hidden || refreshTimer !== null) return;
+            refreshTimer = window.setInterval(() => load(true), refreshIntervalMs);
+        };
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                stopRefresh();
+                return;
+            }
+            load(true);
+            startRefresh();
+        };
         const isValue = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
         const format = (value, unit = "") => isValue(value) ? `${EAI_NUMBER_FORMAT.format(Number(value))}${unit}` : "Noch nicht verfügbar";
         const formatDurationMinutes = (value) => {
@@ -657,7 +691,15 @@ const ModernEAIPage = {
             const time = new Date(point.timestamp).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" });
             return `${time} · ${format(point.forecast_kw, " kW")} · Band ${format(point.lower_kw, "")}–${format(point.upper_kw, " kW")} · ± ${format(point.uncertainty_percent, " %")}`;
         };
-        onMounted(load);
+        onMounted(() => {
+            load();
+            startRefresh();
+            document.addEventListener("visibilitychange", handleVisibilityChange);
+        });
+        onUnmounted(() => {
+            stopRefresh();
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        });
         return { tabs, activeTab, selectTab, handleTabKeydown, loading, error, status, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle };
     },
 };

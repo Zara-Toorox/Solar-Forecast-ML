@@ -436,10 +436,16 @@ def _heat_pump_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
 
 
 def _replace_options(
-    options: dict[str, Any], user_input: dict[str, Any], keys: tuple[str, ...]
+    options: dict[str, Any],
+    user_input: dict[str, Any],
+    keys: tuple[str, ...],
+    *,
+    clear_missing: bool = False,
 ) -> None:
     for key in keys:
         if key not in user_input:
+            if clear_missing:
+                options[key] = None
             continue
         value = user_input[key]
         if value in (None, ""):
@@ -963,8 +969,14 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 user_input,
                 sensor_keys
                 + (CONF_RUNTIME_COUNTER_SCOPE, CONF_STARTS_COUNTER_SCOPE),
+                clear_missing=True,
             )
-            _replace_options(updated_options, user_input, HEAT_PUMP_OPTION_KEYS)
+            _replace_options(
+                updated_options,
+                user_input,
+                HEAT_PUMP_OPTION_KEYS,
+                clear_missing=True,
+            )
             _mask_disabled_heating_element(updated_options, user_input)
             merged = {**updated, **updated_options}
             if _required_sensor_errors(self.hass, merged) or (
@@ -1471,7 +1483,10 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "invalid_heat_pump_values"
             else:
                 _replace_options(
-                    self._options, validated, HEAT_PUMP_OPTION_KEYS
+                    self._options,
+                    validated,
+                    HEAT_PUMP_OPTION_KEYS,
+                    clear_missing=True,
                 )
                 _mask_disabled_heating_element(self._options, validated)
                 return await self._async_finish_feature_sequence()
@@ -1500,6 +1515,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 + STANDARD_SENSORS
                 + ADVANCED_SENSORS
                 + (CONF_RUNTIME_COUNTER_SCOPE, CONF_STARTS_COUNTER_SCOPE),
+                clear_missing=True,
             )
             merged = {**self.config_entry.data, **proposed}
             sensor_keys = REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS
@@ -1534,6 +1550,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                     CONF_FEED_IN_TARIFF_UNIT,
                     CONF_LOW_PRICE_THRESHOLD_CT,
                 ),
+                clear_missing=True,
             )
             return self.async_create_entry(title="", data=self._options)
         return self.async_show_form(
@@ -1554,6 +1571,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                     self._options,
                     user_input,
                     (CONF_WEATHER_FUSION_ENTRY_ID, CONF_WEATHER_HISTORY_DAYS),
+                    clear_missing=True,
                 )
                 return await self._async_finish_feature_sequence()
         elif dependency_error is not None:
@@ -1582,7 +1600,12 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                     user_input.get(CONF_WALLBOX_ENABLED)
                 )
                 if self._options[CONF_WALLBOX_ENABLED]:
-                    _replace_options(self._options, user_input, WALLBOX_OPTION_KEYS)
+                    _replace_options(
+                        self._options,
+                        user_input,
+                        WALLBOX_OPTION_KEYS,
+                        clear_missing=True,
+                    )
                 else:
                     for key in WALLBOX_OPTION_KEYS:
                         # Explicitly mask legacy values from ConfigEntry.data.
