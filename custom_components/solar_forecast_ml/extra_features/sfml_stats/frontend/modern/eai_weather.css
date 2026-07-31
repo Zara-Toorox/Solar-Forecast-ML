@@ -251,6 +251,13 @@
     overflow-x: auto;
 }
 
+.eai-weather-chart-scroll-hint {
+    display: none;
+    color: var(--text-muted);
+    font-size: .8rem;
+    margin: 8px 0 0;
+}
+
 .eai-weather-chart {
     width: 100%;
     min-width: 620px;
@@ -295,6 +302,16 @@
     fill: var(--text-secondary);
     font-size: 18px;
     font-weight: 800;
+}
+
+.weather-axis-label {
+    fill: var(--text-muted);
+    font-size: 20px;
+    font-weight: 650;
+}
+
+.weather-axis-label.value {
+    font-variant-numeric: tabular-nums;
 }
 
 .weather-point {
@@ -754,6 +771,12 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
+}
+
+@container (max-width: 620px) {
+    .eai-weather-chart-scroll-hint {
+        display: block;
+    }
 }
 
 @container (max-width: 470px) {

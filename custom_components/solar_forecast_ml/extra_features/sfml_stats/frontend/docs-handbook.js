@@ -161,6 +161,7 @@
     smartChargingLink.className = "nav-link level-1";
     const featureLinks = [
       ["#funktion-eai-waermepumpe", "EAI: Wärmepumpe & Gebäude"],
+      ["#funktion-eai-waermepumpe-bosch", "Bosch-/EMS-ESP-Beispiel"],
       ["#funktion-eai-wallbox", "EAI: Wallbox & Mobilität"],
       ["#smart-charge-smc-funktion", "Smart Charge"],
       ["#funktion-s-plus", "S-Plus"],

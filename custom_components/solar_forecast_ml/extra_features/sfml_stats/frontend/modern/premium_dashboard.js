@@ -334,8 +334,8 @@ const PremiumDashboardPage = ((Vue) => {
                                         <span><small>Strahlung</small><strong>{{ radiation(weather.solar_radiation_wm2) }}</strong></span>
                                     </div>
                                     <div v-if="primaryWarning" class="orbit-weather-warning">
-                                        <b aria-hidden="true">⚠</b>
-                                        <span><strong>{{ warningLabel(primaryWarning) }}</strong><small>{{ warningPeriod(primaryWarning) }}{{ additionalWarningText }}</small></span>
+                                        <b aria-hidden="true">{{ warningIcon(primaryWarning) }}</b>
+                                        <span><strong>{{ warningLabel(primaryWarning) }}</strong><small>{{ warningPeriod(primaryWarning) }}{{ additionalWarningText }}</small><small>{{ warningSourceLabel(primaryWarning) }}</small></span>
                                     </div>
                                     <i aria-hidden="true">→</i>
                                 </button>
@@ -647,8 +647,7 @@ const PremiumDashboardPage = ((Vue) => {
             const warnings = computed(() => Array.isArray(weather.warnings) ? weather.warnings : []);
             const weatherTarget = computed(() => warnings.value.length ? "eai_weather" : "weather");
             const weatherSymbol = computed(() => {
-                if (warnings.value.some((warning) => warning.severity === "critical")) return "⛔";
-                if (warnings.value.some((warning) => warning.severity === "warning")) return "⚠";
+                if (warnings.value.length) return warningIcon(warnings.value[0]);
                 const condition = String(weather.condition || "").toLowerCase();
                 if (condition.includes("lightning") || condition.includes("storm")) return "⛈";
                 if (condition.includes("snow") || condition.includes("hail")) return "🌨";
@@ -738,18 +737,37 @@ const PremiumDashboardPage = ((Vue) => {
                 inverter_clipped: "Clipping",
             }[reason] || reason || "—");
 
-            const warningLabel = (warning) => ({
+            const warningLabel = (warning) => warning?.title || ({
                 high_precipitation_probability: "Hohe Regenwahrscheinlichkeit",
                 heavy_precipitation: "Starkregen",
                 heat_stress: "Hitzebelastung",
                 freeze_risk: "Frostgefahr",
                 strong_wind: "Starker Wind",
                 storm_wind: "Sturmböen",
+                thunderstorm: "Gewitter erwartet",
+                hail: "Hagel erwartet",
+                snow_or_ice: "Schnee oder Glätte erwartet",
+                dense_fog: "Dichter Nebel erwartet",
+                severe_weather: "Unwetter erwartet",
                 forecast_stale: "Wetterprognose veraltet",
             }[warning?.code] || warning?.label || "Wetterhinweis");
+            const warningIcon = (warning) => ({
+                frost: "❄️", heat: "🌡️", heavy_rain: "🌧️", rain_likely: "🌦️",
+                strong_wind: "💨", storm: "⛈️", thunderstorm: "⛈️", hail: "🧊",
+                snow_or_ice: "🌨️", fog: "🌫️", severe_weather: "🚨",
+                forecast_quality: "ℹ️", data_quality: "🔄",
+            }[warning?.icon_key] || ({
+                freeze_risk: "❄️", heat_stress: "🌡️", heavy_precipitation: "🌧️",
+                high_precipitation_probability: "🌦️", strong_wind: "💨", storm_wind: "⛈️",
+                thunderstorm: "⛈️", hail: "🧊", snow_or_ice: "🌨️", dense_fog: "🌫️",
+                severe_weather: "🚨", forecast_stale: "🕒",
+            }[warning?.code] || "ℹ️"));
             const warningPeriod = (warning) => warning?.start
                 ? new Date(warning.start).toLocaleString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" })
                 : "";
+            const warningSourceLabel = (warning) => warning?.official_alert === true
+                ? "Amtliche Warnung"
+                : "Modellprognose · nicht amtlich";
             const warningKey = (warning) => `${warning?.code || "warning"}-${warning?.start || ""}`;
             const primaryWarning = computed(() => warnings.value[0] || null);
             const additionalWarningText = computed(() => warnings.value.length > 1
@@ -881,7 +899,7 @@ const PremiumDashboardPage = ((Vue) => {
                 chartModel, primaryWarning, additionalWarningText, overviewAccuracy, hasForecastProgress,
                 load, navigate, power, powerKw,
                 energyValue, percent, temperature, speed, radiation, priceValue, signed, positive,
-                reasonLabel, warningLabel, warningPeriod, warningKey, flowStyle,
+                reasonLabel, warningLabel, warningIcon, warningPeriod, warningSourceLabel, warningKey, flowStyle,
             };
         },
     };

@@ -323,7 +323,7 @@ def _safe_choice_default(value: Any, choices: set[str] | frozenset[str], fallbac
 def _optional_text_marker(key: str, defaults: dict[str, Any]) -> vol.Optional:
     value = defaults.get(key)
     return (
-        vol.Optional(key, default=value)
+        vol.Optional(key, description={"suggested_value": value})
         if isinstance(value, str) and value
         else vol.Optional(key)
     )
@@ -338,7 +338,7 @@ def _heat_pump_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
         if normalized_storage:
             storage_marker = vol.Optional(
                 CONF_STORAGE_VOLUME_L,
-                default=normalized_storage,
+                description={"suggested_value": normalized_storage},
             )
     return vol.Schema(
         {
@@ -608,7 +608,10 @@ def _entity_schema(
             )
         else:
             marker = (
-                vol.Optional(key, default=defaults[key])
+                vol.Optional(
+                    key,
+                    description={"suggested_value": defaults[key]},
+                )
                 if defaults.get(key) is not None
                 else vol.Optional(key)
             )
@@ -674,7 +677,9 @@ def _automation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     electricity_price = (
         vol.Optional(
             CONF_ELECTRICITY_PRICE_ENTITY,
-            default=defaults[CONF_ELECTRICITY_PRICE_ENTITY],
+            description={
+                "suggested_value": defaults[CONF_ELECTRICITY_PRICE_ENTITY]
+            },
         )
         if defaults.get(CONF_ELECTRICITY_PRICE_ENTITY) is not None
         else vol.Optional(CONF_ELECTRICITY_PRICE_ENTITY)
@@ -682,7 +687,9 @@ def _automation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     feed_in_tariff = (
         vol.Optional(
             CONF_FEED_IN_TARIFF_ENTITY,
-            default=defaults[CONF_FEED_IN_TARIFF_ENTITY],
+            description={
+                "suggested_value": defaults[CONF_FEED_IN_TARIFF_ENTITY]
+            },
         )
         if defaults.get(CONF_FEED_IN_TARIFF_ENTITY) is not None
         else vol.Optional(CONF_FEED_IN_TARIFF_ENTITY)
@@ -757,7 +764,12 @@ def _wallbox_schema(
     def entity_marker(key: str, *, is_required: bool = False):
         field_marker = marker if is_required else vol.Optional
         if key in defaults and defaults[key] is not None:
-            return field_marker(key, default=defaults[key])
+            if required and is_required:
+                return field_marker(key, default=defaults[key])
+            return field_marker(
+                key,
+                description={"suggested_value": defaults[key]},
+            )
         return field_marker(key)
 
     return vol.Schema(

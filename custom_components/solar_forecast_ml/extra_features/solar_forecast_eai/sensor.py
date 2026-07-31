@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -53,7 +55,29 @@ WEATHER_EVENT_OPTIONS = [
     "high_precipitation_probability",
     "strong_wind",
     "storm_wind",
+    "thunderstorm",
+    "hail",
+    "snow_or_ice",
+    "dense_fog",
+    "severe_weather",
 ]
+
+WEATHER_WARNING_SEVERITY_RANK = {"warning": 1, "critical": 2}
+WEATHER_NON_HAZARD_CODES = {"none", "forecast_stale", "forecast_unavailable"}
+WEATHER_WARNING_ICON_KEYS = {
+    "frost",
+    "heat",
+    "heavy_rain",
+    "rain_likely",
+    "strong_wind",
+    "storm",
+    "thunderstorm",
+    "hail",
+    "snow_or_ice",
+    "fog",
+    "severe_weather",
+}
+WEATHER_WARNING_EVIDENCE_KINDS = {"condition_derived", "forecast_value"}
 
 
 def _weather_event_code(value: Any) -> str:
@@ -322,6 +346,12 @@ WEATHER_INTELLIGENCE_SENSORS = (
         options=WEATHER_EVENT_OPTIONS,
     ),
     EAISensorDescription(
+        key="weather_most_important_warning",
+        translation_key="weather_most_important_warning",
+        device_class=SensorDeviceClass.ENUM,
+        options=WEATHER_EVENT_OPTIONS,
+    ),
+    EAISensorDescription(
         key="weather_event_today",
         translation_key="weather_event_today",
         device_class=SensorDeviceClass.ENUM,
@@ -452,6 +482,10 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
         event = self._next_event(snapshot)
         if key == "weather_next_event":
             return _weather_event_code(event.get("code"))
+        if key == "weather_most_important_warning":
+            return _weather_event_code(
+                self._most_important_warning(snapshot).get("code")
+            )
         day_offsets = {
             "weather_event_today": 0,
             "weather_event_tomorrow": 1,
@@ -502,6 +536,108 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
             if start is None or start > now:
                 return event
         return {}
+
+    @classmethod
+    def _most_important_warning(
+        cls, snapshot: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Return the highest-severity warning, then the earliest one."""
+        warnings = cls._warning_events(snapshot)
+        if not warnings:
+            return {}
+
+        def sort_key(event: dict[str, Any]) -> tuple[int, float, str]:
+            severity_rank = WEATHER_WARNING_SEVERITY_RANK[event["severity"]]
+            start = cls._timestamp(event.get("start"))
+            return (
+                -severity_rank,
+                start.timestamp() if start is not None else float("inf"),
+                str(event.get("code", "")),
+            )
+
+        return min(warnings, key=sort_key)
+
+    @staticmethod
+    def _warning_event_id(event: dict[str, Any]) -> str | None:
+        if not event:
+            return None
+        identity = [
+            str(event.get(key, ""))
+            for key in ("code", "severity", "start", "end")
+        ]
+        return hashlib.sha256(
+            json.dumps(identity, separators=(",", ":")).encode()
+        ).hexdigest()
+
+    @classmethod
+    def _warning_events(cls, snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+        warnings = []
+        now = dt_util.utcnow()
+        events = snapshot.get("events", [])
+        if not isinstance(events, list):
+            return warnings
+        for event in events[:24]:
+            if not isinstance(event, dict):
+                continue
+            severity = event.get("severity")
+            code = event.get("code")
+            contract_version = event.get("contract_version")
+            category = event.get("category")
+            evidence_kind = event.get("evidence_kind")
+            start = cls._timestamp(event.get("start"))
+            end = cls._timestamp(event.get("end"))
+            if (
+                not isinstance(severity, str)
+                or severity not in WEATHER_WARNING_SEVERITY_RANK
+                or not isinstance(code, str)
+                or code not in WEATHER_EVENT_OPTIONS
+                or code in WEATHER_NON_HAZARD_CODES
+                or type(contract_version) is not int
+                or contract_version != 1
+                or category != "weather_hazard"
+                or not isinstance(evidence_kind, str)
+                or evidence_kind not in WEATHER_WARNING_EVIDENCE_KINDS
+                or start is None
+                or end is None
+                or start.utcoffset() is None
+                or end.utcoffset() is None
+                or end <= start
+                or end <= now
+            ):
+                continue
+            icon_key = event.get("icon_key")
+            warnings.append(
+                {
+                    "code": code,
+                    "severity": severity,
+                    "contract_version": contract_version,
+                    "category": category,
+                    "evidence_kind": evidence_kind,
+                    "start": start.isoformat(),
+                    "end": end.isoformat(),
+                    "title": cls._bounded_warning_text(event, "title", 160),
+                    "recommended_action": cls._bounded_warning_text(
+                        event, "recommended_action", 320
+                    ),
+                    "icon_key": (
+                        icon_key
+                        if isinstance(icon_key, str)
+                        and icon_key in WEATHER_WARNING_ICON_KEYS
+                        else None
+                    ),
+                    "official_alert": event.get("official_alert") is True,
+                }
+            )
+        return warnings
+
+    @staticmethod
+    def _bounded_warning_text(
+        warning: dict[str, Any], key: str, limit: int
+    ) -> str | None:
+        value = warning.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return None
+        return value.strip()[:limit]
 
     @staticmethod
     def _events(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
@@ -631,6 +767,28 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
             }
         if key.startswith("weather_next_event"):
             return {"event": self._next_event(snapshot)}
+        if key == "weather_most_important_warning":
+            warning = self._most_important_warning(snapshot)
+            warnings = self._warning_events(snapshot)
+            return {
+                "event_id": self._warning_event_id(warning),
+                "code": self._bounded_warning_text(warning, "code", 64),
+                "severity": warning.get("severity"),
+                "contract_version": warning.get("contract_version"),
+                "category": warning.get("category"),
+                "evidence_kind": warning.get("evidence_kind"),
+                "title": self._bounded_warning_text(warning, "title", 160),
+                "start": self._bounded_warning_text(warning, "start", 64),
+                "end": self._bounded_warning_text(warning, "end", 64),
+                "recommended_action": self._bounded_warning_text(
+                    warning, "recommended_action", 320
+                ),
+                "icon_key": self._bounded_warning_text(
+                    warning, "icon_key", 64
+                ),
+                "official_alert": warning.get("official_alert") is True,
+                "warning_count": len(warnings),
+            }
         day_offsets = {
             "weather_event_today": 0,
             "weather_event_tomorrow": 1,

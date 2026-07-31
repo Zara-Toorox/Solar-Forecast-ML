@@ -289,11 +289,66 @@ class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # Smart charging
             if self._smart_charging:
                 is_cheap = data.get("is_cheap", False)
-                state = await self._smart_charging.async_update(is_cheap, current_price=data.get("total_price"))
+                future_total_price_slots: list[dict[str, Any]] = []
+                if self._price_service and self._price_calculator:
+                    current_hour_utc = datetime.now(timezone.utc).replace(
+                        minute=0, second=0, microsecond=0
+                    )
+                    reference_current = self._price_service.get_current_price()
+                    reference_total = (
+                        self._price_calculator.calculate_total_price(reference_current)
+                        if reference_current is not None
+                        else None
+                    )
+                    effective_current = data.get("total_price")
+                    price_adjustment = (
+                        float(effective_current) - reference_total
+                        if effective_current is not None and reference_total is not None
+                        else 0.0
+                    )
+                    for price_entry in self._price_service.get_all_prices():
+                        try:
+                            entry_timestamp = self._price_service._entry_timestamp_utc(
+                                price_entry["timestamp"]
+                            )
+                            if entry_timestamp <= current_hour_utc:
+                                continue
+                            total_price = self._price_calculator.calculate_total_price(
+                                float(price_entry["price"])
+                            )
+                            future_total_price_slots.append({
+                                "timestamp": entry_timestamp,
+                                "total_price": round(total_price + price_adjustment, 2),
+                                "duration_hours": 1.0,
+                            })
+                        except (KeyError, TypeError, ValueError):
+                            continue
+
+                state = await self._smart_charging.async_update(
+                    is_cheap,
+                    current_price=data.get("total_price"),
+                    future_total_price_slots=future_total_price_slots,
+                )
                 data["smart_charging_target_soc"] = state.target_soc
                 data["smart_charging_active"] = state.is_active
                 data["smart_charging_reason"] = state.reason
                 data["smart_charging_current_soc"] = state.current_soc
+                data["smart_charging_decision"] = state.economic_decision
+                data["smart_charging_requested_grid_charge_kwh"] = (
+                    state.requested_grid_charge_kwh
+                )
+                data["smart_charging_effective_storage_cost_ct_kwh"] = (
+                    state.effective_storage_cost_ct_kwh
+                )
+                data["smart_charging_compared_future_price_ct_kwh"] = (
+                    state.compared_future_price_ct_kwh
+                )
+                data["smart_charging_effective_roundtrip_efficiency"] = (
+                    state.effective_roundtrip_efficiency
+                )
+                data["smart_charging_reserved_future_grid_charge_kwh"] = (
+                    state.reserved_future_grid_charge_kwh
+                )
                 data["solar_forecast_today"] = state.solar_forecast_today_kwh
                 data["solar_forecast_tomorrow"] = state.solar_forecast_tomorrow_kwh
 

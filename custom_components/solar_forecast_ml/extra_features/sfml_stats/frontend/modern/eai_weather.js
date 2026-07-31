@@ -165,6 +165,129 @@ const assessAccuracyProvenance = (provenance) => {
     return { kind: sources.length > 1 ? "mixed" : "unknown", hasProvenance: true };
 };
 
+const matchingPoint = (points, validAt) => {
+    if (!Array.isArray(points)) return null;
+    const target = new Date(validAt).getTime();
+    if (!Number.isFinite(target)) return null;
+    const candidates = points
+        .map((point) => ({ point, timestamp: new Date(point?.valid_at).getTime() }))
+        .filter((candidate) => Number.isFinite(candidate.timestamp));
+    const match = candidates.reduce((best, candidate) => {
+        const distance = Math.abs(candidate.timestamp - target);
+        return !best || distance < best.distance
+            ? { point: candidate.point, distance }
+            : best;
+    }, null);
+    return match && match.distance <= 90 * 60 * 1000 ? match.point : null;
+};
+
+const buildWeatherChartModel = ({ history = {}, current = {}, hourly = [], metric = "temperature_c", now = null } = {}) => {
+    const hourMs = 60 * 60 * 1000;
+    const plotLeft = 140;
+    const plotRight = 980;
+    const plotWidth = plotRight - plotLeft;
+    const hasMetric = (point) => point?.[metric] !== null
+        && point?.[metric] !== undefined
+        && point?.[metric] !== ""
+        && Number.isFinite(Number(point[metric]));
+    const empty = { actualPath: "", bridgePath: "", forecastPath: "", points: [], nowX: 500, grid: [70, 130, 190, 250], plotLeft, plotRight, xTicks: [], yTicks: [] };
+    const forecastRows = (Array.isArray(hourly) ? hourly : [])
+        .map((point) => ({ ...point, at: point?.valid_at, source: "forecast" }))
+        .filter((point) => Number.isFinite(new Date(point.at).getTime()));
+    const forecastByTimestamp = new Map();
+    forecastRows.forEach((point) => {
+        const timestamp = new Date(point.at).getTime();
+        const existing = forecastByTimestamp.get(timestamp);
+        if (!existing || hasMetric(point) || !hasMetric(existing)) {
+            forecastByTimestamp.set(timestamp, point);
+        }
+    });
+    const forecastCandidates = [...forecastByTimestamp.values()]
+        .sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
+    const currentTime = new Date(current?.observed_at).getTime();
+    const requestedNow = now === null || now === undefined
+        ? NaN
+        : new Date(now).getTime();
+    const forecastStart = forecastCandidates.length ? new Date(forecastCandidates[0].at).getTime() : NaN;
+    const anchorTime = Number.isFinite(requestedNow)
+        ? requestedNow
+        : Number.isFinite(currentTime)
+            ? currentTime
+            : forecastStart;
+    if (!Number.isFinite(anchorTime)) return empty;
+    const windowStart = anchorTime - 24 * hourMs;
+    const windowEnd = anchorTime + 48 * hourMs;
+    const xForTime = (timestamp) => plotLeft + ((timestamp - windowStart) / (windowEnd - windowStart)) * plotWidth;
+    const nowX = xForTime(anchorTime);
+    const xTicks = [
+        { at: windowStart, x: plotLeft, anchor: "start", kind: "start" },
+        { at: anchorTime, x: nowX, anchor: "middle", kind: "now" },
+        { at: anchorTime + 24 * hourMs, x: xForTime(anchorTime + 24 * hourMs), anchor: "middle", kind: "future" },
+        { at: windowEnd, x: plotRight, anchor: "end", kind: "end" },
+    ];
+    const recentActual = Array.isArray(history?.recent_timeline) && history.recent_timeline.length
+        ? history.recent_timeline
+        : (Array.isArray(history?.timeline) ? history.timeline : []);
+    const actualCandidates = recentActual.map((point) => ({ ...point, at: point?.observed_at, source: "actual" }));
+    if (current?.observed_at) actualCandidates.push({ ...current, at: current.observed_at, source: "actual" });
+    const actualByTimestamp = new Map();
+    actualCandidates.forEach((point) => {
+        const timestamp = new Date(point.at).getTime();
+        const existing = actualByTimestamp.get(timestamp);
+        if (Number.isFinite(timestamp)
+            && (!existing || hasMetric(point) || !hasMetric(existing))) {
+            actualByTimestamp.set(timestamp, point);
+        }
+    });
+    const actual = [...actualByTimestamp.values()].filter((point) => {
+        const timestamp = new Date(point.at).getTime();
+        return Number.isFinite(timestamp) && timestamp >= windowStart && timestamp <= anchorTime;
+    });
+    const forecast = forecastCandidates.filter((point) => {
+        const timestamp = new Date(point.at).getTime();
+        return timestamp >= anchorTime && timestamp < windowEnd;
+    });
+    const combined = [...actual, ...forecast]
+        .filter((point) => hasMetric(point) && Number.isFinite(new Date(point.at).getTime()))
+        .sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
+    if (!combined.length) return { ...empty, nowX, xTicks };
+    const values = combined.map((point) => Number(point[metric]));
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    const padding = Math.max((max - min) * 0.12, 1);
+    min -= padding;
+    max += padding;
+    const points = combined.map((point, index) => ({
+        ...point,
+        key: `${point.source}-${point.at}-${index}`,
+        value: Number(point[metric]),
+        x: plotLeft + ((new Date(point.at).getTime() - windowStart) / (windowEnd - windowStart)) * plotWidth,
+        y: 268 - ((Number(point[metric]) - min) / Math.max(1, max - min)) * 224,
+    }));
+    const path = (source) => {
+        let previousTime = null;
+        return points.filter((point) => point.source === source).map((point) => {
+            const timestamp = new Date(point.at).getTime();
+            const command = previousTime === null || timestamp - previousTime > 2.5 * hourMs ? "M" : "L";
+            previousTime = timestamp;
+            return `${command} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+        }).join(" ");
+    };
+    const firstForecast = points.find((point) => point.source === "forecast");
+    const lastActual = [...points].reverse().find((point) => point.source === "actual");
+    const bridgeGap = firstForecast && lastActual
+        ? new Date(firstForecast.at).getTime() - new Date(lastActual.at).getTime()
+        : null;
+    const bridgePath = firstForecast && lastActual && bridgeGap >= 0 && bridgeGap <= 3 * hourMs
+        ? `M ${lastActual.x.toFixed(1)} ${lastActual.y.toFixed(1)} L ${firstForecast.x.toFixed(1)} ${firstForecast.y.toFixed(1)}`
+        : "";
+    const yTicks = [
+        { y: 44, value: max },
+        { y: 268, value: min },
+    ];
+    return { actualPath: path("actual"), bridgePath, forecastPath: path("forecast"), points, nowX, grid: [44, 100, 156, 212, 268], plotLeft, plotRight, xTicks, yTicks };
+};
+
 const ModernEAIWeatherPage = {
     template: `
         <section class="eai-weather-page" aria-labelledby="eai-weather-title">
@@ -208,21 +331,24 @@ const ModernEAIWeatherPage = {
                     <header>
                         <div><span class="eai-weather-eyebrow">Historie → Jetzt → Prognose</span><h3>Deine Wetter-Zeitreise</h3></div>
                         <div class="eai-weather-controls" aria-label="Diagramm auswählen">
-                            <button v-for="option in chartOptions" :key="option.id" type="button" :class="{ active: chartMetric === option.id }" @click="chartMetric = option.id">{{ option.label }}</button>
+                            <button v-for="option in chartOptions" :key="option.id" type="button" :class="{ active: chartMetric === option.id }" @click="chartMetric = option.id; selectedChartPoint = null">{{ option.label }}</button>
                         </div>
                     </header>
                     <div class="eai-weather-chart-readout" aria-live="polite">
                         <strong>{{ selectedChartPoint ? chartValue(selectedChartPoint) : chartTitle }}</strong>
                         <span>{{ selectedChartPoint ? chartPointLabel(selectedChartPoint) : chartSubtitle }}</span>
                     </div>
-                    <div class="eai-weather-chart-wrap">
-                        <svg class="eai-weather-chart" viewBox="0 0 1000 300" role="img" :aria-label="chartTitle">
-                            <line v-for="line in chartModel.grid" :key="line" x1="52" x2="980" :y1="line" :y2="line" class="weather-grid-line" />
+                    <p class="eai-weather-chart-scroll-hint">Auf schmalen Bildschirmen seitlich wischen, um das gesamte 72-Stunden-Fenster zu sehen.</p>
+                    <div class="eai-weather-chart-wrap" role="region" tabindex="0" :aria-label="chartTitle + ': horizontal scrollbares Zeitdiagramm'">
+                        <svg class="eai-weather-chart" viewBox="0 0 1000 300" role="img" :aria-label="chartAriaLabel">
+                            <line v-for="line in chartModel.grid" :key="line" :x1="chartModel.plotLeft" :x2="chartModel.plotRight" :y1="line" :y2="line" class="weather-grid-line" />
                             <path v-if="chartModel.actualPath" :d="chartModel.actualPath" class="weather-path actual" />
                             <path v-if="chartModel.bridgePath" :d="chartModel.bridgePath" class="weather-path bridge" />
                             <path v-if="chartModel.forecastPath" :d="chartModel.forecastPath" class="weather-path forecast" />
                             <line :x1="chartModel.nowX" :x2="chartModel.nowX" y1="24" y2="268" class="weather-now-line" />
                             <text :x="chartModel.nowX" y="18" text-anchor="middle" class="weather-now-label">JETZT</text>
+                            <text v-for="tick in chartModel.yTicks" :key="'y-' + tick.y" :x="chartModel.plotLeft - 8" :y="tick.y + 4" text-anchor="end" class="weather-axis-label value">{{ chartAxisValue(tick.value) }}</text>
+                            <text v-for="tick in chartModel.xTicks" :key="'x-' + tick.at" :x="tick.x" y="292" :text-anchor="tick.anchor" class="weather-axis-label time">{{ chartAxisTime(tick) }}</text>
                             <circle v-for="point in chartModel.points" :key="point.key" :cx="point.x" :cy="point.y" r="4.5" :class="['weather-point', point.source]" tabindex="0" @mouseenter="selectedChartPoint = point" @focus="selectedChartPoint = point"><title>{{ chartPointLabel(point) }} · {{ chartValue(point) }}</title></circle>
                         </svg>
                     </div>
@@ -245,15 +371,15 @@ const ModernEAIWeatherPage = {
                     </article>
 
                     <article class="eai-weather-card">
-                        <header><div><span class="eai-weather-eyebrow">Warnungen</span><h3>Was du jetzt wissen solltest</h3></div></header>
+                        <header><div><span class="eai-weather-eyebrow">Wetterhinweise</span><h3>Was du jetzt wissen solltest</h3></div><span v-if="hasModelWarnings" class="eai-weather-chip">Modellprognose · nicht amtlich</span></header>
                         <ul v-if="warnings.length" class="eai-weather-events">
                             <li v-for="warning in warnings" :key="warning.code + (warning.start || warning.valid_at)">
-                                <i class="eai-weather-warning-icon" aria-hidden="true">{{ warningIcon(warning.code, warning.severity) }}</i>
+                                <i class="eai-weather-warning-icon" aria-hidden="true">{{ warningIcon(warning) }}</i>
                                 <div class="eai-weather-warning-content">
-                                    <span :class="['eai-weather-severity', warning.severity]">{{ warningLabel(warning.code) }} · {{ severityLabel(warning.severity) }}</span>
+                                    <span :class="['eai-weather-severity', warning.severity]">{{ warningTitle(warning) }} · {{ severityLabel(warning.severity) }}</span>
                                     <time class="eai-weather-warning-period">{{ warningPeriod(warning) }}</time>
                                     <strong>{{ warningEvidence(warning) }}</strong>
-                                    <span>{{ impactLabel(warning.impact_code) }}</span>
+                                    <span>{{ warningAction(warning) }}</span>
                                 </div>
                             </li>
                         </ul>
@@ -284,11 +410,11 @@ const ModernEAIWeatherPage = {
                     </div>
                     <p v-if="missingSourceLabels.length" class="eai-weather-source-note">Derzeit nicht verfügbar: {{ missingSourceLabels.join(", ") }}. Die Auswertung zeigt keine Ersatz- oder Nullwerte.</p>
                     <div v-if="sourceComparisonRows.length" class="eai-weather-table-wrap">
-                        <table class="eai-weather-source-table"><thead><tr><th>Zeit</th><th>WFAI</th><th>HUBBLE AI</th><th>Kepler AI</th><th>Spanne</th></tr></thead><tbody>
+                        <table class="eai-weather-source-table"><thead><tr><th>Zeit</th><th>WFAI</th><th>HUBBLE AI</th><th>Kepler AI</th><th>Spanne verfügbarer Quellen</th></tr></thead><tbody>
                             <tr v-for="row in sourceComparisonRows" :key="row.valid_at"><th>{{ time(row.valid_at) }}</th><td>{{ temperature(row.wfai) }}</td><td>{{ temperature(row.blend) }}</td><td>{{ temperature(row.kepler) }}</td><td>{{ temperature(row.spread) }}</td></tr>
                         </tbody></table>
                     </div>
-                    <footer>Wetterstation zeigt die in SFML hinterlegten Sensoren. HUBBLE zeigt den Wetterblend aus der SFML-Datenbank, WFAI die lokale Prognose und Kepler den Prognose-Snapshot.</footer>
+                    <footer>Wetterstation zeigt die in SFML hinterlegten Sensoren. HUBBLE zeigt den Wetterblend aus der SFML-Datenbank, WFAI die lokale Prognose und Kepler den Prognose-Snapshot. „—“ bedeutet nicht verfügbar; 0,0 °C Spanne bedeutet, dass die verfügbaren Quellen übereinstimmen.</footer>
                 </article>
 
                 <div class="eai-weather-grid">
@@ -534,6 +660,7 @@ const ModernEAIWeatherPage = {
                     - (Number.isFinite(rightTime) ? rightTime : Number.MAX_SAFE_INTEGER);
             });
         });
+        const hasModelWarnings = computed(() => warnings.value.some((warning) => warning?.official_alert === false));
         const rainfall = computed(() => history.value.precipitation || {});
         const yearComparison = computed(() => history.value.year_comparison || {});
         const sourceComparison = computed(() => history.value.source_comparison || {});
@@ -601,49 +728,16 @@ const ModernEAIWeatherPage = {
             ? `${chartConfig.value.label}: ${actualTimelineLabel.value} und Prognose`
             : `${chartConfig.value.label}: Weather Fusion Prognose`);
         const chartSubtitle = computed(() => hasActualTimeline.value
-            ? `${actualTimelineLabel.value} links, Vorhersage rechts`
+            ? "Letzte 24 Stunden gemessen · nächste 48 Stunden Prognose"
             : "Nur verfügbare Weather-Fusion-Prognose");
-        const chartModel = computed(() => {
-            const actual = (Array.isArray(history.value.timeline) ? history.value.timeline : []).map((point) => ({ ...point, at: point.observed_at, source: "actual" }));
-            const forecast = hourly.value.map((point) => ({ ...point, at: point.valid_at, source: "forecast" }));
-            const combined = [...actual, ...forecast]
-                .filter((point) => Number.isFinite(Number(point[chartMetric.value])) && Number.isFinite(new Date(point.at).getTime()))
-                .sort((left, right) => new Date(left.at).getTime() - new Date(right.at).getTime());
-            if (!combined.length) return { actualPath: "", bridgePath: "", forecastPath: "", points: [], nowX: 500, grid: [70, 130, 190, 250] };
-            const values = combined.map((point) => Number(point[chartMetric.value]));
-            const timestamps = combined.map((point) => new Date(point.at).getTime());
-            const firstTime = Math.min(...timestamps);
-            const lastTime = Math.max(...timestamps);
-            let min = Math.min(...values);
-            let max = Math.max(...values);
-            const padding = Math.max((max - min) * 0.12, 1);
-            min -= padding;
-            max += padding;
-            const points = combined.map((point, index) => ({
-                ...point,
-                key: `${point.source}-${point.at}-${index}`,
-                value: Number(point[chartMetric.value]),
-                x: 52 + ((new Date(point.at).getTime() - firstTime) / Math.max(1, lastTime - firstTime)) * 928,
-                y: 268 - ((Number(point[chartMetric.value]) - min) / Math.max(1, max - min)) * 224,
-            }));
-            const path = (source) => points.filter((point) => point.source === source).map((point, index) => `${index ? "L" : "M"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
-            const firstForecast = points.find((point) => point.source === "forecast");
-            const lastActual = [...points].reverse().find((point) => point.source === "actual");
-            const bridgeGap = firstForecast && lastActual ? new Date(firstForecast.at).getTime() - new Date(lastActual.at).getTime() : null;
-            const bridgePath = firstForecast && lastActual && bridgeGap >= 0 && bridgeGap <= 3 * 60 * 60 * 1000 ? `M ${lastActual.x.toFixed(1)} ${lastActual.y.toFixed(1)} L ${firstForecast.x.toFixed(1)} ${firstForecast.y.toFixed(1)}` : "";
-            return { actualPath: path("actual"), bridgePath, forecastPath: path("forecast"), points, nowX: firstForecast && lastActual ? (firstForecast.x + lastActual.x) / 2 : 500, grid: [44, 100, 156, 212, 268] };
-        });
+        const chartModel = computed(() => buildWeatherChartModel({
+            history: history.value,
+            current: current.value,
+            hourly: hourly.value,
+            metric: chartMetric.value,
+            now: status.is_demo ? current.value.observed_at : Date.now(),
+        }));
 
-        const matchingPoint = (points, validAt) => {
-            if (!Array.isArray(points)) return null;
-            const target = new Date(validAt).getTime();
-            if (!Number.isFinite(target)) return null;
-            const match = points.reduce((best, point) => {
-                const distance = Math.abs(new Date(point.valid_at).getTime() - target);
-                return !best || distance < best.distance ? { point, distance } : best;
-            }, null);
-            return match && match.distance <= 90 * 60 * 1000 ? match.point : null;
-        };
         const sourceComparisonRows = computed(() => hourly.value.slice(0, 12).map((point) => {
             const blend = matchingPoint(sourceComparison.value.sfml_expert_blend, point.valid_at);
             const kepler = matchingPoint(sourceComparison.value.kepler_input, point.valid_at);
@@ -661,19 +755,21 @@ const ModernEAIWeatherPage = {
             const blend = matchingPoint(sourceComparison.value.sfml_expert_blend, wfai.valid_at) || {};
             const kepler = matchingPoint(sourceComparison.value.kepler_input, wfai.valid_at) || {};
             return [
-                isFiniteValue(wfai.temperature_c) && { id: "wfai", icon: "🧠", label: "WFAI", temperature: temperature(wfai.temperature_c), detail: `${precipitation(wfai.precipitation)} · lokale Prognose` },
-                isFiniteValue(blend.temperature_c) && { id: "hubble", icon: "🛰️", label: "HUBBLE AI", temperature: temperature(blend.temperature_c), detail: `${number(blend.ghi_wm2, 0)} GHI · ${number(blend.dhi_wm2, 0)} DHI W/m²` },
-                isFiniteValue(kepler.temperature_c) && { id: "kepler", icon: "✦", label: "Kepler AI", temperature: temperature(kepler.temperature_c), detail: `${number(kepler.dni_wm2, 0)} DNI · ${number(kepler.dhi_wm2, 0)} DHI W/m²` },
-                isFiniteValue(current.value.temperature_c) && { id: "station", icon: "📡", label: "Wetterstation", temperature: temperature(current.value.temperature_c), detail: `${irradiance(current.value.solar_radiation_wm2)} GHI · SFML-Sensoren` },
-            ].filter(Boolean);
+                { id: "wfai", icon: "🧠", label: "WFAI", available: isFiniteValue(wfai.temperature_c), temperature: temperature(wfai.temperature_c), detail: isFiniteValue(wfai.temperature_c) ? `${precipitation(wfai.precipitation)} · lokale Prognose` : "Lokale Prognose nicht verfügbar" },
+                { id: "hubble", icon: "🛰️", label: "HUBBLE AI", available: isFiniteValue(blend.temperature_c), temperature: temperature(blend.temperature_c), detail: isFiniteValue(blend.temperature_c) ? `${number(blend.ghi_wm2, 0)} GHI · ${number(blend.dhi_wm2, 0)} DHI W/m²` : "Wetterblend nicht verfügbar" },
+                { id: "kepler", icon: "✦", label: "Kepler AI", available: isFiniteValue(kepler.temperature_c), temperature: temperature(kepler.temperature_c), detail: isFiniteValue(kepler.temperature_c) ? `${number(kepler.dni_wm2, 0)} DNI · ${number(kepler.dhi_wm2, 0)} DHI W/m²` : "Prognose-Snapshot nicht verfügbar" },
+                { id: "station", icon: "📡", label: "Wetterstation", available: isFiniteValue(current.value.temperature_c), temperature: temperature(current.value.temperature_c), detail: isFiniteValue(current.value.temperature_c) ? `${irradiance(current.value.solar_radiation_wm2)} GHI · SFML-Sensoren` : "Stationswert nicht verfügbar" },
+            ];
         });
         const missingSourceLabels = computed(() => {
-            const present = new Set(sourceCards.value.map((source) => source.id));
-            return [["wfai", "WFAI"], ["hubble", "HUBBLE AI"], ["kepler", "Kepler AI"], ["station", "Wetterstation"]]
-                .filter(([id]) => !present.has(id))
-                .map(([, label]) => label);
+            return sourceCards.value
+                .filter((source) => !source.available)
+                .map((source) => source.label);
         });
-        const sourceAvailabilityLabel = computed(() => `${sourceCards.value.length} Quelle${sourceCards.value.length === 1 ? "" : "n"} verfügbar`);
+        const sourceAvailabilityLabel = computed(() => {
+            const count = sourceCards.value.filter((source) => source.available).length;
+            return `${count} Quelle${count === 1 ? "" : "n"} verfügbar`;
+        });
 
         const currentMetrics = computed(() => [
             { label: "Temperatur", value: temperature(current.value.temperature_c), detail: currentSourceLabel.value },
@@ -750,9 +846,9 @@ const ModernEAIWeatherPage = {
         }[point.condition] || (Number(point.precipitation_probability) >= 70 ? "Regen wahrscheinlich" : Number(point.precipitation_probability) >= 35 ? "Schauer möglich" : Number(point.temperature_c) >= 30 ? "Sonnig und heiß" : "Teilweise bewölkt"));
         const precipitationInconsistent = (point) => Number(point.precipitation) > 0 && Number(point.precipitation_probability) === 0;
         const dayIcon = (code) => ({ storm: "⛈️", heat: "☀️", heavy_rain: "🌧️", rain_likely: "🌦️", strong_wind: "💨", frost: "❄️", calm: "⛅" }[code] || "🌤️");
-        const warningLabel = (code) => ({ forecast_stale: "Prognose nicht frisch", forecast_unavailable: "Quelle nicht verfügbar", unavailable: "Quelle nicht verfügbar", freeze_risk: "Frostgefahr", heat_stress: "Hitzebelastung", heavy_precipitation: "Starkregen", high_precipitation_probability: "Hohe Regenwahrscheinlichkeit", precipitation_probability_inconsistent: "Niederschlagsdaten widersprüchlich", strong_wind: "Starker Wind", storm_wind: "Sturmböen" }[code] || "Wetterhinweis");
-        const warningIcon = (code, severity) => ({ freeze_risk: "❄️", heat_stress: "🌡️", heavy_precipitation: "🌧️", high_precipitation_probability: "🌦️", strong_wind: "💨", storm_wind: "⛈️", forecast_stale: "🕒", forecast_unavailable: "⚠️", unavailable: "⚠️" }[code] || ({ critical: "⛔", warning: "⚠️", advisory: "ℹ️" }[severity] || "⚠️"));
-        const severityLabel = (severity) => ({ advisory: "Hinweis", warning: "Warnung", critical: "Dringend" }[severity] || "Beobachten");
+        const warningTitle = (warning) => String(warning?.title || ({ forecast_stale: "Prognose nicht frisch", forecast_unavailable: "Quelle nicht verfügbar", unavailable: "Quelle nicht verfügbar", freeze_risk: "Frost erwartet", heat_stress: "Starke Hitze erwartet", heavy_precipitation: "Starker Regen erwartet", high_precipitation_probability: "Regen sehr wahrscheinlich", precipitation_probability_inconsistent: "Wetterdaten widersprüchlich", strong_wind: "Starker Wind erwartet", storm_wind: "Sturm erwartet", thunderstorm: "Gewitter erwartet", hail: "Hagel erwartet", snow_or_ice: "Schnee oder Glätte erwartet", dense_fog: "Dichter Nebel erwartet", severe_weather: "Unwetter erwartet" }[warning?.code] || "Wetterentwicklung beachten"));
+        const warningIcon = (warning) => ({ frost: "❄️", heat: "🌡️", heavy_rain: "🌧️", rain_likely: "🌦️", strong_wind: "💨", storm: "⛈️", thunderstorm: "⛈️", hail: "🧊", snow_or_ice: "🌨️", fog: "🌫️", severe_weather: "🚨", forecast_quality: "ℹ️", data_quality: "🔄" }[warning?.icon_key] || ({ freeze_risk: "❄️", heat_stress: "🌡️", heavy_precipitation: "🌧️", high_precipitation_probability: "🌦️", strong_wind: "💨", storm_wind: "⛈️", thunderstorm: "⛈️", hail: "🧊", snow_or_ice: "🌨️", dense_fog: "🌫️", severe_weather: "🚨", forecast_stale: "🕒", forecast_unavailable: "🔄", unavailable: "🔄", precipitation_probability_inconsistent: "ℹ️" }[warning?.code] || "ℹ️"));
+        const severityLabel = (severity) => ({ advisory: "Hinweis", warning: "Warnung", critical: "Hohe Gefahr" }[severity] || "Hinweis");
         const impactLabel = (code) => ({
             freeze_precautions: "Glätte und Frostschäden sind möglich. Empfindliche Pflanzen, Außenleitungen und rutschige Wege rechtzeitig schützen.",
             heat_precautions: "Hitze kann Menschen, Tiere und Gebäude belasten. Für Schatten, ausreichend Wasser und möglichst kühle Innenräume sorgen.",
@@ -761,8 +857,9 @@ const ModernEAIWeatherPage = {
             rain_planning: "Außenarbeiten und Bewässerung entsprechend planen. Wetterempfindliche Vorhaben möglichst außerhalb dieses Zeitfensters legen.",
             secure_loose_objects: "Lose Gegenstände und empfindliche Pflanzen sichern. Markisen einfahren und exponierte Bereiche frühzeitig kontrollieren.",
             storm_precautions: "Aufenthalt im Freien vermeiden und Sturmschutz prüfen. Fenster schließen, lose Gegenstände sichern und Fahrten wenn möglich verschieben."
-        }[code] || "Die weitere Entwicklung und Aktualität der Prognose beobachten. Zeitfenster und Messwerte können sich mit neuen Wetterdaten noch verändern.");
-        const warningEvidence = (warning) => { const evidence = warning.evidence || {}; if (Number.isFinite(Number(evidence.temperature_c))) return temperature(evidence.temperature_c); if (Number.isFinite(Number(evidence.wind_speed))) return `${number(evidence.wind_speed)} km/h`; const rain = evidence.precipitation_forecast_mm ?? evidence.precipitation; return Number.isFinite(Number(rain)) ? precipitationOutlook(rain, evidence.precipitation_probability) : "Prognosesignal beobachten"; };
+        }[code] || "Die Prognose wird regelmäßig aktualisiert.");
+        const warningEvidence = (warning) => { const evidence = warning.evidence || {}; if (Number.isFinite(Number(evidence.temperature_c))) return temperature(evidence.temperature_c); if (Number.isFinite(Number(evidence.wind_speed))) return `${number(evidence.wind_speed)} km/h Wind`; if (Number.isFinite(Number(evidence.visibility))) return `${number(evidence.visibility)} m Sichtweite`; const rain = evidence.precipitation_forecast_mm ?? evidence.precipitation; if (Number.isFinite(Number(rain))) return precipitationOutlook(rain, evidence.precipitation_probability); if (Number.isFinite(Number(evidence.precipitation_probability))) return `${percent(evidence.precipitation_probability)} Regenwahrscheinlichkeit`; return ({ lightning: "Gewitter", "lightning-rainy": "Gewitter mit Regen", hail: "Hagel", fog: "Dichter Nebel", rainy: "Regen", pouring: "Starker Regen", snowy: "Schnee", "snowy-rainy": "Schneeregen", exceptional: "Ungewöhnliche Wetterlage" }[evidence.condition] || "Prognosewert nicht verfügbar"); };
+        const warningAction = (warning) => String(warning?.recommended_action || impactLabel(warning?.impact_code));
         const warningDate = (value, includeWeekday = true) => value ? new Date(value).toLocaleDateString("de-DE", { weekday: includeWeekday ? "long" : undefined, day: "2-digit", month: "long" }) : "Zeitpunkt noch offen";
         const warningPeriod = (warning) => {
             const startValue = warning.start || warning.valid_at;
@@ -780,9 +877,23 @@ const ModernEAIWeatherPage = {
         const monthAverageStyle = (month) => ({ left: `${Math.max(0, Math.min(100, ((Number(month.temperature_avg_c) - Number(month.temperature_min_c)) / Math.max(1, Number(month.temperature_max_c) - Number(month.temperature_min_c))) * 100))}%` });
         const recordLabel = (type) => ({ coldest_temperature: "Kältester Tag", hottest_temperature: "Wärmster Tag", strongest_wind: "Stärkster Wind", lowest_pressure: "Tiefster Luftdruck", highest_pressure: "Höchster Luftdruck" }[type] || type);
         const recordValue = (record) => Number.isFinite(Number(record.value)) ? `${number(record.value)} ${record.unit || ""}` : "—";
-        const rainBar = (value) => `${Math.max(4, Math.min(100, Number(value || 0) * 8))}%`;
+        const rainBar = (value) => {
+            if (!isFiniteValue(value) || Number(value) <= 0) return "0%";
+            return `${Math.max(4, Math.min(100, Number(value) * 8))}%`;
+        };
         const chartValue = (point) => `${number(point?.value)} ${chartConfig.value.unit}`;
         const chartPointLabel = (point) => `${point.source === "actual" ? "Gemessen" : "Prognose"} · ${dateTime(point.at)}`;
+        const chartAxisValue = (value) => `${number(value)} ${chartConfig.value.unit}`;
+        const chartAxisTime = (tick) => tick?.kind === "now"
+            ? `Jetzt · ${time(tick.at)}`
+            : `${shortDate(new Date(tick?.at).toISOString().slice(0, 10))} · ${time(tick?.at)}`;
+        const chartAriaLabel = computed(() => {
+            const ticks = chartModel.value.yTicks || [];
+            const range = ticks.length === 2
+                ? ` Wertebereich ${chartAxisValue(ticks[1].value)} bis ${chartAxisValue(ticks[0].value)}.`
+                : " Für diese Metrik liegen noch keine Werte vor.";
+            return `${chartTitle.value}. Letzte 24 Stunden Messung und nächste 48 Stunden Prognose.${range}`;
+        });
         const pressureHint = (value) => !Number.isFinite(Number(value)) ? "kein Messwert" : Number(value) < 1005 ? "fallend / unbeständig" : Number(value) > 1020 ? "stabile Hochdrucklage" : "normaler Bereich";
         const windDirection = (value) => { if (!Number.isFinite(Number(value))) return "Richtung unbekannt"; const directions = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"]; return `aus ${directions[Math.round(Number(value) / 45) % 8]}`; };
         const dewPointHint = (temp, humidity) => Number.isFinite(Number(temp)) && Number.isFinite(Number(humidity)) ? `Taupunkt ca. ${number(Number(temp) - (100 - Number(humidity)) / 5)} °C` : "Taupunkt wird ermittelt";
@@ -798,17 +909,17 @@ const ModernEAIWeatherPage = {
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         });
         return {
-            loading, error, status, weather, chartMetric, selectedChartPoint, chartOptions, chartTitle, chartSubtitle, chartModel,
+            loading, error, status, weather, chartMetric, selectedChartPoint, chartOptions, chartTitle, chartSubtitle, chartModel, chartAriaLabel,
             modeLabel, recorderLabel, historySource, outlook, nextHours, hourly, daily, history, current, currentMetrics, currentSourceEyebrow, hasActualTimeline, actualTimelineLabel,
-            aggregates, monthly, records, warnings, warningSummary, rainfall, rainDays, rainRateDays, rainfallAvailable, rainfallRateAvailable, rainfallTitle, historySince,
+            aggregates, monthly, records, warnings, hasModelWarnings, warningSummary, rainfall, rainDays, rainRateDays, rainfallAvailable, rainfallRateAvailable, rainfallTitle, historySince,
             yearComparison, sourceCards, sourceComparisonRows, missingSourceLabels, sourceAvailabilityLabel,
             coverageLabel, forecastRain, narrative, qualityRows, trendLabel, qualityEyebrow, qualityTitle, qualityProvenance, accuracyProvenance, number, integer, percent, temperature,
             precipitation, precipitationRate, irradiance, signedTemperature, precipitationProbability, precipitationOutlook, dateTime, dateOnly, shortDate, time, dayName, daySummary, weatherSymbol, weatherDescription, precipitationInconsistent, dayIcon,
-            warningLabel, warningIcon, severityLabel, impactLabel, warningEvidence, warningPeriod, monthLabel, monthStyle,
-            monthAverageStyle, recordLabel, recordValue, rainBar, chartValue, chartPointLabel,
+            warningTitle, warningIcon, severityLabel, impactLabel, warningEvidence, warningAction, warningPeriod, monthLabel, monthStyle,
+            monthAverageStyle, recordLabel, recordValue, rainBar, chartValue, chartPointLabel, chartAxisValue, chartAxisTime,
         };
     },
 };
 
 if (typeof window !== "undefined") window.ModernEAIWeatherPage = ModernEAIWeatherPage;
-if (typeof module !== "undefined") module.exports = { assessAccuracyProvenance };
+if (typeof module !== "undefined") module.exports = { assessAccuracyProvenance, buildWeatherChartModel, matchingPoint };

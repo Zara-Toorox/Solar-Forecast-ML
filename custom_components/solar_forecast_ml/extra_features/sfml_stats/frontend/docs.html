@@ -410,7 +410,7 @@
 <tr><td>Kompressorstatus oder Betriebsmodus</td><td>Optionaler Binärsensor, Schalter, numerischer Status oder Textmodus wie Heizen, Warmwasser, Abtauen und Aus</td><td>Erkennt den laufenden Betrieb; fehlt der direkte Status, verwendet EAI zuerst den Betriebsmodus und danach die elektrische Leistung</td><td>Der Zustand wird nur aus der Leistung abgeleitet</td></tr>
 <tr><td>Thermischer Tages-Verbrauchszähler</td><td>Optional: seit 00:00 Uhr gezählte Wärme in kWh mit derselben Systemgrenze wie der elektrische Tageszähler</td><td>Berechnet die Arbeitszahl des laufenden Tages</td><td>Keine berechnete Tages-Arbeitszahl</td></tr>
 <tr><td>JAZ / gemessene Arbeitszahl</td><td>Optionaler, bereits von der Anlage oder einer geprüften Auswertung berechneter dimensionsloser Wert</td><td>Zeigt die langfristige Effizienz; EAI erfindet ohne passende Wärme- und Stromzähler keine JAZ</td><td>Das Feld bleibt leer</td></tr>
-<tr><td>Volumenstrom</td><td>Optionaler Durchflusssensor in l/min oder m³/h; Medium und Messkreis müssen bekannt sein</td><td>Wird nur zusammen mit Vorlauf, Rücklauf und elektrischer Leistung für den momentanen COP benötigt</td><td>Kein momentaner COP; Tages-Arbeitszahl und JAZ bleiben möglich</td></tr>
+<tr><td>Volumenstrom</td><td>Optionaler Durchflusssensor in l/min, L/h oder m³/h; Medium und Messkreis müssen bekannt sein</td><td>Wird nur zusammen mit Vorlauf, Rücklauf und elektrischer Leistung für den momentanen COP benötigt; EAI rechnet L/h intern in l/min um</td><td>Kein momentaner COP; Tages-Arbeitszahl und JAZ bleiben möglich</td></tr>
 <tr><td>Zirkulationspumpe</td><td>Optionaler Schalter, Binärsensor oder numerischer Zustand; auch ein geeigneter Smart Plug ist möglich</td><td>Trennt Bereitschafts- und Zirkulationsverluste des Warmwasserspeichers</td><td>Die Verlustanalyse bleibt zusammengefasst</td></tr>
 <tr><td>Zirkulations-Rücklauftemperatur</td><td>Optionaler Temperaturfühler nahe dem Speicher</td><td>Dient ausschließlich der Plausibilisierung</td><td>Die Verlustanalyse funktioniert weiterhin ohne diesen Wert</td></tr>
 <tr><td>Thermischer Speicher</td><td>Optionaler Temperatur- oder Energiezustand</td><td>Bewertet nutzbare thermische Flexibilität</td><td>Keine Speicherempfehlung</td></tr>
@@ -419,6 +419,33 @@
 </tbody>
 </table>
 <p>Die genaue Entity-Auswahl und die erwartete Einheit jedes konfigurierbaren Sensors stehen im Kapitel <a href="#flow-verbraucher">Konfiguration: Verbraucher</a> und unter <a href="#flow-verbraucher-details">Verbraucher-Details</a>. Nicht jede Anlage stellt alle Detailwerte bereit; EAI kennzeichnet deshalb Datenqualität, Lernphase und eingeschränkten Betrieb sichtbar.</p>
+<h3 id="funktion-eai-waermepumpe-bosch">Praxisbeispiel: Bosch/Buderus mit EMS-ESP</h3>
+<p>Dieses Beispiel wurde an einer Bosch/Buderus-Luft/Wasser-Wärmepumpe mit EMS-ESP praktisch geprüft. Die Entity-IDs sind Beispiele: Namen und verfügbare Werte unterscheiden sich je nach Wärmepumpe, EMS-ESP-Version, Gateway und Home-Assistant-Übersetzung. Vor der Zuordnung immer Messgröße, Einheit und hydraulischen Messkreis kontrollieren.</p>
+<blockquote><strong>Wichtigste Regel:</strong> Einen seit Inbetriebnahme steigenden Energiezähler niemals direkt als Tagesenergie auswählen. EAI erwartet einen kWh-Zähler ab 00:00 Uhr, der täglich zurückgesetzt wird. Bei getrennter Erfassung von Wärmepumpe und Heizstab darf der elektrische Wärmepumpenzähler nur den Kompressor enthalten; andernfalls wird der Heizstab doppelt gezählt.</blockquote>
+<table>
+<thead><tr><th>EAI-Feld</th><th>Bosch-/EMS-ESP-Beispiel</th><th>Zuordnung und Prüfung</th></tr></thead>
+<tbody>
+<tr><td>Elektrische Leistung der Wärmepumpe</td><td><code>sensor.boiler_compressor_current_power</code></td><td>Direkt verwenden. Der Sensor liefert die aktuelle elektrische Kompressorleistung in W, nicht die thermische Heizleistung.</td></tr>
+<tr><td>Tagesenergie der Wärmepumpe</td><td><code>sensor.eai_wp_energy_today</code></td><td>Als täglichen Home-Assistant-Verbrauchszähler aus <code>sensor.boiler_meter_compressor</code> erzeugen. Den Lebenszeitzähler nicht direkt in EAI auswählen.</td></tr>
+<tr><td>Außentemperatur</td><td><code>sensor.boiler_outside_temperature</code></td><td>Direkt verwenden, wenn der Fühler tatsächlich die Außenluft am Gebäude misst. Ein geeigneter separater Außensensor ist ebenfalls zulässig.</td></tr>
+<tr><td>Vorlauf und Rücklauf</td><td><code>sensor.boiler_heat_carrier_forward_tc1</code><br><code>sensor.boiler_heat_carrier_return_tc0</code></td><td>TC1 und TC0 bilden ein zusammengehöriges Paar im Primärkreis. Keine Vorlaufmessung hinter einem Puffer mit einem Rücklauf aus einem anderen Kreis kombinieren.</td></tr>
+<tr><td>Volumenstrom</td><td><code>sensor.boiler_flow_pc0</code></td><td>Optional. EMS-ESP kann L/h liefern; EAI rechnet diesen Wert intern in l/min um. Messkreis und Medium müssen zum gewählten TC1/TC0-Paar passen.</td></tr>
+<tr><td>Quellentemperatur</td><td><code>sensor.boiler_air_inlet_temperature_tl2</code></td><td>Bei einer Luft/Wasser-Wärmepumpe als Temperatur der angesaugten Außenluft verwenden.</td></tr>
+<tr><td>Elektrische Heizstabenergie</td><td><code>sensor.boiler_meter_e_heater</code></td><td>Optional und bei getrennter elektrischer Topologie separat behandeln. Für die Tagesenergie einen eigenen täglichen Verbrauchszähler erstellen.</td></tr>
+<tr><td>Thermische Tagesenergie</td><td><code>sensor.boiler_total_energy_supplied_heating</code><br><code>sensor.boiler_dhw_total_energy_warm_supplied</code></td><td>Aus beiden Lebenszeitzählern jeweils einen täglichen Verbrauchszähler bilden und anschließend addieren. Elektrische und thermische Tagesenergie müssen denselben Zeitraum und dieselbe Systemgrenze abdecken.</td></tr>
+<tr><td>Zirkulations-Rücklauftemperatur</td><td>Kein allgemeiner Bosch-Standardwert</td><td>Nur einen echten Temperaturfühler am Rücklauf der Warmwasser-Zirkulationsleitung nahe dem Speicher auswählen. <code>TC0</code> ist dafür nicht geeignet; ohne passenden Sensor bleibt das Feld leer.</td></tr>
+</tbody>
+</table>
+<h3 id="funktion-eai-waermepumpe-bosch-tageszaehler">Täglichen Kompressorzähler erstellen</h3>
+<ol>
+<li>In Home Assistant <strong>Einstellungen → Geräte &amp; Dienste → Helfer → Helfer erstellen → Verbrauchszähler</strong> öffnen.</li>
+<li>Als Namen <code>eai_wp_energy_today</code> und als Eingangssensor <code>sensor.boiler_meter_compressor</code> wählen.</li>
+<li>Den Rückstellzyklus auf <strong>Täglich</strong> setzen. <strong>Regelmäßige Rückstellung der Quelle</strong> bleibt aus, weil der Bosch-Quellzähler seit Inbetriebnahme monoton steigt.</li>
+<li>Nach dem Erstellen die Entity-ID <code>sensor.eai_wp_energy_today</code> kontrollieren und genau diese Entität in EAI als <strong>Tagesenergie der Wärmepumpe</strong> auswählen.</li>
+<li>Prüfen, dass der Tageswert in kWh verfügbar ist, mit dem Kompressorverbrauch steigt und beim nächsten lokalen Tageswechsel wieder nahe 0 beginnt.</li>
+</ol>
+<p>Für die optionale thermische Tagesenergie wird dasselbe Verfahren zweimal angewendet: zum Beispiel <code>sensor.eai_wp_heat_heating_today</code> aus <code>sensor.boiler_total_energy_supplied_heating</code> und <code>sensor.eai_wp_heat_dhw_today</code> aus <code>sensor.boiler_dhw_total_energy_warm_supplied</code>. Ein Template-Sensor wie <code>sensor.eai_wp_heat_energy_today</code> addiert anschließend beide Tageswerte. Erst diese Summe wird EAI als thermischer Tages-Verbrauchszähler zugeordnet.</p>
+<blockquote><strong>Credits:</strong> Dietmar und Joachim aus dem Simon42-Forum.</blockquote>
 <blockquote><strong>COP, Arbeitszahl und JAZ sind nicht dasselbe:</strong> Der COP beschreibt einen momentanen Betriebspunkt und wird nur aus zeitgleichen Leistungswerten berechnet. Die Arbeitszahl des Tages teilt die gemessene Tageswärme durch den elektrischen Tagesverbrauch. Die JAZ bewertet einen längeren Zeitraum und wird nur angezeigt, wenn die Anlage oder eine geprüfte Datenquelle sie bereitstellt.</blockquote>
 <h3 id="funktion-eai-waermepumpe-ausgaben">Bereitgestellte Prognose- und Empfehlungssensoren</h3>
 <table>
@@ -490,46 +517,56 @@
 <section class="function-chapter" id="kapitel-smart-charge">
 <h2 id="smart-charging">Smart Charge</h2>
 <h3 id="smart-charge-smc-funktion">Smart Charge (SMC)</h3>
-<p><strong>Bezeichnung:</strong> Smart Charge (SMC) – vorausschauende Netzladung eines stationären Akkus bei dynamischem Stromtarif. <strong>Beschreibung:</strong> SMC lädt den Akku nicht allein deshalb, weil der aktuelle Strompreis niedrig ist. Hubble verbindet den effektiven Bruttostrompreis mit Solarprognose, aktueller Wirkleistung, erwartetem Verbrauch, Umwandlungsverlusten, Akku-SoC, Akkukapazität und den konfigurierten SoC-Grenzen. Daraus entstehen ein wirtschaftlich bewerteter Ladezeitpunkt und ein dynamischer Ziel-SoC. <strong>Wozu ist das gut?</strong> Günstige Netzstunden werden genutzt, ohne den Akku unnötig zu füllen und dadurch Platz für den erwarteten Solarüberschuss zu verlieren. Das reduziert teuren Netzbezug und verbessert die wirtschaftliche Akkunutzung.</p>
+<p><strong>SMC entscheidet, ob und wann der Hausakku aus dem Netz geladen wird.</strong> Ziel ist nicht ein voller Akku, sondern die niedrigsten Stromkosten. Ein niedriger Preis allein startet keine Ladung.</p>
 <h3 id="smart-charge-smc-funktionsweise">So funktioniert SMC</h3>
 <ol>
-<li>STATS ermittelt den wirksamen Gesamtpreis in ct/kWh aus dem dynamischen Preisservice oder einem konfigurierten Gesamtpreissensor.</li>
-<li>SMC liest Solarprognose und durchschnittlichen Verbrauch aus der gemeinsamen SFML-Datenbasis.</li>
-<li>Hubble bewertet Preis, Prognose und aktuelle Wirkleistung gemeinsam. Umwandlungsverluste korrigieren dabei die tatsächlich nutzbaren Kosten- und Energiemengen.</li>
-<li>Aus Prognose, Verbrauch, Verlusten, Akkukapazität sowie Min-/Max-SoC wird der Ziel-SoC berechnet. Erwarteter Solarüberschuss reserviert freien Speicher; erwarteter Nachtverbrauch erhöht den notwendigen Puffer.</li>
-<li>Der aktuelle Akku-SoC wird mit dem Ziel verglichen. Eine Hysterese verhindert häufiges Ein- und Ausschalten.</li>
-<li>Standardladung ist nur nachts aktiv, wenn der Gesamtpreis unter der konfigurierten Maximalpreisschwelle liegt. Eine besonders günstige Force-Charge-Schwelle kann zusätzlich greifen; tagsüber jedoch nur bei belegtem Leistungsdefizit.</li>
-<li>Ist ein Steuerschalter konfiguriert, schaltet SMC die Netzladung automatisch. Ohne Schalter bleibt SMC eine Analyse- und Empfehlungsebene.</li>
+<li>SMC prüft alle fünf Minuten Akku-SoC, erwarteten Verbrauch, verbleibende PV heute, PV morgen und die Strompreise der nächsten 36 Stunden.</li>
+<li>Es berechnet nur die Energiemenge, die nach vorhandenem Akku und erwarteter PV voraussichtlich noch fehlt.</li>
+<li>Der aktuelle Einkaufspreis wird um Lade-, Entlade-, Wechselrichter- und Eigenverbrauchsverluste korrigiert. Entscheidend ist der tatsächliche Preis einer später aus dem Akku gelieferten Kilowattstunde.</li>
+<li>Zukünftige Ladefenster werden nach Preis sortiert. Das günstigste Fenster erhält zuerst die benötigte Energiemenge, danach das zweitgünstigste.</li>
+<li>Das aktuelle Fenster lädt nur den Rest, der später nicht mehr rechtzeitig günstiger geladen werden kann.</li>
 </ol>
-<blockquote><strong>Hubble und Verluste:</strong> Hubble bewertet den aktuellen SMC-Zustand und bezieht Bruttostrompreis, Prognose, Wirkleistung sowie Speicher- und Umwandlungsverluste direkt in Ladeentscheidung und Ersparnisbewertung ein. SMC setzt die daraus abgeleitete Entscheidung über den konfigurierten Netzlade-Schalter um.</blockquote>
+<h3 id="smart-charge-smc-entscheidungen">Die drei Entscheidungen</h3>
+<table>
+<thead><tr><th>Entscheidung</th><th>Bedeutung</th></tr></thead>
+<tbody>
+<tr><td><strong>Laden</strong></td><td>Später droht teurer Netzbezug und die günstigeren Zukunftsfenster reichen nicht aus. SMC lädt jetzt nur die fehlende Restmenge.</td></tr>
+<tr><td><strong>Warten</strong></td><td>Ein späteres günstigeres Fenster kann den Bedarf rechtzeitig decken oder die Preisprognose reicht für eine sichere Entscheidung noch nicht aus.</td></tr>
+<tr><td><strong>Nicht laden</strong></td><td>Akku und PV reichen voraussichtlich aus oder notwendige Daten wie SoC, Verbrauch oder PV-Prognose fehlen.</td></tr>
+</tbody>
+</table>
 <h3 id="smart-charge-smc-sensoren">Benötigte Sensoren und Daten</h3>
 <table>
 <thead><tr><th>Sensor oder Wert</th><th>Status</th><th>Anforderung</th><th>Aufgabe</th><th>Wenn er fehlt</th></tr></thead>
 <tbody>
-<tr><td>Akku-SoC</td><td>funktional erforderlich</td><td>Sensor, numerisch 0–100 %</td><td>Start-/Stoppentscheidung und Zielvergleich</td><td>Automatische Ladung wird aus Sicherheitsgründen blockiert</td></tr>
+<tr><td>Akku-SoC</td><td>erforderlich</td><td>Sensor, numerisch 0–100 %</td><td>Ermittelt vorhandene Energie und Ladebedarf</td><td>Automatische Ladung wird sicher blockiert</td></tr>
 <tr><td>Netzlade-Schalter</td><td>für automatische Steuerung erforderlich</td><td><code>switch</code>-Entity des Akkus/Wechselrichters</td><td>Schaltet die Netzladung ein oder aus</td><td>Nur Analyse und Empfehlung, keine Schaltaktion</td></tr>
-<tr><td>Gesamtstrompreis</td><td>erforderliche Datenquelle</td><td>GPM-Dynamikpreis oder Gesamtpreissensor; effektiv ct/kWh</td><td>Vergleich mit Maximal- und Force-Charge-Schwelle</td><td>Keine belastbare Preisentscheidung</td></tr>
-<tr><td>Solarprognose</td><td>erforderliche SFML-Datenbasis</td><td>heutige/morgige Prognose in kWh</td><td>Reserviert Platz für erwarteten Solarüberschuss</td><td>Ziel-SoC fällt konservativ bis zum Max-SoC zurück</td></tr>
-<tr><td>Hausverbrauch</td><td>für Tages-Force-Charge erforderlich</td><td>Leistung in W oder kW</td><td>Vergleich mit aktueller Solarleistung</td><td>Force Charge am Tag wird bei unbekanntem Defizit blockiert</td></tr>
-<tr><td>Solar→Haus</td><td>für Tages-Force-Charge erforderlich</td><td>Leistung in W oder kW</td><td>Belegt, ob Solar den aktuellen Hausbedarf deckt</td><td>Force Charge am Tag wird bei unbekanntem Defizit blockiert</td></tr>
-<tr><td>Wirkungsgrad-/Verlustdaten</td><td>erforderliche Bewertungsbasis</td><td>Wirkungskette von Wechselrichter und Akku</td><td>Korrigiert nutzbare Energie und wirtschaftlichen Ladepreis</td><td>Keine vollständige verlustbereinigte Ladeentscheidung</td></tr>
-<tr><td>Alternativer Haupt-SoC</td><td>optional</td><td>Sensor, numerisch 0–100 %</td><td>Fallback bei ungültigem primären SoC</td><td>Kein Fallback</td></tr>
+<tr><td>Aktueller Gesamtstrompreis</td><td>erforderlich</td><td>Endpreis in ct/kWh inklusive Steuern und Entgelten</td><td>Bewertet die Kosten einer Ladung im aktuellen Fenster</td><td>Entscheidung „Nicht laden“; die automatische Ladung bleibt aus</td></tr>
+<tr><td>Zukünftige Strompreise</td><td>für die Planung erforderlich</td><td>Endpreise des dynamischen Preisservice für die nächsten 36 Stunden</td><td>Liefert und sortiert die späteren Ladefenster</td><td>Entscheidung „Warten“, bis eine belastbare Preisplanung möglich ist</td></tr>
+<tr><td>Solarprognose</td><td>erforderlich</td><td>Rest-PV heute und PV morgen in kWh</td><td>Verhindert unnötige Netzladung und hält Platz für Solarstrom frei</td><td>Automatische Ladung wird sicher blockiert</td></tr>
+<tr><td>Verbrauchshistorie</td><td>erforderlich</td><td>Durchschnittlicher Hausverbrauch der letzten Tage</td><td>Schätzt den kommenden Energiebedarf</td><td>Keine sichere Bedarfsberechnung</td></tr>
 </tbody>
 </table>
 <h3 id="smart-charge-smc-konfiguration">Notwendige Konfiguration</h3>
 <table>
 <thead><tr><th>Wert</th><th>Bedeutung</th></tr></thead>
 <tbody>
-<tr><td>Akkukapazität in kWh</td><td>Übersetzt erwartete Energie in einen Ziel-SoC.</td></tr>
-<tr><td>Minimaler und maximaler SoC</td><td>Begrenzt den von SMC erlaubten Arbeitsbereich.</td></tr>
-<tr><td>Maximalpreis</td><td>Unterhalb dieser Grenze gilt eine Nachtstunde als günstig. Der Grenzwert selbst zählt nicht als günstig.</td></tr>
-<tr><td>Force-Charge-Preis</td><td>Besonders günstige Schwelle für eine Ladung bis nahe Max-SoC; tagsüber nur bei belegtem Solardefizit.</td></tr>
+<tr><td>SMC aktiviert</td><td>Schaltet die Berechnung und – mit konfiguriertem Schalter – die automatische Netzladung ein.</td></tr>
+<tr><td>Akkukapazität</td><td>Gesamtkapazität des Akkus in kWh. Sie wird benötigt, um SoC in verfügbare Energie umzurechnen.</td></tr>
+<tr><td>Min-SoC</td><td>Gewünschte Mindestreserve. SMC plant diese Reserve ein, lädt sie aber nicht zwingend sofort.</td></tr>
+<tr><td>Max-SoC</td><td>Harte Obergrenze für das Ladeziel. SMC lädt nur bis zum errechneten Bedarf und nicht automatisch bis zu diesem Wert.</td></tr>
+<tr><td>Maximalpreis</td><td>Orientierungswert für einen günstigen Preis. Im wirtschaftlichen SMC-Pfad ist er kein Ein-/Ausschalter: Ein Preis darunter kann abgelehnt, ein Preis darüber bei später noch höheren Kosten akzeptiert werden.</td></tr>
+<tr><td>Force-Charge-Preis</td><td>Kompatibilitätswert der früheren Schwellwertlogik. Er erzwingt im wirtschaftlichen SMC-Pfad keine Vollladung.</td></tr>
+<tr><td>SoC-Sensor</td><td>Liefert den aktuellen Ladezustand des Akkus.</td></tr>
+<tr><td>Netzlade-Schalter</td><td>Schaltet die Netzladung am Wechselrichter ein oder aus. Ohne ihn zeigt SMC nur die Empfehlung.</td></tr>
+<tr><td>Gesamtpreissensor</td><td>Optionaler aktueller Endpreis. Werte müssen als ct/kWh vorliegen.</td></tr>
 </tbody>
 </table>
 <h3 id="smart-charge-smc-beispiel">Nutzungsbeispiel</h3>
-<p><strong>Ausgangslage:</strong> 10-kWh-Akku, Min-SoC 20 %, Max-SoC 90 %, Maximalpreis 25 ct/kWh, aktueller SoC 35 %. SMC berechnet aus der Solarprognose und dem erwarteten Verbrauch einen Ziel-SoC von 65 %. <strong>Entscheidung:</strong> In einer Nachtstunde kostet Strom 18 ct/kWh. Der Preis ist günstig und der SoC liegt unter der Einschalthysterese. SMC aktiviert den Netzlade-Schalter und lädt bis zum Zielbereich. <strong>Nutzen:</strong> Der erwartete Nachtbedarf wird günstig gedeckt; gleichzeitig bleiben 35 % Speicherkapazität bis zum Max-SoC für den prognostizierten Solarertrag frei. <strong>Zweites Szenario:</strong> Fällt der Preis tagsüber unter die Force-Charge-Schwelle, lädt SMC nur dann aus dem Netz, wenn Hausverbrauch und Solar→Haus-Leistung gemeinsam ein tatsächliches Leistungsdefizit belegen.</p>
+<p>Die Preisschwelle liegt bei 30 ct/kWh. In zwei Stunden kostet Strom 28 ct/kWh, in vier Stunden nur 10 ct/kWh. Reicht das 10-ct-Fenster für den Bedarf, wartet SMC über das 28-ct-Fenster hinweg. Reicht das günstigste Fenster nur für 1 kWh bei 2,3 kWh Bedarf, reserviert SMC dort 1 kWh und lädt vorher nur die fehlenden 1,3 kWh.</p>
+<blockquote><strong>Wichtig:</strong> SMC steuert derzeit einen Ein-/Aus-Schalter. Die berechnete Energiemenge ist kein direkter kWh-Sollwert für den Wechselrichter. SMC prüft deshalb alle fünf Minuten neu und beendet die Ladung, sobald der verbleibende Bedarf durch Akku und reservierte günstige Fenster gedeckt ist.</blockquote>
 <h3 id="live-status">Live-Status</h3>
-<p><strong>Anzeige:</strong> SoC-Gauge, Status und Entscheidung. <strong>Quelle:</strong> SoC, Preis, Forecast, Konfiguration. <strong>Bildung:</strong> Preis-/SoC-Regeln mit Hysterese. <strong>Interpretation:</strong> Entscheidung, nicht garantierte Schaltaktion. <strong>Aktualisierung:</strong> Sensor/Preis. <strong>Normal:</strong> ohne Switch Analyse. <strong>Kein Bug:</strong> Preis exakt Grenze ist nicht günstig. <strong>Prüfen:</strong> falscher Preiswert.</p>
+<p><strong>Anzeige:</strong> SoC, Ziel-SoC, Laden/Warten/Nicht laden und Begründung. Die API nennt außerdem die jetzt angeforderte Netzenergie, die in günstigeren Zukunftsfenstern reservierte Energie, den verlustbereinigten Speicherpreis und den Gesamtwirkungsgrad. Ohne Netzlade-Schalter bleibt die Anzeige eine Empfehlung.</p>
 <h3 id="kpi-reihe">KPI-Reihe</h3>
 <p><strong>Anzeige:</strong> aktuelle Ziel-, Preis- und Energiewerte. <strong>Quelle:</strong> Dashboardpayload. <strong>Bildung:</strong> Backendwerte. <strong>Interpretation:</strong> Einheit/Zeitraum je KPI. <strong>Aktualisierung:</strong> Dashboardreload. <strong>Normal:</strong> einzelne KPI leer. <strong>Kein Bug:</strong> ohne Akku-/Preisdaten reduziert. <strong>Prüfen:</strong> Wert widerspricht Payload.</p>
 <h3 id="48-stunden-diagramm">48-Stunden-Diagramm</h3>
@@ -594,7 +631,7 @@
 <h3 id="preis-und-tarif">Preis und Tarif</h3>
 <p>Zeigt Modus, Preisbestandteile, Grundgebühr und Einspeisevergütung. ct/kWh und Euro/Monat getrennt lesen.</p>
 <h3 id="smart-charging_1">Smart Charging</h3>
-<p>Zeigt Aktivierung, Schwelle, SoC-Grenzen, Preis und Entscheidungsgrund. Ohne SoC-Sensor ist die Funktion reduziert.</p>
+<p>Hier werden Aktivierung, Akkukapazität, Min-/Max-SoC, Preiswerte, SoC-Sensor und Netzlade-Schalter konfiguriert. Ohne gültigen SoC, Preis-, Verbrauchs- oder PV-Daten blockiert SMC die automatische Ladung sicher.</p>
 <h3 id="panelgruppen_1">Panelgruppen</h3>
 <p>Zeigt dynamisch Name, Azimut, Neigung, kWp, Module, Physikfaktor und Konfidenz je Gruppe.</p>
 <h3 id="hubble-ai-stack_1">Hubble AI-Stack</h3>
