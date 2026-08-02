@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import sqlite3
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic
 from types import MappingProxyType
-from collections.abc import Awaitable, Callable
 from typing import Any, Mapping, TypeVar
 from uuid import uuid4
 
@@ -48,6 +50,65 @@ from .registry import (
 from .writer_queue import WriterQueue
 
 T = TypeVar("T")
+SQLiteAuthorizer = Callable[[int, str | None, str | None, str | None, str | None], int]
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def _set_connection_authorizer(
+    connection: aiosqlite.Connection,
+    authorizer: SQLiteAuthorizer | None,
+) -> None:
+    """Set an SQLite authorizer on every supported aiosqlite version."""
+
+    public_setter = getattr(connection, "set_authorizer", None)
+    if callable(public_setter):
+        await public_setter(authorizer)
+        return
+
+    worker_execute = getattr(connection, "_execute", None)
+    raw_connection = getattr(connection, "_conn", None)
+    if not callable(worker_execute) or not isinstance(
+        raw_connection, sqlite3.Connection
+    ):
+        raise ServiceUnavailable(
+            "aiosqlite connection cannot install the SQLite authorizer safely"
+        )
+
+    await worker_execute(
+        sqlite3.Connection.set_authorizer,
+        raw_connection,
+        authorizer,
+    )
+
+
+@asynccontextmanager
+async def _connection_authorizer(
+    connection: aiosqlite.Connection,
+    authorizer: SQLiteAuthorizer,
+) -> AsyncIterator[None]:
+    """Install and reliably remove an authorizer around one operation."""
+
+    await _set_connection_authorizer(connection, authorizer)
+    operation_error: BaseException | None = None
+    try:
+        yield
+    except BaseException as error:
+        operation_error = error
+        raise
+    finally:
+        try:
+            await _set_connection_authorizer(connection, None)
+        except BaseException as cleanup_error:
+            if operation_error is None:
+                raise
+            operation_error.add_note(
+                "SQLite authorizer cleanup also failed: "
+                f"{type(cleanup_error).__name__}: {cleanup_error}"
+            )
+            _LOGGER.exception(
+                "Failed to remove SQLite authorizer after a database operation error"
+            )
 
 
 class CentralDatabaseService:
@@ -83,7 +144,9 @@ class CentralDatabaseService:
         self._rollbacks = 0
         self._last_error_code: str | None = None
         self._idempotency: dict[tuple[str, str, str], tuple[str, OperationResult]] = {}
-        self._idempotency_inflight: dict[tuple[str, str, str], tuple[str, asyncio.Task[OperationResult]]] = {}
+        self._idempotency_inflight: dict[
+            tuple[str, str, str], tuple[str, asyncio.Task[OperationResult]]
+        ] = {}
         self.database_id = hashlib.sha256(str(self._path).encode()).hexdigest()[:16]
 
     @property
@@ -104,8 +167,8 @@ class CentralDatabaseService:
         """Adopt the legacy SFML writer without opening another connection."""
 
         async with self._lifecycle_lock:
-            manager_path = Path(database_manager.db_path).expanduser().resolve(
-                strict=False
+            manager_path = (
+                Path(database_manager.db_path).expanduser().resolve(strict=False)
             )
             if manager_path != self._path:
                 raise ServiceUnavailable("SFML database writer uses a different path")
@@ -118,7 +181,9 @@ class CentralDatabaseService:
                 ServiceState.DATABASE_MISSING,
                 ServiceState.STOPPED,
             }:
-                raise ServiceUnavailable("Service cannot adopt a writer in its current state")
+                raise ServiceUnavailable(
+                    "Service cannot adopt a writer in its current state"
+                )
 
             lease = await database_manager.acquire_shared_connection_lease()
             connection = lease.connection
@@ -344,6 +409,7 @@ class CentralDatabaseService:
             )
 
         if idempotency_key is not None:
+
             async def finalize() -> OperationResult:
                 try:
                     result = await submit()
@@ -561,9 +627,7 @@ class CentralDatabaseService:
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_READ:
                 return (
-                    sqlite3.SQLITE_OK
-                    if table in allowed_reads
-                    else sqlite3.SQLITE_DENY
+                    sqlite3.SQLITE_OK if table in allowed_reads else sqlite3.SQLITE_DENY
                 )
             if action in {
                 sqlite3.SQLITE_INSERT,
@@ -577,37 +641,37 @@ class CentralDatabaseService:
                 )
             return sqlite3.SQLITE_DENY
 
-        try:
-            await connection.set_authorizer(authorize)
-            await connection.execute("BEGIN IMMEDIATE")
-            for statement in operation.statements:
-                parameters = tuple(payload[name] for name in statement.parameters)
-                cursor = await connection.execute(statement.sql, parameters)
-                try:
-                    if cursor.rowcount > 0:
-                        rows_affected += cursor.rowcount
-                finally:
-                    await cursor.close()
-            await connection.commit()
-            self._commits += 1
-            return OperationResult(
-                request_id=request_id,
-                status="committed",
-                rows_affected=rows_affected,
-                committed_at_utc=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-            )
-        except BaseException as error:
-            await connection.rollback()
-            self._rollbacks += 1
-            translated = self._translate_sqlite_error(
-                error, domain_id, operation.operation_id
-            )
-            self._last_error_code = getattr(
-                translated, "code", type(translated).__name__
-            )
-            raise translated from error
-        finally:
-            await connection.set_authorizer(None)
+        async with _connection_authorizer(connection, authorize):
+            try:
+                await connection.execute("BEGIN IMMEDIATE")
+                for statement in operation.statements:
+                    parameters = tuple(payload[name] for name in statement.parameters)
+                    cursor = await connection.execute(statement.sql, parameters)
+                    try:
+                        if cursor.rowcount > 0:
+                            rows_affected += cursor.rowcount
+                    finally:
+                        await cursor.close()
+                await connection.commit()
+                self._commits += 1
+                return OperationResult(
+                    request_id=request_id,
+                    status="committed",
+                    rows_affected=rows_affected,
+                    committed_at_utc=datetime.now(UTC)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                )
+            except BaseException as error:
+                await connection.rollback()
+                self._rollbacks += 1
+                translated = self._translate_sqlite_error(
+                    error, domain_id, operation.operation_id
+                )
+                self._last_error_code = getattr(
+                    translated, "code", type(translated).__name__
+                )
+                raise translated from error
 
     async def _execute_read(
         self,
@@ -648,30 +712,30 @@ class CentralDatabaseService:
             if database != "main":
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_READ:
-                return sqlite3.SQLITE_OK if table in allowed_reads else sqlite3.SQLITE_DENY
+                return (
+                    sqlite3.SQLITE_OK if table in allowed_reads else sqlite3.SQLITE_DENY
+                )
             return sqlite3.SQLITE_DENY
 
-        try:
-            await connection.set_authorizer(authorize)
-            rows: list[tuple[Value, ...]] = []
-            for statement in operation.statements:
-                parameters = tuple(payload[name] for name in statement.parameters)
-                cursor = await connection.execute(statement.sql, parameters)
-                try:
-                    rows.extend(tuple(row) for row in await cursor.fetchall())
-                finally:
-                    await cursor.close()
-            return tuple(rows)
-        except BaseException as error:
-            translated = self._translate_sqlite_error(
-                error, domain_id, operation.operation_id
-            )
-            self._last_error_code = getattr(
-                translated, "code", type(translated).__name__
-            )
-            raise translated from error
-        finally:
-            await connection.set_authorizer(None)
+        async with _connection_authorizer(connection, authorize):
+            try:
+                rows: list[tuple[Value, ...]] = []
+                for statement in operation.statements:
+                    parameters = tuple(payload[name] for name in statement.parameters)
+                    cursor = await connection.execute(statement.sql, parameters)
+                    try:
+                        rows.extend(tuple(row) for row in await cursor.fetchall())
+                    finally:
+                        await cursor.close()
+                return tuple(rows)
+            except BaseException as error:
+                translated = self._translate_sqlite_error(
+                    error, domain_id, operation.operation_id
+                )
+                self._last_error_code = getattr(
+                    translated, "code", type(translated).__name__
+                )
+                raise translated from error
 
     async def _execute_shared_transaction(
         self,
@@ -699,17 +763,22 @@ class CentralDatabaseService:
             if database != "main":
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_READ:
-                return sqlite3.SQLITE_OK if table in allowed_reads else sqlite3.SQLITE_DENY
+                return (
+                    sqlite3.SQLITE_OK if table in allowed_reads else sqlite3.SQLITE_DENY
+                )
             if action in {
                 sqlite3.SQLITE_INSERT,
                 sqlite3.SQLITE_UPDATE,
                 sqlite3.SQLITE_DELETE,
             }:
-                return sqlite3.SQLITE_OK if table in allowed_writes else sqlite3.SQLITE_DENY
+                return (
+                    sqlite3.SQLITE_OK
+                    if table in allowed_writes
+                    else sqlite3.SQLITE_DENY
+                )
             return sqlite3.SQLITE_DENY
 
-        try:
-            await connection.set_authorizer(authorize)
+        async with _connection_authorizer(connection, authorize):
             for statement in operation.statements:
                 parameters = tuple(payload[name] for name in statement.parameters)
                 cursor = await connection.execute(statement.sql, parameters)
@@ -724,8 +793,6 @@ class CentralDatabaseService:
                 rows_affected=rows_affected,
                 committed_at_utc=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             )
-        finally:
-            await connection.set_authorizer(None)
 
     async def _execute_shared_read(
         self,
@@ -747,11 +814,12 @@ class CentralDatabaseService:
             if database != "main":
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_READ:
-                return sqlite3.SQLITE_OK if table in allowed_reads else sqlite3.SQLITE_DENY
+                return (
+                    sqlite3.SQLITE_OK if table in allowed_reads else sqlite3.SQLITE_DENY
+                )
             return sqlite3.SQLITE_DENY
 
-        try:
-            await connection.set_authorizer(authorize)
+        async with _connection_authorizer(connection, authorize):
             rows: list[tuple[Value, ...]] = []
             for statement in operation.statements:
                 parameters = tuple(payload[name] for name in statement.parameters)
@@ -761,8 +829,6 @@ class CentralDatabaseService:
                 finally:
                     await cursor.close()
             return tuple(rows)
-        finally:
-            await connection.set_authorizer(None)
 
     async def _submit_internal(
         self,
@@ -771,6 +837,7 @@ class CentralDatabaseService:
     ) -> T:
         queue = self._require_queue()
         deadline = monotonic() + 2
+
         async def serialized_runner(connection: aiosqlite.Connection) -> T:
             if self._shared_database_manager is not None:
                 return await self._shared_database_manager.async_run_serialized_transaction(
