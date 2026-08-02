@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .contracts import SERVICE_API_VERSION, ServiceState
 from .errors import CompatibilityError, ServiceUnavailable
@@ -35,7 +35,8 @@ async def async_setup_database_service(
     *,
     database_path: Path | None = None,
     create_database: bool = False,
-    bootstrap_schema: bool = False,
+    bootstrap_schema: bool = True,
+    defer_start: bool = False,
 ) -> CentralDatabaseService:
     """Start or return the one service instance for this HA installation."""
 
@@ -56,8 +57,13 @@ async def async_setup_database_service(
                 raise ServiceUnavailable(
                     "A database service for a different path already exists"
                 )
-            if controller.service.state is ServiceState.DATABASE_MISSING:
+            if (
+                not defer_start
+                and controller.service.state is ServiceState.DATABASE_MISSING
+            ):
                 await controller.service.start()
+                if controller.service.state is ServiceState.READY:
+                    await controller.publish()
             return controller.service
         path = database_path or Path(
             hass.config.path("solar_forecast_ml", "solar_forecast.db")
@@ -69,14 +75,50 @@ async def async_setup_database_service(
         )
         controller.service = service
         domain_data[DATABASE_SERVICE_KEY] = service
-        try:
-            await service.start()
-        except BaseException:
-            controller.service = None
-            domain_data.pop(DATABASE_SERVICE_KEY, None)
-            raise
+        if not defer_start:
+            try:
+                await service.start()
+            except BaseException:
+                controller.service = None
+                domain_data.pop(DATABASE_SERVICE_KEY, None)
+                raise
         await controller.publish()
         return service
+
+
+async def async_attach_database_manager(
+    hass: HomeAssistant, database_manager: Any
+) -> CentralDatabaseService:
+    """Publish the connected SFML writer as the service's sole connection."""
+
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    controller = domain_data.get(_CONTROLLER_KEY)
+    if not isinstance(controller, _BootstrapController):
+        raise ServiceUnavailable("Database service must be initialized before attach")
+    async with controller.lock:
+        service = controller.service
+        if service is None:
+            raise ServiceUnavailable("Database service is unavailable")
+        await service.attach_database_manager(database_manager)
+        await controller.publish()
+        return service
+
+
+async def async_detach_database_manager(
+    hass: HomeAssistant, database_manager: Any
+) -> None:
+    """Release the current entry writer while retaining the service facade."""
+
+    domain_data = hass.data.get(DOMAIN)
+    if not isinstance(domain_data, dict):
+        return
+    controller = domain_data.get(_CONTROLLER_KEY)
+    if not isinstance(controller, _BootstrapController):
+        return
+    async with controller.lock:
+        if controller.service is not None:
+            await controller.service.detach_database_manager(database_manager)
+        await controller.publish()
 
 
 async def async_shutdown_database_service(

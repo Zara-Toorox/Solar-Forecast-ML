@@ -10,7 +10,7 @@
 """SFML Stats V17 — Solar Command Center integration for Home Assistant. @zara"""
 from __future__ import annotations
 
-# ruff: noqa: E402
+# ruff: noqa: E402, F401
 
 
 # PyArmor Runtime Path Setup - MUST be before any protected module imports
@@ -33,7 +33,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_change
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
 from .const import (
     DOMAIN,
@@ -71,7 +71,6 @@ from .const import (
     DEFAULT_MAX_SOC,
     DEFAULT_MIN_SOC,
     DEFAULT_BATTERY_CAPACITY,
-    GPM_UPDATE_INTERVAL,
     DAILY_AGGREGATION_HOUR,
     DAILY_AGGREGATION_MINUTE,
     DAILY_AGGREGATION_SECOND,
@@ -87,327 +86,115 @@ _LOGGER = logging.getLogger(__name__)
 LOVELACE_CARD_URL = f"/api/sfml_stats/static/sfml-stats-card.js?v={VERSION}"
 
 
-# ---------------------------------------------------------------------------
-# GPM Coordinator (DataUpdateCoordinator for price updates)
-# ---------------------------------------------------------------------------
+class GPMProviderView:
+    """Read-only STATS view of the coordinator owned by GPM."""
 
-class GPMCoordinator(DataUpdateCoordinator[dict[str, Any]]):
-    """Coordinator for electricity price data updates. @zara"""
-
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        entry: ConfigEntry,
-    ) -> None:
-        """Initialize GPM coordinator. @zara"""
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=f"{DOMAIN}_gpm",
-            update_interval=GPM_UPDATE_INTERVAL,
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
+        self._listeners: list[Any] = []
+        self._provider_unsubscribe: Any | None = None
+        self._bound_provider: Any | None = None
+        self._unsubscribe_dispatcher = async_dispatcher_connect(
+            hass, "grid_price_monitor_provider_changed", self._async_rebind
         )
-        self._entry = entry
-        self._price_service = None
-        self._price_calculator = None
-        self._battery_tracker = None
-        self._smart_charging = None
-        self._forecast_reader = None
-        self._last_price_fetch: datetime | None = None
+        self._async_rebind()
 
-    async def async_initialize(self) -> None:
-        """Initialize GPM services. @zara"""
-        from .core.price_service import ElectricityPriceService
-        from .core.price_calculator import PriceCalculator
-
-        entry_data = {**self._entry.data, **self._entry.options}
-        country = entry_data.get(CONF_COUNTRY)
-        if country is None:
-            country = DEFAULT_COUNTRY
-
-        vat_rate = entry_data.get(CONF_VAT_RATE)
-        if vat_rate is None:
-            vat_rate = DEFAULT_VAT_RATE_DE
-
-        grid_fee = entry_data.get(CONF_GPM_GRID_FEE)
-        if grid_fee is None:
-            grid_fee = DEFAULT_GPM_GRID_FEE
-
-        taxes_fees = entry_data.get(CONF_TAXES_FEES)
-        if taxes_fees is None:
-            taxes_fees = DEFAULT_TAXES_FEES
-
-        provider_markup = entry_data.get(CONF_PROVIDER_MARKUP)
-        if provider_markup is None:
-            provider_markup = DEFAULT_PROVIDER_MARKUP
-
-        self._price_service = ElectricityPriceService(country=country, hass=self.hass)
-        self._price_calculator = PriceCalculator(
-            vat_rate=vat_rate,
-            grid_fee=grid_fee,
-            taxes_fees=taxes_fees,
-            provider_markup=provider_markup,
+    @property
+    def _provider(self) -> Any | None:
+        return next(
+            (
+                coordinator
+                for coordinator in self._hass.data.get("grid_price_monitor", {}).values()
+                if hasattr(coordinator, "data")
+            ),
+            None,
         )
 
-
-        # Battery tracker (optional)
-        battery_sensor = entry_data.get(CONF_SENSOR_BATTERY_POWER)
-        if battery_sensor:
-            try:
-                from .core.battery_tracker import BatteryTracker
-                db = get_manager()
-                self._battery_tracker = BatteryTracker(
-                    self.hass, self._entry.entry_id, db=db
-                )
-                await self._battery_tracker.async_setup(battery_sensor)
-                _LOGGER.info("Battery tracker initialized for %s", battery_sensor)
-            except Exception as err:
-                _LOGGER.error("Failed to initialize battery tracker: %s", err)
-
-        # Smart charging (optional)
-        if entry_data.get(CONF_SMART_CHARGING_ENABLED):
-            try:
-                from .core.solar_forecast_reader_gpm import SolarForecastReader
-                from .core.smart_charging import SmartChargingManager
-
-                db = get_manager()
-                if db:
-                    self._forecast_reader = SolarForecastReader(db)
-                    soc_sensor = entry_data.get(CONF_BATTERY_SOC_SENSOR, "")
-                    battery_capacity = entry_data.get(CONF_BATTERY_CAPACITY)
-                    if battery_capacity is None:
-                        battery_capacity = DEFAULT_BATTERY_CAPACITY
-
-                    max_soc = entry_data.get(CONF_MAX_SOC)
-                    if max_soc is None:
-                        max_soc = DEFAULT_MAX_SOC
-
-                    min_soc = entry_data.get(CONF_MIN_SOC)
-                    if min_soc is None:
-                        min_soc = DEFAULT_MIN_SOC
-
-                    force_charge_price = entry_data.get(CONF_FORCE_CHARGE_PRICE)
-                    if force_charge_price is None:
-                        force_charge_price = DEFAULT_FORCE_CHARGE_PRICE
-
-                    self._smart_charging = SmartChargingManager(
-                        hass=self.hass,
-                        forecast_reader=self._forecast_reader,
-                        battery_capacity_kwh=battery_capacity,
-                        soc_sensor_entity=soc_sensor,
-                        max_soc=max_soc,
-                        min_soc=min_soc,
-                        smart_charging_switch=entry_data.get(CONF_SMART_CHARGING_SWITCH),
-                        home_consumption_sensor=entry_data.get(CONF_SENSOR_HOME_CONSUMPTION),
-                        solar_power_sensor=entry_data.get(CONF_SENSOR_SOLAR_TO_HOUSE),
-                        force_charge_price=force_charge_price,
-                        main_soc_sensor_entity=entry_data.get(CONF_SENSOR_BATTERY_SOC, ""),
-                    )
-                    _LOGGER.info("Smart charging initialized")
-            except Exception as err:
-                _LOGGER.error("Failed to initialize smart charging: %s", err)
-
-    async def async_shutdown(self) -> None:
-        """Shutdown GPM services. @zara"""
-        if self._battery_tracker:
-            try:
-                await self._battery_tracker.async_unload()
-            except Exception as err:
-                _LOGGER.warning("Error unloading battery tracker: %s", err)
-
-    async def _async_update_data(self) -> dict[str, Any]:
-        """Fetch updated price data. @zara"""
-        from datetime import timezone
-        data: dict[str, Any] = {}
-        entry_config = {**self._entry.data, **self._entry.options}
-
-        try:
-            # Fetch prices (hourly)
-            now = datetime.now(timezone.utc)
-            should_fetch = (
-                self._last_price_fetch is None
-                or (now - self._last_price_fetch).total_seconds() > 3600
-            )
-            if should_fetch and self._price_service:
-                prices = await self._price_service.fetch_day_ahead_prices()
-                if prices:
-                    self._last_price_fetch = now
-
-            if self._price_service and self._price_service.has_data:
-                calc = self._price_calculator
-                max_price = entry_config.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
-
-                spot_net = self._price_service.get_current_price()
-                next_spot = self._price_service.get_next_hour_price()
-                cheapest = self._price_service.get_cheapest_hour_today()
-                most_exp = self._price_service.get_most_expensive_hour_today()
-
-                data["spot_price"] = round(calc.calculate_gross_spot(spot_net), 2) if spot_net is not None else None
-                data["total_price"] = round(calc.calculate_total_price(spot_net), 2) if spot_net is not None else None
-                data["spot_price_next_hour"] = round(calc.calculate_gross_spot(next_spot), 2) if next_spot is not None else None
-                data["total_price_next_hour"] = round(calc.calculate_total_price(next_spot), 2) if next_spot is not None else None
-                data["cheapest_hour_today"] = cheapest.get("hour") if cheapest else None
-                data["most_expensive_hour_today"] = most_exp.get("hour") if most_exp else None
-                data["average_price_today"] = self._price_service.get_average_price_today()
-                data["is_cheap"] = calc.is_cheap(
-                    data["total_price"], max_price
-                ) if data.get("total_price") is not None else False
-                data["price_trend"] = calc.calculate_trend(
-                    data.get("total_price"), data.get("total_price_next_hour")
-                )
-
-            # Prioritize configured price sensor over GPM price service if available
-            price_sensor_id = entry_config.get(CONF_SENSOR_PRICE_TOTAL)
-            if price_sensor_id:
-                state = self.hass.states.get(price_sensor_id)
-                if state is not None and state.state not in ("unknown", "unavailable", None):
-                    try:
-                        price_val = float(state.state)
-                        unit = state.attributes.get("unit_of_measurement", "")
-                        if unit in ("EUR/kWh", "€/kWh", "USD/kWh", "$/kWh"):
-                            price_val *= 100.0
-                        elif unit in ("EUR/MWh", "€/MWh"):
-                            price_val /= 10.0
-                        elif price_val < 3.0:  # Fallback for EUR/kWh values (e.g. 0.26)
-                            price_val *= 100.0
-                        data["total_price"] = round(price_val, 2)
-                    except ValueError:
-                        pass
-
-            # Recalculate is_cheap from the effective total_price, including sensor overrides.
-            if data.get("total_price") is not None:
-                max_price = entry_config.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
-                data["is_cheap"] = data["total_price"] < max_price
-
-            # Battery stats
-            if self._battery_tracker:
-                stats = self._battery_tracker.get_statistics()
-                data["battery_power"] = stats.get("battery_power", 0)
-                data["battery_charged_today"] = stats.get("battery_charged_today", 0)
-                data["battery_charged_week"] = stats.get("battery_charged_week", 0)
-                data["battery_charged_month"] = stats.get("battery_charged_month", 0)
-
-            # Smart charging
-            if self._smart_charging:
-                is_cheap = data.get("is_cheap", False)
-                future_total_price_slots: list[dict[str, Any]] = []
-                if self._price_service and self._price_calculator:
-                    current_hour_utc = datetime.now(timezone.utc).replace(
-                        minute=0, second=0, microsecond=0
-                    )
-                    reference_current = self._price_service.get_current_price()
-                    reference_total = (
-                        self._price_calculator.calculate_total_price(reference_current)
-                        if reference_current is not None
-                        else None
-                    )
-                    effective_current = data.get("total_price")
-                    price_adjustment = (
-                        float(effective_current) - reference_total
-                        if effective_current is not None and reference_total is not None
-                        else 0.0
-                    )
-                    for price_entry in self._price_service.get_all_prices():
-                        try:
-                            entry_timestamp = self._price_service._entry_timestamp_utc(
-                                price_entry["timestamp"]
-                            )
-                            if entry_timestamp <= current_hour_utc:
-                                continue
-                            total_price = self._price_calculator.calculate_total_price(
-                                float(price_entry["price"])
-                            )
-                            future_total_price_slots.append({
-                                "timestamp": entry_timestamp,
-                                "total_price": round(total_price + price_adjustment, 2),
-                                "duration_hours": 1.0,
-                            })
-                        except (KeyError, TypeError, ValueError):
-                            continue
-
-                state = await self._smart_charging.async_update(
-                    is_cheap,
-                    current_price=data.get("total_price"),
-                    future_total_price_slots=future_total_price_slots,
-                )
-                data["smart_charging_target_soc"] = state.target_soc
-                data["smart_charging_active"] = state.is_active
-                data["smart_charging_reason"] = state.reason
-                data["smart_charging_current_soc"] = state.current_soc
-                data["smart_charging_decision"] = state.economic_decision
-                data["smart_charging_requested_grid_charge_kwh"] = (
-                    state.requested_grid_charge_kwh
-                )
-                data["smart_charging_effective_storage_cost_ct_kwh"] = (
-                    state.effective_storage_cost_ct_kwh
-                )
-                data["smart_charging_compared_future_price_ct_kwh"] = (
-                    state.compared_future_price_ct_kwh
-                )
-                data["smart_charging_effective_roundtrip_efficiency"] = (
-                    state.effective_roundtrip_efficiency
-                )
-                data["smart_charging_reserved_future_grid_charge_kwh"] = (
-                    state.reserved_future_grid_charge_kwh
-                )
-                data["solar_forecast_today"] = state.solar_forecast_today_kwh
-                data["solar_forecast_tomorrow"] = state.solar_forecast_tomorrow_kwh
-
-        except Exception as err:
-            _LOGGER.error("Error updating GPM data: %s", err)
-            raise UpdateFailed(f"GPM update failed: {err}") from err
-
+    @property
+    def data(self) -> dict[str, Any]:
+        provider = self._provider
+        data = dict(getattr(provider, "data", None) or {})
+        data.setdefault("smart_charging_decision", "not_load")
+        data.setdefault("smart_charging_requested_grid_charge_kwh", 0.0)
+        data.setdefault("smart_charging_effective_storage_cost_ct_kwh", None)
+        data.setdefault("smart_charging_compared_future_price_ct_kwh", None)
+        data.setdefault("smart_charging_effective_roundtrip_efficiency", None)
+        data.setdefault("smart_charging_reserved_future_grid_charge_kwh", 0.0)
         return data
 
+    @property
+    def last_update_success(self) -> bool:
+        provider = self._provider
+        return bool(getattr(provider, "last_update_success", False))
 
-# ---------------------------------------------------------------------------
-# Integration Setup
-# ---------------------------------------------------------------------------
+    def async_add_listener(self, update_callback: Any, context: Any = None) -> Any:
+        self._listeners.append(update_callback)
+
+        def _remove_listener() -> None:
+            if update_callback in self._listeners:
+                self._listeners.remove(update_callback)
+
+        return _remove_listener
+
+    def _async_rebind(self) -> None:
+        provider = self._provider
+        if provider is self._bound_provider:
+            return
+        if self._provider_unsubscribe is not None:
+            self._provider_unsubscribe()
+            self._provider_unsubscribe = None
+        self._bound_provider = provider
+        if provider is not None and hasattr(provider, "async_add_listener"):
+            self._provider_unsubscribe = provider.async_add_listener(self._notify_listeners)
+        self._notify_listeners()
+
+    def _notify_listeners(self) -> None:
+        for listener in tuple(self._listeners):
+            listener()
+
+    def async_close(self) -> None:
+        if self._provider_unsubscribe is not None:
+            self._provider_unsubscribe()
+            self._provider_unsubscribe = None
+        self._unsubscribe_dispatcher()
+        self._listeners.clear()
+
+    def __getattr__(self, name: str) -> Any:
+        provider = self._provider
+        if provider is None:
+            raise AttributeError(name)
+        return getattr(provider, name)
 
 
 async def _async_register_lovelace_card(hass: HomeAssistant) -> None:
-    """Register the STATS Lovelace card resource when Lovelace storage mode is available. @zara"""
+    """Register the STATS Lovelace card resource when storage mode is available."""
     try:
         lovelace = hass.data.get("lovelace")
         resources = getattr(lovelace, "resources", None) if lovelace is not None else None
         if resources is None:
-            _LOGGER.debug("Lovelace resources unavailable; STATS card can be added manually")
             return
-
         mode = getattr(lovelace, "mode", None)
         if mode is not None and mode != "storage":
-            _LOGGER.debug("Lovelace is not in storage mode; skipping automatic STATS card resource")
             return
-
-        info: dict[str, Any] = {}
-        async_get_info = getattr(resources, "async_get_info", None)
-        if callable(async_get_info):
-            info = await async_get_info()
-        existing = info.get("resources", []) if isinstance(info, dict) else []
+        info = await resources.async_get_info()
         base_url = LOVELACE_CARD_URL.split("?", 1)[0]
-        for item in existing:
-            url = item.get("url") if isinstance(item, dict) else None
-            if url and url.split("?", 1)[0] == base_url:
-                return
-
-        async_create_item = getattr(resources, "async_create_item", None)
-        if callable(async_create_item):
-            await async_create_item({
-                "res_type": "module",
-                "url": LOVELACE_CARD_URL,
-            })
-            _LOGGER.info("Registered STATS Lovelace card resource: %s", LOVELACE_CARD_URL)
+        if any(
+            item.get("url", "").split("?", 1)[0] == base_url
+            for item in info.get("resources", [])
+            if isinstance(item, dict)
+        ):
+            return
+        await resources.async_create_item({"res_type": "module", "url": LOVELACE_CARD_URL})
     except Exception as err:
         _LOGGER.debug("Could not register STATS Lovelace card resource: %s", err)
 
+
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the SFML Stats component. @zara"""
-    _LOGGER.info("Initializing %s v%s", NAME, VERSION)
+    """Set up the SFML Stats component."""
     hass.data.setdefault(DOMAIN, {})
     await async_setup_views(hass)
     await async_setup_websocket(hass)
-    _LOGGER.info("SFML Stats Dashboard available at: /api/sfml_stats/dashboard")
     return True
-
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Migrate old entry to new version. @zara"""
@@ -474,7 +261,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     db_manager = None
     try:
         db_manager = await DatabaseConnectionManager.get_instance(hass)
-        await db_manager.ensure_gpm_tables()
         from .readers.solar_reader import SolarDataReader
         from .readers.weather_reader import WeatherDataReader
         SolarDataReader._db_manager = db_manager
@@ -537,14 +323,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if db_manager:
         ForecastComparisonCollector._db_manager = db_manager
 
-    # --- GPM Coordinator ---
-    gpm_coordinator = GPMCoordinator(hass, entry)
-    try:
-        await gpm_coordinator.async_initialize()
-        await gpm_coordinator.async_config_entry_first_refresh()
-        _LOGGER.info("GPM Coordinator initialized with price data")
-    except Exception as err:
-        _LOGGER.warning("GPM Coordinator init failed (non-fatal): %s", err)
+    gpm_coordinator = GPMProviderView(hass)
 
     # --- Store everything ---
     hass.data[DOMAIN][entry.entry_id] = {
@@ -659,18 +438,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     hass.data[DOMAIN][entry.entry_id]["_task_forecast"] = task_fc
 
-    # Trigger coordinator refresh once HA is fully started to ensure sensors are loaded
-    async def _async_ha_started(event):
-        _LOGGER.info("Home Assistant started, triggering dynamic GPM coordinator refresh")
-        try:
-            await gpm_coordinator.async_refresh()
-        except Exception as err:
-            _LOGGER.warning("Failed to refresh GPM Coordinator on HA start: %s", err)
-
-    entry.async_on_unload(
-        hass.bus.async_listen_once("homeassistant_started", _async_ha_started)
-    )
-
     # Lovelace Resources Auto-Registration
     try:
         lovelace = hass.data.get("lovelace")
@@ -725,6 +492,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry_data = hass.data[DOMAIN][entry.entry_id]
 
+    gpm_coordinator = entry_data.get("gpm_coordinator")
+    if gpm_coordinator is not None:
+        gpm_coordinator.async_close()
+
     # Cancel scheduled jobs
     for job_key in (
         "cancel_daily_job",
@@ -746,14 +517,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await collector.stop()
         except Exception as err:
             _LOGGER.warning("Error stopping power sources collector: %s", err)
-
-    # Shutdown GPM coordinator
-    coordinator = entry_data.get("gpm_coordinator")
-    if coordinator:
-        try:
-            await coordinator.async_shutdown()
-        except Exception as err:
-            _LOGGER.warning("Error shutting down GPM coordinator: %s", err)
 
     # Cancel background tasks
     for task_key in ("_task_aggregation", "_task_forecast"):
@@ -815,97 +578,6 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
             except Exception as err:
                 _LOGGER.warning("Error updating %s: %s", key, err)
 
-    # Update GPM Coordinator Price Calculator config dynamically
-    gpm_coordinator = entry_data.get("gpm_coordinator")
-    if gpm_coordinator and hasattr(gpm_coordinator, "_price_calculator") and gpm_coordinator._price_calculator:
-        try:
-            gpm_coordinator._price_calculator.update_config(
-                vat_rate=new_config.get(CONF_VAT_RATE, DEFAULT_VAT_RATE_DE),
-                grid_fee=new_config.get(CONF_GPM_GRID_FEE, DEFAULT_GPM_GRID_FEE),
-                taxes_fees=new_config.get(CONF_TAXES_FEES, DEFAULT_TAXES_FEES),
-                provider_markup=new_config.get(CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP),
-            )
-            _LOGGER.info("GPM Price Calculator configuration updated dynamically")
-        except Exception as err:
-            _LOGGER.warning("Error updating GPM price calculator: %s", err)
-
-    # Update GPM Coordinator Smart Charging config dynamically
-    if gpm_coordinator:
-        try:
-            if new_config.get(CONF_SMART_CHARGING_ENABLED):
-                if gpm_coordinator._smart_charging is None:
-                    from .core.solar_forecast_reader_gpm import SolarForecastReader
-                    from .core.smart_charging import SmartChargingManager
-                    db = get_manager()
-                    if db:
-                        gpm_coordinator._forecast_reader = SolarForecastReader(db)
-                        soc_sensor = new_config.get(CONF_BATTERY_SOC_SENSOR, "")
-                        battery_capacity = new_config.get(CONF_BATTERY_CAPACITY)
-                        if battery_capacity is None:
-                            battery_capacity = DEFAULT_BATTERY_CAPACITY
-
-                        max_soc = new_config.get(CONF_MAX_SOC)
-                        if max_soc is None:
-                            max_soc = DEFAULT_MAX_SOC
-
-                        min_soc = new_config.get(CONF_MIN_SOC)
-                        if min_soc is None:
-                            min_soc = DEFAULT_MIN_SOC
-
-                        force_charge_price = new_config.get(CONF_FORCE_CHARGE_PRICE)
-                        if force_charge_price is None:
-                            force_charge_price = DEFAULT_FORCE_CHARGE_PRICE
-
-                        gpm_coordinator._smart_charging = SmartChargingManager(
-                            hass=hass,
-                            forecast_reader=gpm_coordinator._forecast_reader,
-                            battery_capacity_kwh=battery_capacity,
-                            soc_sensor_entity=soc_sensor,
-                            max_soc=max_soc,
-                            min_soc=min_soc,
-                            smart_charging_switch=new_config.get(CONF_SMART_CHARGING_SWITCH),
-                            home_consumption_sensor=new_config.get(CONF_SENSOR_HOME_CONSUMPTION),
-                            solar_power_sensor=new_config.get(CONF_SENSOR_SOLAR_TO_HOUSE),
-                            force_charge_price=force_charge_price,
-                            main_soc_sensor_entity=new_config.get(CONF_SENSOR_BATTERY_SOC, ""),
-                        )
-                        _LOGGER.info("Smart charging initialized dynamically")
-                else:
-                    battery_capacity = new_config.get(CONF_BATTERY_CAPACITY)
-                    if battery_capacity is None:
-                        battery_capacity = DEFAULT_BATTERY_CAPACITY
-
-                    max_soc = new_config.get(CONF_MAX_SOC)
-                    if max_soc is None:
-                        max_soc = DEFAULT_MAX_SOC
-
-                    min_soc = new_config.get(CONF_MIN_SOC)
-                    if min_soc is None:
-                        min_soc = DEFAULT_MIN_SOC
-
-                    force_charge_price = new_config.get(CONF_FORCE_CHARGE_PRICE)
-                    if force_charge_price is None:
-                        force_charge_price = DEFAULT_FORCE_CHARGE_PRICE
-
-                    gpm_coordinator._smart_charging.update_config(
-                        battery_capacity_kwh=battery_capacity,
-                        soc_sensor_entity=new_config.get(CONF_BATTERY_SOC_SENSOR, ""),
-                        max_soc=max_soc,
-                        min_soc=min_soc,
-                        smart_charging_switch=new_config.get(CONF_SMART_CHARGING_SWITCH),
-                        home_consumption_sensor=new_config.get(CONF_SENSOR_HOME_CONSUMPTION),
-                        solar_power_sensor=new_config.get(CONF_SENSOR_SOLAR_TO_HOUSE),
-                        force_charge_price=force_charge_price,
-                        main_soc_sensor_entity=new_config.get(CONF_SENSOR_BATTERY_SOC, ""),
-                    )
-                    _LOGGER.info("Smart charging configuration updated dynamically")
-            else:
-                if gpm_coordinator._smart_charging is not None:
-                    await gpm_coordinator._smart_charging.async_force_off()
-                gpm_coordinator._smart_charging = None
-                _LOGGER.info("Smart charging disabled dynamically")
-        except Exception as err:
-            _LOGGER.warning("Error updating smart charging dynamically: %s", err)
 
     from .sensor_mapping_provider import SensorMappingProvider, register_provider
 

@@ -17,6 +17,7 @@ All file I/O replaced with database operations via DatabaseManager.
 
 import asyncio
 import logging
+from time import monotonic
 from typing import Any, Optional
 
 from homeassistant.core import HomeAssistant
@@ -81,9 +82,15 @@ class DataManagerIO:
             True if successful, False otherwise
         """
         try:
-            async with asyncio.timeout(timeout):
+            deadline = monotonic() + timeout
+            async with asyncio.timeout_at(deadline):
                 async with self._operation_lock:
-                    await self.db.execute(sql, parameters)
+                    async with self.db.transaction(deadline=deadline):
+                        await self.db.execute(
+                            sql,
+                            parameters,
+                            auto_commit=False,
+                        )
                     return True
         except asyncio.TimeoutError:
             _LOGGER.error("Database query timeout after %.1fs: %s", timeout, sql[:100])

@@ -3,7 +3,7 @@
   "name": "Solar Forecast GPM",
   "codeowners": ["@Zara-Toorox"],
   "config_flow": true,
-  "dependencies": [],
+  "dependencies": ["solar_forecast_ml"],
   "documentation": "https://github.com/Zara-Toorox/Solar-Forecast-GPM",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Zara-Toorox/Solar-Forecast-GPM/issues",

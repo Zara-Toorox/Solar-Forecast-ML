@@ -2,6 +2,8 @@
 
 from .bootstrap import (
     DATABASE_SERVICE_KEY,
+    async_attach_database_manager,
+    async_detach_database_manager,
     async_setup_database_service,
     async_shutdown_database_service,
     async_wait_for_database_service,
@@ -41,6 +43,8 @@ __all__ = [
     "ServiceState",
     "StatementSpec",
     "WritePriority",
+    "async_attach_database_manager",
+    "async_detach_database_manager",
     "async_setup_database_service",
     "async_shutdown_database_service",
     "async_wait_for_database_service",

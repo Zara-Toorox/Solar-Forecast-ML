@@ -42,11 +42,13 @@ class WriterQueue:
         max_size: int = 256,
         max_domain_size: int = 64,
         busy_timeout_ms: int = 30_000,
+        shared_connection: bool = False,
     ) -> None:
         self._connection = connection
         self._max_size = max_size
         self._max_domain_size = max_domain_size
         self._busy_timeout_ms = busy_timeout_ms
+        self._shared_connection = shared_connection
         self._queues = {priority: deque[QueueJob]() for priority in WritePriority}
         self._domain_sizes: dict[str, int] = {}
         self._condition = asyncio.Condition()
@@ -151,21 +153,24 @@ class WriterQueue:
                     continue
                 job.started = True
                 self._running = True
-            await self._set_busy_timeout(
-                min(self._busy_timeout_ms, max(1, int(job.timeout * 1_000) - 25))
-            )
             try:
-                interrupt = asyncio.create_task(
-                    self._interrupt_at_deadline(job.timeout),
-                    name=f"database-interrupt-{job.sequence}",
-                )
-                try:
-                    result = await asyncio.wait_for(
-                        job.run(self._connection), timeout=job.timeout
+                if self._shared_connection:
+                    result = await job.run(self._connection)
+                else:
+                    await self._set_busy_timeout(
+                        min(self._busy_timeout_ms, max(1, int(job.timeout * 1_000) - 25))
                     )
-                finally:
-                    interrupt.cancel()
-                    await asyncio.gather(interrupt, return_exceptions=True)
+                    interrupt = asyncio.create_task(
+                        self._interrupt_at_deadline(job.timeout),
+                        name=f"database-interrupt-{job.sequence}",
+                    )
+                    try:
+                        result = await asyncio.wait_for(
+                            job.run(self._connection), timeout=job.timeout
+                        )
+                    finally:
+                        interrupt.cancel()
+                        await asyncio.gather(interrupt, return_exceptions=True)
             except TimeoutError:
                 if not job.future.done():
                     job.future.set_exception(
@@ -182,7 +187,8 @@ class WriterQueue:
                 if not job.future.done():
                     job.future.set_result(result)
             finally:
-                await self._set_busy_timeout(self._busy_timeout_ms)
+                if not self._shared_connection:
+                    await self._set_busy_timeout(self._busy_timeout_ms)
                 async with self._condition:
                     self._running = False
                     self._condition.notify_all()

@@ -253,10 +253,15 @@ function installModernChartDefaults() {
             option.series.forEach((series) => {
                 const semantic = findSemanticStyle(series.name);
                 if (!semantic) return;
-                series.itemStyle = { ...series.itemStyle, color: semantic.color };
+                const explicitItemColor = series.itemStyle?.color;
+                const explicitLineColor = series.lineStyle?.color;
+                series.itemStyle = {
+                    ...series.itemStyle,
+                    color: explicitItemColor ?? semantic.color,
+                };
                 series.lineStyle = {
                     ...series.lineStyle,
-                    color: semantic.color,
+                    color: explicitLineColor ?? semantic.color,
                     type: semantic.lineType,
                 };
                 series.symbol = semantic.symbol;

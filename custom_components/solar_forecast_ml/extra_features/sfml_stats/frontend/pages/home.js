@@ -392,9 +392,6 @@ const _HomePage = {
                             <span class="hubble-day-balance-percent">{{ source.percent }}%</span>
                         </span>
                     </div>
-                    <span v-if="hubbleView.dayBalance.warning" class="hubble-day-balance-warning">
-                        {{ hubbleView.dayBalance.warning }}
-                    </span>
                 </div>
                 <div v-if="hubbleView.systemStatus" class="hubble-system-status" :class="hubbleView.systemStatus.variant">
                     <span class="hubble-system-title">{{ hubbleView.systemStatus.title }}</span>
@@ -1586,11 +1583,6 @@ const _HomePage = {
                     dataQuality,
                     sources,
                     activeSources: sources.filter(source => source.percent > 0),
-                    warning: dataQuality === 'critical'
-                        ? t('home.hubble.dayBalance.inconsistent')
-                        : dataQuality === 'warning'
-                            ? t('home.hubble.dayBalance.incomplete')
-                            : null,
                 };
             }
 
@@ -3714,15 +3706,6 @@ const _HomePage = {
         .hubble-day-balance-percent {
             color: var(--text-muted);
             font-family: var(--font-mono);
-        }
-        .hubble-day-balance-warning {
-            display: block;
-            margin-top: 5px;
-            color: #f59e0b;
-            font-size: 0.68rem;
-        }
-        .hubble-day-balance.critical .hubble-day-balance-warning {
-            color: #ef4444;
         }
         .hubble-energy-chain {
             margin: 0 0 12px;

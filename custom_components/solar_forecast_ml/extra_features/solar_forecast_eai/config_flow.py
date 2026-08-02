@@ -93,11 +93,8 @@ from .sensor_mapping import (
     SensorMappingCandidate,
     discover_sensor_mapping_candidates,
 )
-from .weather_station_adapter import SFMLWeatherStationAdapter
 
 WEATHER_FUSION_DOMAIN = "weather_fusion_ai"
-SFML_DOMAIN = "solar_forecast_ml"
-STATS_DOMAIN = "sfml_stats"
 CONF_USE_DISCOVERED_MAPPINGS = "use_discovered_sensor_mappings"
 SENSOR_SOURCE_FIELDS = {
     "environment": "environment_sensor_source",
@@ -537,17 +534,6 @@ def _weather_schema(hass: Any, defaults: dict[str, Any]) -> vol.Schema:
 
 def _weather_dependency_error(hass: Any) -> str | None:
     """Return the first unmet prerequisite for Weather Intelligence."""
-    if not hass.config_entries.async_entries(SFML_DOMAIN):
-        return "sfml_required"
-    if not hass.config_entries.async_entries(STATS_DOMAIN):
-        return "stats_required"
-    station_status = SFMLWeatherStationAdapter(hass).dependency_status()[
-        "station_status"
-    ]
-    if station_status == "sfml_sensor_provider_ambiguous":
-        return "weather_station_ambiguous"
-    if station_status != "available":
-        return "weather_station_required"
     if not hass.config_entries.async_entries(WEATHER_FUSION_DOMAIN):
         return "weather_fusion_required"
     return None

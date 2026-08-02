@@ -530,6 +530,135 @@ BEGIN
     SELECT RAISE(ABORT, 'ai_model_shadow_actual_versions is append-only');
 END;
 
+CREATE TABLE IF NOT EXISTS ensemble_shadow_batch_provenance (
+    morning_batch_id TEXT PRIMARY KEY,
+    forecast_cycle TEXT NOT NULL CHECK(forecast_cycle IN ("post_midnight", "pre_sunrise", "catchup", "manual")),
+    trigger_kind TEXT NOT NULL CHECK(trigger_kind IN ("scheduled", "catchup", "manual")),
+    promotion_eligible INTEGER NOT NULL CHECK(promotion_eligible IN (0, 1)),
+    contract_version TEXT NOT NULL CHECK(contract_version = 'ensemble_shadow_provenance_v2'),
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY(morning_batch_id) REFERENCES ensemble_shadow_batches(morning_batch_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_shadow_run_provenance (
+    shadow_run_id TEXT PRIMARY KEY,
+    morning_batch_id TEXT NOT NULL UNIQUE,
+    forecast_cycle TEXT NOT NULL CHECK(forecast_cycle IN ("post_midnight", "pre_sunrise", "catchup", "manual")),
+    trigger_kind TEXT NOT NULL CHECK(trigger_kind IN ("scheduled", "catchup", "manual")),
+    promotion_eligible INTEGER NOT NULL CHECK(promotion_eligible IN (0, 1)),
+    contract_version TEXT NOT NULL CHECK(contract_version = 'model_candidate_shadow_v2'),
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY(shadow_run_id) REFERENCES ai_model_shadow_runs(shadow_run_id),
+    FOREIGN KEY(morning_batch_id) REFERENCES ensemble_shadow_batches(morning_batch_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ensemble_shadow_batch_provenance_context
+    ON ensemble_shadow_batch_provenance(forecast_cycle, trigger_kind, promotion_eligible);
+CREATE INDEX IF NOT EXISTS idx_ai_model_shadow_run_provenance_context
+    ON ai_model_shadow_run_provenance(forecast_cycle, trigger_kind, promotion_eligible);
+
+CREATE TABLE IF NOT EXISTS ai_model_evaluations_v2 (
+    evaluation_id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    candidate_artifact_hash TEXT NOT NULL,
+    champion_artifact_hash TEXT NOT NULL,
+    dataset_fingerprint TEXT NOT NULL,
+    evaluation_config_hash TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK(decision IN ("GO", "NO_GO")),
+    reason_codes_json TEXT NOT NULL,
+    eligible_hour_count INTEGER NOT NULL,
+    eligible_independent_day_count INTEGER NOT NULL,
+    evaluation_config_json TEXT NOT NULL,
+    decision_json TEXT NOT NULL,
+    decision_hash TEXT NOT NULL,
+    evaluator_contract_version TEXT NOT NULL
+        CHECK(evaluator_contract_version = 'cycle_aware_model_promotion_v2'),
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_evaluation_samples_v2 (
+    evaluation_id TEXT NOT NULL,
+    sample_index INTEGER NOT NULL,
+    target_date TEXT NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour BETWEEN 0 AND 23),
+    forecast_cycle TEXT NOT NULL CHECK(forecast_cycle IN ("post_midnight", "pre_sunrise")),
+    shadow_run_id TEXT NOT NULL,
+    shadow_prediction_id TEXT NOT NULL,
+    actual_version_id TEXT NOT NULL,
+    actual REAL NOT NULL,
+    champion_prediction REAL NOT NULL,
+    candidate_prediction REAL NOT NULL,
+    clean_eligible INTEGER NOT NULL CHECK(clean_eligible IN (0, 1)),
+    forecast_anchor TEXT NOT NULL,
+    input_fingerprint TEXT NOT NULL,
+    policy_fingerprint TEXT NOT NULL,
+    weather_regime TEXT,
+    horizon TEXT,
+    PRIMARY KEY(evaluation_id, sample_index),
+    UNIQUE(evaluation_id, target_date, target_hour, forecast_cycle),
+    FOREIGN KEY(evaluation_id) REFERENCES ai_model_evaluations_v2(evaluation_id),
+    FOREIGN KEY(shadow_run_id) REFERENCES ai_model_shadow_runs(shadow_run_id),
+    FOREIGN KEY(shadow_prediction_id) REFERENCES ai_model_shadow_predictions(shadow_prediction_id),
+    FOREIGN KEY(actual_version_id) REFERENCES ai_model_shadow_actual_versions(actual_version_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_model_evaluations_v2_candidate
+    ON ai_model_evaluations_v2(candidate_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_model_evaluation_samples_v2_provenance
+    ON ai_model_evaluation_samples_v2(shadow_run_id, shadow_prediction_id, actual_version_id);
+
+CREATE TRIGGER IF NOT EXISTS ensemble_shadow_batch_provenance_append_only_update
+BEFORE UPDATE ON ensemble_shadow_batch_provenance
+BEGIN SELECT RAISE(ABORT, 'ensemble_shadow_batch_provenance is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ensemble_shadow_batch_provenance_append_only_delete
+BEFORE DELETE ON ensemble_shadow_batch_provenance
+BEGIN SELECT RAISE(ABORT, 'ensemble_shadow_batch_provenance is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ensemble_shadow_batch_provenance_append_only_insert_guard
+BEFORE INSERT ON ensemble_shadow_batch_provenance
+WHEN EXISTS (SELECT 1 FROM ensemble_shadow_batch_provenance
+             WHERE morning_batch_id = NEW.morning_batch_id)
+BEGIN SELECT RAISE(ABORT, 'ensemble_shadow_batch_provenance is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_run_provenance_append_only_update
+BEFORE UPDATE ON ai_model_shadow_run_provenance
+BEGIN SELECT RAISE(ABORT, 'ai_model_shadow_run_provenance is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_run_provenance_append_only_delete
+BEFORE DELETE ON ai_model_shadow_run_provenance
+BEGIN SELECT RAISE(ABORT, 'ai_model_shadow_run_provenance is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_run_provenance_append_only_insert_guard
+BEFORE INSERT ON ai_model_shadow_run_provenance
+WHEN EXISTS (SELECT 1 FROM ai_model_shadow_run_provenance
+             WHERE shadow_run_id = NEW.shadow_run_id
+                OR morning_batch_id = NEW.morning_batch_id)
+BEGIN SELECT RAISE(ABORT, 'ai_model_shadow_run_provenance is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_append_only_update
+BEFORE UPDATE ON ai_model_evaluations_v2
+BEGIN SELECT RAISE(ABORT, 'ai_model_evaluations_v2 is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_append_only_delete
+BEFORE DELETE ON ai_model_evaluations_v2
+BEGIN SELECT RAISE(ABORT, 'ai_model_evaluations_v2 is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_append_only_insert_guard
+BEFORE INSERT ON ai_model_evaluations_v2
+WHEN EXISTS (SELECT 1 FROM ai_model_evaluations_v2 WHERE evaluation_id = NEW.evaluation_id)
+BEGIN SELECT RAISE(ABORT, 'ai_model_evaluations_v2 is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_samples_v2_append_only_update
+BEFORE UPDATE ON ai_model_evaluation_samples_v2
+BEGIN SELECT RAISE(ABORT, 'ai_model_evaluation_samples_v2 is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_samples_v2_append_only_delete
+BEFORE DELETE ON ai_model_evaluation_samples_v2
+BEGIN SELECT RAISE(ABORT, 'ai_model_evaluation_samples_v2 is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_samples_v2_append_only_insert_guard
+BEFORE INSERT ON ai_model_evaluation_samples_v2
+WHEN EXISTS (SELECT 1 FROM ai_model_evaluation_samples_v2
+             WHERE (evaluation_id = NEW.evaluation_id AND sample_index = NEW.sample_index)
+                OR (evaluation_id = NEW.evaluation_id AND target_date = NEW.target_date
+                    AND target_hour = NEW.target_hour AND forecast_cycle = NEW.forecast_cycle))
+BEGIN SELECT RAISE(ABORT, 'ai_model_evaluation_samples_v2 is append-only'); END;
+
+
 CREATE TABLE IF NOT EXISTS ai_seasonal_archive_meta (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     season TEXT NOT NULL CHECK(season IN ('winter', 'spring', 'summer', 'autumn')),
@@ -2166,174 +2295,24 @@ CREATE INDEX IF NOT EXISTS idx_astronomy_cache_panel_groups_date_hour
     ON astronomy_cache_panel_groups(cache_date, hour);
 
 -- ============================================================================
--- V16.0.0: STATISTICS & BILLING TABLES
--- Added for energy billing, tariff tracking, and forecast comparison @zara
+-- SFML-owned TFS comparison learning
 -- ============================================================================
 
--- Settings for statistics module
-CREATE TABLE IF NOT EXISTS stats_settings (
-    key TEXT PRIMARY KEY,
-    value TEXT,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Monthly electricity tariffs
-CREATE TABLE IF NOT EXISTS stats_monthly_tariffs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    year_month TEXT NOT NULL UNIQUE,
-    year INTEGER NOT NULL,
-    month INTEGER NOT NULL,
-    price_ct_kwh REAL NOT NULL,
-    feed_in_tariff_ct REAL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_stats_monthly_tariffs_year_month ON stats_monthly_tariffs(year_month);
-
--- Hourly price history (dynamic pricing support)
-CREATE TABLE IF NOT EXISTS stats_price_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    datetime TEXT NOT NULL UNIQUE,
-    date TEXT NOT NULL,
-    hour INTEGER NOT NULL CHECK(hour >= 0 AND hour <= 23),
-    price_ct_kwh REAL NOT NULL,
-    price_source TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_stats_price_history_date ON stats_price_history(date);
-CREATE INDEX IF NOT EXISTS idx_stats_price_history_datetime ON stats_price_history(datetime);
-
--- Power source measurements (real-time flow tracking)
-CREATE TABLE IF NOT EXISTS stats_power_sources (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp TEXT NOT NULL UNIQUE,
-    date TEXT NOT NULL,
-    hour INTEGER NOT NULL CHECK(hour >= 0 AND hour <= 23),
-    solar_power_w REAL DEFAULT 0,
-    grid_power_w REAL DEFAULT 0,
-    battery_power_w REAL DEFAULT 0,
-    house_consumption_w REAL DEFAULT 0,
-    solar_to_house_w REAL DEFAULT 0,
-    solar_to_battery_w REAL DEFAULT 0,
-    solar_to_grid_w REAL DEFAULT 0,
-    battery_to_house_w REAL DEFAULT 0,
-    grid_to_house_w REAL DEFAULT 0,
-    grid_to_battery_w REAL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_stats_power_sources_date ON stats_power_sources(date);
-CREATE INDEX IF NOT EXISTS idx_stats_power_sources_timestamp ON stats_power_sources(timestamp);
-
--- Hourly billing data (energy flows with costs)
-CREATE TABLE IF NOT EXISTS stats_hourly_billing (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    hour_key TEXT NOT NULL UNIQUE,
-    date TEXT NOT NULL,
-    hour INTEGER NOT NULL CHECK(hour >= 0 AND hour <= 23),
-    grid_import_kwh REAL DEFAULT 0,
-    grid_import_cost_ct REAL DEFAULT 0,
-    grid_export_kwh REAL DEFAULT 0,
-    feed_in_revenue_ct REAL DEFAULT 0,
-    feed_in_tariff_ct REAL DEFAULT 0,
-    price_ct_kwh REAL DEFAULT 0,
-    grid_to_house_kwh REAL DEFAULT 0,
-    grid_to_house_cost_ct REAL DEFAULT 0,
-    grid_to_battery_kwh REAL DEFAULT 0,
-    grid_to_battery_cost_ct REAL DEFAULT 0,
-    solar_yield_kwh REAL DEFAULT 0,
-    solar_to_house_kwh REAL DEFAULT 0,
-    solar_to_battery_kwh REAL DEFAULT 0,
-    battery_to_house_kwh REAL DEFAULT 0,
-    home_consumption_kwh REAL DEFAULT 0,
-    data_source TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_stats_hourly_billing_date ON stats_hourly_billing(date);
-CREATE INDEX IF NOT EXISTS idx_stats_hourly_billing_hour_key ON stats_hourly_billing(hour_key);
-
--- Daily energy summary
-CREATE TABLE IF NOT EXISTS stats_daily_energy (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT NOT NULL UNIQUE,
-    solar_yield_kwh REAL DEFAULT 0,
-    grid_import_kwh REAL DEFAULT 0,
-    grid_export_kwh REAL DEFAULT 0,
-    battery_charge_solar_kwh REAL DEFAULT 0,
-    battery_charge_grid_kwh REAL DEFAULT 0,
-    battery_to_house_kwh REAL DEFAULT 0,
-    solar_to_house_kwh REAL DEFAULT 0,
-    solar_to_battery_kwh REAL DEFAULT 0,
-    grid_to_house_kwh REAL DEFAULT 0,
-    home_consumption_kwh REAL DEFAULT 0,
-    self_consumption_kwh REAL DEFAULT 0,
-    autarkie_percent REAL DEFAULT 0,
-    avg_price_ct REAL DEFAULT 0,
-    total_cost_eur REAL DEFAULT 0,
-    feed_in_revenue_eur REAL DEFAULT 0,
-    savings_eur REAL DEFAULT 0,
-    peak_solar_w REAL DEFAULT 0,
-    peak_solar_time TEXT,
-    grid_to_battery_kwh REAL DEFAULT 0,
-    smartmeter_import_kwh REAL DEFAULT 0,
-    smartmeter_export_kwh REAL DEFAULT 0,
-    consumer_heatpump_kwh REAL DEFAULT 0,
-    consumer_heatingrod_kwh REAL DEFAULT 0,
-    consumer_wallbox_kwh REAL DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_stats_daily_energy_date ON stats_daily_energy(date);
-
--- Billing period totals (configurable billing cycles)
-CREATE TABLE IF NOT EXISTS stats_billing_totals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    billing_start_date TEXT NOT NULL UNIQUE,
-    billing_start_day INTEGER DEFAULT 1,
-    billing_start_month INTEGER DEFAULT 1,
-    grid_import_kwh REAL DEFAULT 0,
-    grid_import_cost_eur REAL DEFAULT 0,
-    grid_export_kwh REAL DEFAULT 0,
-    feed_in_revenue_eur REAL DEFAULT 0,
-    solar_yield_kwh REAL DEFAULT 0,
-    solar_to_house_kwh REAL DEFAULT 0,
-    solar_to_battery_kwh REAL DEFAULT 0,
-    battery_to_house_kwh REAL DEFAULT 0,
-    grid_to_house_kwh REAL DEFAULT 0,
-    grid_to_house_cost_eur REAL DEFAULT 0,
-    grid_to_battery_kwh REAL DEFAULT 0,
-    grid_to_battery_cost_eur REAL DEFAULT 0,
-    home_consumption_kwh REAL DEFAULT 0,
-    self_consumption_kwh REAL DEFAULT 0,
-    autarkie_percent REAL DEFAULT 0,
-    savings_eur REAL DEFAULT 0,
-    net_benefit_eur REAL DEFAULT 0,
-    hours_count INTEGER DEFAULT 0,
-    avg_price_ct REAL DEFAULT 0,
-    avg_feed_in_tariff_ct REAL DEFAULT 0,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Forecast comparison with external sources
-CREATE TABLE IF NOT EXISTS stats_forecast_comparison (
+CREATE TABLE IF NOT EXISTS sfml_tfs_forecast_comparison (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL UNIQUE,
     actual_kwh REAL,
     sfml_forecast_kwh REAL,
     sfml_accuracy_percent REAL,
-    external_1_kwh REAL,
-    external_1_accuracy_percent REAL,
-    external_2_kwh REAL,
-    external_2_accuracy_percent REAL,
+    tfs_forecast_kwh REAL,
+    tfs_accuracy_percent REAL,
     best_source TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_stats_forecast_comparison_date ON stats_forecast_comparison(date);
+CREATE INDEX IF NOT EXISTS idx_sfml_tfs_forecast_comparison_date
+    ON sfml_tfs_forecast_comparison(date);
 
 -- ============================================================================
 -- V16.2: SHADOW PATTERN LEARNING TABLES
@@ -2587,6 +2566,33 @@ CREATE TABLE IF NOT EXISTS sensor_monthly_stats (
 CREATE INDEX IF NOT EXISTS idx_sensor_monthly_stats_year_month
     ON sensor_monthly_stats(year, month);
 
+-- EAI owns only the following namespaced tables in the SFML database.
+CREATE TABLE IF NOT EXISTS eai_consumption_training_samples (
+    sample_key TEXT PRIMARY KEY,
+    entry_id TEXT NOT NULL,
+    target_date DATE NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour >= 0 AND target_hour <= 23),
+    actual_kwh REAL NOT NULL CHECK(actual_kwh >= 0),
+    feature_snapshot TEXT NOT NULL,
+    accepted_at TEXT NOT NULL,
+    source TEXT NOT NULL,
+    excluded BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS idx_eai_consumption_training_samples_date_hour
+    ON eai_consumption_training_samples(entry_id, target_date, target_hour);
+
+CREATE TABLE IF NOT EXISTS eai_consumption_writer_state (
+    entry_id TEXT PRIMARY KEY,
+    baseline_kwh REAL NOT NULL CHECK(baseline_kwh >= 0),
+    baseline_observed_at_utc TEXT NOT NULL,
+    baseline_local_date DATE NOT NULL,
+    target_entity_id TEXT NOT NULL,
+    target_unit TEXT NOT NULL,
+    measurement_boundary_fingerprint TEXT NOT NULL,
+    updated_at_utc TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS panel_group_config_epochs (
     epoch_id INTEGER PRIMARY KEY AUTOINCREMENT,
     topology_hash TEXT NOT NULL,
@@ -2618,5 +2624,21 @@ ON panel_group_config_epochs(valid_to, valid_from);
 CREATE INDEX IF NOT EXISTS idx_panel_group_epoch_groups_lookup
 ON panel_group_config_epoch_groups(epoch_id, display_name);
 
+CREATE TABLE IF NOT EXISTS panel_group_config_snapshot (
+    group_name TEXT PRIMARY KEY,
+    power_wp REAL NOT NULL,
+    azimuth REAL NOT NULL,
+    tilt REAL NOT NULL,
+    energy_sensor TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_prediction_panel_groups_topology
 ON prediction_panel_groups(config_epoch_id, group_uid, group_name);
+
+CREATE TABLE IF NOT EXISTS repair_tool_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TIMESTAMP NOT NULL,
+    operation TEXT NOT NULL,
+    dry_run BOOLEAN NOT NULL DEFAULT TRUE,
+    payload_json TEXT NOT NULL
+);

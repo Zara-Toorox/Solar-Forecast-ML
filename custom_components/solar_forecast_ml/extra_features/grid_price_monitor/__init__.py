@@ -10,10 +10,12 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
 # Only import constants at module level - these are lightweight
 from .const import DOMAIN, NAME, PLATFORMS, VERSION
@@ -22,6 +24,23 @@ if TYPE_CHECKING:
     from .coordinator import GridPriceMonitorCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+PROVIDER_CHANGED_SIGNAL = f"{DOMAIN}_provider_changed"
+
+
+def _require_sfml_storage(hass: HomeAssistant) -> None:
+    """Fail setup until the authoritative SFML service and database are ready."""
+    database_path = Path(hass.config.path("solar_forecast_ml/solar_forecast.db"))
+    sfml_data = hass.data.get("solar_forecast_ml", {})
+    coordinator_ready = any(
+        isinstance(entry_id, str)
+        and hasattr(candidate, "async_refresh")
+        and getattr(candidate, "data_manager", None) is not None
+        for entry_id, candidate in sfml_data.items()
+    )
+    if not coordinator_ready or not database_path.is_file():
+        raise ConfigEntryNotReady(
+            "Solar Forecast ML must initialize its shared database before GPM"
+        )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -37,6 +56,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         NAME,
         VERSION,
     )
+    _require_sfml_storage(hass)
 
     # Initialize domain data storage
     hass.data.setdefault(DOMAIN, {})
@@ -47,6 +67,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Store coordinator BEFORE background init
     # This allows platforms to set up even if data isn't ready yet
     hass.data[DOMAIN][entry.entry_id] = coordinator
+    async_dispatcher_send(hass, PROVIDER_CHANGED_SIGNAL)
 
     # Set up platforms - they will show "unavailable" until data is ready
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -99,16 +120,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry @zara"""
     _LOGGER.debug("Unloading %s", NAME)
 
-    # Shutdown coordinator components
     coordinator: GridPriceMonitorCoordinator = hass.data[DOMAIN].get(entry.entry_id)
-    if coordinator:
-        await coordinator.async_shutdown_battery_tracker()
-        await coordinator.async_shutdown_storage()
-
-    # Unload platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
+        if coordinator:
+            await coordinator.async_shutdown_battery_tracker()
+            await coordinator.async_shutdown_storage()
         hass.data[DOMAIN].pop(entry.entry_id)
+        async_dispatcher_send(hass, PROVIDER_CHANGED_SIGNAL)
 
     return unload_ok

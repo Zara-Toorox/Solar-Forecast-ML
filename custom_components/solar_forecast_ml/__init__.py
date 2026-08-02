@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from logging.handlers import QueueHandler, QueueListener, RotatingFileHandler
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -67,6 +67,74 @@ _LOGGER = logging.getLogger(__name__)
 _log_queue_listener: Optional[QueueListener] = None
 _log_queue_handler: Optional[QueueHandler] = None
 _logging_initialized: bool = False
+_ENTRY_DELAYED_TASKS = "_entry_delayed_tasks"
+
+
+def _remove_finished_entry_task(
+    hass: HomeAssistant,
+    entry_id: str,
+    task_key: str,
+    task: asyncio.Task,
+) -> None:
+    domain_data = hass.data.get(DOMAIN)
+    if not isinstance(domain_data, dict):
+        return
+    registry = domain_data.get(_ENTRY_DELAYED_TASKS)
+    if not isinstance(registry, dict):
+        return
+    entry_tasks = registry.get(entry_id)
+    if not isinstance(entry_tasks, dict) or entry_tasks.get(task_key) is not task:
+        return
+    entry_tasks.pop(task_key, None)
+    if not entry_tasks:
+        registry.pop(entry_id, None)
+    if not registry:
+        domain_data.pop(_ENTRY_DELAYED_TASKS, None)
+
+
+async def _async_schedule_entry_task(
+    hass: HomeAssistant,
+    entry_id: str,
+    task_key: str,
+    task_factory: Callable[[], Awaitable[None]],
+    name: str,
+) -> asyncio.Task:
+    """Replace and register one delayed task for a config entry."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    registry = domain_data.setdefault(_ENTRY_DELAYED_TASKS, {})
+    entry_tasks = registry.setdefault(entry_id, {})
+    previous = entry_tasks.get(task_key)
+    if previous is not None and not previous.done():
+        previous.cancel()
+        await asyncio.gather(previous, return_exceptions=True)
+
+    task = hass.async_create_task(task_factory(), name=f"{name}_{entry_id}")
+    entry_tasks[task_key] = task
+    task.add_done_callback(
+        lambda finished: _remove_finished_entry_task(
+            hass, entry_id, task_key, finished
+        )
+    )
+    return task
+
+
+async def _async_cancel_entry_tasks(hass: HomeAssistant, entry_id: str) -> None:
+    """Cancel and await every delayed task owned by a config entry."""
+    domain_data = hass.data.get(DOMAIN)
+    if not isinstance(domain_data, dict):
+        return
+    registry = domain_data.get(_ENTRY_DELAYED_TASKS)
+    if not isinstance(registry, dict):
+        return
+    entry_tasks = registry.pop(entry_id, {})
+    tasks = list(entry_tasks.values())
+    for task in tasks:
+        if not task.done():
+            task.cancel()
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
+    if not registry:
+        domain_data.pop(_ENTRY_DELAYED_TASKS, None)
 
 
 async def _migrate_db_remove_default_panel_group(data_manager: "DataManager") -> bool:
@@ -452,48 +520,6 @@ def _new_lineage_uid(g: dict) -> str:
     return _hash_payload("pgl", payload)
 
 
-async def _ensure_topology_epoch_tables(db) -> None:
-    await db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS panel_group_config_epochs (
-            epoch_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            topology_hash TEXT NOT NULL,
-            valid_from TIMESTAMP NOT NULL,
-            valid_to TIMESTAMP,
-            reason TEXT,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
-    await db.execute(
-        """
-        CREATE TABLE IF NOT EXISTS panel_group_config_epoch_groups (
-            epoch_group_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            epoch_id INTEGER NOT NULL,
-            group_uid TEXT NOT NULL,
-            group_lineage_uid TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            power_wp REAL NOT NULL,
-            azimuth REAL NOT NULL,
-            tilt REAL NOT NULL,
-            energy_sensor TEXT,
-            group_signature TEXT NOT NULL,
-            is_active BOOLEAN NOT NULL DEFAULT TRUE,
-            FOREIGN KEY (epoch_id) REFERENCES panel_group_config_epochs(epoch_id) ON DELETE CASCADE,
-            UNIQUE(epoch_id, display_name)
-        )
-        """
-    )
-    await db.execute(
-        "CREATE INDEX IF NOT EXISTS idx_panel_group_epochs_active "
-        "ON panel_group_config_epochs(valid_to, valid_from)"
-    )
-    await db.execute(
-        "CREATE INDEX IF NOT EXISTS idx_panel_group_epoch_groups_lookup "
-        "ON panel_group_config_epoch_groups(epoch_id, display_name)"
-    )
-
-
 async def _load_active_topology_epoch(db) -> Optional[dict]:
     row = await db.fetchone(
         "SELECT epoch_id, topology_hash FROM panel_group_config_epochs "
@@ -551,7 +577,6 @@ async def _save_config_epoch(
     plan: Optional[_MigrationPlan],
     reason: str,
 ) -> None:
-    await _ensure_topology_epoch_tables(db)
     topology_hash = _topology_hash(groups)
     active = await _load_active_topology_epoch(db)
     if active and active["topology_hash"] == topology_hash:
@@ -836,17 +861,6 @@ async def _sync_current_panel_group_prediction_rows(db, groups: list[dict]) -> i
     return changed_rows
 
 
-async def _ensure_snapshot_table(db) -> None:
-    await db.execute(
-        "CREATE TABLE IF NOT EXISTS panel_group_config_snapshot ("
-        "group_name TEXT PRIMARY KEY, "
-        "power_wp REAL NOT NULL, "
-        "azimuth REAL NOT NULL, "
-        "tilt REAL NOT NULL, "
-        "energy_sensor TEXT)"
-    )
-
-
 async def _get_existing_group_tables(db) -> list[tuple[str, str]]:
     existing = []
     for table, column in _ALL_GROUP_TABLES:
@@ -963,8 +977,6 @@ async def _migrate_panel_groups(
 
     try:
         db = data_manager._db_manager
-        await _ensure_snapshot_table(db)
-        await _ensure_topology_epoch_tables(db)
         async with db.transaction():
             stale_temp_rows = await _cleanup_temporary_panel_group_rows(db)
         if stale_temp_rows:
@@ -1163,7 +1175,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     )
 
     hass.data.setdefault(DOMAIN, {})
-    await async_setup_database_service(hass)
+    await async_setup_database_service(
+        hass,
+        bootstrap_schema=False,
+        defer_start=True,
+    )
 
     async def _handle_home_assistant_stop(_event: Event) -> None:
         await async_shutdown_database_service(hass)
@@ -1215,68 +1231,63 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not setup_ok:
         _LOGGER.error("Failed to setup Solar Forecast coordinator")
         return False
+    hass.data[DOMAIN][entry.entry_id] = coordinator
+
+    def _active_data_manager():
+        if hass.data.get(DOMAIN, {}).get(entry.entry_id) is not coordinator:
+            return None
+        return coordinator.data_manager
 
     # V16 Migration: Remove 'Default' panel group in background (non-blocking) @zara
     async def _delayed_v16_migration():
         """Run V16 migration in background after HA startup."""
-        if not coordinator.data_manager:
-            return
         try:
             await asyncio.sleep(3)  # Short delay to not block startup
-            await _migrate_db_remove_default_panel_group(coordinator.data_manager)
+            data_manager = _active_data_manager()
+            if data_manager is not None:
+                await _migrate_db_remove_default_panel_group(data_manager)
         except Exception as e:
             _LOGGER.warning(f"V16 Migration failed (non-critical): {e}")
 
     async def _delayed_panel_group_migration():
-        if not coordinator.data_manager:
-            return
         try:
             await asyncio.sleep(4)
+            data_manager = _active_data_manager()
             config_groups = entry.data.get(CONF_PANEL_GROUPS, [])
-            if config_groups:
-                await _migrate_panel_groups(coordinator.data_manager, config_groups)
+            if data_manager is not None and config_groups:
+                await _migrate_panel_groups(data_manager, config_groups)
         except Exception as e:
             _LOGGER.warning("Panel Group Migration failed (non-critical): %s", e)
-        finally:
-            domain_data = hass.data.get(DOMAIN, {})
-            migration_tasks = domain_data.get("_panel_group_migration_tasks", {})
-            current_task = asyncio.current_task()
-            if migration_tasks.get(entry.entry_id) is current_task:
-                migration_tasks.pop(entry.entry_id, None)
 
     if coordinator.data_manager:
-        hass.async_create_task(
-            _delayed_v16_migration(),
-            name="solar_forecast_ml_v16_migration"
+        await _async_schedule_entry_task(
+            hass,
+            entry.entry_id,
+            "v16_migration",
+            _delayed_v16_migration,
+            "solar_forecast_ml_v16_migration",
         )
-        domain_data = hass.data.setdefault(DOMAIN, {})
-        migration_tasks = domain_data.setdefault("_panel_group_migration_tasks", {})
-        existing_task = migration_tasks.get(entry.entry_id)
-        if existing_task and not existing_task.done():
-            _LOGGER.debug(
-                "Panel Group Migration task already active for entry %s - skipping duplicate schedule",
-                entry.entry_id,
-            )
-        else:
-            task = hass.async_create_task(
-                _delayed_panel_group_migration(),
-                name="solar_forecast_ml_panel_group_migration"
-            )
-            migration_tasks[entry.entry_id] = task
+        await _async_schedule_entry_task(
+            hass,
+            entry.entry_id,
+            "panel_group_migration",
+            _delayed_panel_group_migration,
+            "solar_forecast_ml_panel_group_migration",
+        )
 
     # JSON Migration runs in background after startup to not block HA bootstrap @zara
     async def _delayed_json_migration():
         """Run JSON migration in background after HA startup."""
-        if not coordinator.data_manager or not coordinator.data_manager._db_manager:
-            return
-
         try:
             # Wait for HA to fully start
             await asyncio.sleep(10)
+            data_manager = _active_data_manager()
+            if data_manager is None or data_manager._db_manager is None:
+                return
             _LOGGER.info("Starting JSON migration in background...")
 
             from .data.json_migration import run_json_migration
-            migration_stats = await run_json_migration(hass, coordinator.data_manager._db_manager)
+            migration_stats = await run_json_migration(hass, data_manager._db_manager)
 
             if migration_stats.imported > 0 or migration_stats.updated > 0:
                 _LOGGER.info(
@@ -1294,6 +1305,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Run first data refresh in background after HA startup."""
         try:
             await asyncio.sleep(5)
+            if _active_data_manager() is None:
+                return
             async with asyncio.timeout(60):
                 await coordinator.async_refresh()
             _LOGGER.info("First data refresh completed successfully")
@@ -1304,17 +1317,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as e:
             _LOGGER.debug(f"First data refresh deferred: {e} - using cached data")
 
-    hass.async_create_task(
-        _delayed_first_refresh(),
-        name="solar_forecast_ml_first_refresh"
+    await _async_schedule_entry_task(
+        hass,
+        entry.entry_id,
+        "first_refresh",
+        _delayed_first_refresh,
+        "solar_forecast_ml_first_refresh",
     )
 
-    hass.async_create_task(
-        _delayed_json_migration(),
-        name="solar_forecast_ml_json_migration"
+    await _async_schedule_entry_task(
+        hass,
+        entry.entry_id,
+        "json_migration",
+        _delayed_json_migration,
+        "solar_forecast_ml_json_migration",
     )
-
-    hass.data[DOMAIN][entry.entry_id] = coordinator
     if coordinator.data_manager:
         from .data.sfml_weather_provider import SFMLWeatherIntelligenceProvider
 
@@ -1328,6 +1345,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Forward entry setup to platforms @zara
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    if coordinator.data_manager:
+        from .data.sfml_astronomy_provider import (
+            SFMLAstronomyProvider,
+            register_provider as register_astronomy_provider,
+        )
+
+        astronomy_providers = hass.data[DOMAIN].setdefault("astronomy_providers", {})
+        register_astronomy_provider(
+            astronomy_providers,
+            entry.entry_id,
+            SFMLAstronomyProvider(
+                entry.entry_id,
+                coordinator.data_manager,
+                getattr(hass.config, "time_zone", None),
+            ),
+        )
 
     from .data.sensor_mapping_provider import SensorMappingProvider, register_provider
 
@@ -1343,9 +1377,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await _async_register_services(hass, entry, coordinator)
         _LOGGER.debug("Services registered successfully")
 
-    hass.async_create_task(
-        _delayed_service_registration(),
-        name="solar_forecast_ml_service_registration"
+    await _async_schedule_entry_task(
+        hass,
+        entry.entry_id,
+        "service_registration",
+        _delayed_service_registration,
+        "solar_forecast_ml_service_registration",
     )
 
     # Show installation notification for new installs @zara
@@ -1481,8 +1518,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
-        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
-        sensor_mapping_providers = hass.data[DOMAIN].get("sensor_mapping_providers")
+        domain_data = hass.data.get(DOMAIN, {})
+        coordinator = domain_data.get(entry.entry_id)
+        if coordinator is None:
+            _LOGGER.warning(
+                "Coordinator missing during unload for entry %s", entry.entry_id
+            )
+            return False
+
+        await _async_cancel_entry_tasks(hass, entry.entry_id)
+
+        sensor_mapping_providers = domain_data.get("sensor_mapping_providers")
         if isinstance(sensor_mapping_providers, dict):
             sensor_mapping_provider = sensor_mapping_providers.get(entry.entry_id)
             if sensor_mapping_provider is not None:
@@ -1490,18 +1536,29 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if sensor_mapping_providers.get(entry.entry_id) is sensor_mapping_provider:
                     sensor_mapping_providers.pop(entry.entry_id, None)
             if not sensor_mapping_providers:
-                hass.data[DOMAIN].pop("sensor_mapping_providers", None)
-        weather_providers = hass.data[DOMAIN].get("weather_intelligence_providers")
+                domain_data.pop("sensor_mapping_providers", None)
+        weather_providers = domain_data.get("weather_intelligence_providers")
         if isinstance(weather_providers, dict):
             weather_providers.pop(entry.entry_id, None)
             if not weather_providers:
-                hass.data[DOMAIN].pop("weather_intelligence_providers", None)
+                domain_data.pop("weather_intelligence_providers", None)
+        astronomy_providers = domain_data.get("astronomy_providers")
+        if isinstance(astronomy_providers, dict):
+            astronomy_provider = astronomy_providers.get(entry.entry_id)
+            if astronomy_provider is not None:
+                astronomy_provider.invalidate()
+                if astronomy_providers.get(entry.entry_id) is astronomy_provider:
+                    astronomy_providers.pop(entry.entry_id, None)
+            if not astronomy_providers:
+                domain_data.pop("astronomy_providers", None)
 
         await coordinator.async_shutdown()
+        if domain_data.get(entry.entry_id) is coordinator:
+            domain_data.pop(entry.entry_id, None)
 
         reset_cache_manager()
 
-        if not hass.data[DOMAIN]:
+        if not domain_data:
             _async_unregister_services(hass)
 
             # Stop logging when last entry is unloaded @zara

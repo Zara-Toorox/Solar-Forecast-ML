@@ -12,8 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from typing import Any
-
+from pathlib import Path
 import aiosqlite
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,6 +35,11 @@ class GPMDatabaseConnector:
 
     async def connect(self) -> None:
         """Establish database connection and ensure tables exist @zara"""
+        database_path = Path(self.db_path)
+        if not database_path.is_file():
+            raise FileNotFoundError(
+                f"Shared SFML database is required and was not found: {database_path}"
+            )
         self._db = await aiosqlite.connect(
             self.db_path, timeout=60.0, isolation_level="IMMEDIATE"
         )

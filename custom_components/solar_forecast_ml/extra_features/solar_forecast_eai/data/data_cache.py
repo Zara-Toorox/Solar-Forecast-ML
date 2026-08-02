@@ -17,7 +17,7 @@ Uses yield_cache table for persistent caching.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from homeassistant.core import HomeAssistant
 
@@ -38,7 +38,6 @@ class DataCache(DataManagerIO):
     Cache Types:
     - Weather forecasts: In-memory with TTL
     - Yield values: Database persisted via yield_cache table
-    - Astronomy data: Database persisted via astronomy_cache table
     """
 
     def __init__(self, hass: HomeAssistant, db_manager: DatabaseManager):
@@ -356,140 +355,6 @@ class DataCache(DataManagerIO):
             return {}
 
     # =========================================================================
-    # Astronomy Cache (Database)
-    # =========================================================================
-
-    async def cache_astronomy(
-        self,
-        cache_date: str,
-        hour: int,
-        astronomy_data: Dict[str, Any],
-    ) -> bool:
-        """Cache astronomy data to database. @zara
-
-        Args:
-            cache_date: Date string (YYYY-MM-DD)
-            hour: Hour (0-23)
-            astronomy_data: Astronomy data
-
-        Returns:
-            True if cached successfully
-        """
-        try:
-            await self.execute_query(
-                """INSERT INTO astronomy_cache
-                   (cache_date, hour, sun_elevation_deg, sun_azimuth_deg,
-                    clear_sky_radiation_wm2, theoretical_max_kwh,
-                    sunrise, sunset, solar_noon, daylight_hours)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                   ON CONFLICT(cache_date, hour) DO UPDATE SET
-                       sun_elevation_deg = excluded.sun_elevation_deg,
-                       sun_azimuth_deg = excluded.sun_azimuth_deg,
-                       clear_sky_radiation_wm2 = excluded.clear_sky_radiation_wm2,
-                       theoretical_max_kwh = excluded.theoretical_max_kwh,
-                       sunrise = excluded.sunrise,
-                       sunset = excluded.sunset,
-                       solar_noon = excluded.solar_noon,
-                       daylight_hours = excluded.daylight_hours""",
-                (
-                    cache_date,
-                    hour,
-                    astronomy_data.get("sun_elevation_deg"),
-                    astronomy_data.get("sun_azimuth_deg"),
-                    astronomy_data.get("clear_sky_radiation_wm2"),
-                    astronomy_data.get("theoretical_max_kwh"),
-                    astronomy_data.get("sunrise"),
-                    astronomy_data.get("sunset"),
-                    astronomy_data.get("solar_noon"),
-                    astronomy_data.get("daylight_hours"),
-                ),
-            )
-            return True
-
-        except Exception as e:
-            _LOGGER.error("Failed to cache astronomy data: %s", e)
-            return False
-
-    async def get_cached_astronomy(
-        self,
-        cache_date: str,
-        hour: int,
-    ) -> Optional[Dict[str, Any]]:
-        """Get cached astronomy data from database. @zara
-
-        Args:
-            cache_date: Date string (YYYY-MM-DD)
-            hour: Hour (0-23)
-
-        Returns:
-            Astronomy data or None
-        """
-        try:
-            row = await self.fetch_one(
-                """SELECT sun_elevation_deg, sun_azimuth_deg,
-                          clear_sky_radiation_wm2, theoretical_max_kwh,
-                          sunrise, sunset, solar_noon, daylight_hours
-                   FROM astronomy_cache
-                   WHERE cache_date = ? AND hour = ?""",
-                (cache_date, hour),
-            )
-
-            if not row:
-                return None
-
-            return {
-                "sun_elevation_deg": row[0],
-                "sun_azimuth_deg": row[1],
-                "clear_sky_radiation_wm2": row[2],
-                "theoretical_max_kwh": row[3],
-                "sunrise": row[4],
-                "sunset": row[5],
-                "solar_noon": row[6],
-                "daylight_hours": row[7],
-            }
-
-        except Exception as e:
-            _LOGGER.error("Failed to get cached astronomy: %s", e)
-            return None
-
-    async def get_daily_astronomy(
-        self,
-        cache_date: str,
-    ) -> Dict[int, Dict[str, Any]]:
-        """Get all cached astronomy data for a day. @zara
-
-        Args:
-            cache_date: Date string (YYYY-MM-DD)
-
-        Returns:
-            Dict mapping hour -> astronomy data
-        """
-        try:
-            rows = await self.fetch_all(
-                """SELECT hour, sun_elevation_deg, sun_azimuth_deg,
-                          clear_sky_radiation_wm2, theoretical_max_kwh
-                   FROM astronomy_cache
-                   WHERE cache_date = ?
-                   ORDER BY hour""",
-                (cache_date,),
-            )
-
-            return {
-                row[0]: {
-                    "hour": row[0],
-                    "sun_elevation_deg": row[1],
-                    "sun_azimuth_deg": row[2],
-                    "clear_sky_radiation_wm2": row[3],
-                    "theoretical_max_kwh": row[4],
-                }
-                for row in rows
-            }
-
-        except Exception as e:
-            _LOGGER.error("Failed to get daily astronomy: %s", e)
-            return {}
-
-    # =========================================================================
     # Cache Maintenance
     # =========================================================================
 
@@ -518,29 +383,13 @@ class DataCache(DataManagerIO):
                 (cutoff_date.isoformat(),),
             )
 
-            # Clean astronomy cache
-            astronomy_result = await self.fetch_one(
-                """SELECT COUNT(*) FROM astronomy_cache
-                   WHERE cache_date < ?""",
-                (cutoff_date.isoformat(),),
-            )
-            astronomy_count = astronomy_result[0] if astronomy_result else 0
-
-            await self.execute_query(
-                "DELETE FROM astronomy_cache WHERE cache_date < ?",
-                (cutoff_date.isoformat(),),
-            )
-
-            total_deleted = weather_count + astronomy_count
-            if total_deleted > 0:
+            if weather_count > 0:
                 _LOGGER.info(
-                    "Cleaned up %d old cache entries (weather: %d, astronomy: %d)",
-                    total_deleted,
+                    "Cleaned up %d old weather cache entries",
                     weather_count,
-                    astronomy_count,
                 )
 
-            return total_deleted
+            return weather_count
 
         except Exception as e:
             _LOGGER.error("Failed to cleanup old cache: %s", e)
@@ -561,11 +410,6 @@ class DataCache(DataManagerIO):
                 "SELECT COUNT(*), MIN(forecast_date), MAX(forecast_date) FROM weather_forecast"
             )
 
-            # Astronomy cache count
-            astronomy_row = await self.fetch_one(
-                "SELECT COUNT(*), MIN(cache_date), MAX(cache_date) FROM astronomy_cache"
-            )
-
             # Yield cache
             yield_cache = await self.get_yield_cache()
 
@@ -575,11 +419,6 @@ class DataCache(DataManagerIO):
                     "total_entries": weather_row[0] if weather_row else 0,
                     "oldest_date": weather_row[1] if weather_row else None,
                     "newest_date": weather_row[2] if weather_row else None,
-                },
-                "astronomy_cache": {
-                    "total_entries": astronomy_row[0] if astronomy_row else 0,
-                    "oldest_date": astronomy_row[1] if astronomy_row else None,
-                    "newest_date": astronomy_row[2] if astronomy_row else None,
                 },
                 "yield_cache": yield_cache,
             }

@@ -20,11 +20,9 @@ except ImportError:
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 
 from .capability import EAICapabilityProvider
-from .automation import is_legacy_eai_unique_id
 from .const import (
     CONF_CAPABILITY_LEVEL,
     CONF_COP_RATED,
@@ -169,7 +167,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # The stable read-only provider remains available. Coordinator failures
         # are isolated and reported additively through the provider snapshot.
         pass
-    _remove_legacy_eai_entities(hass, entry)
     try:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     except Exception:
@@ -180,17 +177,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     runtime.schedule_license_monitor(result.payload.expires_at)
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
-
-
-def _remove_legacy_eai_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    registry = er.async_get(hass)
-    for entity in list(registry.entities.values()):
-        if (
-            entity.config_entry_id == entry.entry_id
-            and entity.platform == DOMAIN
-            and is_legacy_eai_unique_id(entry.entry_id, entity.unique_id)
-        ):
-            registry.async_remove(entity.entity_id)
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

@@ -197,7 +197,7 @@
       },
       "weather_intelligence": {
         "title": "Wetterintelligenz",
-        "description": "Erfordert Solar Forecast ML mit eigener Wetterstation, SFML STATS und Weather Fusion AI. Live-Werte und Recorder-Historie kommen automatisch von den in SFML hinterlegten Stationssensoren; Prognosen ausschließlich von WFAI.",
+        "description": "Verwendet die gebündelten lokalen Wetterstationsdaten automatisch für Live-Werte und Recorder-Historie. Prognosen kommen von Weather Fusion AI.",
         "data": {
           "weather_fusion_entry_id": "Weather-Fusion-AI-Standort",
           "weather_history_days": "Aufbewahrung der Auswertung (Tage)"
@@ -306,10 +306,6 @@
       "license_missing_entitlement": "Die EAI-Berechtigung fehlt.",
       "license_validation_error": "Die Lizenz konnte nicht sicher geprüft werden.",
       "feature_required": "Wähle mindestens eine Premium-Funktion aus.",
-      "sfml_required": "Installiere und konfiguriere Solar Forecast ML, bevor du die Wetterintelligenz aktivierst.",
-      "stats_required": "Installiere und konfiguriere SFML STATS, bevor du die Wetterintelligenz aktivierst.",
-      "weather_station_required": "Hinterlege in Solar Forecast ML eine lokale Wetterstation mit mindestens Temperatur und einem weiteren Wettersensor.",
-      "weather_station_ambiguous": "Die Wetterintelligenz hat mehrere Solar-Forecast-ML-Stationen gefunden. Lass genau eine SFML-Konfiguration aktiv.",
       "weather_fusion_required": "Installiere und konfiguriere Weather Fusion AI, bevor du die Wetterintelligenz aktivierst.",
       "validation_required": "Korrigiere fehlende oder doppelt zugeordnete Sensoren.",
       "invalid_heat_pump_values": "Gib endliche Zahlenwerte ein: Heizleistung von 1 bis 100 kW und COP von 1 bis 10.",
@@ -511,7 +507,7 @@
       },
       "weather_intelligence": {
         "title": "Wetterintelligenz",
-        "description": "Erfordert Solar Forecast ML mit eigener Wetterstation, SFML STATS und Weather Fusion AI. Die in SFML hinterlegten Stationssensoren werden automatisch für Live-Werte und Recorder-Historie verwendet.",
+        "description": "Verwendet die gebündelten lokalen Wetterstationsdaten automatisch für Live-Werte und Recorder-Historie. Prognosen kommen von Weather Fusion AI.",
         "data": {
           "weather_fusion_entry_id": "Weather-Fusion-AI-Standort",
           "weather_history_days": "Aufbewahrung der Auswertung (Tage)"
@@ -552,10 +548,6 @@
       "license_missing_entitlement": "Die EAI-Berechtigung fehlt.",
       "license_validation_error": "Die Lizenz konnte nicht sicher geprüft werden.",
       "feature_required": "Wähle mindestens eine Premium-Funktion aus.",
-      "sfml_required": "Installiere und konfiguriere Solar Forecast ML vor der Aktivierung.",
-      "stats_required": "Installiere und konfiguriere SFML STATS vor der Aktivierung.",
-      "weather_station_required": "Hinterlege in Solar Forecast ML eine lokale Wetterstation mit mindestens Temperatur und einem weiteren Wettersensor.",
-      "weather_station_ambiguous": "Die Wetterintelligenz hat mehrere Solar-Forecast-ML-Stationen gefunden. Lass genau eine SFML-Konfiguration aktiv.",
       "weather_fusion_required": "Installiere und konfiguriere Weather Fusion AI vor der Aktivierung.",
       "validation_required": "Prüfe fehlende oder doppelt zugeordnete Sensoren.",
       "invalid_heat_pump_values": "Gib endliche Zahlenwerte ein: Heizleistung von 1 bis 100 kW und COP von 1 bis 10.",

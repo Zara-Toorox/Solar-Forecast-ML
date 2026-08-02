@@ -122,6 +122,37 @@ const SmartChargingPage = ((Vue) => {
                     </div>
                 </div>
 
+                <div class="sc-plan-card" v-if="dashboardData.live">
+                    <div class="sc-plan-heading">
+                        <span>🧭 {{ $t('smart_charging.planTitle') }}</span>
+                        <span class="sc-plan-decision" :class="'sc-plan-' + planDecisionClass"
+                              role="status" aria-live="polite">
+                            {{ planDecisionText }}
+                        </span>
+                    </div>
+                    <div class="sc-plan-values">
+                        <div class="sc-plan-value" v-if="dashboardData.live.requested_grid_charge_kwh > 0">
+                            <span>{{ $t('smart_charging.planChargeNow') }}</span>
+                            <strong>{{ fmtKwh(dashboardData.live.requested_grid_charge_kwh) }}</strong>
+                        </div>
+                        <div class="sc-plan-value" v-if="dashboardData.live.reserved_future_grid_charge_kwh > 0">
+                            <span>{{ $t('smart_charging.planReservedLater') }}</span>
+                            <strong>{{ fmtKwh(dashboardData.live.reserved_future_grid_charge_kwh) }}</strong>
+                        </div>
+                        <div class="sc-plan-value" v-if="dashboardData.live.effective_storage_cost_ct_kwh != null">
+                            <span>{{ $t('smart_charging.planStorageCost') }}</span>
+                            <strong>{{ fmtPrice(dashboardData.live.effective_storage_cost_ct_kwh) }} ct/kWh</strong>
+                        </div>
+                        <div class="sc-plan-value" v-if="dashboardData.live.compared_future_price_ct_kwh != null">
+                            <span>{{ $t('smart_charging.planComparedPrice') }}</span>
+                            <strong>{{ fmtPrice(dashboardData.live.compared_future_price_ct_kwh) }} ct/kWh</strong>
+                        </div>
+                    </div>
+                    <p class="sc-plan-note" v-if="dashboardData.live.reserved_future_grid_charge_kwh > 0">
+                        {{ $t('smart_charging.planReservedLaterNote') }}
+                    </p>
+                </div>
+
                 <!-- 2. KPI METRICS -->
                 <div class="eb-grid" style="margin-bottom: var(--space-lg);" v-if="dashboardData.kpis">
                     <!-- Period Selection Tabs -->
@@ -355,6 +386,20 @@ const SmartChargingPage = ((Vue) => {
                 return translation !== reasonKey ? translation : reason;
             });
 
+            const planDecisionClass = computed(() => {
+                const decision = dashboardData.live?.decision;
+                if (decision === 'load') return 'load';
+                if (decision === 'wait') return 'wait';
+                return 'not-load';
+            });
+
+            const planDecisionText = computed(() => {
+                const decision = dashboardData.live?.decision;
+                if (decision === 'load') return t('smart_charging.planDecisionLoad');
+                if (decision === 'wait') return t('smart_charging.planDecisionWait');
+                return t('smart_charging.planDecisionNotLoad');
+            });
+
             function getTargetRotation(soc) {
                 // Map 0-100% to -180 to 0 degrees rotation
                 const degrees = (soc / 100) * 180 - 180;
@@ -398,48 +443,37 @@ const SmartChargingPage = ((Vue) => {
                     const label = typeof h.hour_key === 'string' && h.hour_key.length >= 16
                         ? h.hour_key.slice(11, 16)
                         : '';
-                    return label + (h.is_future ? ' 🔮' : '');
+                    return label;
                 });
+                const timeKeys = data.map((h, index) =>
+                    typeof h.hour_key === 'string' && h.hour_key
+                        ? h.hour_key
+                        : 'hour-' + index
+                );
 
                 const prices = data.map(h => h.price_ct_kwh);
-                const charging = data.map(h => h.grid_to_battery_kwh);
-                const solar = data.map(h => h.solar_yield_kwh);
+                const charging = data.map(h => h.is_future ? null : h.grid_to_battery_kwh);
+                const solar = data.map(h => h.is_future ? null : h.solar_yield_kwh);
                 const priceLegend = t('smart_charging.chartLegendPrice');
                 const chargingLegend = t('smart_charging.chartLegendCharging');
                 const solarLegend = t('smart_charging.chartLegendSolar');
-                const recommendedLegend = t('smart_charging.chartLegendRecommended');
-                const recommendationPoints = data.map(h => h.grid_charge_recommended ? h.price_ct_kwh : null);
 
-                const actualPieces = [];
-                const recommendationPieces = [];
-                let activeStart = null;
-                for (let i = 0; i < data.length; i++) {
-                    if (data[i].grid_to_battery_kwh > 0.005) {
-                        if (activeStart === null) activeStart = i;
-                    } else {
-                        if (activeStart !== null) {
-                            actualPieces.push({ gt: activeStart - 1, lte: i, color: 'rgba(34, 197, 94, 0.15)' });
-                            activeStart = null;
-                        }
-                    }
-                }
-                if (activeStart !== null) {
-                    actualPieces.push({ gt: activeStart - 1, lte: data.length - 1, color: 'rgba(34, 197, 94, 0.15)' });
-                }
-
-                activeStart = null;
-                for (let i = 0; i < data.length; i++) {
-                    if (data[i].grid_charge_recommended) {
-                        if (activeStart === null) activeStart = i;
-                    } else {
-                        if (activeStart !== null) {
-                            recommendationPieces.push({ gt: activeStart - 1, lte: i, color: 'rgba(168, 85, 247, 0.13)' });
-                            activeStart = null;
-                        }
-                    }
-                }
-                if (activeStart !== null) {
-                    recommendationPieces.push({ gt: activeStart - 1, lte: data.length - 1, color: 'rgba(168, 85, 247, 0.13)' });
+                const firstFutureIndex = data.findIndex(h => h.is_future);
+                const chartAreas = [];
+                if (firstFutureIndex >= 0) {
+                    chartAreas.push([
+                        {
+                            xAxis: timeKeys[firstFutureIndex],
+                            label: {
+                                show: true,
+                                formatter: t('smart_charging.chartForecastZone'),
+                                color: getThemeColor('--text-muted', '#8b949e'),
+                                fontSize: 9,
+                            },
+                            itemStyle: { color: 'rgba(0, 210, 255, 0.035)' },
+                        },
+                        { xAxis: timeKeys[data.length - 1] },
+                    ]);
                 }
 
                 const option = {
@@ -450,18 +484,19 @@ const SmartChargingPage = ((Vue) => {
                         borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
                         textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-mono)', fontSize: 11 },
                         formatter: function(params) {
-                            let html = '<b>' + params[0].axisValue + '</b>';
+                            const dataIndex = params[0].dataIndex;
+                            let html = '<b>' + (times[dataIndex] || params[0].axisValue) + '</b>';
                             params.forEach(function(p) {
                                 if (p.value != null) {
                                     let valStr;
-                                    if (p.seriesName === priceLegend || p.seriesName === recommendedLegend) {
+                                    if (p.seriesName === priceLegend) {
                                         valStr = p.value.toFixed(2) + ' ct/kWh';
                                     } else {
                                         valStr = p.value.toFixed(3) + ' kWh';
                                     }
                                     html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + valStr + '</b></span>';
-                                    if (p.seriesName === recommendedLegend) {
-                                        html += '<br/><span style="color: var(--text-muted);">' + t('smart_charging.chartTooltipRecommended') + '</span>';
+                                    if (p.seriesName === priceLegend && data[p.dataIndex]?.is_future) {
+                                        html += '<br/><span style="color: var(--text-muted);">' + t('smart_charging.chartTooltipForecastPrice') + '</span>';
                                     }
                                 }
                             });
@@ -473,7 +508,6 @@ const SmartChargingPage = ((Vue) => {
                             { name: priceLegend, icon: 'line', itemStyle: { color: '#00d2ff' } },
                             { name: chargingLegend, icon: 'bar', itemStyle: { color: '#22c55e' } },
                             { name: solarLegend, icon: 'bar', itemStyle: { color: '#f59e0b' } },
-                            { name: recommendedLegend, icon: 'triangle', itemStyle: { color: '#a855f7' } },
                         ],
                         bottom: 0,
                         textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
@@ -481,9 +515,14 @@ const SmartChargingPage = ((Vue) => {
                     grid: { left: 45, right: 45, top: 25, bottom: 45 },
                     xAxis: {
                         type: 'category',
-                        data: times,
+                        data: timeKeys,
                         axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
-                        axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 9, rotate: 30 },
+                        axisLabel: {
+                            color: getThemeColor('--text-secondary', '#8b949e'),
+                            fontSize: 9,
+                            rotate: 30,
+                            formatter: function(value, index) { return times[index] || value; },
+                        },
                     },
                     yAxis: [
                         {
@@ -511,11 +550,21 @@ const SmartChargingPage = ((Vue) => {
                             showSymbol: false,
                             lineStyle: { width: 3, color: '#00d2ff' },
                             itemStyle: { color: '#00d2ff' },
-                            markArea: actualPieces.length > 0 ? {
+                            markArea: chartAreas.length > 0 ? {
                                 silent: true,
-                                data: actualPieces.map(p => [{ xAxis: times[p.gt >= 0 ? p.gt : 0] }, { xAxis: times[p.lte] }]),
-                                itemStyle: { color: 'rgba(0, 210, 255, 0.06)' }
-                            } : undefined
+                                data: chartAreas,
+                            } : undefined,
+                            markLine: firstFutureIndex >= 0 ? {
+                                symbol: ['none', 'none'],
+                                lineStyle: { color: 'rgba(0, 210, 255, 0.45)', type: 'dashed' },
+                                label: {
+                                    show: true,
+                                    formatter: t('smart_charging.chartNowBoundary'),
+                                    color: getThemeColor('--text-muted', '#8b949e'),
+                                    fontSize: 9,
+                                },
+                                data: [{ xAxis: timeKeys[firstFutureIndex] }],
+                            } : undefined,
                         },
                         {
                             name: chargingLegend,
@@ -542,20 +591,6 @@ const SmartChargingPage = ((Vue) => {
                                 ]),
                                 borderRadius: [3, 3, 0, 0]
                             }
-                        },
-                        {
-                            name: recommendedLegend,
-                            type: 'scatter',
-                            yAxisIndex: 1,
-                            data: recommendationPoints,
-                            symbol: 'triangle',
-                            symbolSize: 12,
-                            itemStyle: { color: '#a855f7' },
-                            markArea: recommendationPieces.length > 0 ? {
-                                silent: true,
-                                data: recommendationPieces.map(p => [{ xAxis: times[p.gt >= 0 ? p.gt : 0] }, { xAxis: times[p.lte] }]),
-                                itemStyle: { color: 'rgba(168, 85, 247, 0.10)' }
-                            } : undefined
                         }
                     ]
                 };
@@ -720,6 +755,8 @@ const SmartChargingPage = ((Vue) => {
                 statusBadgeClass,
                 statusBadgeText,
                 translatedReason,
+                planDecisionClass,
+                planDecisionText,
                 getTargetRotation,
                 formatPrice,
                 formatKwh,
@@ -738,6 +775,68 @@ const SmartChargingPage = ((Vue) => {
     // Inject Stylesheet dynamically for clean layout component-scoping
     const style = document.createElement('style');
     style.textContent = `
+        .sc-plan-card {
+            margin-bottom: var(--space-lg);
+            padding: var(--space-md);
+            background: rgba(0, 210, 255, 0.03);
+            border: 1px solid rgba(0, 210, 255, 0.16);
+            border-radius: var(--radius-md);
+        }
+
+        .sc-plan-heading {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-sm);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .sc-plan-decision {
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .sc-plan-load { color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
+        .sc-plan-wait { color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+        .sc-plan-not-load { color: var(--text-secondary); background: rgba(148, 163, 184, 0.12); }
+
+        .sc-plan-values {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+
+        .sc-plan-value {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: var(--space-sm);
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: var(--radius-sm);
+        }
+
+        .sc-plan-value span, .sc-plan-note {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+        }
+
+        .sc-plan-value strong {
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+
+        .sc-plan-note {
+            margin: var(--space-sm) 0 0;
+            line-height: 1.35;
+        }
+
         .sc-live-grid {
             display: grid;
             grid-template-columns: 220px 1fr;

@@ -21,15 +21,67 @@ Value: TypeAlias = None | bool | int | float | str | bytes
 
 _DOMAIN_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,62}$")
 _OBJECT_PATTERN = re.compile(r"^[a-z][a-z0-9_]{1,126}$")
-_WRITE_PATTERN = re.compile(
-    r"^\s*(?:INSERT\s+(?:OR\s+\w+\s+)?INTO|UPDATE|DELETE\s+FROM)\s+([a-z][a-z0-9_]*)",
+_IDENTIFIER = r"[a-z][a-z0-9_]*"
+_TABLE_REFERENCE = re.compile(
+    rf"\b(?:FROM|JOIN)\s+({_IDENTIFIER})\b", re.IGNORECASE
+)
+_WRITE_PATTERNS = (
+    ("insert", re.compile(rf"^INSERT\s+INTO\s+({_IDENTIFIER})\b", re.IGNORECASE)),
+    ("update", re.compile(rf"^UPDATE\s+({_IDENTIFIER})\b", re.IGNORECASE)),
+    ("delete", re.compile(rf"^DELETE\s+FROM\s+({_IDENTIFIER})\b", re.IGNORECASE)),
+)
+_COMMENT_OR_QUOTED_IDENTIFIER = re.compile(r"--|/\*|\*/|['\"`\[]")
+_SCHEMA_QUALIFICATION = re.compile(rf"\b{_IDENTIFIER}\s*\.")
+_UNSUPPORTED_KEYWORD = re.compile(
+    r"\b(?:WITH|RECURSIVE|REPLACE|ATTACH|DETACH|VACUUM|PRAGMA|CREATE|ALTER|DROP|"
+    r"REINDEX|ANALYZE|TRIGGER|VIEW|INDEX|SAVEPOINT|RELEASE|ROLLBACK|BEGIN|COMMIT|"
+    r"END|EXPLAIN|RETURNING|UPSERT|CONFLICT)\b",
     re.IGNORECASE,
 )
-_READ_PATTERN = re.compile(r"\b(?:FROM|JOIN)\s+([a-z][a-z0-9_]*)", re.IGNORECASE)
-_PROHIBITED_SQL = re.compile(
-    r"\b(?:ATTACH|DETACH|VACUUM|PRAGMA|CREATE|ALTER|DROP|REINDEX)\b",
-    re.IGNORECASE,
-)
+
+
+def _statement_tables(sql: str) -> tuple[frozenset[str], frozenset[str]]:
+    """Return the exact table scope of one deliberately narrow SQL statement."""
+
+    if (
+        not sql
+        or ";" in sql
+        or _COMMENT_OR_QUOTED_IDENTIFIER.search(sql)
+        or _SCHEMA_QUALIFICATION.search(sql)
+        or _UNSUPPORTED_KEYWORD.search(sql)
+    ):
+        raise ManifestInvalid("Unsafe SQL in operation manifest")
+
+    normalized = " ".join(sql.split())
+    write_table: str | None = None
+    for statement_type, pattern in _WRITE_PATTERNS:
+        match = pattern.match(normalized)
+        if match is not None:
+            write_table = match.group(1).lower()
+            if statement_type == "insert" and not re.fullmatch(
+                rf"INSERT INTO {_IDENTIFIER} \([^()]+\) VALUES \([^()]+\)",
+                normalized,
+                re.IGNORECASE,
+            ):
+                raise ManifestInvalid("Unsupported INSERT statement grammar")
+            if statement_type == "update" and not re.fullmatch(
+                rf"UPDATE {_IDENTIFIER} SET .+(?: WHERE .+)?", normalized, re.IGNORECASE
+            ):
+                raise ManifestInvalid("Unsupported UPDATE statement grammar")
+            if statement_type == "delete" and not re.fullmatch(
+                rf"DELETE FROM {_IDENTIFIER}(?: WHERE .+)?", normalized, re.IGNORECASE
+            ):
+                raise ManifestInvalid("Unsupported DELETE statement grammar")
+            break
+    else:
+        if not re.fullmatch(r"SELECT .+", normalized, re.IGNORECASE):
+            raise ManifestInvalid("Unsupported SQL statement grammar")
+        if len(re.findall(r"\bSELECT\b", normalized, re.IGNORECASE)) != 1:
+            raise ManifestInvalid("Unsupported SELECT statement grammar")
+
+    reads = frozenset(match.group(1).lower() for match in _TABLE_REFERENCE.finditer(normalized))
+    writes = frozenset({write_table}) if write_table is not None else frozenset()
+    return writes, reads - writes
 
 
 class ServiceState(str, Enum):
@@ -133,11 +185,11 @@ class DomainManifest:
                 raise ManifestInvalid(
                     "Invalid database object name", domain=self.domain_id
                 )
-            if item.object_type not in {"table", "view", "index"}:
+            if item.object_type != "table":
                 raise ManifestInvalid(
                     "Invalid database object type", domain=self.domain_id
                 )
-            if item.object_type != "view" and item.writer_domain != self.domain_id:
+            if item.writer_domain != self.domain_id:
                 raise OwnershipViolation("Foreign object writer", domain=self.domain_id)
             if self.domain_id not in {"core", "wp03_test"} and not item.name.startswith(
                 f"{self.domain_id}_"
@@ -180,18 +232,15 @@ class DomainManifest:
                 )
             statement_ids.add(statement.statement_id)
             sql = statement.sql.strip()
-            if not sql or ";" in sql or _PROHIBITED_SQL.search(sql):
-                raise ManifestInvalid(
-                    "Unsafe SQL in operation manifest", domain=self.domain_id
-                )
+            try:
+                actual_write, actual_reads = _statement_tables(sql)
+            except ManifestInvalid as error:
+                raise ManifestInvalid(str(error), domain=self.domain_id) from error
             if sql.count("?") != len(statement.parameters):
                 raise ManifestInvalid(
                     "Statement parameters do not match its placeholders",
                     domain=self.domain_id,
                 )
-            match = _WRITE_PATTERN.match(sql)
-            actual_write = frozenset({match.group(1)}) if match else frozenset()
-            actual_reads = frozenset(_READ_PATTERN.findall(sql)) - actual_write
             if actual_write != statement.write_tables:
                 raise OwnershipViolation(
                     "SQL write scope differs from its declaration",
@@ -201,10 +250,26 @@ class DomainManifest:
                 raise OwnershipViolation(
                     "Statement writes outside operation scope", domain=self.domain_id
                 )
-            if not actual_reads.issubset(statement.read_tables | operation.read_tables):
+            if actual_reads != statement.read_tables:
                 raise OwnershipViolation(
-                    "Statement reads outside operation scope", domain=self.domain_id
+                    "SQL read scope differs from its declaration", domain=self.domain_id
                 )
+        actual_operation_writes = frozenset(
+            table for statement in operation.statements for table in statement.write_tables
+        )
+        actual_operation_reads = frozenset(
+            table for statement in operation.statements for table in statement.read_tables
+        )
+        if actual_operation_writes != operation.write_tables:
+            raise OwnershipViolation(
+                "Operation write scope differs from its statements",
+                domain=self.domain_id,
+            )
+        if actual_operation_reads != operation.read_tables:
+            raise OwnershipViolation(
+                "Operation read scope differs from its statements",
+                domain=self.domain_id,
+            )
 
     @property
     def checksum(self) -> str:
