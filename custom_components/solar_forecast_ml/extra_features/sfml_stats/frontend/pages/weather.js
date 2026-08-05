@@ -218,6 +218,7 @@ const _WeatherPage = {
                 <div v-else>
                     <div v-if="historyLoading" class="history-note">{{ $t('weather.historyLoading') }}</div>
                     <div v-else-if="historyAvailabilityText" class="history-note">{{ historyAvailabilityText }}</div>
+                    <div v-if="historyPartialDayText" class="history-note">{{ historyPartialDayText }}</div>
                     <div class="history-kpis">
                         <div class="history-kpi">
                             <div class="history-kpi-value">{{ fmt(history.stats.avgTemp, 1) }}°C</div>
@@ -450,6 +451,15 @@ const _WeatherPage = {
                 return '';
             }
             return t('weather.historyAvail', { days: historyMeta.availableDays });
+        });
+        const partialHistoryDays = computed(() => history.data.filter((day) => day?.is_complete === false));
+        const historyPartialDayText = computed(() => {
+            const days = partialHistoryDays.value;
+            if (!days.length) return '';
+            const latest = days.at(-1);
+            const hours = Number(latest?.hours_count);
+            const detail = Number.isFinite(hours) ? ` (${hours} Stunden)` : '';
+            return `${days.length} unvollständige${days.length === 1 ? 'r Tag ist' : ' Tage sind'} enthalten${detail}; Tageswerte werden nicht hochgerechnet.`;
         });
         // Helpers ------------------------------------------------------
         function fmt(v, digits = 1) {
@@ -796,7 +806,9 @@ const _WeatherPage = {
             const maxs = data.map(d => d.temp_max).filter(v => v != null);
             const mins = data.map(d => d.temp_min).filter(v => v != null);
             const winds = data.map(d => d.wind_avg).filter(v => v != null);
-            const rains = data.map(d => d.rain_total).filter(v => v != null);
+            const rains = data
+                .filter(d => d?.precipitation_semantics === 'amount' || d?.precipitation_semantics == null)
+                .map(d => d.rain_total).filter(v => v != null);
             const suns = data.map(d => d.sun_hours || 0);
             return {
                 avgTemp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
@@ -852,7 +864,7 @@ const _WeatherPage = {
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,
             dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis,
             fmt, formatTime,
-            historyAvailabilityText,
+            historyAvailabilityText, historyPartialDayText,
             setHistoryTab,
         };
     },

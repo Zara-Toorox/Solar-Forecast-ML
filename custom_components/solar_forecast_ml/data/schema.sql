@@ -196,6 +196,95 @@ CREATE TABLE IF NOT EXISTS ai_model_candidates (
     FOREIGN KEY(run_id) REFERENCES ai_training_runs(run_id)
 );
 
+CREATE TABLE IF NOT EXISTS ai_model_candidate_dispositions (
+    candidate_id TEXT PRIMARY KEY,
+    disposition TEXT NOT NULL CHECK(disposition IN (
+        'superseded_by_confirmed_drift',
+        'incompatible_runtime',
+        'migration_superseded'
+    )),
+    replacement_candidate_id TEXT,
+    retrain_request_id TEXT,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_dispositions_append_only_update
+BEFORE UPDATE ON ai_model_candidate_dispositions
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_candidate_dispositions is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_dispositions_append_only_delete
+BEFORE DELETE ON ai_model_candidate_dispositions
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_candidate_dispositions is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_dispositions_evaluation_guard
+BEFORE INSERT ON ai_model_candidate_dispositions
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_evaluations WHERE candidate_id = NEW.candidate_id
+    UNION ALL
+    SELECT 1 FROM ai_model_evaluations_v2 WHERE candidate_id = NEW.candidate_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'candidate evaluation already exists; disposition is forbidden');
+END;
+
+CREATE TABLE IF NOT EXISTS ai_model_retrain_requests (
+    request_id TEXT PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('pending', 'bound', 'completed')),
+    scope TEXT NOT NULL,
+    drift_type TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK(severity IN ('warning', 'critical')),
+    first_event_date TEXT NOT NULL,
+    last_event_date TEXT NOT NULL,
+    confirmation_days INTEGER NOT NULL,
+    bound_candidate_id TEXT,
+    superseded_candidate_id TEXT,
+    completion_decision TEXT,
+    completed_at TIMESTAMP,
+    FOREIGN KEY(bound_candidate_id) REFERENCES ai_model_candidates(candidate_id),
+    FOREIGN KEY(superseded_candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_retrain_request_events (
+    request_id TEXT NOT NULL,
+    drift_event_id INTEGER NOT NULL UNIQUE,
+    linked_at TIMESTAMP NOT NULL,
+    PRIMARY KEY(request_id, drift_event_id),
+    FOREIGN KEY(request_id) REFERENCES ai_model_retrain_requests(request_id),
+    FOREIGN KEY(drift_event_id) REFERENCES drift_events(id)
+);
+
+CREATE TRIGGER IF NOT EXISTS ai_model_retrain_request_events_append_only_update
+BEFORE UPDATE ON ai_model_retrain_request_events
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_retrain_request_events is append-only');
+END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_retrain_request_events_append_only_delete
+BEFORE DELETE ON ai_model_retrain_request_events
+BEGIN
+    SELECT RAISE(ABORT, 'ai_model_retrain_request_events is append-only');
+END;
+
+CREATE TABLE IF NOT EXISTS ai_model_training_lease (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    owner TEXT NOT NULL,
+    retrain_request_id TEXT,
+    acquired_at_epoch REAL NOT NULL,
+    expires_at_epoch REAL NOT NULL,
+    FOREIGN KEY(retrain_request_id) REFERENCES ai_model_retrain_requests(request_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_model_retrain_request_open
+ON ai_model_retrain_requests(scope, drift_type)
+WHERE status IN ('pending', 'bound');
+
 CREATE TABLE IF NOT EXISTS ai_model_candidate_artifacts (
     candidate_id TEXT NOT NULL,
     model_type TEXT NOT NULL,
@@ -430,6 +519,19 @@ BEGIN
     SELECT RAISE(ABORT, 'ai_model_evaluations is append-only');
 END;
 
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_candidate_terminal_guard
+BEFORE INSERT ON ai_model_evaluations
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_candidate_dispositions WHERE candidate_id = NEW.candidate_id
+    UNION ALL
+    SELECT 1 FROM ai_model_evaluations WHERE candidate_id = NEW.candidate_id
+    UNION ALL
+    SELECT 1 FROM ai_model_evaluations_v2 WHERE candidate_id = NEW.candidate_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'candidate is dispositioned or already evaluated');
+END;
+
 CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_samples_append_only_update
 BEFORE UPDATE ON ai_model_evaluation_samples
 BEGIN
@@ -643,6 +745,16 @@ CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_append_only_insert_guard
 BEFORE INSERT ON ai_model_evaluations_v2
 WHEN EXISTS (SELECT 1 FROM ai_model_evaluations_v2 WHERE evaluation_id = NEW.evaluation_id)
 BEGIN SELECT RAISE(ABORT, 'ai_model_evaluations_v2 is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_candidate_terminal_guard
+BEFORE INSERT ON ai_model_evaluations_v2
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_candidate_dispositions WHERE candidate_id = NEW.candidate_id
+    UNION ALL
+    SELECT 1 FROM ai_model_evaluations WHERE candidate_id = NEW.candidate_id
+    UNION ALL
+    SELECT 1 FROM ai_model_evaluations_v2 WHERE candidate_id = NEW.candidate_id
+)
+BEGIN SELECT RAISE(ABORT, 'candidate is dispositioned or already evaluated'); END;
 
 CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_samples_v2_append_only_update
 BEFORE UPDATE ON ai_model_evaluation_samples_v2
@@ -2416,6 +2528,18 @@ CREATE TABLE IF NOT EXISTS shadow_pattern_config (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS shadow_history_repair_runs (
+    repair_version TEXT PRIMARY KEY,
+    repaired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    patterns_rebuilt_at TIMESTAMP,
+    source_rows INTEGER NOT NULL,
+    recalculated_rows INTEGER NOT NULL,
+    not_evaluable_rows INTEGER NOT NULL,
+    learning_history_rows_removed INTEGER NOT NULL,
+    hourly_pattern_rows_removed INTEGER NOT NULL,
+    seasonal_pattern_rows_removed INTEGER NOT NULL
+);
+
 -- ============================================================================
 -- V17.0.0: DRIFT DETECTION & MONITORING TABLES
 -- Rolling metrics, CUSUM state, events and response config @zara
@@ -2437,6 +2561,10 @@ CREATE TABLE IF NOT EXISTS drift_metrics_rolling (
     UNIQUE(scope, window_days, season)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_drift_metrics_rolling_null_season
+ON drift_metrics_rolling(scope, window_days)
+WHERE season IS NULL;
+
 -- Bucket-specific drift metrics (cloud x hour x season)
 CREATE TABLE IF NOT EXISTS drift_metrics_bucket (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2453,6 +2581,10 @@ CREATE TABLE IF NOT EXISTS drift_metrics_bucket (
     UNIQUE(scope, cloud_bucket, hour_bucket, season)
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS uq_drift_metrics_bucket_null_season
+ON drift_metrics_bucket(scope, cloud_bucket, hour_bucket)
+WHERE season IS NULL;
+
 -- Detected drift events
 CREATE TABLE IF NOT EXISTS drift_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2464,7 +2596,7 @@ CREATE TABLE IF NOT EXISTS drift_events (
     metric_value REAL,
     threshold_value REAL,
     description TEXT,
-    response_action TEXT,                             -- 'light_retrain','physics_boost','full_reset','none'
+    response_action TEXT,                             -- 'light_retrain','bias_correction','data_quality_guard','drift_evidence','none'
     response_executed BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

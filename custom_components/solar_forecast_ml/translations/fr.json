@@ -176,7 +176,7 @@
     },
     "reset_ai_model": {
       "name": "Reinitialiser le modele IA TinyLSTM",
-      "description": "DEVELOPER ONLY or on ADVICE"
+      "description": "Recharge le modele IA depuis les poids enregistres. Aucun artefact du modele n'est supprime."
     },
     "run_grid_search": {
       "name": "Optimisation Grid-Search des hyperparametres",

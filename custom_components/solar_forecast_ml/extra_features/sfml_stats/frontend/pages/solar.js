@@ -168,14 +168,39 @@ const _SolarPage = {
 
             <!-- ========== KARTE 3b: SCHATTEN-FINGERPRINT (Monat × Stunde) ========== -->
             <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="shadowFingerprint.loaded">
-                <div class="chart-header" style="margin-bottom: var(--space-md);">
-                    <span class="chart-title">🌓 {{ $t('solar.fingerprint.title') }}</span>
-                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: var(--space-sm);">{{ $t('solar.fingerprint.subtitle', {
-                        currentSamples: shadowFingerprint.summary.current_window_samples || shadowFingerprint.summary.evaluated_samples || 0,
-                        historySamples: shadowFingerprint.summary.seasonal_evaluated_samples || 0
-                    }) }}</span>
+                <div class="chart-header fingerprint-header" style="margin-bottom: var(--space-md);">
+                    <div class="fingerprint-header-copy">
+                        <div class="fingerprint-title-row">
+                            <span class="chart-title">🌓 {{ $t('solar.fingerprint.title') }}</span>
+                            <span class="fingerprint-scope-badge">{{ shadowFingerprintGroupLabel(shadowFingerprint.displayedGroup) }}</span>
+                        </div>
+                        <span class="fingerprint-subtitle">{{ $t('solar.fingerprint.subtitle', {
+                            currentSamples: shadowFingerprint.summary.current_window_samples || shadowFingerprint.summary.evaluated_samples || 0,
+                            historySamples: shadowFingerprint.summary.seasonal_evaluated_samples || 0
+                        }) }}</span>
+                    </div>
+                    <label class="fingerprint-group-control" v-if="shadowFingerprint.availableGroups.length > 1">
+                        <span>{{ $t('solar.fingerprint.analysisScope') }}</span>
+                        <select :value="shadowFingerprint.selectedGroup"
+                                :disabled="shadowFingerprint.loading"
+                                :aria-label="$t('solar.fingerprint.analysisScope')"
+                                @change="selectShadowFingerprintGroup($event.target.value)">
+                            <option v-for="group in shadowFingerprint.availableGroups" :key="group" :value="group">
+                                {{ shadowFingerprintGroupLabel(group) }}
+                            </option>
+                        </select>
+                    </label>
                 </div>
 
+                <div class="fingerprint-status" role="status" aria-live="polite" v-if="shadowFingerprint.loading">
+                    {{ $t('solar.fingerprint.loading') }}
+                </div>
+                <div class="fingerprint-status fingerprint-status-error" role="alert" v-else-if="shadowFingerprint.error">
+                    <span>{{ $t('solar.fingerprint.loadError') }}</span>
+                    <button type="button" @click="retryShadowFingerprint">{{ $t('solar.fingerprint.retry') }}</button>
+                </div>
+
+                <template v-else>
                 <!-- Fingerprint KPIs -->
                 <div class="annual-kpi-grid" style="margin-bottom: var(--space-md);">
                     <div class="annual-kpi" style="--kpi-accent: #ef4444;">
@@ -199,8 +224,8 @@ const _SolarPage = {
                 <!-- Heatmap: Monat × Stunde -->
                 <div ref="shadowFingerprintEl" style="height: 380px; width: 100%;" v-if="shadowFingerprint.seasonal.length > 0"></div>
                 <div v-else style="padding: 2.5rem 1rem; text-align: center; color: var(--text-secondary);">
-                    <div style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">{{ $t('solar.fingerprint.emptyTitle') }}</div>
-                    <div>{{ $t('solar.fingerprint.emptyText') }}</div>
+                    <div style="font-size: 1.05rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">{{ shadowFingerprint.modelReady ? $t('solar.fingerprint.emptyTitle') : $t('solar.fingerprint.modelPendingTitle') }}</div>
+                    <div>{{ shadowFingerprint.modelReady ? shadowFingerprintEmptyText : $t('solar.fingerprint.modelPendingText') }}</div>
                 </div>
 
                 <!-- Pattern Legend + Insights -->
@@ -214,6 +239,7 @@ const _SolarPage = {
                         </div>
                     </div>
                 </div>
+                </template>
             </div>
 
             <!-- ========== KARTE 3c: SCHATTEN-WANDERUNG ========== -->
@@ -548,21 +574,64 @@ const _SolarPage = {
         let shadowFingerprintChart = null;
         const shadowFingerprint = reactive({
             loaded: false,
+            loading: false,
+            error: false,
             modelReady: false,
+            availableGroups: ['_system_'],
+            selectedGroup: '_system_',
+            displayedGroup: '_system_',
             hourly: [],
             seasonal: [],
             summary: {},
             insights: [],
             maxIntensity: 0,
         });
-        const smHasTypicalPattern = computed(() => shadowFingerprint.seasonal.length > 0);
+        let shadowFingerprintRequestId = 0;
         // Reuse the locale-aware short months from setup.
         const MONTH_SHORT = MONTH_NAMES;
 
-        async function loadShadowFingerprint() {
+        function shadowFingerprintGroupLabel(group) {
+            return group === '_system_' ? t('solar.fingerprint.systemScope') : String(group || '');
+        }
+
+        const shadowFingerprintEmptyText = computed(() => (
+            shadowFingerprint.displayedGroup === '_system_'
+                ? t('solar.fingerprint.emptyText')
+                : t('solar.fingerprint.emptyGroupText', {
+                    group: shadowFingerprintGroupLabel(shadowFingerprint.displayedGroup),
+                })
+        ));
+
+        function normalizeShadowFingerprintGroups(groups) {
+            const unique = new Set(['_system_']);
+            (Array.isArray(groups) ? groups : []).forEach(group => {
+                if (typeof group === 'string' && group.trim()) unique.add(group);
+            });
+            return [...unique].sort((left, right) => {
+                if (left === '_system_') return -1;
+                if (right === '_system_') return 1;
+                return left.localeCompare(right, 'de', { numeric: true, sensitivity: 'base' });
+            });
+        }
+
+        async function loadShadowFingerprint(group = shadowFingerprint.selectedGroup) {
+            const requestedGroup = group || '_system_';
+            const requestId = ++shadowFingerprintRequestId;
+            shadowFingerprint.loading = true;
+            shadowFingerprint.error = false;
+            if (shadowFingerprintChart) {
+                shadowFingerprintChart.dispose();
+                shadowFingerprintChart = null;
+            }
             try {
-                const res = await SFMLApi.fetch('/api/sfml_stats/solar/shadow_fingerprint', { forceRefresh: true });
-                if (!res || !res.success) return;
+                const url = `/api/sfml_stats/solar/shadow_fingerprint?group=${encodeURIComponent(requestedGroup)}`;
+                const res = await SFMLApi.fetch(url, { forceRefresh: true });
+                if (requestId !== shadowFingerprintRequestId) return;
+                if (!res?.success || res.group !== requestedGroup) throw new Error('invalid_shadow_fingerprint_response');
+
+                shadowFingerprint.availableGroups = normalizeShadowFingerprintGroups(res.available_groups);
+                shadowFingerprint.selectedGroup = requestedGroup;
+                shadowFingerprint.displayedGroup = requestedGroup;
                 shadowFingerprint.hourly = res.hourly || [];
                 shadowFingerprint.seasonal = res.seasonal || [];
                 shadowFingerprint.summary = res.summary || {};
@@ -575,14 +644,30 @@ const _SolarPage = {
                 await nextTick();
                 // Two-phase render: first initialize when DOM is ready, then re-render after layout stabilizes
                 setTimeout(() => {
+                    if (requestId !== shadowFingerprintRequestId) return;
                     renderShadowFingerprint();
                     setTimeout(() => shadowFingerprintChart?.resize(), 100);
                 }, 50);
             } catch (e) {
+                if (requestId !== shadowFingerprintRequestId) return;
                 console.error('Shadow fingerprint load error:', e);
+                shadowFingerprint.error = true;
             } finally {
-                shadowFingerprint.loaded = true;
+                if (requestId === shadowFingerprintRequestId) {
+                    shadowFingerprint.loading = false;
+                    shadowFingerprint.loaded = true;
+                }
             }
+        }
+
+        function selectShadowFingerprintGroup(group) {
+            if (!group || group === shadowFingerprint.displayedGroup) return;
+            shadowFingerprint.selectedGroup = group;
+            loadShadowFingerprint(group);
+        }
+
+        function retryShadowFingerprint() {
+            loadShadowFingerprint(shadowFingerprint.selectedGroup);
         }
 
         function buildInsights(hourly) {
@@ -621,15 +706,17 @@ const _SolarPage = {
                 backgroundColor: 'transparent',
                 grid: { left: 60, right: 40, top: 30, bottom: 95 },
                 tooltip: {
+                    renderMode: 'richText',
+                    confine: true,
                     backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'),
                     borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
                     textStyle: { color: getThemeColor('--text-primary', '#f0f6fc') },
                     formatter: (p) => {
                         const d = metaMap[`${p.data[0]}-${p.data[1]}`] || {};
-                        return `<b>${MONTH_SHORT[p.data[1]]} · ${hours[p.data[0]]}:00</b><br/>`
-                            + `${t('solar.fingerprint.tooltipShadow')}: <b>${d.avg_percent || 0}%</b><br/>`
-                            + `${t('solar.fingerprint.tooltipFrequency')}: ${((d.rate || 0) * 100).toFixed(0)}%<br/>`
-                            + `${t('solar.fingerprint.tooltipCause')}: <b>${d.cause ? shadowCauseLabel(d.cause) : '--'}</b><br/>`
+                        return `${shadowFingerprintGroupLabel(shadowFingerprint.displayedGroup)} · ${MONTH_SHORT[p.data[1]]} · ${hours[p.data[0]]}:00\n`
+                            + `${t('solar.fingerprint.tooltipShadow')}: ${d.avg_percent || 0}%\n`
+                            + `${t('solar.fingerprint.tooltipFrequency')}: ${((d.rate || 0) * 100).toFixed(0)}%\n`
+                            + `${t('solar.fingerprint.tooltipCause')}: ${d.cause ? shadowCauseLabel(d.cause) : '--'}\n`
                             + `${t('solar.fingerprint.tooltipSamples')}: ${d.samples || 0} · ${t('solar.fingerprint.tooltipConfidence')}: ${((d.confidence || 0) * 100).toFixed(0)}%`;
                     },
                 },
@@ -686,6 +773,7 @@ const _SolarPage = {
 	            },
 	            typicalData: {},
 	        });
+        const smHasTypicalPattern = computed(() => Object.keys(shadowMovement.typicalData || {}).length > 0);
 
         const smSunPosition = computed(() => ((shadowMovement.currentHour - 6) / 14) * 100);
 
@@ -1750,6 +1838,8 @@ const _SolarPage = {
             dataCoverage, annualKpis, yearOverview,
             shadowStats, weeklyRows,
             shadowFingerprint, shadowFingerprintEl,
+            shadowFingerprintGroupLabel, shadowFingerprintEmptyText,
+            selectShadowFingerprintGroup, retryShadowFingerprint,
             shadowMovement, smHourRange, smCurrentMonthName,
             smHasTypicalPattern,
             smSunPosition, smLossColor, smSceneModeLabel, smCauseBadgeClass,
@@ -1875,6 +1965,77 @@ const _SolarPage = {
             font-family: var(--font-mono);
             font-weight: 700;
             color: var(--text-primary);
+        }
+
+        .fingerprint-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: var(--space-md);
+        }
+        .fingerprint-header-copy {
+            min-width: 0;
+        }
+        .fingerprint-title-row {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+        }
+        .fingerprint-subtitle {
+            display: block;
+            margin-top: 4px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        .fingerprint-scope-badge {
+            display: inline-flex;
+            align-items: center;
+            min-height: 24px;
+            padding: 3px 9px;
+            border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border-default));
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--accent) 10%, transparent);
+            color: var(--accent);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .fingerprint-group-control {
+            display: grid;
+            gap: 4px;
+            flex: 0 0 min(220px, 35%);
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .fingerprint-group-control select {
+            width: 100%;
+            min-height: 44px;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+        .fingerprint-status {
+            display: flex;
+            min-height: 220px;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-sm);
+            color: var(--text-secondary);
+            text-align: center;
+        }
+        .fingerprint-status-error {
+            flex-direction: column;
+        }
+        .fingerprint-status-error button {
+            min-height: 40px;
+            padding: 8px 14px;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            background: var(--surface-inset);
+            color: var(--text-primary);
+            cursor: pointer;
         }
 
         .sm-panel-container {
@@ -2283,6 +2444,14 @@ const _SolarPage = {
             }
             .shadow-charts-row {
                 grid-template-columns: 1fr !important;
+            }
+            .fingerprint-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .fingerprint-group-control {
+                flex-basis: auto;
+                width: 100%;
             }
             .sm-panels {
                 grid-template-columns: 1fr;

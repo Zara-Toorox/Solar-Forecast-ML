@@ -175,8 +175,8 @@
       "description": "DEVELOPER ONLY or on ADVICE"
     },
     "reset_ai_model": {
-      "name": "Reiniciar modelo IA TinyLSTM",
-      "description": "DEVELOPER ONLY or on ADVICE"
+      "name": "Reinicializar modelo IA TinyLSTM",
+      "description": "Recarga el modelo de IA desde los pesos guardados. No elimina artefactos del modelo."
     },
     "run_grid_search": {
       "name": "Optimizacion Grid-Search de hiperparametros",

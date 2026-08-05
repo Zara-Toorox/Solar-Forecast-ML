@@ -25,6 +25,16 @@ from zoneinfo import ZoneInfo
 _LOGGER = logging.getLogger(__name__)
 
 
+_DRIFT_NULL_SEASON_INDEX_STATEMENTS = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_drift_metrics_rolling_null_season\n"
+    "ON drift_metrics_rolling(scope, window_days)\n"
+    "WHERE season IS NULL;\n",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_drift_metrics_bucket_null_season\n"
+    "ON drift_metrics_bucket(scope, cloud_bucket, hour_bucket)\n"
+    "WHERE season IS NULL;\n",
+)
+
+
 class StartupInitializer:
     """Synchronous initializer - guarantees database exists before async startup. @zara
 
@@ -131,6 +141,19 @@ class StartupInitializer:
             if schema_path.exists():
                 with open(schema_path, "r", encoding="utf-8") as f:
                     schema_sql = f.read()
+                existing_drift_tables = conn.execute(
+                    """SELECT COUNT(*) FROM sqlite_master
+                       WHERE type = 'table'
+                         AND name IN (
+                             'drift_metrics_rolling',
+                             'drift_metrics_bucket'
+                         )"""
+                ).fetchone()[0]
+                if existing_drift_tables:
+                    # Existing rows must be deduplicated by the transactional
+                    # DatabaseManager migration before these indexes are created.
+                    for statement in _DRIFT_NULL_SEASON_INDEX_STATEMENTS:
+                        schema_sql = schema_sql.replace(statement, "")
                 existing_hourly_predictions = conn.execute(
                     """SELECT 1 FROM sqlite_master
                        WHERE type = 'table' AND name = 'hourly_predictions'"""

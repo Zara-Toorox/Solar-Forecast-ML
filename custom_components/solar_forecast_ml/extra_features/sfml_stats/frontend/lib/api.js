@@ -100,8 +100,9 @@ const SFMLApi = {
         return this.fetch(`/api/sfml_stats/grid_history?hours=${hours}`, { forceRefresh, ttl: 60000 });
     },
 
-    async getWeatherHistory(days = 7, forceRefresh = false) {
-        return this.fetch(`/api/sfml_stats/weather_history?days=${days}`, { forceRefresh, ttl: 300000 });
+    async getWeatherHistory(days = 7, includePartial = false, forceRefresh = false) {
+        const partial = includePartial ? '&include_partial=true' : '';
+        return this.fetch(`/api/sfml_stats/weather_history?days=${days}${partial}`, { forceRefresh, ttl: 300000 });
     },
 
     async getClothingRecommendation(forceRefresh = false) {

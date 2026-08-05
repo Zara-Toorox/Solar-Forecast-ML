@@ -17,8 +17,8 @@ retrain_ai_model:
   fields: {}
 
 reset_ai_model:
-  name: "⚠️ Reset TinyLSTM AI Model"
-  description: "Developer only or on advice."
+  name: "⚠️ Reinitialize TinyLSTM AI Model"
+  description: "Reloads the AI model from persisted weights. No model artifacts are deleted."
   fields: {}
 
 run_grid_search:

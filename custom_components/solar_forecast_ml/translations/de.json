@@ -242,8 +242,8 @@
       "description": "DEVELOPER ONLY or on ADVICE"
     },
     "reset_ai_model": {
-      "name": "TinyLSTM AI-Modell zurücksetzen",
-      "description": "DEVELOPER ONLY or on ADVICE"
+      "name": "TinyLSTM AI-Modell neu initialisieren",
+      "description": "Lädt das AI-Modell aus den gespeicherten Gewichten neu. Es werden keine Modellartefakte gelöscht."
     },
     "run_grid_search": {
       "name": "Grid-Search Hyperparameter-Optimierung",

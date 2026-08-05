@@ -175,8 +175,8 @@
       "description": "DEVELOPER ONLY or on ADVICE"
     },
     "reset_ai_model": {
-      "name": "Сбросить модель ИИ TinyLSTM",
-      "description": "DEVELOPER ONLY or on ADVICE"
+      "name": "Повторно инициализировать модель ИИ TinyLSTM",
+      "description": "Повторно загружает модель ИИ из сохраненных весов. Артефакты модели не удаляются."
     },
     "run_grid_search": {
       "name": "Grid-Search оптимизация гиперпараметров",
