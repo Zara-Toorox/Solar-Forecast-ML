@@ -1,11 +1,11 @@
-<h1 align="center">Solar Forecast ML V40 "Hubble"</h1>
+<h1 align="center">Solar Forecast ML V42 "Hubble"</h1>
 
 <p align="center">
   <strong>Local solar forecasting, energy intelligence, and smart charging for Home Assistant</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-40.0.2-blue.svg" alt="Version"></a>
+  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-42.0.4-blue.svg" alt="Version"></a>
   <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Hubble-purple.svg" alt="Codename"></a>
   <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Proprietary%20Non--Commercial-green.svg" alt="License"></a>
@@ -504,9 +504,9 @@ This repository license is separate from the signed EAI activation key. For heat
 
 **Developer:** [Zara-Toorox](https://github.com/Zara-Toorox)
 
-Thanks to Simon42 and the users & contributors of the German-speaking HA Forum "simon42" for their testing, feedback, and discussion.
+Thanks to Simon42 and the users & contributors of the German-speaking HA Forum "simon42" for their testing, feedback, and discussion. INFO: SFML is a private project not linked to the owner of the Simon42 Forum or any company.
 
-**Support-Forum:** [simon42 Community](https://community.simon42.com/t/ueber-die-kategorie-einrichtung-hilfe/79817) | [Issues](https://github.com/Zara-Toorox/ha-solar-forecast-ml/issues) | [Discussions](https://github.com/Zara-Toorox/ha-solar-forecast-ml/discussions)
+**Support-Forum:** [simon42 Community](https://community.simon42.com/c/sfml/49) | [Issues](https://github.com/Zara-Toorox/ha-solar-forecast-ml/issues) | [Discussions](https://github.com/Zara-Toorox/ha-solar-forecast-ml/discussions)
 
 ---
 

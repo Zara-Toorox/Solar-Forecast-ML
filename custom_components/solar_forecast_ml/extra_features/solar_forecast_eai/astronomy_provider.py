@@ -1,235 +1,349 @@
-"""Read-only adapter for the bundled Solar Forecast ML astronomy database."""
+"""Adapt SFML's public astronomy snapshot to EAI's legacy shape."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 import math
-import sqlite3
 import time
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 from zoneinfo import ZoneInfo
 
-SFML_DATABASE_PATH = Path("/config/solar_forecast_ml/solar_forecast.db")
+SFML_DOMAIN = "solar_forecast_ml"
+SFML_ASTRONOMY_REGISTRY = "astronomy_providers"
+SFML_ASTRONOMY_CONTRACT_VERSION = 2
 QUERY_TIMEOUT_SECONDS = 10.0
-SQLITE_BUSY_TIMEOUT_SECONDS = 1.0
+PROVIDER_RETRY_MAX_ATTEMPTS = 16
+PROVIDER_RETRY_DELAY_SECONDS = 0.05
+PROVIDER_RETRY_MAX_DELAY_SECONDS = 0.5
+RESULT_CACHE_SECONDS = 5.0
+RESULT_CACHE_MAX_ENTRIES = 8
 
 _LOGGER = logging.getLogger(__name__)
 
-_ASTRONOMY_RANGE_SQL = """
-    SELECT cache_date, hour, sun_elevation_deg, sun_azimuth_deg,
-           clear_sky_radiation_wm2, theoretical_max_kwh,
-           sunrise, sunset, solar_noon, daylight_hours
-      FROM astronomy_cache
-     WHERE cache_date >= ? AND cache_date < ?
-     ORDER BY cache_date, hour
-"""
+
+class _ProviderUnavailable(RuntimeError):
+    """The public SFML provider is not ready or cannot serve a snapshot."""
+
+    def __init__(self, message: str, provider_id: int | None = None) -> None:
+        super().__init__(message)
+        self.provider_id = provider_id
+
+
+@dataclass(frozen=True)
+class _ProviderSnapshot:
+    """A snapshot bound to the concrete provider that produced it."""
+
+    payload: Mapping[str, Any]
+    provider_id: int
 
 
 class AstronomyProviderAdapter:
-    """Read and validate the single bundled SFML astronomy source of truth."""
+    """Read and validate the public, entry-scoped SFML astronomy contract."""
 
-    def __init__(
-        self,
-        hass: Any,
-        eai_entry: Any | None = None,
-        *,
-        db_path: str | Path | None = None,
-    ) -> None:
+    def __init__(self, hass: Any, eai_entry: Any | None = None) -> None:
         self._hass = hass
-        # Kept in the signature for existing consumers. Entry data, including a
-        # legacy sfml_entry_id, must not select or alter the bundled SFML source.
-        self._db_path = Path(db_path) if db_path is not None else SFML_DATABASE_PATH
+        self._inflight_reads: dict[
+            tuple[date, date], asyncio.Task[_ProviderSnapshot]
+        ] = {}
+        self._snapshot_cache: dict[
+            tuple[date, date], tuple[float, int, Mapping[str, Any]]
+        ] = {}
+        self._failed_until: dict[tuple[date, date], tuple[float, int | None]] = {}
+        self._closed = False
 
     async def async_get_legacy_days(
         self, start_date: date, days: int = 3
     ) -> dict[str, Any]:
         """Return one to 31 complete local astronomy days in the EAI shape."""
-        if (
+        if self._closed or (
             isinstance(start_date, datetime)
             or not isinstance(start_date, date)
             or type(days) is not int
             or not 1 <= days <= 31
         ):
             return {}
-        end_date = start_date + timedelta(days=days)
         try:
-            rows = await asyncio.wait_for(
-                asyncio.to_thread(self._read_rows, start_date, end_date),
-                timeout=QUERY_TIMEOUT_SECONDS,
+            snapshot = await self._async_get_snapshot(
+                start_date, start_date + timedelta(days=days)
             )
-        except TimeoutError:
-            _LOGGER.warning("SFML astronomy database query timed out")
-            return {}
-        except (OSError, sqlite3.Error):
-            _LOGGER.warning(
-                "SFML astronomy database is unavailable or invalid", exc_info=True
-            )
-            return {}
         except Exception:  # noqa: BLE001 - dependency boundary must fail closed
-            _LOGGER.exception("SFML astronomy database query failed")
             return {}
-
-        normalized = self._validate_and_normalize(rows, start_date, days)
+        if self._closed:
+            return {}
+        normalized = self._validate_and_normalize(snapshot, start_date, days)
         return self._to_legacy_days(normalized) if normalized is not None else {}
 
     async def async_get_day(
         self, target_date: date | datetime
     ) -> dict[str, Any] | None:
         """Return one complete astronomy day, or ``None`` fail-closed."""
-        normalized_date = (
-            target_date.date() if isinstance(target_date, datetime) else target_date
-        )
-        if not isinstance(normalized_date, date):
+        target = target_date.date() if isinstance(target_date, datetime) else target_date
+        if not isinstance(target, date):
             return None
-        days = await self.async_get_legacy_days(normalized_date, days=1)
-        return days.get(normalized_date.isoformat()) or None
+        return (await self.async_get_legacy_days(target, 1)).get(target.isoformat())
 
-    def _read_rows(self, start_date: date, end_date: date) -> list[sqlite3.Row]:
-        """Execute the bounded range query against SFML in SQLite read-only mode."""
-        database_uri = f"file:{self._db_path.as_posix()}?mode=ro"
+    async def async_shutdown(self) -> None:
+        """Stop accepting reads and drain already-bounded provider calls."""
+        self._closed = True
+        tasks = tuple(self._inflight_reads.values())
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._snapshot_cache.clear()
+        self._failed_until.clear()
+
+    async def _async_get_snapshot(
+        self, start_date: date, end_date: date
+    ) -> Mapping[str, Any]:
+        key = (start_date, end_date)
+        now = time.monotonic()
+        for failed_key, (expires_at, _provider_id) in tuple(self._failed_until.items()):
+            if expires_at <= now:
+                self._failed_until.pop(failed_key, None)
+        resolved = self._provider()
+        provider_id = id(resolved[1]) if resolved is not None else None
+        cached = self._snapshot_cache.get(key)
+        if (
+            cached is not None
+            and cached[0] > now
+            and provider_id is not None
+            and cached[1] == provider_id
+        ):
+            return cached[2]
+        self._snapshot_cache.pop(key, None)
+        failure = self._failed_until.get(key)
+        if failure is not None and failure[0] > now and failure[1] == provider_id:
+            raise _ProviderUnavailable("recent SFML astronomy failure", failure[1])
+        self._failed_until.pop(key, None)
+        task = self._inflight_reads.get(key)
+        if task is None:
+            task = asyncio.create_task(
+                self._async_fetch_snapshot(start_date, end_date),
+                name="solar_forecast_eai_astronomy_snapshot",
+            )
+            self._inflight_reads[key] = task
+            task.add_done_callback(
+                lambda complete, read_key=key: self._finish_inflight_read(
+                    read_key, complete
+                )
+            )
+        return (await asyncio.shield(task)).payload
+
+    def _finish_inflight_read(
+        self, key: tuple[date, date], task: asyncio.Task[_ProviderSnapshot]
+    ) -> None:
+        if self._inflight_reads.get(key) is task:
+            self._inflight_reads.pop(key, None)
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            provider_id = getattr(error, "provider_id", None)
+            self._failed_until[key] = (
+                time.monotonic() + RESULT_CACHE_SECONDS,
+                provider_id,
+            )
+            while len(self._failed_until) > RESULT_CACHE_MAX_ENTRIES:
+                self._failed_until.pop(next(iter(self._failed_until)))
+            return
+        result = task.result()
+        self._snapshot_cache[key] = (
+            time.monotonic() + RESULT_CACHE_SECONDS,
+            result.provider_id,
+            result.payload,
+        )
+        while len(self._snapshot_cache) > RESULT_CACHE_MAX_ENTRIES:
+            self._snapshot_cache.pop(next(iter(self._snapshot_cache)))
+
+    async def _async_fetch_snapshot(
+        self, start_date: date, end_date: date
+    ) -> _ProviderSnapshot:
         deadline = time.monotonic() + QUERY_TIMEOUT_SECONDS
-        with sqlite3.connect(
-            database_uri,
-            uri=True,
-            timeout=SQLITE_BUSY_TIMEOUT_SECONDS,
-        ) as connection:
-            connection.row_factory = sqlite3.Row
-            connection.execute("PRAGMA query_only = ON")
-            connection.set_progress_handler(
-                lambda: int(time.monotonic() >= deadline), 1000
+        last_error: Exception | None = None
+        attempts = 0
+        for attempt in range(PROVIDER_RETRY_MAX_ATTEMPTS):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0 or self._closed:
+                break
+            attempts += 1
+            resolved = self._provider()
+            if resolved is None:
+                last_error = _ProviderUnavailable("no unambiguous SFML astronomy provider")
+            else:
+                entry_id, provider = resolved
+                try:
+                    snapshot = await asyncio.wait_for(
+                        provider.snapshot(start_date, days=(end_date - start_date).days),
+                        timeout=remaining,
+                    )
+                    if isinstance(snapshot, Mapping):
+                        # Bind the DTO to the registry entry selected for this
+                        # call. A stale or spoofed provider must fail closed.
+                        payload = snapshot if snapshot.get("entry_id") == entry_id else {}
+                        return _ProviderSnapshot(payload, id(provider))
+                    last_error = _ProviderUnavailable(
+                        "SFML returned no astronomy snapshot", id(provider)
+                    )
+                except Exception as error:  # noqa: BLE001 - provider may be reloading
+                    last_error = error
+            delay = min(
+                PROVIDER_RETRY_DELAY_SECONDS * (2**attempt),
+                PROVIDER_RETRY_MAX_DELAY_SECONDS,
             )
-            return list(
-                connection.execute(
-                    _ASTRONOMY_RANGE_SQL,
-                    (start_date.isoformat(), end_date.isoformat()),
-                ).fetchall()
-            )
+            if deadline - time.monotonic() <= delay:
+                break
+            await asyncio.sleep(delay)
+        elapsed = QUERY_TIMEOUT_SECONDS - max(0.0, deadline - time.monotonic())
+        _LOGGER.warning(
+            "SFML astronomy provider unavailable after bounded retry "
+            "(attempts=%d; elapsed=%.3fs); failing closed",
+            attempts,
+            elapsed,
+            exc_info=last_error is not None,
+        )
+        current = self._provider()
+        raise _ProviderUnavailable(
+            "SFML astronomy provider retry budget exhausted",
+            id(current[1]) if current is not None else None,
+        ) from last_error
+
+    def _provider(self) -> tuple[str, Any] | None:
+        """Resolve exactly one active v2 provider; legacy entry ids are ignored."""
+        domain_data = getattr(self._hass, "data", {}).get(SFML_DOMAIN)
+        if not isinstance(domain_data, Mapping):
+            return None
+        providers = domain_data.get(SFML_ASTRONOMY_REGISTRY)
+        if not isinstance(providers, Mapping):
+            return None
+        candidates = [
+            (entry_id, provider)
+            for entry_id, provider in providers.items()
+            if isinstance(entry_id, str)
+            and callable(getattr(provider, "snapshot", None))
+            and getattr(provider, "contract_version", None)
+            == SFML_ASTRONOMY_CONTRACT_VERSION
+            and getattr(provider, "_active", True) is True
+        ]
+        return candidates[0] if len(candidates) == 1 else None
 
     def _validate_and_normalize(
-        self, rows: Sequence[sqlite3.Row], start_date: date, day_count: int
+        self, snapshot: Mapping[str, Any], start_date: date, day_count: int
     ) -> list[dict[str, Any]] | None:
-        """Require a finite, timezone-correct and complete 24-row set per day."""
-        if len(rows) != day_count * 24:
+        if (
+            snapshot.get("contract_version") != SFML_ASTRONOMY_CONTRACT_VERSION
+            or snapshot.get("provider_domain") != SFML_DOMAIN
+            or snapshot.get("complete") is not True
+            or snapshot.get("start_date") != start_date.isoformat()
+            or snapshot.get("day_count") != day_count
+            or not isinstance(snapshot.get("entry_id"), str)
+        ):
             return None
-        expected_tz_name = str(self._hass.config.time_zone)
+        timezone_name = str(getattr(self._hass.config, "time_zone", ""))
+        if snapshot.get("time_zone") != timezone_name:
+            return None
         try:
-            expected_tz = ZoneInfo(expected_tz_name)
+            timezone = ZoneInfo(timezone_name)
         except (KeyError, ValueError):
-            _LOGGER.error("Home Assistant timezone %s is invalid", expected_tz_name)
             return None
-
+        records = snapshot.get("days")
+        if (
+            not isinstance(records, Sequence)
+            or isinstance(records, (str, bytes))
+            or len(records) != day_count
+        ):
+            return None
         normalized: list[dict[str, Any]] = []
-        row_index = 0
-        for offset in range(day_count):
+        for offset, record in enumerate(records):
             expected_date = start_date + timedelta(days=offset)
+            if not isinstance(record, Mapping) or record.get("date") != expected_date.isoformat():
+                return None
+            daily = tuple(record.get(key) for key in ("sunrise", "sunset", "solar_noon"))
+            parsed_daily = tuple(
+                self._local_timestamp(value, timezone, expected_date) for value in daily
+            )
+            if any(value is None for value in parsed_daily):
+                return None
+            sunrise, sunset, solar_noon = parsed_daily
+            if not sunrise <= solar_noon <= sunset:
+                return None
+            rows = record.get("hourly")
+            if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes)) or len(rows) != 24:
+                return None
             hourly: list[dict[str, Any]] = []
-            daily_values: tuple[str, str, str, float] | None = None
-            for expected_hour in range(24):
-                row = rows[row_index]
-                row_index += 1
-                current_daily = (
-                    row["sunrise"],
-                    row["sunset"],
-                    row["solar_noon"],
-                    row["daylight_hours"],
-                )
-                if daily_values is None:
-                    daily_values = current_daily
+            daylight_hours: float | int | None = None
+            for hour, row in enumerate(rows):
+                if not isinstance(row, Mapping) or row.get("hour") != hour:
+                    return None
+                daylight = row.get("daylight_hours")
                 if (
-                    row["cache_date"] != expected_date.isoformat()
-                    or type(row["hour"]) is not int
-                    or row["hour"] != expected_hour
-                    or current_daily != daily_values
-                    or not all(
-                        self._is_aware_in_timezone(value, expected_tz, expected_date)
-                        for value in current_daily[:3]
-                    )
-                    or not self._valid_number(current_daily[3], 0, 24)
-                    or not self._valid_number(row["sun_elevation_deg"], -90, 90)
-                    or not self._valid_number(row["sun_azimuth_deg"], 0, 360)
-                    or not self._valid_number(
-                        row["clear_sky_radiation_wm2"], 0
-                    )
-                    or not self._valid_number(row["theoretical_max_kwh"], 0)
+                    not self._valid_number(daylight, 0, 24)
+                    or (daylight_hours is not None and daylight != daylight_hours)
+                    or not self._valid_number(row.get("sun_elevation_deg"), -90, 90)
+                    or not self._valid_number(row.get("sun_azimuth_deg"), 0, 360)
+                    or not self._valid_number(row.get("clear_sky_radiation_wm2"), 0)
+                    or not self._valid_number(row.get("theoretical_max_kwh"), 0)
                 ):
                     return None
-                hourly.append(
-                    {
-                        "hour": expected_hour,
-                        "sun_elevation_deg": row["sun_elevation_deg"],
-                        "sun_azimuth_deg": row["sun_azimuth_deg"],
-                        "clear_sky_radiation_wm2": row[
-                            "clear_sky_radiation_wm2"
-                        ],
-                        "theoretical_max_kwh": row["theoretical_max_kwh"],
-                    }
-                )
-            assert daily_values is not None
-            normalized.append(
-                {
-                    "date": expected_date.isoformat(),
-                    "sunrise": daily_values[0],
-                    "sunset": daily_values[1],
-                    "solar_noon": daily_values[2],
-                    "daylight_hours": daily_values[3],
-                    "hourly": hourly,
-                }
-            )
+                daylight_hours = daylight
+                hourly.append({
+                    "hour": hour,
+                    "sun_elevation_deg": row["sun_elevation_deg"],
+                    "sun_azimuth_deg": row["sun_azimuth_deg"],
+                    "clear_sky_radiation_wm2": row["clear_sky_radiation_wm2"],
+                    "theoretical_max_kwh": row["theoretical_max_kwh"],
+                })
+            normalized.append({
+                "date": expected_date.isoformat(),
+                "sunrise": daily[0],
+                "sunset": daily[1],
+                "solar_noon": daily[2],
+                "daylight_hours": daylight_hours,
+                "hourly": hourly,
+            })
         return normalized
 
     @staticmethod
-    def _valid_number(
-        value: Any, minimum: float, maximum: float | None = None
-    ) -> bool:
+    def _valid_number(value: Any, minimum: float, maximum: float | None = None) -> bool:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return False
         try:
-            return (
-                math.isfinite(value)
-                and value >= minimum
-                and (maximum is None or value <= maximum)
-            )
+            return math.isfinite(value) and value >= minimum and (maximum is None or value <= maximum)
         except (OverflowError, TypeError):
             return False
 
     @staticmethod
-    def _is_aware_in_timezone(
-        value: Any, expected_tz: ZoneInfo, expected_date: date
-    ) -> bool:
+    def _local_timestamp(
+        value: Any, timezone: ZoneInfo, target_date: date
+    ) -> datetime | None:
         if not isinstance(value, str):
-            return False
+            return None
         try:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
-            return False
+            return None
         if parsed.tzinfo is None:
-            return False
-        local = parsed.astimezone(expected_tz)
-        expected_offset = expected_tz.utcoffset(local.replace(tzinfo=None))
-        return local.date() == expected_date and parsed.utcoffset() == expected_offset
+            return None
+        local = parsed.astimezone(timezone)
+        if local.date() != target_date or parsed.utcoffset() != local.utcoffset():
+            return None
+        return local
 
     @staticmethod
     def _to_legacy_days(days: Sequence[dict[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for day in days:
-            date_str = day["date"]
-            result[date_str] = {
-                "sunrise_local": day["sunrise"],
-                "sunset_local": day["sunset"],
-                "solar_noon_local": day["solar_noon"],
-                "daylight_hours": day["daylight_hours"],
+            date_string = day["date"]
+            result[date_string] = {
+                "sunrise_local": day["sunrise"], "sunset_local": day["sunset"],
+                "solar_noon_local": day["solar_noon"], "daylight_hours": day["daylight_hours"],
             }
             for hour_data in day["hourly"]:
-                result[f"{date_str}_{hour_data['hour']:02d}"] = {
-                    key: hour_data[key]
-                    for key in (
-                        "sun_elevation_deg",
-                        "sun_azimuth_deg",
-                        "clear_sky_radiation_wm2",
-                        "theoretical_max_kwh",
+                result[f"{date_string}_{hour_data['hour']:02d}"] = {
+                    key: hour_data[key] for key in (
+                        "sun_elevation_deg", "sun_azimuth_deg", "clear_sky_radiation_wm2", "theoretical_max_kwh"
                     )
                 }
         first_date = days[0]["date"]

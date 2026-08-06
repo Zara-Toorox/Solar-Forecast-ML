@@ -839,11 +839,7 @@ const _SolarPage = {
 	            return reasonLabels[reason] || reason || t('solar.movement.excluded');
 	        }
 	        function smIsThrottleReason(reason) {
-	            return [
-	                'mppt_throttled', 'inverter_clipped', 'suspected_battery_curtailment',
-	                'demand_limited_zero_export', 'external_limit', 'inverter_limit',
-	                'manual_limit', 'battery_full', 'curtailment',
-	            ].includes(reason);
+	            return reason === 'mppt_throttled';
 	        }
 	        function smPanelExclusionStatus(reason) {
 	            return smIsThrottleReason(reason) ? t('solar.movement.throttled') : smDiscardReasonLabel(reason);

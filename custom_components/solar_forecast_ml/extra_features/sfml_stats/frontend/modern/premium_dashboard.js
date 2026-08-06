@@ -732,7 +732,7 @@ const PremiumDashboardPage = ((Vue) => {
             });
             const reasonLabel = (reason) => ({
                 demand_limited_zero_export: "Nullexport/Basislast",
-                suspected_battery_curtailment: "Akku-Curtailment",
+                suspected_battery_curtailment: "Vermutete Akku-Abregelung",
                 mppt_throttled: "MPPT",
                 inverter_clipped: "Clipping",
             }[reason] || reason || "—");

@@ -83,7 +83,10 @@ class DataManagerIO:
         """
         try:
             deadline = monotonic() + timeout
-            async with asyncio.timeout_at(deadline):
+            # DatabaseManager owns the SQLite deadline. This outer guard is a
+            # cleanup fallback for alternate managers and deliberately fires
+            # later, so it cannot race the shared-connection recovery path.
+            async with asyncio.timeout_at(deadline + 0.1):
                 async with self._operation_lock:
                     async with self.db.transaction(deadline=deadline):
                         await self.db.execute(
@@ -92,7 +95,7 @@ class DataManagerIO:
                             auto_commit=False,
                         )
                     return True
-        except asyncio.TimeoutError:
+        except (asyncio.TimeoutError, TimeoutError):
             _LOGGER.error("Database query timeout after %.1fs: %s", timeout, sql[:100])
             return False
         except Exception as e:

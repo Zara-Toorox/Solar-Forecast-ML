@@ -232,6 +232,38 @@ BEGIN
     SELECT RAISE(ABORT, 'candidate evaluation already exists; disposition is forbidden');
 END;
 
+CREATE TABLE IF NOT EXISTS ai_model_candidate_reconsiderations (
+    reconsideration_id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL UNIQUE,
+    keeper_candidate_id TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id),
+    FOREIGN KEY(keeper_candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_reconsiderations_append_only_update
+BEFORE UPDATE ON ai_model_candidate_reconsiderations
+BEGIN SELECT RAISE(ABORT, 'ai_model_candidate_reconsiderations is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_reconsiderations_append_only_delete
+BEFORE DELETE ON ai_model_candidate_reconsiderations
+BEGIN SELECT RAISE(ABORT, 'ai_model_candidate_reconsiderations is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidates_single_unevaluated_guard
+BEFORE INSERT ON ai_model_candidates
+WHEN EXISTS (
+    SELECT 1 FROM ai_model_candidates candidate
+     WHERE candidate.status = 'candidate'
+       AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_dispositions disposition
+                        WHERE disposition.candidate_id = candidate.candidate_id
+                          AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_reconsiderations reconsideration
+                                           WHERE reconsideration.candidate_id = disposition.candidate_id))
+       AND NOT EXISTS (SELECT 1 FROM ai_model_evaluations evaluation
+                        WHERE evaluation.candidate_id = candidate.candidate_id)
+       AND NOT EXISTS (SELECT 1 FROM ai_model_evaluations_v2 evaluation
+                        WHERE evaluation.candidate_id = candidate.candidate_id)
+)
+BEGIN SELECT RAISE(ABORT, 'unevaluated model candidate already exists'); END;
+
 CREATE TABLE IF NOT EXISTS ai_model_retrain_requests (
     request_id TEXT PRIMARY KEY,
     created_at TIMESTAMP NOT NULL,
@@ -522,7 +554,10 @@ END;
 CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_candidate_terminal_guard
 BEFORE INSERT ON ai_model_evaluations
 WHEN EXISTS (
-    SELECT 1 FROM ai_model_candidate_dispositions WHERE candidate_id = NEW.candidate_id
+    SELECT 1 FROM ai_model_candidate_dispositions disposition
+     WHERE disposition.candidate_id = NEW.candidate_id
+       AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_reconsiderations reconsideration
+                        WHERE reconsideration.candidate_id = disposition.candidate_id)
     UNION ALL
     SELECT 1 FROM ai_model_evaluations WHERE candidate_id = NEW.candidate_id
     UNION ALL
@@ -748,7 +783,10 @@ BEGIN SELECT RAISE(ABORT, 'ai_model_evaluations_v2 is append-only'); END;
 CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_candidate_terminal_guard
 BEFORE INSERT ON ai_model_evaluations_v2
 WHEN EXISTS (
-    SELECT 1 FROM ai_model_candidate_dispositions WHERE candidate_id = NEW.candidate_id
+    SELECT 1 FROM ai_model_candidate_dispositions disposition
+     WHERE disposition.candidate_id = NEW.candidate_id
+       AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_reconsiderations reconsideration
+                        WHERE reconsideration.candidate_id = disposition.candidate_id)
     UNION ALL
     SELECT 1 FROM ai_model_evaluations WHERE candidate_id = NEW.candidate_id
     UNION ALL
