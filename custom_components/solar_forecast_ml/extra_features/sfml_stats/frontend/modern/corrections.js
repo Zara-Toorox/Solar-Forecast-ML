@@ -3,6 +3,7 @@ const CORRECTIONS_BRIDGE_PATH = "/sfml-stats-corrections-bridge";
 const CORRECTIONS_REQUEST_LIMIT = 8192;
 const CORRECTIONS_RESPONSE_LIMIT = 262144;
 const CORRECTIONS_OPERATIONS = new Set(["status", "history", "preview", "commit", "undo"]);
+const CORRECTIONS_API = "sfml_stats/corrections";
 
 const correctionRandomId = () => {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID().replaceAll("-", "");
@@ -11,6 +12,55 @@ const correctionRandomId = () => {
     return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
 };
 const correctionMessageSize = (value) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
+
+const correctionPick = (payload, keys) => {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error("Ungültige Nutzdaten");
+    const result = {};
+    for (const key of keys) {
+        if (Object.prototype.hasOwnProperty.call(payload, key)) result[key] = payload[key];
+    }
+    return result;
+};
+
+const correctionApiOperation = (operation, payload) => {
+    if (operation === "status") return { method: "GET", path: "status" };
+    if (operation === "history") {
+        const limit = Number(payload?.limit ?? 100);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Ungültiges Verlaufslimit");
+        return { method: "GET", path: `history?limit=${limit}` };
+    }
+    if (operation === "preview") return { method: "POST", path: "preview",
+        payload: correctionPick(payload, ["target_date", "metric", "target_value_kwh", "reason_note", "idempotency_key"]) };
+    if (operation === "commit") return { method: "POST", path: "commit",
+        payload: correctionPick(payload, ["preview_token", "idempotency_key", "confirmed_large_change"]) };
+    if (operation === "undo") return { method: "POST", path: "undo",
+        payload: correctionPick(payload, ["event_id", "idempotency_key"]) };
+    throw new Error("Nicht unterstützte Korrekturoperation");
+};
+
+const correctionSafeError = (error) => {
+    const body = error?.body?.error || error?.error || {};
+    const normalized = new Error(String(body.message || error?.message || "Anfrage fehlgeschlagen").slice(0, 240));
+    normalized.code = String(body.code || error?.code || "request_failed").slice(0, 80);
+    return normalized;
+};
+
+const correctionParentHass = (hostWindow) => {
+    const origin = hostWindow.location.origin;
+    let current = hostWindow;
+    while (current.parent && current.parent !== current) {
+        const parent = current.parent;
+        try {
+            if (parent.location.origin !== origin) return null;
+            const hass = parent.document.querySelector("home-assistant")?.hass;
+            if (hass && typeof hass.callApi === "function") return hass;
+        } catch (_error) {
+            return null;
+        }
+        current = parent;
+    }
+    return null;
+};
 
 class CorrectionsBridgeClient {
     constructor({ hostWindow = window, hostDocument = document, readyTimeoutMs = 10000, requestTimeoutMs = 15000 } = {}) {
@@ -22,6 +72,8 @@ class CorrectionsBridgeClient {
         this.nonce = correctionRandomId();
         this.pending = new Map();
         this.initialized = false;
+        this.hass = null;
+        this.destroyed = false;
         this._onMessage = this._handleMessage.bind(this);
         this.ready = new Promise((resolve, reject) => {
             this._resolveReady = resolve;
@@ -30,7 +82,14 @@ class CorrectionsBridgeClient {
     }
 
     mount(container) {
+        if (this.destroyed) throw new Error("Home-Assistant-Verbindung wurde geschlossen");
         if (this.iframe) return;
+        this.hass = correctionParentHass(this.hostWindow);
+        if (this.hass) {
+            this.initialized = true;
+            this._resolveReady();
+            return;
+        }
         const iframe = this.hostDocument.createElement("iframe");
         iframe.className = "corrections-bridge-frame";
         iframe.title = "Authentifizierte Home-Assistant-Verbindung";
@@ -86,9 +145,23 @@ class CorrectionsBridgeClient {
     }
 
     async request(operation, payload = {}) {
+        if (this.destroyed) throw new Error("Home-Assistant-Verbindung wurde geschlossen");
         if (!CORRECTIONS_OPERATIONS.has(operation)) throw new Error("Nicht unterstützte Korrekturoperation");
         if (correctionMessageSize(payload) > CORRECTIONS_REQUEST_LIMIT) throw new Error("Anfrage überschreitet 8 KiB");
         await this.ready;
+        if (this.destroyed) throw new Error("Home-Assistant-Verbindung wurde geschlossen");
+        if (this.hass) {
+            const request = correctionApiOperation(operation, payload);
+            try {
+                return await this.hass.callApi(
+                    request.method,
+                    `${CORRECTIONS_API}/${request.path}`,
+                    request.payload,
+                );
+            } catch (error) {
+                throw correctionSafeError(error);
+            }
+        }
         const requestId = correctionRandomId();
         const message = { protocol: CORRECTIONS_BRIDGE_PROTOCOL, type: "REQUEST",
             nonce: this.nonce, requestId, operation, payload };
@@ -103,14 +176,18 @@ class CorrectionsBridgeClient {
     }
 
     destroy() {
+        if (this.destroyed) return;
+        this.destroyed = true;
         this.hostWindow.removeEventListener("message", this._onMessage);
         this.hostWindow.clearTimeout(this.readyTimer);
+        if (!this.initialized) this._resolveReady();
         const error = new Error("Home-Assistant-Verbindung wurde geschlossen");
         for (const pending of this.pending.values()) {
             this.hostWindow.clearTimeout(pending.timer);
             pending.reject(error);
         }
         this.pending.clear();
+        this.hass = null;
         this.iframe?.remove();
         this.iframe = null;
     }
