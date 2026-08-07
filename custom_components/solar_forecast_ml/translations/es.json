@@ -368,7 +368,7 @@
         "name": "Proxima actualizacion programada"
       },
       "ml_metrics": {
-        "name": "Metricas del modelo IA"
+        "name": "Estado de IA"
       },
       "ai_rmse": {
         "name": "IA RMSE",

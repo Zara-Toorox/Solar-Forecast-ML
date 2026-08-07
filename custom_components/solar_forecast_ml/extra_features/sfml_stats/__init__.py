@@ -84,6 +84,33 @@ from .api import async_setup_views, async_setup_websocket
 _LOGGER = logging.getLogger(__name__)
 
 LOVELACE_CARD_URL = f"/api/sfml_stats/static/sfml-stats-card.js?v={VERSION}"
+CORRECTIONS_PANEL_PATH = "sfml-stats-corrections-bridge"
+CORRECTIONS_PANEL_URL = (
+    f"/api/sfml_stats/static/corrections-bridge.js?v={VERSION}"
+)
+
+
+async def _async_register_corrections_panel(hass: HomeAssistant) -> None:
+    """Register the hidden authenticated admin-only corrections bridge."""
+    from homeassistant.components import frontend
+
+    if frontend.async_panel_exists(hass, CORRECTIONS_PANEL_PATH):
+        return
+    frontend.async_register_built_in_panel(
+        hass,
+        component_name="custom",
+        frontend_url_path=CORRECTIONS_PANEL_PATH,
+        config={
+            "_panel_custom": {
+                "name": "sfml-stats-corrections-bridge",
+                "embed_iframe": False,
+                "trust_external": False,
+                "module_url": CORRECTIONS_PANEL_URL,
+            }
+        },
+        require_admin=True,
+        show_in_sidebar=False,
+    )
 
 
 class GPMProviderView:
@@ -251,9 +278,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up SFML Stats from a config entry. @zara"""
     _LOGGER.info("Setting up %s v%s (Entry: %s)", NAME, VERSION, entry.entry_id)
 
+    entry_config = {**entry.data, **entry.options}
+
     # --- DataValidator ---
     validator = DataValidator(hass)
-    if not await validator.async_initialize():
+    if not await validator.async_initialize(entry_config):
         _LOGGER.error("DataValidator could not be initialized")
         return False
 
@@ -261,18 +290,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     db_manager = None
     try:
         db_manager = await DatabaseConnectionManager.get_instance(hass)
+        await db_manager.async_bootstrap_stats_schema()
         from .readers.solar_reader import SolarDataReader
         from .readers.weather_reader import WeatherDataReader
         SolarDataReader._db_manager = db_manager
         WeatherDataReader._db_manager = db_manager
-        _LOGGER.info("Database connection established")
+        _LOGGER.info("STATS database schema gate completed")
     except Exception as err:
-        _LOGGER.error("Database connection failed: %s", err, exc_info=True)
+        _LOGGER.error("STATS database schema gate failed: %s", err, exc_info=True)
+        return False
 
     # --- Config ---
     config_path = Path(hass.config.path())
-    entry_config = {**entry.data, **entry.options}
-
     # --- Core Services (from services → core) ---
     from .core.daily_aggregator import DailyEnergyAggregator
     from .core.billing import BillingCalculator
@@ -344,6 +373,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # --- Forward sensor platforms ---
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _async_register_lovelace_card(hass)
+    await _async_register_corrections_panel(hass)
 
     # --- Update listener ---
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -548,6 +578,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.data[DOMAIN].pop("sensor_mapping_providers", None)
 
     del hass.data[DOMAIN][entry.entry_id]
+    if not any(
+        isinstance(value, dict) and "config_entry" in value
+        for value in hass.data[DOMAIN].values()
+    ):
+        from homeassistant.components import frontend
+
+        frontend.async_remove_panel(
+            hass, CORRECTIONS_PANEL_PATH, warn_if_unknown=False
+        )
     return unload_ok
 
 

@@ -51,6 +51,7 @@ DATA_FORECAST_PROVIDER = "forecast_provider"
 DATA_FORECAST_PROVIDERS = "forecast_providers"
 DATA_HISTORY_PROVIDER = "history_provider"
 DATA_HISTORY_PROVIDERS = "history_providers"
+DATA_SENSOR_MAPPING_PROVIDERS = "sensor_mapping_providers"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -149,6 +150,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register update listener for options changes
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
+    try:
+        from .sensor_mapping_provider import SensorMappingProvider, register_provider
+    except ImportError:
+        _LOGGER.warning(
+            "Sensor mapping provider is unavailable; rebuild the integration "
+            "before enabling EAI sensor reuse"
+        )
+    else:
+        sensor_mapping_provider = SensorMappingProvider(
+            entry.entry_id, {**entry.data, **entry.options}
+        )
+        sensor_mapping_providers = hass.data[DOMAIN].setdefault(
+            DATA_SENSOR_MAPPING_PROVIDERS, {}
+        )
+        register_provider(
+            sensor_mapping_providers, entry.entry_id, sensor_mapping_provider
+        )
+
     _LOGGER.info("Weather Fusion AI setup complete")
 
     return True
@@ -185,6 +204,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             history_providers.pop(entry.entry_id, None)
             if not history_providers:
                 hass.data[DOMAIN].pop(DATA_HISTORY_PROVIDERS, None)
+        sensor_mapping_providers = hass.data[DOMAIN].get(
+            DATA_SENSOR_MAPPING_PROVIDERS
+        )
+        if isinstance(sensor_mapping_providers, dict):
+            sensor_mapping_provider = sensor_mapping_providers.get(entry.entry_id)
+            if sensor_mapping_provider is not None:
+                sensor_mapping_provider.invalidate()
+                if sensor_mapping_providers.get(entry.entry_id) is sensor_mapping_provider:
+                    sensor_mapping_providers.pop(entry.entry_id, None)
+            if not sensor_mapping_providers:
+                hass.data[DOMAIN].pop(DATA_SENSOR_MAPPING_PROVIDERS, None)
 
     return unload_ok
 

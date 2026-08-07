@@ -12,6 +12,7 @@ from .forecast_contract import (
     SNAPSHOT_STATUS_UNAVAILABLE,
     sanitise_hourly_forecast,
     sanitise_observation_values,
+    sanitise_timestamp,
 )
 
 
@@ -80,10 +81,7 @@ class WeatherFusionForecastProvider:
             if isinstance(current_weather, dict)
             else generated_at.isoformat()
         )
-        if isinstance(observed_at, datetime):
-            observed_at = observed_at.isoformat()
-        if not isinstance(observed_at, str):
-            observed_at = generated_at.isoformat()
+        observed_at = sanitise_timestamp(observed_at) or generated_at.isoformat()
 
         return {"observed_at": observed_at, "values": values}
 

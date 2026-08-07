@@ -15,7 +15,7 @@ from typing import Final
 
 DOMAIN: Final = "weather_fusion_ai"
 NAME: Final = "Weather Fusion AI"
-VERSION: Final = "40.0.0"
+VERSION: Final = "42.0.6"
 
 # Internal Home Assistant data registry keys for the public forecast provider.
 DATA_FORECAST_PROVIDERS: Final = "forecast_providers"

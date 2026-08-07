@@ -435,7 +435,7 @@
         "name": "Next Scheduled Update"
       },
       "ml_metrics": {
-        "name": "AI Model Metrics"
+        "name": "AI Status"
       },
       "ai_rmse": {
         "name": "AI RMSE",

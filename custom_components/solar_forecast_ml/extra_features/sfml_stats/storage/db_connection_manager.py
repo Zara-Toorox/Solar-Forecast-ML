@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, AsyncIterator
@@ -27,6 +28,243 @@ if TYPE_CHECKING:
 from ..utils.time_utils import naive_ha_local
 
 _LOGGER = logging.getLogger(__name__)
+
+STATS_SCHEMA_VERSION = 1
+
+# STATS owns only these tables.  Tables from SFML and GPM deliberately do not
+# appear here: they are consumed through their published database contracts.
+_STATS_TABLES: dict[str, str] = {
+    "stats_schema_meta": """CREATE TABLE IF NOT EXISTS stats_schema_meta (
+        key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+    "stats_daily_energy": """CREATE TABLE IF NOT EXISTS stats_daily_energy (
+        date TEXT PRIMARY KEY, solar_yield_kwh REAL DEFAULT 0, grid_import_kwh REAL DEFAULT 0,
+        grid_export_kwh REAL DEFAULT 0, solar_to_house_kwh REAL DEFAULT 0,
+        solar_to_battery_kwh REAL DEFAULT 0, battery_to_house_kwh REAL DEFAULT 0,
+        grid_to_house_kwh REAL DEFAULT 0, grid_to_battery_kwh REAL DEFAULT 0,
+        home_consumption_kwh REAL DEFAULT 0, smartmeter_import_kwh REAL DEFAULT 0,
+        smartmeter_export_kwh REAL DEFAULT 0, consumer_heatpump_kwh REAL DEFAULT 0,
+        consumer_heatingrod_kwh REAL DEFAULT 0, consumer_wallbox_kwh REAL DEFAULT 0,
+        inverter_ac_output_kwh REAL, battery_charge_dc_kwh REAL, battery_discharge_dc_kwh REAL,
+        grid_import_extra_kwh REAL DEFAULT 0, price_ct_kwh REAL, autarkie_percent REAL,
+        self_consumption_kwh REAL, peak_solar_w REAL DEFAULT 0, peak_solar_time TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+    "stats_hourly_billing": """CREATE TABLE IF NOT EXISTS stats_hourly_billing (
+        hour_key TEXT PRIMARY KEY, date TEXT NOT NULL, hour INTEGER NOT NULL,
+        grid_import_kwh REAL DEFAULT 0, grid_import_cost_ct REAL DEFAULT 0,
+        grid_export_kwh REAL DEFAULT 0, feed_in_revenue_ct REAL DEFAULT 0,
+        feed_in_tariff_ct REAL DEFAULT 0, price_ct_kwh REAL DEFAULT 0,
+        grid_to_house_kwh REAL DEFAULT 0, grid_to_battery_kwh REAL DEFAULT 0,
+        solar_yield_kwh REAL DEFAULT 0, solar_to_house_kwh REAL DEFAULT 0,
+        solar_to_battery_kwh REAL DEFAULT 0, battery_to_house_kwh REAL DEFAULT 0,
+        home_consumption_kwh REAL DEFAULT 0, consumer_heatpump_kwh REAL DEFAULT 0,
+        consumer_heatpump_cost_ct REAL DEFAULT 0, consumer_heatingrod_kwh REAL DEFAULT 0,
+        consumer_heatingrod_cost_ct REAL DEFAULT 0, consumer_wallbox_kwh REAL DEFAULT 0,
+        consumer_wallbox_cost_ct REAL DEFAULT 0, data_source TEXT DEFAULT 'aggregator')""",
+    "stats_power_sources": """CREATE TABLE IF NOT EXISTS stats_power_sources (
+        timestamp TEXT PRIMARY KEY, date TEXT NOT NULL, hour INTEGER NOT NULL,
+        solar_power_w REAL, inverter_ac_output_w REAL, battery_power_dc_w REAL,
+        house_consumption_w REAL, solar_to_house_w REAL, solar_to_battery_w REAL,
+        solar_to_grid_w REAL, battery_to_house_w REAL, grid_to_house_w REAL,
+        grid_to_battery_w REAL, battery_soc REAL)""",
+    "stats_consumer_atlas_config": """CREATE TABLE IF NOT EXISTS stats_consumer_atlas_config (
+        consumer_id TEXT PRIMARY KEY, name TEXT NOT NULL, entity_id TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'other', icon TEXT NOT NULL DEFAULT 'plug',
+        color TEXT NOT NULL DEFAULT '#06b6d4', start_kwh REAL NOT NULL DEFAULT 0,
+        enabled INTEGER NOT NULL DEFAULT 1, sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)""",
+    "stats_consumer_atlas_daily": """CREATE TABLE IF NOT EXISTS stats_consumer_atlas_daily (
+        date TEXT NOT NULL, consumer_id TEXT NOT NULL, kwh REAL NOT NULL DEFAULT 0,
+        peak_w REAL NOT NULL DEFAULT 0, peak_time TEXT, last_power_w REAL NOT NULL DEFAULT 0,
+        samples INTEGER NOT NULL DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(date, consumer_id))""",
+    "stats_energy_efficiency_daily": """CREATE TABLE IF NOT EXISTS stats_energy_efficiency_daily (
+        date TEXT PRIMARY KEY, solar_dc_input_kwh REAL, inverter_ac_output_kwh REAL,
+        battery_charge_dc_kwh REAL, battery_discharge_dc_kwh REAL,
+        pv_dc_sample_kwh REAL NOT NULL DEFAULT 0, pv_ac_sample_kwh REAL NOT NULL DEFAULT 0,
+        battery_dc_sample_kwh REAL NOT NULL DEFAULT 0, battery_ac_sample_kwh REAL NOT NULL DEFAULT 0,
+        mixed_dc_sample_kwh REAL NOT NULL DEFAULT 0, mixed_ac_sample_kwh REAL NOT NULL DEFAULT 0,
+        system_input_sample_kwh REAL NOT NULL DEFAULT 0, system_output_sample_kwh REAL NOT NULL DEFAULT 0,
+        inverter_efficiency_percent REAL, battery_discharge_efficiency_percent REAL,
+        mixed_efficiency_percent REAL, system_efficiency_percent REAL,
+        ac_measurement_seconds REAL NOT NULL DEFAULT 0, battery_measurement_seconds REAL NOT NULL DEFAULT 0,
+        pv_sample_seconds REAL NOT NULL DEFAULT 0, battery_sample_seconds REAL NOT NULL DEFAULT 0,
+        mixed_sample_seconds REAL NOT NULL DEFAULT 0, system_sample_seconds REAL NOT NULL DEFAULT 0,
+        source TEXT NOT NULL DEFAULT 'live', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+    "stats_energy_efficiency_meta": """CREATE TABLE IF NOT EXISTS stats_energy_efficiency_meta (
+        key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+    "stats_settings": """CREATE TABLE IF NOT EXISTS stats_settings (
+        key TEXT PRIMARY KEY, value TEXT, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+    "stats_forecast_comparison": """CREATE TABLE IF NOT EXISTS stats_forecast_comparison (
+        date TEXT PRIMARY KEY, actual_kwh REAL, sfml_forecast_kwh REAL,
+        sfml_accuracy_percent REAL, external_1_kwh REAL, external_1_accuracy_percent REAL,
+        external_2_kwh REAL, external_2_accuracy_percent REAL, best_source TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+}
+
+_REQUIRED_COLUMNS: dict[str, dict[str, str]] = {
+    "stats_daily_energy": {"grid_to_battery_kwh": "REAL DEFAULT 0", "smartmeter_import_kwh": "REAL DEFAULT 0", "smartmeter_export_kwh": "REAL DEFAULT 0", "consumer_heatpump_kwh": "REAL DEFAULT 0", "consumer_heatingrod_kwh": "REAL DEFAULT 0", "consumer_wallbox_kwh": "REAL DEFAULT 0", "inverter_ac_output_kwh": "REAL", "battery_charge_dc_kwh": "REAL", "battery_discharge_dc_kwh": "REAL", "grid_import_extra_kwh": "REAL DEFAULT 0", "peak_solar_w": "REAL DEFAULT 0", "peak_solar_time": "TEXT"},
+    "stats_power_sources": {"battery_soc": "REAL", "inverter_ac_output_w": "REAL", "battery_power_dc_w": "REAL"},
+    "stats_hourly_billing": {"feed_in_revenue_ct": "REAL DEFAULT 0", "feed_in_tariff_ct": "REAL DEFAULT 0", "consumer_heatpump_kwh": "REAL DEFAULT 0", "consumer_heatpump_cost_ct": "REAL DEFAULT 0", "consumer_heatingrod_kwh": "REAL DEFAULT 0", "consumer_heatingrod_cost_ct": "REAL DEFAULT 0", "consumer_wallbox_kwh": "REAL DEFAULT 0", "consumer_wallbox_cost_ct": "REAL DEFAULT 0"},
+    "stats_consumer_atlas_config": {"start_kwh": "REAL NOT NULL DEFAULT 0"},
+    "stats_energy_efficiency_daily": {"mixed_dc_sample_kwh": "REAL NOT NULL DEFAULT 0", "mixed_ac_sample_kwh": "REAL NOT NULL DEFAULT 0", "mixed_efficiency_percent": "REAL", "mixed_sample_seconds": "REAL NOT NULL DEFAULT 0", "system_sample_seconds": "REAL NOT NULL DEFAULT 0"},
+}
+
+_STATS_INDEXES: dict[str, str] = {
+    "idx_stats_hourly_billing_date_hour": "CREATE INDEX IF NOT EXISTS idx_stats_hourly_billing_date_hour ON stats_hourly_billing(date, hour)",
+    "idx_stats_power_sources_date_timestamp": "CREATE INDEX IF NOT EXISTS idx_stats_power_sources_date_timestamp ON stats_power_sources(date, timestamp)",
+    "idx_stats_consumer_atlas_daily_date": "CREATE INDEX IF NOT EXISTS idx_stats_consumer_atlas_daily_date ON stats_consumer_atlas_daily(date)",
+    "idx_stats_forecast_comparison_date": "CREATE INDEX IF NOT EXISTS idx_stats_forecast_comparison_date ON stats_forecast_comparison(date)",
+}
+
+
+def _canonical_index_contract() -> dict[str, tuple[str, tuple[str, ...]]]:
+    connection = sqlite3.connect(":memory:")
+    try:
+        for ddl in _STATS_TABLES.values():
+            connection.execute(ddl)
+        result: dict[str, tuple[str, tuple[str, ...]]] = {}
+        for name, ddl in _STATS_INDEXES.items():
+            connection.execute(ddl)
+            table = connection.execute(
+                "SELECT tbl_name FROM sqlite_master WHERE type = 'index' AND name = ?", (name,)
+            ).fetchone()[0]
+            columns = tuple(
+                row[2] for row in connection.execute(f"PRAGMA index_info({name})")
+            )
+            result[name] = (table, columns)
+        return result
+    finally:
+        connection.close()
+
+# Historical STATS ownership records mention this table, but no active canonical
+# source reads or writes it. It is deliberately retired rather than recreated.
+_RETIRED_STATS_TABLES = {"stats_billing_totals"}
+
+_SFML_CORE_TABLES = ("daily_summaries", "daily_forecasts", "hourly_predictions")
+_OWNED_TABLE_CONTRACT: dict[str, dict[str, tuple[str, int]]] = {
+    "stats_schema_meta": {"key": ("TEXT", 1), "value": ("TEXT", 0)},
+    "stats_daily_energy": {"date": ("TEXT", 1), "solar_yield_kwh": ("REAL", 0), "peak_solar_w": ("REAL", 0)},
+    "stats_hourly_billing": {"hour_key": ("TEXT", 1), "date": ("TEXT", 0), "hour": ("INTEGER", 0)},
+    "stats_power_sources": {"timestamp": ("TEXT", 1), "date": ("TEXT", 0), "hour": ("INTEGER", 0)},
+    "stats_consumer_atlas_config": {"consumer_id": ("TEXT", 1), "name": ("TEXT", 0), "entity_id": ("TEXT", 0)},
+    "stats_consumer_atlas_daily": {"date": ("TEXT", 1), "consumer_id": ("TEXT", 2)},
+    "stats_energy_efficiency_daily": {"date": ("TEXT", 1)},
+    "stats_energy_efficiency_meta": {"key": ("TEXT", 1), "value": ("TEXT", 0)},
+    "stats_settings": {"key": ("TEXT", 1), "value": ("TEXT", 0)},
+    "stats_forecast_comparison": {"date": ("TEXT", 1), "actual_kwh": ("REAL", 0), "sfml_forecast_kwh": ("REAL", 0)},
+}
+
+# Full type contract for owned data. Extra legacy columns are intentionally
+# tolerated; absent primary-key columns cannot be added safely and therefore
+# fail closed through the PK contract below.
+_OWNED_TABLE_CONTRACT.update({
+    "stats_schema_meta": {"key": ("TEXT", 1), "value": ("TEXT", 0), "updated_at": ("TEXT", 0)},
+    "stats_daily_energy": {"date": ("TEXT", 1), "solar_yield_kwh": ("REAL", 0), "grid_import_kwh": ("REAL", 0), "grid_export_kwh": ("REAL", 0), "solar_to_house_kwh": ("REAL", 0), "solar_to_battery_kwh": ("REAL", 0), "battery_to_house_kwh": ("REAL", 0), "grid_to_house_kwh": ("REAL", 0), "grid_to_battery_kwh": ("REAL", 0), "home_consumption_kwh": ("REAL", 0), "smartmeter_import_kwh": ("REAL", 0), "smartmeter_export_kwh": ("REAL", 0), "consumer_heatpump_kwh": ("REAL", 0), "consumer_heatingrod_kwh": ("REAL", 0), "consumer_wallbox_kwh": ("REAL", 0), "inverter_ac_output_kwh": ("REAL", 0), "battery_charge_dc_kwh": ("REAL", 0), "battery_discharge_dc_kwh": ("REAL", 0), "grid_import_extra_kwh": ("REAL", 0), "price_ct_kwh": ("REAL", 0), "autarkie_percent": ("REAL", 0), "self_consumption_kwh": ("REAL", 0), "peak_solar_w": ("REAL", 0), "peak_solar_time": ("TEXT", 0), "updated_at": ("TEXT", 0)},
+    "stats_hourly_billing": {"hour_key": ("TEXT", 1), "date": ("TEXT", 0), "hour": ("INTEGER", 0), "grid_import_kwh": ("REAL", 0), "grid_import_cost_ct": ("REAL", 0), "grid_export_kwh": ("REAL", 0), "feed_in_revenue_ct": ("REAL", 0), "feed_in_tariff_ct": ("REAL", 0), "price_ct_kwh": ("REAL", 0), "grid_to_house_kwh": ("REAL", 0), "grid_to_battery_kwh": ("REAL", 0), "solar_yield_kwh": ("REAL", 0), "solar_to_house_kwh": ("REAL", 0), "solar_to_battery_kwh": ("REAL", 0), "battery_to_house_kwh": ("REAL", 0), "home_consumption_kwh": ("REAL", 0), "consumer_heatpump_kwh": ("REAL", 0), "consumer_heatpump_cost_ct": ("REAL", 0), "consumer_heatingrod_kwh": ("REAL", 0), "consumer_heatingrod_cost_ct": ("REAL", 0), "consumer_wallbox_kwh": ("REAL", 0), "consumer_wallbox_cost_ct": ("REAL", 0), "data_source": ("TEXT", 0)},
+    "stats_power_sources": {"timestamp": ("TEXT", 1), "date": ("TEXT", 0), "hour": ("INTEGER", 0), "solar_power_w": ("REAL", 0), "inverter_ac_output_w": ("REAL", 0), "battery_power_dc_w": ("REAL", 0), "house_consumption_w": ("REAL", 0), "solar_to_house_w": ("REAL", 0), "solar_to_battery_w": ("REAL", 0), "solar_to_grid_w": ("REAL", 0), "battery_to_house_w": ("REAL", 0), "grid_to_house_w": ("REAL", 0), "grid_to_battery_w": ("REAL", 0), "battery_soc": ("REAL", 0)},
+    "stats_consumer_atlas_config": {"consumer_id": ("TEXT", 1), "name": ("TEXT", 0), "entity_id": ("TEXT", 0), "category": ("TEXT", 0), "icon": ("TEXT", 0), "color": ("TEXT", 0), "start_kwh": ("REAL", 0), "enabled": ("INTEGER", 0), "sort_order": ("INTEGER", 0), "created_at": ("TEXT", 0), "updated_at": ("TEXT", 0)},
+    "stats_consumer_atlas_daily": {"date": ("TEXT", 1), "consumer_id": ("TEXT", 2), "kwh": ("REAL", 0), "peak_w": ("REAL", 0), "peak_time": ("TEXT", 0), "last_power_w": ("REAL", 0), "samples": ("INTEGER", 0), "updated_at": ("TEXT", 0)},
+    "stats_energy_efficiency_daily": {"date": ("TEXT", 1), "solar_dc_input_kwh": ("REAL", 0), "inverter_ac_output_kwh": ("REAL", 0), "battery_charge_dc_kwh": ("REAL", 0), "battery_discharge_dc_kwh": ("REAL", 0), "pv_dc_sample_kwh": ("REAL", 0), "pv_ac_sample_kwh": ("REAL", 0), "battery_dc_sample_kwh": ("REAL", 0), "battery_ac_sample_kwh": ("REAL", 0), "mixed_dc_sample_kwh": ("REAL", 0), "mixed_ac_sample_kwh": ("REAL", 0), "system_input_sample_kwh": ("REAL", 0), "system_output_sample_kwh": ("REAL", 0), "inverter_efficiency_percent": ("REAL", 0), "battery_discharge_efficiency_percent": ("REAL", 0), "mixed_efficiency_percent": ("REAL", 0), "system_efficiency_percent": ("REAL", 0), "ac_measurement_seconds": ("REAL", 0), "battery_measurement_seconds": ("REAL", 0), "pv_sample_seconds": ("REAL", 0), "battery_sample_seconds": ("REAL", 0), "mixed_sample_seconds": ("REAL", 0), "system_sample_seconds": ("REAL", 0), "source": ("TEXT", 0), "updated_at": ("TEXT", 0)},
+    "stats_energy_efficiency_meta": {"key": ("TEXT", 1), "value": ("TEXT", 0), "updated_at": ("TEXT", 0)},
+    "stats_settings": {"key": ("TEXT", 1), "value": ("TEXT", 0), "updated_at": ("TEXT", 0)},
+    "stats_forecast_comparison": {"date": ("TEXT", 1), "actual_kwh": ("REAL", 0), "sfml_forecast_kwh": ("REAL", 0), "sfml_accuracy_percent": ("REAL", 0), "external_1_kwh": ("REAL", 0), "external_1_accuracy_percent": ("REAL", 0), "external_2_kwh": ("REAL", 0), "external_2_accuracy_percent": ("REAL", 0), "best_source": ("TEXT", 0), "created_at": ("TEXT", 0), "updated_at": ("TEXT", 0)},
+})
+
+for _table_name, _contract_columns in _OWNED_TABLE_CONTRACT.items():
+    _additions = _REQUIRED_COLUMNS.setdefault(_table_name, {})
+    for _column_name, (_column_type, _primary_key) in _contract_columns.items():
+        if not _primary_key:
+            _additions.setdefault(_column_name, _column_type)
+
+
+def _canonical_pragma_contract() -> dict[str, dict[str, tuple[str, int, str | None, int]]]:
+    """Derive the exact SQLite contract from the canonical create statements."""
+    connection = sqlite3.connect(":memory:")
+    try:
+        result: dict[str, dict[str, tuple[str, int, str | None, int]]] = {}
+        for table, ddl in _STATS_TABLES.items():
+            connection.execute(ddl)
+            result[table] = {
+                str(row[1]): (str(row[2]).upper(), int(row[3]), row[4], int(row[5]))
+                for row in connection.execute(f"PRAGMA table_info({table})")
+            }
+        return result
+    finally:
+        connection.close()
+
+
+_CANONICAL_TABLE_CONTRACT = _canonical_pragma_contract()
+_LEGACY_LOGICAL_KEYS = {
+    "stats_daily_energy": "date",
+    "stats_hourly_billing": "hour_key",
+    "stats_forecast_comparison": "date",
+    "stats_consumer_atlas_config": "consumer_id",
+    "stats_energy_efficiency_daily": "date",
+    "stats_energy_efficiency_meta": "key",
+    "stats_settings": "key",
+}
+_LEGACY_NONADDABLE_REQUIRED = {
+    # Collector UPSERT explicitly writes both timestamps; SQLite cannot add
+    # these CURRENT_TIMESTAMP defaults to a populated legacy table safely.
+    "stats_forecast_comparison": {"created_at", "updated_at"},
+}
+_LEGACY_RUNTIME_COLUMNS = {
+    "stats_power_sources": {"timestamp", "date", "hour"},
+}
+
+
+def _sqlite_affinity(declared_type: str) -> str:
+    value = declared_type.upper()
+    if "INT" in value:
+        return "INTEGER"
+    if any(token in value for token in ("CHAR", "CLOB", "TEXT")):
+        return "TEXT"
+    if "BLOB" in value or not value:
+        return "BLOB"
+    if any(token in value for token in ("REAL", "FLOA", "DOUB")):
+        return "REAL"
+    return "NUMERIC"
+
+
+def _compatible_affinity(observed_type: str, expected_type: str) -> bool:
+    if _sqlite_affinity(observed_type) == _sqlite_affinity(expected_type):
+        return True
+    return (
+        _sqlite_affinity(expected_type) == "TEXT"
+        and _sqlite_affinity(observed_type) == "NUMERIC"
+        and any(token in observed_type.upper() for token in ("TIMESTAMP", "DATETIME"))
+    )
+_CANONICAL_INDEX_CONTRACT = _canonical_index_contract()
+
+
+def _compatible_add_column_definition(
+    column: tuple[str, int, str | None, int],
+) -> str | None:
+    """Return a lossless SQLite ALTER definition, or None when migration is unsafe."""
+    column_type, not_null, default, primary_key = column
+    if primary_key or (not_null and (default is None or "CURRENT_" in default.upper())):
+        return None
+    parts = [column_type]
+    if not_null:
+        parts.append("NOT NULL")
+    if default is not None:
+        parts.append(f"DEFAULT {default}")
+    return " ".join(parts)
+
+
+_REQUIRED_COLUMNS = {
+    table: {
+        column: definition
+        for column, contract in columns.items()
+        if (definition := _compatible_add_column_definition(contract)) is not None
+    }
+    for table, columns in _CANONICAL_TABLE_CONTRACT.items()
+}
+
+
+class StatsSchemaIncompatibleError(RuntimeError):
+    """Raised when a STATS-owned table cannot satisfy its compatibility contract."""
 
 
 def get_manager() -> DatabaseConnectionManager | None:
@@ -294,6 +532,135 @@ class DatabaseConnectionManager:
             except Exception:
                 await self._rollback_after_failed_write()
                 raise
+
+    @staticmethod
+    async def _table_columns(conn: aiosqlite.Connection, table: str) -> dict[str, str]:
+        async with conn.execute(f"PRAGMA table_info({table})") as cursor:
+            rows = await cursor.fetchall()
+        return {str(row[1]): str(row[2]).upper() for row in rows}
+
+    @staticmethod
+    async def _table_contract(
+        conn: aiosqlite.Connection, table: str
+    ) -> dict[str, tuple[str, int, str | None, int]]:
+        async with conn.execute(f"PRAGMA table_info({table})") as cursor:
+            rows = await cursor.fetchall()
+        return {
+            str(row[1]): (str(row[2]).upper(), int(row[3]), row[4], int(row[5]))
+            for row in rows
+        }
+
+    @staticmethod
+    async def _has_unique_column(
+        conn: aiosqlite.Connection, table: str, column: str, contract: dict[str, tuple[str, int, str | None, int]]
+    ) -> bool:
+        if contract.get(column, ("", 0, None, 0))[3]:
+            return True
+        async with conn.execute(f"PRAGMA index_list({table})") as cursor:
+            indexes = await cursor.fetchall()
+        for index in indexes:
+            if not index[2]:
+                continue
+            async with conn.execute(f"PRAGMA index_info({index[1]})") as cursor:
+                columns = tuple(row[2] for row in await cursor.fetchall())
+            if columns == (column,):
+                return True
+        return False
+
+    async def async_bootstrap_stats_schema(self) -> None:
+        """Create and migrate the STATS-owned schema under the single writer lock.
+
+        This gate is intentionally invoked during integration startup.  Runtime
+        collectors only consume the contract and never perform opportunistic DDL.
+        """
+        async with self.write_transaction() as conn:
+            async with conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ) as cursor:
+                existing_tables = {row[0] for row in await cursor.fetchall()}
+            missing_core = set(_SFML_CORE_TABLES) - existing_tables
+            if missing_core:
+                raise StatsSchemaIncompatibleError(
+                    f"SFML core schema unavailable: {', '.join(sorted(missing_core))}"
+                )
+            legacy_tables = set(_STATS_TABLES) & existing_tables
+            for ddl in _STATS_TABLES.values():
+                await conn.execute(ddl)
+
+            for table, additions in _REQUIRED_COLUMNS.items():
+                columns = await self._table_columns(conn, table)
+                for name, definition in additions.items():
+                    if name not in columns:
+                        await conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+                    elif columns[name] != definition.split()[0]:
+                        raise StatsSchemaIncompatibleError(
+                            f"{table}.{name} is {columns[name]}, expected {definition.split()[0]}"
+                        )
+
+            power_contract = await self._table_contract(conn, "stats_power_sources")
+            if not await self._has_unique_column(
+                conn, "stats_power_sources", "timestamp", power_contract
+            ):
+                try:
+                    await conn.execute(
+                        "CREATE UNIQUE INDEX idx_stats_power_sources_timestamp_unique "
+                        "ON stats_power_sources(timestamp)"
+                    )
+                except aiosqlite.IntegrityError as err:
+                    raise StatsSchemaIncompatibleError(
+                        "stats_power_sources.timestamp contains duplicates; unique migration is unsafe"
+                    ) from err
+
+            for ddl in _STATS_INDEXES.values():
+                await conn.execute(ddl)
+
+            for name, (table, expected_columns) in _CANONICAL_INDEX_CONTRACT.items():
+                async with conn.execute(f"PRAGMA index_info({name})") as cursor:
+                    columns = tuple(row[2] for row in await cursor.fetchall())
+                if columns != expected_columns:
+                    raise StatsSchemaIncompatibleError(
+                        f"{name} is incompatible on {table}: {columns}, expected {expected_columns}"
+                    )
+
+            for table, ddl in _STATS_TABLES.items():
+                columns = await self._table_columns(conn, table)
+                if not columns:
+                    raise StatsSchemaIncompatibleError(f"STATS schema table unavailable: {table}")
+
+            for table, required in _CANONICAL_TABLE_CONTRACT.items():
+                actual = await self._table_contract(conn, table)
+                required_columns = required if table not in legacy_tables else {
+                    column: required[column] for column in _REQUIRED_COLUMNS[table]
+                }
+                logical_key = _LEGACY_LOGICAL_KEYS.get(table)
+                if logical_key:
+                    required_columns[logical_key] = required[logical_key]
+                for column in _LEGACY_NONADDABLE_REQUIRED.get(table, set()):
+                    required_columns[column] = required[column]
+                for column in _LEGACY_RUNTIME_COLUMNS.get(table, set()):
+                    required_columns[column] = required[column]
+                for column, expected in required_columns.items():
+                    observed = actual.get(column)
+                    if observed is None or not _compatible_affinity(observed[0], expected[0]):
+                        raise StatsSchemaIncompatibleError(
+                            f"{table}.{column} is {observed}, expected compatible {expected}"
+                        )
+                if logical_key and not await self._has_unique_column(conn, table, logical_key, actual):
+                    raise StatsSchemaIncompatibleError(
+                        f"{table}.{logical_key} requires a primary key or single-column UNIQUE constraint"
+                    )
+
+            schema_columns = await self._table_columns(conn, "stats_schema_meta")
+            if "key" not in schema_columns or "value" not in schema_columns:
+                raise StatsSchemaIncompatibleError("stats_schema_meta has an incompatible layout")
+            await conn.execute(
+                """INSERT INTO stats_schema_meta (key, value, updated_at)
+                   VALUES ('schema_version', ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+                                                 updated_at = excluded.updated_at
+                   WHERE value <> excluded.value""",
+                (str(STATS_SCHEMA_VERSION),),
+            )
 
     @classmethod
     @asynccontextmanager

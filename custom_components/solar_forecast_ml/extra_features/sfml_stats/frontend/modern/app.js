@@ -67,6 +67,7 @@ const COPY = {
             energy: ["Energie & Finanzen", "Bilanz, Verbraucher, Tarife und Amortisation"],
             smart_charging: ["Smart Charging", "Ladeentscheidung, Preise und Batterieziel"],
             settings: ["Systemstatus", "Konfiguration, Sensoren und Datenqualität"],
+            corrections: ["Korrekturen", "Premium · geprüfte Tageswerte berichtigen"],
             quality: ["Forecast Intelligence", "Qualität, Modelle und Entwicklung nachvollziehen"],
             weather_energy: ["Wetter & Energie", "Bedingungen, Prognose und Ertrag gemeinsam analysieren"],
             eai: ["Wärmepumpe", "Verbrauch, Betrieb, Effizienz und Gebäudeverhalten"],
@@ -95,6 +96,7 @@ const COPY = {
             energy: ["Energy & Finance", "Balance, consumers, tariffs and payback"],
             smart_charging: ["Smart Charging", "Charge decision, prices and battery target"],
             settings: ["System Status", "Configuration, sensors and data quality"],
+            corrections: ["Corrections", "Premium · correct verified daily values"],
             quality: ["Forecast Intelligence", "Understand quality, models and development"],
             weather_energy: ["Weather & Energy", "Analyse conditions, forecast and yield together"],
             eai: ["Heat Pump", "Consumption, operation, efficiency and building response"],
@@ -123,6 +125,7 @@ const COPY = {
             energy: ["Energia i finanse", "Bilans, odbiorniki, taryfy i amortyzacja"],
             smart_charging: ["Smart Charging", "Decyzja ładowania, ceny i cel baterii"],
             settings: ["Stan systemu", "Konfiguracja, czujniki i jakość danych"],
+            corrections: ["Korekty", "Premium · korekta zweryfikowanych wartości dziennych"],
             quality: ["Forecast Intelligence", "Jakość, modele i długoterminowy rozwój"],
             weather_energy: ["Pogoda i energia", "Wspólna analiza warunków, prognozy i uzysku"],
             eai: ["Pompa ciepła", "Zużycie, praca, efektywność i reakcja budynku"],
@@ -316,6 +319,7 @@ const ModernApp = {
                                 @click="navigate(item.id)">
                             <ui-icon :name="item.icon"></ui-icon>
                             <span>{{ pageCopy(item.id)[0] }}</span>
+                            <small v-if="item.panel && !premiumCorrections">🔒 Premium</small>
                         </button>
                     </div>
                 </nav>
@@ -426,6 +430,7 @@ const ModernApp = {
         const currentPage = ref("home");
         const currentDetail = ref("");
         const dashboardMode = ref("loading");
+        const premiumCorrections = ref(false);
         const drawerOpen = ref(false);
         const hasLoaded = ref(false);
         const requestPending = ref(false);
@@ -477,6 +482,7 @@ const ModernApp = {
                 id: "system",
                 items: [
                     { id: "smart_charging", icon: "charge" },
+                    { id: "corrections", icon: "settings", panel: true },
                     { id: "settings", icon: "settings" },
                 ],
             },
@@ -507,6 +513,7 @@ const ModernApp = {
             mobility: window.ModernMobilityPage,
             eai_weather: window.ModernEAIWeatherPage,
             smart_charging: window.SmartChargingPage,
+            corrections: window.ModernCorrectionsPage,
             settings: window.SettingsPage,
         };
 
@@ -606,6 +613,18 @@ const ModernApp = {
 
         function handleKeydown(event) {
             if (event.key === "Escape") closeDrawer();
+        }
+
+        async function loadCorrectionCapability() {
+            try {
+                const response = await SFMLApi.fetch(
+                    "/api/sfml_stats/modern/premium-dashboard",
+                    { forceRefresh: true, ttl: 0 }
+                );
+                premiumCorrections.value = response?.data?.premium?.licensed === true;
+            } catch (_error) {
+                premiumCorrections.value = false;
+            }
         }
 
         async function fetchData(forceRefresh = false) {
@@ -713,6 +732,7 @@ const ModernApp = {
             window.addEventListener("keydown", handleKeydown);
             colorScheme.addEventListener("change", handleColorScheme);
             syncShellPolling();
+            loadCorrectionCapability();
         });
 
         onUnmounted(() => {
@@ -735,6 +755,7 @@ const ModernApp = {
             currentPageCopy,
             currentPageComponent,
             navigation,
+            premiumCorrections,
             mobileNavigation,
             themeOptions,
             themeMode,

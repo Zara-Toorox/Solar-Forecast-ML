@@ -196,6 +196,7 @@ WALLBOX_SENSORS = (
             "departure_deadline",
             "deadline_plan",
             "target_reached",
+            "planning_window_incomplete",
         ],
     ),
     EAISensorDescription(

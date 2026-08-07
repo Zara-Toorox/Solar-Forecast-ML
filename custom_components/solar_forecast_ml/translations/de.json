@@ -435,7 +435,7 @@
         "name": "Nächstes geplantes Update"
       },
       "ml_metrics": {
-        "name": "AI-Modell Metriken"
+        "name": "AI-Status"
       },
       "ai_rmse": {
         "name": "AI RMSE",

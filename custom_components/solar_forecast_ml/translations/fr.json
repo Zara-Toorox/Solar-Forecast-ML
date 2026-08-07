@@ -368,7 +368,7 @@
         "name": "Prochaine mise a jour prevue"
       },
       "ml_metrics": {
-        "name": "Metriques du modele IA"
+        "name": "État de l'IA"
       },
       "ai_rmse": {
         "name": "IA RMSE",

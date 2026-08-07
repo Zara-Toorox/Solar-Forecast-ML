@@ -22,6 +22,9 @@ from ..const import (
     SOLAR_FORECAST_ML_BASE,
     SOLAR_FORECAST_DB,
     GRID_PRICE_MONITOR_BASE,
+    CONF_BILLING_PRICE_MODE,
+    DEFAULT_BILLING_PRICE_MODE,
+    PRICE_MODE_DYNAMIC,
 )
 
 if TYPE_CHECKING:
@@ -60,12 +63,12 @@ class DataValidator:
         """Return the status of source integrations. @zara"""
         return self._source_status.copy()
 
-    async def async_initialize(self) -> bool:
+    async def async_initialize(self, entry_config: dict | None = None) -> bool:
         """Initialize the directory structure. @zara"""
         _LOGGER.info("Initializing SFML Stats directory structure")
 
         try:
-            await self._validate_sources()
+            await self._validate_sources(entry_config or {})
             await self._create_export_directories()
             await self._create_gitignore()
 
@@ -80,7 +83,7 @@ class DataValidator:
             _LOGGER.error("Error during initialization: %s", err)
             return False
 
-    async def _validate_sources(self) -> None:
+    async def _validate_sources(self, entry_config: dict) -> None:
         """Validate availability of source integrations. @zara"""
         solar_base_path = self._config_path / SOLAR_FORECAST_ML_BASE
         solar_db_path = self._config_path / SOLAR_FORECAST_DB
@@ -107,7 +110,10 @@ class DataValidator:
                 )
 
         grid_available = False
-        if solar_db_exists:
+        dynamic_pricing = entry_config.get(
+            CONF_BILLING_PRICE_MODE, DEFAULT_BILLING_PRICE_MODE
+        ) == PRICE_MODE_DYNAMIC
+        if solar_db_exists and dynamic_pricing:
             try:
                 # Direct connection intentional: runs before DatabaseConnectionManager is created
                 import aiosqlite
@@ -123,6 +129,10 @@ class DataValidator:
                 grid_available = False
 
         self._source_status["grid_price_monitor"] = grid_available
+
+        if not dynamic_pricing:
+            _LOGGER.debug("GPM source check skipped for non-dynamic tariff")
+            return
 
         if grid_available:
             _LOGGER.info("Source available: grid_price_monitor (GPM_price_history in %s)", solar_db_path)
