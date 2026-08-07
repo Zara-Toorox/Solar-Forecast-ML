@@ -122,7 +122,7 @@ const ModernCorrectionsPage = {
             <div ref="bridgeHost" class="corrections-bridge-host" aria-hidden="true"></div>
             <div class="corrections-hero">
                 <div><span class="corrections-kicker">Premium · auditierbare Messwerte</span><h2 id="corrections-title">Energie-Korrekturen</h2><p>Abgeschlossene Tageswerte für Netzbezug, Netzeinspeisung und PV-Ertrag sicher berichtigen.</p></div>
-                <span class="corrections-badge">Admin · lokal</span>
+                <span class="corrections-badge">Admin · lokal oder HA Cloud</span>
             </div>
             <div class="corrections-notice" role="note"><strong>Dynamische Tarife</strong><span>Der Tages-Energiewert wird korrigiert. Historische Stundenkosten bleiben unverändert und werden nicht als exakt korrigiert ausgewiesen.</span></div>
             <div v-if="message" :class="['corrections-state', messageError ? 'error' : 'notice']" :role="messageError ? 'alert' : 'status'">{{ message }}</div>
@@ -194,6 +194,7 @@ const ModernCorrectionsPage = {
             catch (error) {
                 if (error.code === "premium_required") locked.value = "Diese Funktion benötigt eine gültige Premium-Full-Package-Lizenz. Demo-Daten können nicht geschrieben werden.";
                 else if (error.code === "admin_required") locked.value = "Für Korrekturen ist ein angemeldetes Home-Assistant-Administratorkonto erforderlich.";
+                else if (error.code === "local_access_required") locked.value = "Korrekturen sind nur über die lokale Home-Assistant-Oberfläche oder Home Assistant Cloud verfügbar.";
                 throw error;
             }
         };

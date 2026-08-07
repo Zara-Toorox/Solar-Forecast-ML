@@ -13,7 +13,7 @@
       },
       "features": {
         "title": "EAI-Premium-Funktionen",
-        "description": "Eine EAI-Premium-Lizenz aktiviert alle Funktionen. Wähle nur die Geräte und Datenquellen aus, die in diesem Zuhause vorhanden sind.",
+        "description": "Eine EAI-Premium-Lizenz aktiviert alle Funktionen. Wähle nur die Geräte und Datenquellen aus, die in diesem Zuhause vorhanden sind. STATS-Energiekorrekturen werden mit einer gültigen Premium-Full-Package-Lizenz automatisch freigeschaltet und benötigen keinen eigenen Schalter.",
         "data": {
           "heat_pump_enabled": "Wärmepumpen-Intelligenz verwenden",
           "wallbox_enabled": "E-Mobilitäts-Intelligenz verwenden",
@@ -337,7 +337,7 @@
       },
       "features": {
         "title": "EAI-Premium-Funktionen",
-        "description": "Alle Funktionen sind in derselben Lizenz enthalten. Aktiviere die in diesem Zuhause vorhandenen Bereiche.",
+        "description": "Alle Funktionen sind in derselben Lizenz enthalten. Aktiviere die in diesem Zuhause vorhandenen Bereiche. STATS-Energiekorrekturen werden mit einer gültigen Premium-Full-Package-Lizenz automatisch freigeschaltet und benötigen keinen eigenen Schalter.",
         "data": {
           "heat_pump_enabled": "Wärmepumpen-Intelligenz verwenden",
           "wallbox_enabled": "E-Mobilitäts-Intelligenz verwenden",

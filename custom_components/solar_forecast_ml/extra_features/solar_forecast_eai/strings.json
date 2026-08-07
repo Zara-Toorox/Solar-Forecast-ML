@@ -13,7 +13,7 @@
       },
       "features": {
         "title": "EAI Premium functions",
-        "description": "One EAI Premium license enables every function. Select only the equipment and data sources available in this home.",
+        "description": "One EAI Premium license enables every function. Select only the equipment and data sources available in this home. STATS energy corrections are enabled automatically with a valid Premium Full Package license and do not require a separate switch.",
         "data": {
           "heat_pump_enabled": "Use heat-pump intelligence",
           "wallbox_enabled": "Use e-mobility intelligence",
@@ -321,7 +321,7 @@
       },
       "features": {
         "title": "EAI Premium functions",
-        "description": "Every function is included in the same license. Enable the areas available in this home.",
+        "description": "Every function is included in the same license. Enable the areas available in this home. STATS energy corrections are enabled automatically with a valid Premium Full Package license and do not require a separate switch.",
         "data": {
           "heat_pump_enabled": "Use heat-pump intelligence",
           "wallbox_enabled": "Use e-mobility intelligence",
