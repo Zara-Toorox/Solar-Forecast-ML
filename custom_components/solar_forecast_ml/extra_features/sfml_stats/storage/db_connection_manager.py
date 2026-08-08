@@ -40,6 +40,7 @@ _STATS_TABLES: dict[str, str] = {
         date TEXT PRIMARY KEY, solar_yield_kwh REAL DEFAULT 0, grid_import_kwh REAL DEFAULT 0,
         grid_export_kwh REAL DEFAULT 0, solar_to_house_kwh REAL DEFAULT 0,
         solar_to_battery_kwh REAL DEFAULT 0, battery_to_house_kwh REAL DEFAULT 0,
+        battery_charge_solar_kwh REAL DEFAULT 0, battery_charge_grid_kwh REAL DEFAULT 0,
         grid_to_house_kwh REAL DEFAULT 0, grid_to_battery_kwh REAL DEFAULT 0,
         home_consumption_kwh REAL DEFAULT 0, smartmeter_import_kwh REAL DEFAULT 0,
         smartmeter_export_kwh REAL DEFAULT 0, consumer_heatpump_kwh REAL DEFAULT 0,

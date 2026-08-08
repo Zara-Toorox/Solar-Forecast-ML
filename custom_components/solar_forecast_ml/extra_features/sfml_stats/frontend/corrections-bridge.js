@@ -5,6 +5,15 @@ const MAX_RESPONSE_BYTES = 262144;
 
 const OPERATIONS = Object.freeze({
   status: { method: "GET", path: () => "status", payload: () => undefined },
+  context: {
+    method: "GET",
+    path: (payload) => {
+      const values = pick(payload, ["target_date", "metric"]);
+      return `context?target_date=${encodeURIComponent(values.target_date || "")}`
+        + `&metric=${encodeURIComponent(values.metric || "")}`;
+    },
+    payload: () => undefined,
+  },
   history: {
     method: "GET",
     path: (payload) => {

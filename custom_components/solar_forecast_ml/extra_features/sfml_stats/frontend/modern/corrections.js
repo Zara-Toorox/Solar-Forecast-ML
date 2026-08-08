@@ -2,7 +2,7 @@ const CORRECTIONS_BRIDGE_PROTOCOL = "sfml-corrections-bridge-v1";
 const CORRECTIONS_BRIDGE_PATH = "/sfml-stats-corrections-bridge";
 const CORRECTIONS_REQUEST_LIMIT = 8192;
 const CORRECTIONS_RESPONSE_LIMIT = 262144;
-const CORRECTIONS_OPERATIONS = new Set(["status", "history", "preview", "commit", "undo"]);
+const CORRECTIONS_OPERATIONS = new Set(["status", "context", "history", "preview", "commit", "undo"]);
 const CORRECTIONS_API = "sfml_stats/corrections";
 
 const correctionRandomId = () => {
@@ -24,6 +24,11 @@ const correctionPick = (payload, keys) => {
 
 const correctionApiOperation = (operation, payload) => {
     if (operation === "status") return { method: "GET", path: "status" };
+    if (operation === "context") {
+        const values = correctionPick(payload, ["target_date", "metric"]);
+        return { method: "GET", path: `context?target_date=${encodeURIComponent(values.target_date || "")}`
+            + `&metric=${encodeURIComponent(values.metric || "")}` };
+    }
     if (operation === "history") {
         const limit = Number(payload?.limit ?? 100);
         if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("Ungültiges Verlaufslimit");
@@ -211,12 +216,25 @@ const ModernCorrectionsPage = {
                     <article class="corrections-card corrections-wide">
                         <span class="corrections-eyebrow">Absoluter Zielwert</span><h3>Tageswert korrigieren</h3>
                         <p>Wähle den abgeschlossenen Tag und trage den richtigen Tageswert ein. Vor dem Speichern wird immer eine Vorschau angezeigt.</p>
-                        <label><span>Abgeschlossener Tag</span><input v-model="form.target_date" type="date" @input="invalidatePreview" @change="invalidatePreview"></label>
-                        <label><span>Messwert</span><select v-model="form.metric" @input="invalidatePreview" @change="invalidatePreview"><option value="grid_import_day_kwh">Netzbezug</option><option value="grid_export_day_kwh">Netzeinspeisung</option><option value="solar_yield_day_kwh">PV-Ertrag</option></select></label>
-                        <label><span>Richtiger Tageswert (kWh)</span><input v-model="form.target_value_kwh" inputmode="decimal" placeholder="0.000" @input="invalidatePreview" @change="invalidatePreview"></label>
+                        <label><span>Abgeschlossener Tag</span><input v-model="form.target_date" type="date" :max="latestCompletedDate" @input="invalidateSelection" @change="loadContext"></label>
+                        <label><span>Messwert</span><select v-model="form.metric" @change="loadContext"><option value="grid_import_day_kwh">Netzbezug</option><option value="grid_export_day_kwh">Netzeinspeisung</option><option value="solar_yield_day_kwh">PV-Ertrag</option></select></label>
+                        <div class="corrections-context-card" aria-live="polite">
+                            <div v-if="contextBusy" class="corrections-muted">Vorhandener Messwert wird geladen …</div>
+                            <div v-else-if="contextError" class="corrections-context-error">{{ contextError }}</div>
+                            <template v-else-if="contextData">
+                                <div class="corrections-context-heading"><div><span class="corrections-eyebrow">Vorhandener Messwert</span><strong>{{ metricLabel(contextData.metric) }} · {{ contextData.target_date }}</strong></div><span :class="['corrections-source-state', contextData.is_corrected ? 'corrected' : 'original']">{{ contextData.is_corrected ? "Bereits korrigiert" : "Originalwert" }}</span></div>
+                                <div class="corrections-values corrections-source-values"><div><span>DB-Rohwert</span><strong>{{ kwh(contextData.source_value_kwh) }}</strong></div><div><span>Aktuell wirksam</span><strong>{{ kwh(contextData.effective_value_kwh) }}</strong></div><div><span>Summe Stundenwerte</span><strong>{{ kwh(contextData.hourly_sum_kwh) }}</strong></div><div><span>Tag minus Stunden</span><strong>{{ signedKwh(contextData.hourly_delta_kwh) }}</strong></div></div>
+                                <div class="corrections-hour-heading"><strong>Stundenwerte zur Diagnose</strong><span>{{ contextData.available_hours }}/{{ contextData.expected_hours }} Stunden vorhanden</span></div>
+                                <div v-if="contextData.hourly_values.length" class="corrections-hour-grid"><div v-for="row in contextData.hourly_values" :key="row.hour_key"><span>{{ hourLabel(row.hour) }}</span><strong>{{ number(row.value_kwh) }}</strong></div></div>
+                                <p v-else class="corrections-muted">Für diesen Tag sind keine Stundenwerte vorhanden.</p>
+                                <small class="corrections-muted">Die Stundenwerte dienen nur zur Fehleranalyse. Korrigiert wird weiterhin ausschließlich der Tageswert.</small>
+                            </template>
+                            <div v-else class="corrections-muted">Wähle einen abgeschlossenen Tag und einen Messwert.</div>
+                        </div>
+                        <label><span>Neuer korrekter Tageswert (kWh)</span><input v-model="form.target_value_kwh" inputmode="decimal" placeholder="Wert eingeben" @input="invalidatePreview" @change="invalidatePreview"></label>
                         <label><span>Notiz (optional, max. 160)</span><textarea v-model="form.reason_note" maxlength="160" aria-describedby="correction-note-help" @input="invalidatePreview" @change="invalidatePreview"></textarea></label>
                         <small id="correction-note-help" class="corrections-muted">Bitte keine personenbezogenen Daten eingeben.</small>
-                        <button class="button" type="button" :disabled="previewBusy" @click="preview">{{ previewBusy ? "Vorschau wird geprüft …" : "Vorschau" }}</button>
+                        <button class="button" type="button" :disabled="previewBusy || contextBusy || !contextData || !form.target_value_kwh" @click="preview">{{ previewBusy ? "Vorschau wird geprüft …" : "Vorschau" }}</button>
                     </article>
                 </div>
 
@@ -251,10 +269,15 @@ const ModernCorrectionsPage = {
         const previewIdempotencyKey = ref(null);
         const confirmLarge = ref(false);
         const history = ref([]);
+        const contextData = ref(null);
+        const contextBusy = ref(false);
+        const contextError = ref("");
+        const latestCompletedDate = ref("");
         const form = reactive({ target_date: "", metric: "grid_import_day_kwh", target_value_kwh: "",
             reason_note: "" });
         let bridge;
         let previewGeneration = 0;
+        let contextGeneration = 0;
 
         const showMessage = (text, error = false) => { message.value = text; messageError.value = error; };
         const unwrap = (response) => response?.success === true ? response.data : response?.data ?? response;
@@ -266,6 +289,13 @@ const ModernCorrectionsPage = {
             confirmLarge.value = false;
             previewBusy.value = false;
         };
+        const invalidateSelection = () => {
+            invalidatePreview();
+            contextGeneration += 1;
+            contextData.value = null;
+            contextError.value = "";
+            contextBusy.value = false;
+        };
         const call = async (operation, payload = {}) => {
             try { return unwrap(await bridge.request(operation, payload)); }
             catch (error) {
@@ -276,9 +306,30 @@ const ModernCorrectionsPage = {
             }
         };
         const loadHistory = async () => { history.value = await call("history", { limit: 100 }); };
+        const loadContext = async () => {
+            invalidateSelection();
+            if (!form.target_date || !form.metric) return;
+            const generation = contextGeneration;
+            const selection = `${form.target_date}:${form.metric}`;
+            contextBusy.value = true;
+            try {
+                const result = await call("context", {
+                    target_date: form.target_date, metric: form.metric,
+                });
+                if (generation !== contextGeneration || selection !== `${form.target_date}:${form.metric}`) return;
+                contextData.value = result;
+            } catch (error) {
+                if (generation === contextGeneration) contextError.value = error.message;
+            } finally {
+                if (generation === contextGeneration) contextBusy.value = false;
+            }
+        };
         const load = async () => {
             try {
-                await Promise.all([call("status"), loadHistory()]);
+                const status = await call("status");
+                latestCompletedDate.value = status.latest_completed_date || "";
+                if (!form.target_date) form.target_date = latestCompletedDate.value;
+                await Promise.all([loadHistory(), loadContext()]);
             } catch (error) {
                 if (!locked.value) locked.value = error.message;
             } finally { loading.value = false; }
@@ -334,6 +385,7 @@ const ModernCorrectionsPage = {
             solar_yield_day_kwh: "PV-Ertrag",
         })[metric] || metric;
         const dateTime = (value) => new Date(value).toLocaleString();
+        const hourLabel = (value) => `${String(value).padStart(2, "0")}:00`;
         const previewContext = computed(() => {
             const value = previewData.value;
             if (!value) return "";
@@ -341,10 +393,12 @@ const ModernCorrectionsPage = {
         });
 
         onMounted(() => { bridge = new CorrectionsBridgeClient(); bridge.mount(bridgeHost.value); load(); });
-        onUnmounted(() => { previewGeneration += 1; bridge?.destroy(); });
+        onUnmounted(() => { previewGeneration += 1; contextGeneration += 1; bridge?.destroy(); });
         return { bridgeHost, loading, locked, message, messageError, previewBusy, commitBusy,
             previewData, confirmLarge, history, form, previewContext, invalidatePreview,
-            preview, commit, undo, number, signed, kwh, signedKwh, metricLabel, dateTime };
+            contextData, contextBusy, contextError, latestCompletedDate, invalidateSelection,
+            loadContext, preview, commit, undo, number, signed, kwh, signedKwh, metricLabel,
+            dateTime, hourLabel };
     },
 };
 
