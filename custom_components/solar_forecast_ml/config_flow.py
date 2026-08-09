@@ -177,7 +177,7 @@ def _get_base_schema(defaults: dict | None, is_reconfigure: bool = False) -> vol
     )
 
 
-def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
+def _parse_panel_groups(panel_groups_str: str, language: str = "en") -> list[dict]:
     """Parse panel groups from string format to list of dicts. @zara
 
     Supported format:
@@ -188,6 +188,7 @@ def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
     if not panel_groups_str or not panel_groups_str.strip():
         return []
 
+    group_name_prefix = "Gruppe" if language == "de" else "Group"
     groups = []
     entries = [
         e.strip() for e in panel_groups_str.replace("\n", ",").split(",") if e.strip()
@@ -210,7 +211,7 @@ def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
                     continue
 
                 group_data = {
-                    CONF_PANEL_GROUP_NAME: f"Group {idx + 1}",
+                    CONF_PANEL_GROUP_NAME: f"{group_name_prefix} {idx + 1}",
                     CONF_PANEL_GROUP_POWER: power_wp,
                     CONF_PANEL_GROUP_AZIMUTH: azimuth,
                     CONF_PANEL_GROUP_TILT: tilt,

@@ -52,8 +52,9 @@ class PanelGroupTheoreticalMax:
 class AstronomyCache:
     """Calculate and cache astronomy data for solar forecasting using DB storage. @zara"""
 
-    def __init__(self, db_manager: DatabaseManager):
+    def __init__(self, db_manager: DatabaseManager, language: str = "en"):
         self.db = db_manager
+        self.language = language
         self.latitude: Optional[float] = None
         self.longitude: Optional[float] = None
         self.elevation_m: Optional[float] = None
@@ -234,7 +235,8 @@ class AstronomyCache:
         total_kwh = 0.0
 
         for idx, group in enumerate(self._panel_groups):
-            group_name = group.get("name", f"Group {idx + 1}")
+            group_name_prefix = "Gruppe" if self.language == "de" else "Group"
+            group_name = group.get("name", f"{group_name_prefix} {idx + 1}")
             power_wp = float(group.get("power_wp", 0))
             power_kwp = power_wp / 1000.0
             azimuth_deg = float(group.get("azimuth", 180))

@@ -140,9 +140,11 @@ async def async_setup_entry(
         await actual_live_manager.async_start()
         entry.async_on_unload(actual_live_manager.async_stop)
 
+    panel_group_name_prefix = "Gruppe" if hass.config.language == "de" else "Group"
     panel_group_sot_entities = []
     for idx, group in enumerate(getattr(coordinator, "panel_groups", []) or []):
-        group_name = str(group.get("name") or f"Group {idx + 1}") if isinstance(group, dict) else str(getattr(group, "name", None) or f"Group {idx + 1}")
+        fallback_name = f"{panel_group_name_prefix} {idx + 1}"
+        group_name = str(group.get("name") or fallback_name) if isinstance(group, dict) else str(getattr(group, "name", None) or fallback_name)
         panel_group_sot_entities.extend(
             [
                 SFMLPanelGroupPowerSensor(actual_live_manager, entry, group_name, idx),
