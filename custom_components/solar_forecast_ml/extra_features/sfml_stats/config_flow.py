@@ -193,8 +193,8 @@ def _basic_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
         ): selector.SelectSelector(
             selector.SelectSelectorConfig(
                 options=[
-                    selector.SelectOptionDict(value="DE", label="Deutschland"),
-                    selector.SelectOptionDict(value="AT", label="Oesterreich"),
+                    selector.SelectOptionDict(value="DE", label="Germany"),
+                    selector.SelectOptionDict(value="AT", label="Austria"),
                 ],
                 mode=selector.SelectSelectorMode.DROPDOWN,
             )
@@ -705,8 +705,8 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
                         options=[
-                            selector.SelectOptionDict(value="DE", label="Deutschland"),
-                            selector.SelectOptionDict(value="AT", label="Oesterreich"),
+                            selector.SelectOptionDict(value="DE", label="Germany"),
+                            selector.SelectOptionDict(value="AT", label="Austria"),
                         ],
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )

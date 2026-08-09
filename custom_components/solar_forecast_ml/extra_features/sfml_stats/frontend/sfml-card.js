@@ -257,7 +257,7 @@ class SfmlCard extends HTMLElement {
         </div>
         
         <div class="card-content">
-          <div class="loading-state">Lade Modeldaten...</div>
+          <div class="loading-state">Loading model data...</div>
         </div>
       </div>
     `;
@@ -275,14 +275,14 @@ class SfmlCard extends HTMLElement {
       ]);
 
       if (!summary || !energyFlow) {
-        this.container.innerHTML = `<div class="loading-state">Fehler beim Laden der API-Daten.</div>`;
+        this.container.innerHTML = `<div class="loading-state">Error loading API data.</div>`;
         return;
       }
 
       this.render(summary, energyFlow);
     } catch (err) {
       console.error("SFML Card fetch error:", err);
-      this.container.innerHTML = `<div class="loading-state">Verbindungsfehler zur API.</div>`;
+      this.container.innerHTML = `<div class="loading-state">Connection error to API.</div>`;
     }
   }
 

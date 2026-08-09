@@ -59,13 +59,13 @@ const SettingsPage = {
 
                         <!-- Configured Consumers Status -->
                         <div v-if="configuredConsumers && configuredConsumers.length > 0" class="missing-helpers-section">
-                            <div class="missing-helpers-title">{{ $t('settings.consumersStatusTitle') || 'Großverbraucher-Status' }}</div>
+                            <div class="missing-helpers-title">{{ $t('settings.consumersStatusTitle') }}</div>
                             <div v-for="c in configuredConsumers" :key="c.config_key" class="missing-helper-row">
                                 <div class="helper-info">
                                     <span class="helper-name">{{ getConsumerName(c.config_key) }}</span>
                                     <span class="helper-desc">
-                                        <span v-if="c.mode === 'sensor'">{{ $t('home.hubble.answer.consumerSensorMode') || 'Nutzt konfigurierten Zählersensor' }}: {{ c.daily_entity_id }}</span>
-                                        <span v-else>{{ $t('home.hubble.answer.consumerIntegratedMode') || 'Automatische Integration aus Leistungssensor' }}: {{ c.power_entity_id }}</span>
+                                        <span v-if="c.mode === 'sensor'">{{ $t('home.hubble.answer.consumerSensorMode') }}: {{ c.daily_entity_id }}</span>
+                                        <span v-else>{{ $t('home.hubble.answer.consumerIntegratedMode') }}: {{ c.power_entity_id }}</span>
                                     </span>
                                 </div>
                             </div>
@@ -679,9 +679,9 @@ const SettingsPage = {
 
         const getConsumerName = (key) => {
             const names = {
-                heatpump: t('flow.consumer.heatpump') || 'Wärmepumpe',
-                heatingrod: t('flow.consumer.heatingrod') || 'Heizstab',
-                wallbox: t('flow.consumer.wallbox') || 'Wallbox',
+                heatpump: t('flow.consumer.heatpump'),
+                heatingrod: t('flow.consumer.heatingrod'),
+                wallbox: t('flow.consumer.wallbox'),
             };
             return names[key] || key;
         };

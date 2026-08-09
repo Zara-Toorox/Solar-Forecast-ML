@@ -458,8 +458,9 @@ const _WeatherPage = {
             if (!days.length) return '';
             const latest = days.at(-1);
             const hours = Number(latest?.hours_count);
-            const detail = Number.isFinite(hours) ? ` (${hours} Stunden)` : '';
-            return `${days.length} unvollständige${days.length === 1 ? 'r Tag ist' : ' Tage sind'} enthalten${detail}; Tageswerte werden nicht hochgerechnet.`;
+            const detail = Number.isFinite(hours) ? t('weather.historyPartialDayHours', { hours }) : '';
+            const key = days.length === 1 ? 'weather.historyPartialDaySingular' : 'weather.historyPartialDayPlural';
+            return t(key, { count: days.length, detail });
         });
         // Helpers ------------------------------------------------------
         function fmt(v, digits = 1) {

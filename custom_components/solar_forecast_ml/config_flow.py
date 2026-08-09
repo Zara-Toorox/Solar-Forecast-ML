@@ -210,7 +210,7 @@ def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
                     continue
 
                 group_data = {
-                    CONF_PANEL_GROUP_NAME: f"Gruppe {idx + 1}",
+                    CONF_PANEL_GROUP_NAME: f"Group {idx + 1}",
                     CONF_PANEL_GROUP_POWER: power_wp,
                     CONF_PANEL_GROUP_AZIMUTH: azimuth,
                     CONF_PANEL_GROUP_TILT: tilt,
@@ -440,7 +440,7 @@ def _build_structured_panel_groups(
             continue
 
         group_data = {
-            CONF_PANEL_GROUP_NAME: f"Gruppe {index}",
+            CONF_PANEL_GROUP_NAME: f"Group {index}",
             CONF_PANEL_GROUP_POWER: round(kwp * 1000.0, 3),
             CONF_PANEL_GROUP_AZIMUTH: azimuth,
             CONF_PANEL_GROUP_TILT: tilt,

@@ -573,35 +573,35 @@ No worries! The integration adapts automatically."""
 
             if message:
                 # Custom message provided (e.g., overnight snow) @zara V16.1
-                notification_message = f"""❄️ **Schnee auf Solarmodulen erkannt**
+                notification_message = f"""❄️ **Snow Detected on Solar Panels**
 
-**Zeit:** {hour:02d}:00 Uhr
-**Temperatur:** {temperature_c:.1f}°C
+**Time:** {hour:02d}:00
+**Temperature:** {temperature_c:.1f}°C
 
 {message}
 
-**Hinweis:** Diese Stunden werden vom ML-Training ausgeschlossen.
+**Note:** These hours will be excluded from ML training.
 
-*"Auch im kältesten Winter geht die Sonne auf."*"""
+*"Even in the coldest winter, the sun still rises."* - Inspired by Star Trek"""
             else:
-                notification_message = f"""❄️ **Schnee auf Solarmodulen möglich**
+                notification_message = f"""❄️ **Snow Possible on Solar Panels**
 
-**Zeit:** {hour:02d}:00 Uhr
-**Temperatur:** {temperature_c:.1f}°C
-**Niederschlag:** {precipitation_mm:.1f} mm
-**Geschätzte Schneehöhe:** ~{estimated_depth:.0f} mm
+**Time:** {hour:02d}:00
+**Temperature:** {temperature_c:.1f}°C
+**Precipitation:** {precipitation_mm:.1f} mm
+**Estimated Snow Depth:** ~{estimated_depth:.0f} mm
 
-**Mögliche Auswirkungen:**
-- Solarproduktion kann reduziert sein
-- Diese Stunde wird vorsorglich vom ML-Training ausgeschlossen
+**Possible Effects:**
+- Solar production may be reduced
+- This hour will be excluded from ML training as a precaution
 
-**Hinweis:** Diese Warnung basiert auf Wetterdaten und ist eine Schätzung.
+**Note:** This warning is based on weather data and is an estimate.
 
-*"Auch im kältesten Winter geht die Sonne auf."*"""
+*"Even in the coldest winter, the sun still rises."* - Inspired by Star Trek"""
 
             await self._safe_create_notification(
                 message=notification_message,
-                title="❄️ Schnee erkannt",
+                title="❄️ Snow Detected",
                 notification_id=NOTIFICATION_ID_SNOW_COVERED,
             )
 
@@ -621,23 +621,23 @@ No worries! The integration adapts automatically."""
             return False
 
         try:
-            message = f"""☀️ **Schnee schmilzt vermutlich**
+            message = f"""☀️ **Snow Likely Melting**
 
-**Zeit:** {hour:02d}:00 Uhr
-**Temperatur:** {temperature_c:.1f}°C
+**Time:** {hour:02d}:00
+**Temperature:** {temperature_c:.1f}°C
 
 **Status:**
-- Temperatur ist gestiegen
-- Schnee beginnt zu schmelzen
-- Solarproduktion normalisiert sich
+- Temperature has risen
+- Snow is beginning to melt
+- Solar production is normalizing
 
-**Hinweis:** Es kann noch einige Stunden dauern, bis die Module schneefrei sind.
+**Note:** It may take a few more hours until the panels are snow-free.
 
-*"Nach jedem Sturm kommt die Ruhe."*"""
+*"After every storm comes the calm."* - Inspired by Star Trek"""
 
             await self._safe_create_notification(
                 message=message,
-                title="☀️ Schnee schmilzt",
+                title="☀️ Snow Melting",
                 notification_id=NOTIFICATION_ID_SNOW_COVERED,
             )
 

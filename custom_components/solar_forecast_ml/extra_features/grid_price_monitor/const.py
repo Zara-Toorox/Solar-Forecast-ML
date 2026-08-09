@@ -75,8 +75,8 @@ VAT_RATE_REDUCED_DE = 7  # 7% reduced VAT Germany
 VAT_OPTIONS = [
     {"value": 19, "label": "19% (Standard DE)"},
     {"value": 20, "label": "20% (Standard AT)"},
-    {"value": 7, "label": "7% (Ermäßigt DE)"},
-    {"value": 0, "label": "0% (Keine MwSt)"},
+    {"value": 7, "label": "7% (Reduced DE)"},
+    {"value": 0, "label": "0% (No VAT)"},
 ]
 
 # ============================================================================

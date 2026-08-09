@@ -494,7 +494,7 @@ const _HomePage = {
                     class="hubble-action docs-link"
                     style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;"
                 >
-                    📖 {{ $t('home.hubble.quick.docs') || 'Handbuch' }}
+                    📖 {{ $t('home.hubble.quick.docs') }}
                 </a>
             </div>
             <div v-if="hubbleView.answer" class="hubble-answer">
@@ -514,8 +514,8 @@ const _HomePage = {
                         <div class="hubble-helper-info">
                             <span class="hubble-helper-name">{{ getConsumerName(c.config_key) }}</span>
                             <span class="hubble-helper-desc">
-                                <span v-if="c.mode === 'sensor'">{{ $t('home.hubble.answer.consumerSensorMode') || 'Nutzt Zählersensor' }}: {{ c.daily_entity_id }}</span>
-                                <span v-else>{{ $t('home.hubble.answer.consumerIntegratedMode') || 'Integrierter Leistungssensor' }}: {{ c.power_entity_id }}</span>
+                                <span v-if="c.mode === 'sensor'">{{ $t('home.hubble.answer.consumerSensorMode') }}: {{ c.daily_entity_id }}</span>
+                                <span v-else>{{ $t('home.hubble.answer.consumerIntegratedMode') }}: {{ c.power_entity_id }}</span>
                             </span>
                         </div>
                     </div>
@@ -2077,14 +2077,14 @@ const _HomePage = {
                 const consumersList = payload.configured_consumers || [];
                 if (consumersList.length === 0) {
                     return {
-                        label: t('home.hubble.quick.helpers') || 'Sensoren-Status',
-                        text: t('home.hubble.answer.helpersNoneConfigured') || "Es sind keine Großverbraucher (Wärmepumpe, Heizstab oder Wallbox) konfiguriert."
+                        label: t('home.hubble.quick.helpers'),
+                        text: t('home.hubble.answer.helpersNoneConfigured')
                     };
                 }
                 return {
-                    label: t('home.hubble.quick.helpers') || 'Sensoren-Status',
+                    label: t('home.hubble.quick.helpers'),
                     isHelpers: true,
-                    text: t('home.hubble.answer.helpersText') || "Status der konfigurierten Großverbraucher:",
+                    text: t('home.hubble.answer.helpersText'),
                     consumers: consumersList
                 };
             }
@@ -3402,9 +3402,9 @@ const _HomePage = {
 
         const getConsumerName = (key) => {
             const names = {
-                heatpump: t('flow.consumer.heatpump') || 'Wärmepumpe',
-                heatingrod: t('flow.consumer.heatingrod') || 'Heizstab',
-                wallbox: t('flow.consumer.wallbox') || 'Wallbox',
+                heatpump: t('flow.consumer.heatpump'),
+                heatingrod: t('flow.consumer.heatingrod'),
+                wallbox: t('flow.consumer.wallbox'),
             };
             return names[key] || key;
         };

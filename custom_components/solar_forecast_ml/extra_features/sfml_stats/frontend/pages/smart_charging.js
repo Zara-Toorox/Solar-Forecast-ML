@@ -658,7 +658,7 @@ const SmartChargingPage = ((Vue) => {
                         batteryThroughput: "Battery Throughput & Cycles",
                         throughputDesc: "Battery usage and cycle wear",
                         totalCharged: "Total Charged",
-                        totalChargedSub: "Charged energy (PV: {pv}%, Netz: {grid}%)",
+                        totalChargedSub: "Charged energy (PV: {pv}%, Grid: {grid}%)",
                         batteryCycles: "Full Cycle Equivalent",
                         batteryCyclesSub: "Equivalent to approx. {cycles} cycles per day",
                         sizingGood: "Your battery ({cap} kWh) is optimally sized. A larger battery would have only added {savings} net savings so far.",
