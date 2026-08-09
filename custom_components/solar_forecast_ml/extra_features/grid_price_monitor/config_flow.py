@@ -44,8 +44,8 @@ from .const import (
     DEFAULT_TAXES_FEES,
     DOMAIN,
     NAME,
-    VAT_OPTIONS,
     VAT_RATE_AT,
+    get_vat_options,
     VAT_RATE_DE,
 )
 
@@ -94,6 +94,7 @@ def _get_country_schema(default_country: str = DEFAULT_COUNTRY) -> vol.Schema:
 def _get_pricing_schema(
     defaults: dict | None = None,
     default_vat: int = VAT_RATE_DE,
+    language: str = "en",
 ) -> vol.Schema:
     """Returns the pricing configuration schema @zara"""
     if defaults is None:
@@ -107,7 +108,7 @@ def _get_pricing_schema(
             selector.SelectSelectorConfig(
                 options=[
                     selector.SelectOptionDict(value=str(opt["value"]), label=opt["label"])
-                    for opt in VAT_OPTIONS
+                    for opt in get_vat_options(language)
                 ],
                 mode=selector.SelectSelectorMode.DROPDOWN,
             ),
@@ -385,7 +386,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="pricing",
-            data_schema=_get_pricing_schema(defaults, default_vat),
+            data_schema=_get_pricing_schema(defaults, default_vat, self.hass.config.language),
             errors=errors,
             description_placeholders=description_placeholders,
         )
@@ -484,7 +485,7 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
                 selector.SelectSelectorConfig(
                     options=[
                         selector.SelectOptionDict(value=str(opt["value"]), label=opt["label"])
-                        for opt in VAT_OPTIONS
+                        for opt in get_vat_options(self.hass.config.language)
                     ],
                     mode=selector.SelectSelectorMode.DROPDOWN,
                 ),

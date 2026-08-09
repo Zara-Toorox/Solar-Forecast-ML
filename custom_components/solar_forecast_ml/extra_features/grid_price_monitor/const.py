@@ -79,6 +79,18 @@ VAT_OPTIONS = [
     {"value": 0, "label": "0% (No VAT)"},
 ]
 
+VAT_OPTIONS_DE = [
+    {"value": 19, "label": "19% (Standard DE)"},
+    {"value": 20, "label": "20% (Standard AT)"},
+    {"value": 7, "label": "7% (Ermäßigt DE)"},
+    {"value": 0, "label": "0% (Keine MwSt)"},
+]
+
+
+def get_vat_options(language: str = "en") -> list[dict]:
+    """Return VAT selector options in the given language @zara"""
+    return VAT_OPTIONS_DE if language == "de" else VAT_OPTIONS
+
 # ============================================================================
 # COUNTRY OPTIONS
 # ============================================================================

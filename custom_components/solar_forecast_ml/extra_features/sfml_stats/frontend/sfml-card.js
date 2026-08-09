@@ -1,9 +1,27 @@
 // SFML Forecast Lovelace Card
 // (C) 2026 Zara-Toorox
 
+const SFML_CARD_STRINGS = {
+  en: {
+    loading: 'Loading model data...',
+    apiError: 'Error loading API data.',
+    connectionError: 'Connection error to API.',
+  },
+  de: {
+    loading: 'Lade Modeldaten...',
+    apiError: 'Fehler beim Laden der API-Daten.',
+    connectionError: 'Verbindungsfehler zur API.',
+  },
+};
+
 class SfmlCard extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
+  }
+
+  _t(key) {
+    const lang = this._hass && this._hass.language === 'de' ? 'de' : 'en';
+    return SFML_CARD_STRINGS[lang][key];
   }
 
   set hass(hass) {
@@ -257,7 +275,7 @@ class SfmlCard extends HTMLElement {
         </div>
         
         <div class="card-content">
-          <div class="loading-state">Loading model data...</div>
+          <div class="loading-state">${this._t('loading')}</div>
         </div>
       </div>
     `;
@@ -275,14 +293,14 @@ class SfmlCard extends HTMLElement {
       ]);
 
       if (!summary || !energyFlow) {
-        this.container.innerHTML = `<div class="loading-state">Error loading API data.</div>`;
+        this.container.innerHTML = `<div class="loading-state">${this._t('apiError')}</div>`;
         return;
       }
 
       this.render(summary, energyFlow);
     } catch (err) {
       console.error("SFML Card fetch error:", err);
-      this.container.innerHTML = `<div class="loading-state">Connection error to API.</div>`;
+      this.container.innerHTML = `<div class="loading-state">${this._t('connectionError')}</div>`;
     }
   }
 

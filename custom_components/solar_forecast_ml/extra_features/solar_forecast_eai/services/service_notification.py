@@ -570,10 +570,23 @@ No worries! The integration adapts automatically."""
 
         try:
             estimated_depth = precipitation_mm * 8  # Conservative estimate
+            is_de = self.hass.config.language == "de"
 
             if message:
                 # Custom message provided (e.g., overnight snow) @zara V16.1
-                notification_message = f"""❄️ **Snow Detected on Solar Panels**
+                if is_de:
+                    notification_message = f"""❄️ **Schnee auf Solarmodulen erkannt**
+
+**Zeit:** {hour:02d}:00 Uhr
+**Temperatur:** {temperature_c:.1f}°C
+
+{message}
+
+**Hinweis:** Diese Stunden werden vom ML-Training ausgeschlossen.
+
+*"Auch im kältesten Winter geht die Sonne auf."*"""
+                else:
+                    notification_message = f"""❄️ **Snow Detected on Solar Panels**
 
 **Time:** {hour:02d}:00
 **Temperature:** {temperature_c:.1f}°C
@@ -584,7 +597,23 @@ No worries! The integration adapts automatically."""
 
 *"Even in the coldest winter, the sun still rises."* - Inspired by Star Trek"""
             else:
-                notification_message = f"""❄️ **Snow Possible on Solar Panels**
+                if is_de:
+                    notification_message = f"""❄️ **Schnee auf Solarmodulen möglich**
+
+**Zeit:** {hour:02d}:00 Uhr
+**Temperatur:** {temperature_c:.1f}°C
+**Niederschlag:** {precipitation_mm:.1f} mm
+**Geschätzte Schneehöhe:** ~{estimated_depth:.0f} mm
+
+**Mögliche Auswirkungen:**
+- Solarproduktion kann reduziert sein
+- Diese Stunde wird vorsorglich vom ML-Training ausgeschlossen
+
+**Hinweis:** Diese Warnung basiert auf Wetterdaten und ist eine Schätzung.
+
+*"Auch im kältesten Winter geht die Sonne auf."*"""
+                else:
+                    notification_message = f"""❄️ **Snow Possible on Solar Panels**
 
 **Time:** {hour:02d}:00
 **Temperature:** {temperature_c:.1f}°C
@@ -601,7 +630,7 @@ No worries! The integration adapts automatically."""
 
             await self._safe_create_notification(
                 message=notification_message,
-                title="❄️ Snow Detected",
+                title="❄️ Schnee erkannt" if is_de else "❄️ Snow Detected",
                 notification_id=NOTIFICATION_ID_SNOW_COVERED,
             )
 
@@ -621,7 +650,23 @@ No worries! The integration adapts automatically."""
             return False
 
         try:
-            message = f"""☀️ **Snow Likely Melting**
+            if self.hass.config.language == "de":
+                message = f"""☀️ **Schnee schmilzt vermutlich**
+
+**Zeit:** {hour:02d}:00 Uhr
+**Temperatur:** {temperature_c:.1f}°C
+
+**Status:**
+- Temperatur ist gestiegen
+- Schnee beginnt zu schmelzen
+- Solarproduktion normalisiert sich
+
+**Hinweis:** Es kann noch einige Stunden dauern, bis die Module schneefrei sind.
+
+*"Nach jedem Sturm kommt die Ruhe."*"""
+                title = "☀️ Schnee schmilzt"
+            else:
+                message = f"""☀️ **Snow Likely Melting**
 
 **Time:** {hour:02d}:00
 **Temperature:** {temperature_c:.1f}°C
@@ -634,10 +679,11 @@ No worries! The integration adapts automatically."""
 **Note:** It may take a few more hours until the panels are snow-free.
 
 *"After every storm comes the calm."* - Inspired by Star Trek"""
+                title = "☀️ Snow Melting"
 
             await self._safe_create_notification(
                 message=message,
-                title="☀️ Snow Melting",
+                title=title,
                 notification_id=NOTIFICATION_ID_SNOW_COVERED,
             )
 

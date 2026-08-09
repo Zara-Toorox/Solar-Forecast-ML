@@ -177,7 +177,19 @@ def _optional_entity_key(key: str, defaults: dict[str, Any]) -> vol.Marker:
     return vol.Optional(key)
 
 
-def _basic_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+def _country_options(language: str = "en") -> list[selector.SelectOptionDict]:
+    if language == "de":
+        return [
+            selector.SelectOptionDict(value="DE", label="Deutschland"),
+            selector.SelectOptionDict(value="AT", label="Österreich"),
+        ]
+    return [
+        selector.SelectOptionDict(value="DE", label="Germany"),
+        selector.SelectOptionDict(value="AT", label="Austria"),
+    ]
+
+
+def _basic_schema(defaults: dict[str, Any] | None = None, language: str = "en") -> vol.Schema:
     """Build the basic setup schema."""
     current = defaults or {}
     home_sensor = current.get(CONF_SENSOR_HOME_CONSUMPTION)
@@ -192,10 +204,7 @@ def _basic_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             default=current.get(CONF_COUNTRY, DEFAULT_COUNTRY),
         ): selector.SelectSelector(
             selector.SelectSelectorConfig(
-                options=[
-                    selector.SelectOptionDict(value="DE", label="Germany"),
-                    selector.SelectOptionDict(value="AT", label="Austria"),
-                ],
+                options=_country_options(language),
                 mode=selector.SelectSelectorMode.DROPDOWN,
             )
         ),
@@ -322,7 +331,7 @@ class SFMLStatsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_basic_schema(),
+            data_schema=_basic_schema(language=self.hass.config.language),
         )
 
     async def async_step_energy_flows(
@@ -539,7 +548,7 @@ class SFMLStatsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_basic_schema(self._data),
+            data_schema=_basic_schema(self._data, language=self.hass.config.language),
         )
 
     async def async_step_reconfigure_energy_flows(
@@ -704,10 +713,7 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     default=self._current(CONF_COUNTRY, DEFAULT_COUNTRY),
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=[
-                            selector.SelectOptionDict(value="DE", label="Germany"),
-                            selector.SelectOptionDict(value="AT", label="Austria"),
-                        ],
+                        options=_country_options(self.hass.config.language),
                         mode=selector.SelectSelectorMode.DROPDOWN,
                     )
                 ),
