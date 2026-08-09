@@ -392,7 +392,9 @@ def _resolve_panel_group_count(
 def _build_structured_panel_groups(
     user_input: dict[str, Any],
     existing_groups: list[dict],
+    language: str = "en",
 ) -> tuple[list[dict], dict[str, str]]:
+    group_name_prefix = "Gruppe" if language == "de" else "Group"
     groups = []
     errors = {}
     group_count, count_error = _resolve_panel_group_count(user_input, existing_groups)
@@ -440,7 +442,7 @@ def _build_structured_panel_groups(
             continue
 
         group_data = {
-            CONF_PANEL_GROUP_NAME: f"Group {index}",
+            CONF_PANEL_GROUP_NAME: f"{group_name_prefix} {index}",
             CONF_PANEL_GROUP_POWER: round(kwp * 1000.0, 3),
             CONF_PANEL_GROUP_AZIMUTH: azimuth,
             CONF_PANEL_GROUP_TILT: tilt,
@@ -585,6 +587,7 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             panel_groups, errors = _build_structured_panel_groups(
                 user_input,
                 existing_groups,
+                self.hass.config.language,
             )
 
             if not errors:
@@ -778,6 +781,7 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             panel_groups, errors = _build_structured_panel_groups(
                 user_input,
                 existing_groups,
+                self.hass.config.language,
             )
 
             if not errors:

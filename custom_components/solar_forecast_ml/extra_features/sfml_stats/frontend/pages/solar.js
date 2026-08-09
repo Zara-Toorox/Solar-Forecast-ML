@@ -968,7 +968,7 @@ const _SolarPage = {
                 ? shadowMovement.groupNames
                 : Object.keys(groups || {});
             return orderedNames.map((name, index) => {
-                const fallbackName = name || `Group ${index + 1}`;
+                const fallbackName = name || t('solar.groupFallbackName', { index: index + 1 });
                 return smFormatPanel(fallbackName, groups?.[name], fallbackShadowPct);
             });
         }
@@ -1084,8 +1084,8 @@ const _SolarPage = {
 	                    efficiency: eff,
 	                    cause: d.cause || t('solar.movement.noShadow'),
 	                    lossKwh: 0,
-	                    panels: (shadowMovement.groupNames.length ? shadowMovement.groupNames : ['Group 1']).map((name, index) => ({
-	                        name: name || `Group ${index + 1}`,
+	                    panels: (shadowMovement.groupNames.length ? shadowMovement.groupNames : [t('solar.groupFallbackName', { index: 1 })]).map((name, index) => ({
+	                        name: name || t('solar.groupFallbackName', { index: index + 1 }),
 	                        efficiencyValue: eff,
 	                        efficiencyLabel: `${eff}%`,
 	                        shadowPct: d.shadowPct || 0,

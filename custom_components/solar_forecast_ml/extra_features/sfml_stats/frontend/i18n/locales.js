@@ -497,6 +497,7 @@ window.SFMLLocales = {
         },
         solar: {
             title: "Solar Analytics",
+            groupFallbackName: "Gruppe {index}",
             dataCoverage: "Datengrundlage: {days} Tage ({first} bis {last}) · {measured} Monate gemessen, {estimated} geschätzt",
             monthlyYield: "Monatlicher Solarertrag (kWh)",
             productionHeatmap: "Produktions-Heatmap (7 Tage)",
@@ -1481,6 +1482,7 @@ window.SFMLLocales = {
         },
         solar: {
             title: "Solar analytics",
+            groupFallbackName: "Group {index}",
             dataCoverage: "Data basis: {days} days ({first} to {last}) · {measured} months measured, {estimated} estimated",
             monthlyYield: "Monthly solar yield (kWh)",
             productionHeatmap: "Production heatmap (7 days)",
@@ -2465,6 +2467,7 @@ window.SFMLLocales = {
         },
         solar: {
             title: "Analityka solar",
+            groupFallbackName: "Grupa {index}",
             dataCoverage: "Baza danych: {days} dni ({first} do {last}) · {measured} miesięcy zmierzonych, {estimated} oszacowanych",
             monthlyYield: "Miesięczny uzysk solarny (kWh)",
             productionHeatmap: "Mapa cieplna produkcji (7 dni)",
