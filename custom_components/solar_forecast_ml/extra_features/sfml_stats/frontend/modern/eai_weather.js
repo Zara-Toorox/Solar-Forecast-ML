@@ -486,6 +486,7 @@ const ModernEAIWeatherPage = {
 
     setup() {
         const { ref, reactive, computed, onMounted, onUnmounted } = Vue;
+        const hourUnit = window.SFMLI18n?.current === "en" ? "hours" : "Stunden";
         const loading = ref(true);
         const error = ref("");
         const status = reactive({ data_mode: "mock", is_demo: true });
@@ -806,7 +807,7 @@ const ModernEAIWeatherPage = {
             { label: "Historie", value: historySource.value, detail: coverageLabel.value + " Abdeckung" },
         ]);
         const quality = computed(() => weather.forecast_vs_actual?.temperature_c || { by_horizon: weather.accuracy || {} });
-        const qualityRows = computed(() => [["0_6h", "0–6 Stunden"], ["6_24h", "6–24 Stunden"], ["24_72h", "24–72 Stunden"]].map(([key, label]) => ({ key, label, values: quality.value.by_horizon?.[key] || {} })));
+        const qualityRows = computed(() => [["0_6h", `0–6 ${hourUnit}`], ["6_24h", `6–24 ${hourUnit}`], ["24_72h", `24–72 ${hourUnit}`]].map(([key, label]) => ({ key, label, values: quality.value.by_horizon?.[key] || {} })));
         const trendLabel = computed(() => ({ improving: "Treffer werden besser", worsening: "Zuletzt wechselhafter", stable: "Treffer bleiben stabil" }[quality.value.trend?.direction] || "Trend braucht mehr Daten"));
         const accuracyProvenance = computed(() => assessAccuracyProvenance(
             quality.value.provenance,
@@ -829,8 +830,9 @@ const ModernEAIWeatherPage = {
         const modeLabel = computed(() => ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt" }[status.data_mode] || "Vorschau"));
 
         const isFiniteValue = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
-        const number = (value, digits = 1) => isFiniteValue(value) ? new Intl.NumberFormat("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value)) : "—";
-        const integer = (value) => isFiniteValue(value) ? new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 }).format(Number(value)) : "—";
+        const displayLocale = window.SFMLI18n?.current || "de";
+        const number = (value, digits = 1) => isFiniteValue(value) ? new Intl.NumberFormat(displayLocale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(Number(value)) : "—";
+        const integer = (value) => isFiniteValue(value) ? new Intl.NumberFormat(displayLocale, { maximumFractionDigits: 0 }).format(Number(value)) : "—";
         const percent = (value) => isFiniteValue(value) ? `${integer(value)} %` : "—";
         const temperature = (value) => isFiniteValue(value) ? `${number(value)} °C` : "—";
         const precipitation = (value) => isFiniteValue(value) ? `${number(value)} mm` : "—";
@@ -851,7 +853,7 @@ const ModernEAIWeatherPage = {
         const formatDate = (value, options, fallback) => {
             if (!value) return fallback;
             const date = dateForDisplay(value);
-            return Number.isNaN(date.getTime()) ? fallback : new Intl.DateTimeFormat("de-DE", {
+            return Number.isNaN(date.getTime()) ? fallback : new Intl.DateTimeFormat(displayLocale, {
                 ...options,
                 timeZone: haTimeZone.value,
             }).format(date);

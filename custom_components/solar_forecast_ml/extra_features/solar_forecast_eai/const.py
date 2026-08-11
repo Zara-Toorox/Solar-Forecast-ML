@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "solar_forecast_eai"
-VERSION = "42.0.6"
+VERSION = "44.0.0"
 CONF_LICENSE_KEY = "license_key"
 CONF_LICENSE_STATUS = "license_status"
 CONF_LICENSE_ID = "license_id"
@@ -140,7 +140,7 @@ ML_MODEL_VERSION = "1.0"
 DATA_VERSION = "1.0"
 AI_VERSION = "1.0"
 SOFTWARE_VERSION = VERSION
-INTEGRATION_MODEL = "Solar Forecast Energy AI V40"
+INTEGRATION_MODEL = f"Solar Forecast Energy AI V{VERSION}"
 CORRECTION_FACTOR_MIN = 0.5
 CORRECTION_FACTOR_MAX = 1.5
 BACKUP_RETENTION_DAYS = 30

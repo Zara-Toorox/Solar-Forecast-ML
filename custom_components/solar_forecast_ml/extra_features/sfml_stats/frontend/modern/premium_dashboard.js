@@ -176,7 +176,7 @@ const PremiumDashboardPage = ((Vue) => {
                                 <span :class="['premium-mode-chip', dataState]">
                                     <i aria-hidden="true"></i>{{ dataStateLabel }}
                                 </span>
-                                <span>Energie {{ updatedTime }}</span>
+                                <span>{{ isEnglish ? "Energy" : "Energie" }} {{ updatedTime }}</span>
                                 <span>{{ weatherSymbol }} {{ temperature(weather.temperature_c) }}</span>
                             </div>
                         </header>
@@ -265,11 +265,11 @@ const PremiumDashboardPage = ((Vue) => {
                                 </svg>
 
                                 <p class="sr-only">
-                                    <span v-if="positive(energy.solar_to_house_w)">PV zu Haus: {{ power(energy.solar_to_house_w) }}. </span>
-                                    <span v-if="positive(energy.solar_to_battery_w)">PV zu Akku: {{ power(energy.solar_to_battery_w) }}. </span>
-                                    <span v-else-if="positive(energy.battery_to_house_w)">Akku zu Haus: {{ power(energy.battery_to_house_w) }}. </span>
-                                    <span v-if="positive(energy.grid_export_w)">PV zu Netz: {{ power(energy.grid_export_w) }}. </span>
-                                    <span v-else-if="positive(energy.grid_import_w)">Netz zu Haus: {{ power(energy.grid_import_w) }}. </span>
+                                    <span v-if="positive(energy.solar_to_house_w)">{{ isEnglish ? "PV to home:" : "PV zu Haus:" }} {{ power(energy.solar_to_house_w) }}. </span>
+                                    <span v-if="positive(energy.solar_to_battery_w)">{{ isEnglish ? "PV to battery:" : "PV zu Akku:" }} {{ power(energy.solar_to_battery_w) }}. </span>
+                                    <span v-else-if="positive(energy.battery_to_house_w)">{{ isEnglish ? "Battery to home:" : "Akku zu Haus:" }} {{ power(energy.battery_to_house_w) }}. </span>
+                                    <span v-if="positive(energy.grid_export_w)">{{ isEnglish ? "PV to grid:" : "PV zu Netz:" }} {{ power(energy.grid_export_w) }}. </span>
+                                    <span v-else-if="positive(energy.grid_import_w)">{{ isEnglish ? "Grid to home:" : "Netz zu Haus:" }} {{ power(energy.grid_import_w) }}. </span>
                                 </p>
 
                                 <button type="button" class="orbit-anchor solar" @click="navigate('solar')">
@@ -474,6 +474,7 @@ const PremiumDashboardPage = ((Vue) => {
         `,
         setup(_props, { emit }) {
             const locale = window.SFMLI18n?.current || "de";
+            const isEnglish = locale === "en";
             const copy = COPY[locale] || COPY.de;
             const loaded = ref(false);
             const error = ref(null);
@@ -891,7 +892,7 @@ const PremiumDashboardPage = ((Vue) => {
             });
 
             return {
-                copy, loaded, error, dashboard, energy, forecast, price, heatPump, wallbox,
+                copy, isEnglish, loaded, error, dashboard, energy, forecast, price, heatPump, wallbox,
                 weather, warnings, weatherTarget, updatedTime, batteryState, gridState, gridPower,
                 weatherSymbol, weatherText, weatherConditionText, temperatureSourceLabel, heatPumpMode, wallboxState,
                 progressPercent, progressText, dayArc,

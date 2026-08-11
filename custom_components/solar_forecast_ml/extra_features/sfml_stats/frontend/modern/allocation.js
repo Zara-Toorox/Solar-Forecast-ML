@@ -4,7 +4,8 @@
     if (root) root.SFMLAllocation = api;
 })(typeof window !== "undefined" ? window : globalThis, () => {
     const VALID_STATUSES = new Set(["valid", "balanced", "complete", "closed"]);
-    const NUMBER_FORMAT = new Intl.NumberFormat("de-DE", {
+    const activeLocale = typeof window !== "undefined" ? window.SFMLI18n?.current : "en";
+    const NUMBER_FORMAT = new Intl.NumberFormat(({ de: "de-DE", en: "en-US", pl: "pl-PL" })[activeLocale] || "en-US", {
         minimumFractionDigits: 1,
         maximumFractionDigits: 2,
     });

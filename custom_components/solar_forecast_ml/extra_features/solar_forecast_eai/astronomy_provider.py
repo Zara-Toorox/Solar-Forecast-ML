@@ -197,12 +197,13 @@ class AstronomyProviderAdapter:
                 break
             await asyncio.sleep(delay)
         elapsed = QUERY_TIMEOUT_SECONDS - max(0.0, deadline - time.monotonic())
+        last_error_text = str(last_error) if last_error is not None else "provider unavailable"
         _LOGGER.warning(
             "SFML astronomy provider unavailable after bounded retry "
-            "(attempts=%d; elapsed=%.3fs); failing closed",
+            "(attempts=%d; elapsed=%.3fs; last_error=%s); failing closed",
             attempts,
             elapsed,
-            exc_info=last_error is not None,
+            last_error_text,
         )
         current = self._provider()
         raise _ProviderUnavailable(

@@ -139,6 +139,7 @@ const ModernMobilityPage = {
         </section>`,
     setup() {
         const { ref, reactive, computed, onMounted, watch } = Vue;
+        const unavailable = window.SFMLI18n?.current === "en" ? "Unavailable" : "Nicht verfügbar";
         const loading = ref(true);
         const error = ref("");
         const status = reactive({ data_mode: "mock", is_demo: true });
@@ -343,7 +344,7 @@ const ModernMobilityPage = {
                     source: point,
                     timestamp: point.timestamp,
                     hour,
-                    label: Number.isFinite(timestamp.getTime()) ? timestamp.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "Zeitpunkt nicht verfügbar",
+                    label: Number.isFinite(timestamp.getTime()) ? timestamp.toLocaleTimeString(window.SFMLI18n?.current || "en", { hour: "2-digit", minute: "2-digit" }) : "Zeitpunkt nicht verfügbar",
                     pv,
                     house,
                     hp,
@@ -433,15 +434,15 @@ const ModernMobilityPage = {
         }, { immediate: true });
         const number = (value, maximumFractionDigits = 1) => {
             if (value === null || value === undefined || !Number.isFinite(Number(value))) {
-                return "Nicht verfügbar";
+                return unavailable;
             }
-            return new Intl.NumberFormat("de-DE", {
+            return new Intl.NumberFormat(window.SFMLI18n?.current || "en", {
                 minimumFractionDigits: maximumFractionDigits,
                 maximumFractionDigits,
             }).format(Number(value));
         };
         const euro = (value) => `${number(value, 2)} €`;
-        const departureLabel = computed(() => mobility.departure_time ? new Date(mobility.departure_time).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "Wird ermittelt");
+        const departureLabel = computed(() => mobility.departure_time ? new Date(mobility.departure_time).toLocaleString(window.SFMLI18n?.current || "en", { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "Wird ermittelt");
         const recommendationWindow = computed(() => {
             if (!plan.value.available) return "Nicht verfügbar";
             const providerStart = Date.parse(mobility.recommended_start);
@@ -459,7 +460,7 @@ const ModernMobilityPage = {
                 ? providerEnd
                 : plan.value.end;
             if (Number.isFinite(start) && Number.isFinite(end)) {
-                return `${new Date(start).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}–${new Date(end).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} Uhr`;
+                return `${new Date(start).toLocaleTimeString(window.SFMLI18n?.current || "en", { hour: "2-digit", minute: "2-digit" })}–${new Date(end).toLocaleTimeString(window.SFMLI18n?.current || "en", { hour: "2-digit", minute: "2-digit" })}`;
             }
             return plan.value.requiredEnergy > 0
                 ? "Kein belastbares Zeitfenster"
@@ -489,8 +490,8 @@ const ModernMobilityPage = {
         const mobilityBudget = computed(() => {
             const allocation = plan.value.available ? plan.value.providerAllocation : null;
             const allocationPeriod = allocation
-                ? `${new Date(allocation.forecast_interval_start).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}–${new Date(allocation.forecast_interval_end).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`
-                : "Nicht verfügbar";
+                ? `${new Date(allocation.forecast_interval_start).toLocaleString(window.SFMLI18n?.current || "en", { weekday: "short", hour: "2-digit", minute: "2-digit" })}–${new Date(allocation.forecast_interval_end).toLocaleString(window.SFMLI18n?.current || "en", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`
+                : unavailable;
             return MOBILITY_ALLOCATION.createAllocationViewModel(allocation || {}, {
                 period: allocationPeriod,
                 expectedHours: allocation ? plan.value.planningWindow.expectedHours : null,

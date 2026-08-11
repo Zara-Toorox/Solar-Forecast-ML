@@ -5,12 +5,19 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-42.0.6-blue.svg" alt="Version"></a>
+  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-44.0.0-blue.svg" alt="Version"></a>
   <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Hubble-purple.svg" alt="Codename"></a>
   <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Proprietary%20Non--Commercial-green.svg" alt="License"></a>
   <img src="https://img.shields.io/badge/platform-x86__64%20%7C%20ARM%20%7C%20RPi-lightgrey.svg" alt="Platform">
 </p>
+
+> [!IMPORTANT]
+> ## Official Solar Forecast ML Website
+>
+> Visit **[solarforecastml.com](https://solarforecastml.com/en/)** for the complete product overview, installation guidance, sensor reference, troubleshooting help, known bugs, and release updates.
+>
+> **[Installation](https://solarforecastml.com/en/installation/)** · **[Sensor reference](https://solarforecastml.com/en/sensors/)** · **[Help](https://solarforecastml.com/en/docs/)** · **[Bug tracker](https://solarforecastml.com/en/bugs/)** · **[Updates](https://solarforecastml.com/en/updates/)**
 
 Solar Forecast ML (SFML) builds a local digital twin of your photovoltaic system. It combines solar physics, weather intelligence, panel-group measurements, and locally trained models to produce hourly forecasts for today and the next two days. Version 40 uses an SFML-owned Source-of-Truth layer for validated production, forecast, and diagnostic data instead of relying on recorder-derived energy helpers.
 

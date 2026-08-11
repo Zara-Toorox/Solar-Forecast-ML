@@ -1,4 +1,6 @@
-const EAI_NUMBER_FORMAT = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 });
+const EAI_ACTIVE_LOCALE = typeof window !== "undefined" ? window.SFMLI18n?.current : "en";
+const EAI_LOCALE = ({ de: "de-DE", en: "en-US", pl: "pl-PL" })[EAI_ACTIVE_LOCALE] || "en-US";
+const EAI_NUMBER_FORMAT = new Intl.NumberFormat(EAI_LOCALE, { maximumFractionDigits: 2 });
 const EAI_ALLOCATION = typeof module !== "undefined"
     ? require("./allocation.js")
     : window.SFMLAllocation;
@@ -36,12 +38,12 @@ const ModernEAIPage = {
                         <div class="calculator-controls">
                             <label><span>Strompreis <strong>{{ electricityPrice.toFixed(1) }} ct/kWh</strong></span><input v-model.number="electricityPrice" type="range" min="15" max="70" step="0.5" aria-label="Strompreis in Cent pro Kilowattstunde"></label>
                             <label><span>Heutige PV-Deckung der Wärmepumpe <strong>{{ pvShare }} %</strong></span><input v-model.number="pvShare" type="range" min="0" max="80" step="1" aria-label="Heutige PV-Deckung in Prozent"></label>
-                            <label><span>Jährlicher Wärmebedarf <strong>{{ annualHeat.toLocaleString('de-DE') }} kWh</strong></span><input v-model.number="annualHeat" type="range" min="3000" max="30000" step="250" aria-label="Jährlicher Wärmebedarf in Kilowattstunden"></label>
+                            <label><span>Jährlicher Wärmebedarf <strong>{{ annualHeat.toLocaleString(EAI_LOCALE) }} kWh</strong></span><input v-model.number="annualHeat" type="range" min="3000" max="30000" step="250" aria-label="Jährlicher Wärmebedarf in Kilowattstunden"></label>
                             <p class="calculator-source">{{ calculatorSource }}</p>
                         </div>
                         <div class="savings-result" aria-live="polite">
-                            <span>Orientierungswert pro Jahr</span><strong><small>≈</small> {{ animatedSavings.toLocaleString('de-DE') }} €</strong><p>{{ potential.gridReduction.toLocaleString('de-DE') }} kWh weniger Netzbezug im dargestellten Szenario</p>
-                            <div class="result-comparison"><span><small>Heute</small>{{ potential.currentCost.toLocaleString('de-DE') }} €</span><i>→</i><span><small>Mit genutzten Zeitfenstern</small>{{ potential.advisedCost.toLocaleString('de-DE') }} €</span></div>
+                            <span>Orientierungswert pro Jahr</span><strong><small>≈</small> {{ animatedSavings.toLocaleString(EAI_LOCALE) }} €</strong><p>{{ potential.gridReduction.toLocaleString(EAI_LOCALE) }} kWh weniger Netzbezug im dargestellten Szenario</p>
+                            <div class="result-comparison"><span><small>Heute</small>{{ potential.currentCost.toLocaleString(EAI_LOCALE) }} €</span><i>→</i><span><small>Mit genutzten Zeitfenstern</small>{{ potential.advisedCost.toLocaleString(EAI_LOCALE) }} €</span></div>
                         </div>
                     </div>
                     <allocation-waterfall :model="pvWaterfall"></allocation-waterfall>
@@ -508,10 +510,10 @@ const ModernEAIPage = {
         });
         const modeLabel = computed(() => ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt", unavailable: "Nicht verfügbar" }[status.data_mode] || status.data_mode));
         const notice = computed(() => status.data_mode === "degraded" ? { title: "Datenquelle eingeschränkt", text: "Fehlende Werte werden nicht erfunden oder als Null dargestellt." } : null);
-        const windowLabel = computed(() => optimization.value.available ? new Date(optimization.value.start).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr" : "Wird ermittelt");
+        const windowLabel = computed(() => optimization.value.available ? new Date(optimization.value.start).toLocaleTimeString(EAI_LOCALE, { hour: "2-digit", minute: "2-digit" }) : "Wird ermittelt");
         const overviewMetrics = computed(() => [
             ["Aktuelle elektrische Leistung", overview.value.current_power_kw, " kW"],
-            ["Elektrische Energie heute", overview.value.energy_today_kwh, " kWh"],
+            [EAI_ACTIVE_LOCALE === "en" ? "Electrical energy today" : "Elektrische Energie heute", overview.value.energy_today_kwh, " kWh"],
             ["Elektrischer Bedarf morgen", overview.value.expected_tomorrow_kwh, " kWh"],
             ["PV-Anteil Wärmepumpe", overview.value.pv_coverage_percent, " %"],
             ["Netzbezug Wärmepumpe erwartet", overview.value.expected_grid_import_kwh, " kWh"],
@@ -534,8 +536,8 @@ const ModernEAIPage = {
         const allocationPeriod = computed(() => {
             const energy = sections.energy || {};
             if (!energy.forecast_period_start || !energy.forecast_interval_end) return "Zeitraum nicht bestätigt";
-            const start = new Date(energy.forecast_period_start).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-            const end = new Date(energy.forecast_interval_end).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+            const start = new Date(energy.forecast_period_start).toLocaleString(EAI_LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+            const end = new Date(energy.forecast_interval_end).toLocaleString(EAI_LOCALE, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
             return `${start}–${end} Uhr`;
         });
         const pvWaterfall = computed(() => {
@@ -624,7 +626,7 @@ const ModernEAIPage = {
                 sensor_coverage_percent: ["Datenabdeckung", " %", "Anteil verfügbarer Betriebsdaten; Details stehen in Diagnose."],
             },
             efficiency: {
-                electric_kwh: ["Elektrische Energie heute", " kWh", "Heute gemessener Stromverbrauch der Wärmepumpe."],
+                electric_kwh: [EAI_ACTIVE_LOCALE === "en" ? "Electrical energy today" : "Elektrische Energie heute", " kWh", "Heute gemessener Stromverbrauch der Wärmepumpe."],
                 thermal_kwh: ["Thermische Energie heute", " kWh", "Heute abgegebene oder aus validen Messwerten berechnete Wärme."],
                 daily_work_factor: ["Arbeitszahl heute", "", "Thermische Energie geteilt durch elektrische Energie desselben Tages."],
                 reported_jaz: ["Jahresarbeitszahl", "", "Vom zugeordneten Sensor gelieferte langfristige Arbeitszahl."],
@@ -688,7 +690,7 @@ const ModernEAIPage = {
         const powerHeight = (value) => `${Math.min(100, Math.max(2, Number(value || 0) * 26))}%`;
         const bandStyle = (point) => ({ bottom: powerHeight(point.lower_kw), height: `${Math.max(2, (point.upper_kw - point.lower_kw) * 26)}%` });
         const forecastPointTitle = (point) => {
-            const time = new Date(point.timestamp).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+            const time = new Date(point.timestamp).toLocaleString(EAI_LOCALE, { weekday: "short", hour: "2-digit", minute: "2-digit" });
             return `${time} · ${format(point.forecast_kw, " kW")} · Band ${format(point.lower_kw, "")}–${format(point.upper_kw, " kW")} · ± ${format(point.uncertainty_percent, " %")}`;
         };
         onMounted(() => {
@@ -700,7 +702,7 @@ const ModernEAIPage = {
             stopRefresh();
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         });
-        return { tabs, activeTab, selectTab, handleTabKeydown, loading, error, status, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle };
+        return { EAI_LOCALE, tabs, activeTab, selectTab, handleTabKeydown, loading, error, status, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle };
     },
 };
 

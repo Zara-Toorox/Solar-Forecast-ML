@@ -18,6 +18,8 @@ const ICON_PATHS = {
     mobility: "M5 15h14l-1.5-5h-11L5 15Zm2-5 2-4h6l2 4M7 15v3M17 15v3M8 18h.01M16 18h.01M20 9h2v5M22 9V6",
     charge: "M7 7V3M17 7V3M5 7h14v4a7 7 0 0 1-7 7v3M8 21h8",
     settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.38.2.73.32 1.1.4h.5v4h-.09A1.7 1.7 0 0 0 19.4 15Z",
+    help: "M9.1 9a3 3 0 1 1 5.8 1.05c-.42 1.08-1.35 1.45-2.05 2.05-.5.43-.85.92-.85 1.9M12 18h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z",
+    license: "M5 6h14v14H5zM8 6V4h8v2M8 11h8M8 15h5",
     menu: "M4 6h16M4 12h16M4 18h16",
     close: "m6 6 12 12M18 6 6 18",
     more: "M5 12h.01M12 12h.01M19 12h.01",
@@ -83,6 +85,8 @@ const COPY = {
         unavailableTitle: "Datenverbindung unterbrochen",
         unavailableText: "Die zuletzt geladenen Werte bleiben sichtbar. Neue Daten werden automatisch abgerufen, sobald das Backend wieder erreichbar ist.",
         more: "Mehr",
+        help: "Hilfe",
+        buyLicense: "Lizenz kaufen",
     },
     en: {
         product: "Solar Forecast Stats",
@@ -112,6 +116,8 @@ const COPY = {
         unavailableTitle: "Data connection interrupted",
         unavailableText: "The last loaded values remain visible. New data will be fetched automatically when the backend is available again.",
         more: "More",
+        help: "Help",
+        buyLicense: "Buy license",
     },
     pl: {
         product: "Solar Forecast Stats",
@@ -141,6 +147,8 @@ const COPY = {
         unavailableTitle: "Przerwane połączenie z danymi",
         unavailableText: "Ostatnie wartości pozostają widoczne. Nowe dane zostaną pobrane automatycznie po przywróceniu backendu.",
         more: "Więcej",
+        help: "Pomoc",
+        buyLicense: "Kup licencję",
     },
 };
 
@@ -148,40 +156,47 @@ function installModernChartDefaults() {
     if (!window.echarts || window.echarts.__sfmlModernDefaults) return;
 
     const originalInit = window.echarts.init.bind(window.echarts);
+    const chartRefreshers = new Set();
     const semanticSeries = [
         {
             terms: ["actual", "ist", "gemessen", "ertrag"],
-            color: "#2f8f5b",
+            colorToken: "--success",
+            fallback: "#5bd8a6",
             lineType: "solid",
             symbol: "circle",
         },
         {
             terms: ["final", "finale prognose", "prediction"],
-            color: "#168f87",
+            colorToken: "--accent",
+            fallback: "#60c5ff",
             lineType: "solid",
             symbol: "roundRect",
         },
         {
             terms: ["physics", "physik", "rule based", "regelbasiert"],
-            color: "#c47a20",
+            colorToken: "--solar",
+            fallback: "#ffbf2f",
             lineType: "dashed",
             symbol: "triangle",
         },
         {
             terms: ["hubble", "ki", " ai", "lstm", "ridge"],
-            color: "#3d73b9",
+            colorToken: "--chart-series-ai",
+            fallback: "#8fa8ff",
             lineType: "dotted",
             symbol: "diamond",
         },
         {
             terms: ["p10", "konservativ", "conservative"],
-            color: "#7a6a9e",
+            colorToken: "--chart-series-conservative",
+            fallback: "#c7a9e8",
             lineType: "dashed",
             symbol: "emptyCircle",
         },
         {
             terms: ["reforecast", "neu-prognose"],
-            color: "#c65353",
+            colorToken: "--danger",
+            fallback: "#f27676",
             lineType: "dotted",
             symbol: "pin",
         },
@@ -194,7 +209,10 @@ function installModernChartDefaults() {
 
     function findSemanticStyle(name) {
         const normalized = ` ${String(name || "").toLowerCase()} `;
-        return semanticSeries.find((entry) => entry.terms.some((term) => normalized.includes(term)));
+        const entry = semanticSeries.find((candidate) => (
+            candidate.terms.some((term) => normalized.includes(term))
+        ));
+        return entry ? { ...entry, color: token(entry.colorToken, entry.fallback) } : undefined;
     }
 
     function normalizeChartOption(option) {
@@ -202,11 +220,21 @@ function installModernChartDefaults() {
 
         const textPrimary = token("--text-primary", "#f3f6f7");
         const textSecondary = token("--text-secondary", "#aab5ba");
-        const border = token("--border-default", "#2a353b");
-        const surface = token("--bg-card", "#151b1f");
+        const border = token("--border-default", "rgba(103, 170, 220, 0.23)");
+        const grid = token("--chart-grid", "rgba(127, 199, 238, 0.14)");
+        const surface = token("--surface-data", "#071827");
 
         option.animationDuration = 280;
         option.animationDurationUpdate = 180;
+        option.color = [
+            token("--accent", "#60c5ff"),
+            token("--solar", "#ffbf2f"),
+            token("--success", "#5bd8a6"),
+            token("--chart-series-ai", "#8fa8ff"),
+            token("--house", "#e89a67"),
+            token("--chart-series-conservative", "#c7a9e8"),
+            token("--danger", "#f27676"),
+        ];
         option.textStyle = { ...option.textStyle, color: textSecondary };
         option.aria = { ...option.aria, enabled: true };
 
@@ -228,7 +256,7 @@ function installModernChartDefaults() {
                 backgroundColor: surface,
                 borderColor: border,
                 textStyle: { ...option.tooltip.textStyle, color: textPrimary },
-                extraCssText: "border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.2);",
+                extraCssText: "border-radius:11px;box-shadow:0 14px 34px rgba(0,0,0,.22);backdrop-filter:blur(12px);",
             };
         }
 
@@ -247,7 +275,7 @@ function installModernChartDefaults() {
                 };
                 axis.splitLine = {
                     ...axis.splitLine,
-                    lineStyle: { ...axis.splitLine?.lineStyle, color: border },
+                    lineStyle: { ...axis.splitLine?.lineStyle, color: grid },
                 };
             });
         });
@@ -281,8 +309,23 @@ function installModernChartDefaults() {
         chart.setOption = (option, ...setOptionArgs) => (
             originalSetOption(normalizeChartOption(option), ...setOptionArgs)
         );
+        const refreshTheme = () => {
+            if (chart.isDisposed?.()) {
+                chartRefreshers.delete(refreshTheme);
+                return;
+            }
+            originalSetOption(
+                normalizeChartOption(chart.getOption()),
+                { notMerge: false, lazyUpdate: true, silent: true }
+            );
+            chart.resize();
+        };
+        chartRefreshers.add(refreshTheme);
         return chart;
     };
+    window.addEventListener("sfml-modern-themechange", () => {
+        requestAnimationFrame(() => chartRefreshers.forEach((refresh) => refresh()));
+    });
     window.echarts.__sfmlModernDefaults = true;
 }
 
@@ -292,6 +335,7 @@ const ModernApp = {
         <div class="modern-app" :class="{
             'drawer-open': drawerOpen,
             'orbit-mode': currentPage === 'dashboard',
+            'premium-mode': currentPage === 'eai',
         }">
             <a class="skip-link" href="#main-content">{{ copy.skip }}</a>
 
@@ -314,7 +358,7 @@ const ModernApp = {
                     <div v-for="section in navigation" :key="section.id" class="nav-section">
                         <div class="nav-section-label">{{ copy.sections[section.id] }}</div>
                         <button v-for="item in section.items" :key="item.id" type="button"
-                                class="nav-item" :class="{ active: currentPage === item.id }"
+                                class="nav-item" :class="{ active: currentPage === item.id, 'premium-item': item.premium }"
                                 :aria-current="currentPage === item.id ? 'page' : null"
                                 @click="navigate(item.id)">
                             <ui-icon :name="item.icon"></ui-icon>
@@ -325,6 +369,16 @@ const ModernApp = {
                 </nav>
 
                 <div class="sidebar-footer">
+                    <a class="nav-item sidebar-help-link" href="https://www.solarforecastml.com"
+                       target="_blank" rel="noopener noreferrer">
+                        <ui-icon name="help"></ui-icon>
+                        <span>{{ copy.help }}</span>
+                    </a>
+                    <a class="nav-item sidebar-help-link" href="https://ko-fi.com/s/8bc3808d22"
+                       target="_blank" rel="noopener noreferrer">
+                        <ui-icon name="license"></ui-icon>
+                        <span>{{ copy.buyLicense }}</span>
+                    </a>
                     <div class="connection-card" :class="connectionState">
                         <span class="connection-dot" aria-hidden="true"></span>
                         <div>
@@ -473,7 +527,7 @@ const ModernApp = {
                     { id: "weather_energy", icon: "weather" },
                     { id: "weather", icon: "weather" },
                     { id: "energy", icon: "energy" },
-                    { id: "eai", icon: "heatpump" },
+                    { id: "eai", icon: "heatpump", premium: true },
                     { id: "mobility", icon: "mobility" },
                     { id: "eai_weather", icon: "weather" },
                 ],
@@ -558,7 +612,10 @@ const ModernApp = {
             appConfig.themeMode = themeMode.value;
             document.documentElement.setAttribute("data-theme", resolved);
             document.documentElement.setAttribute("data-theme-mode", themeMode.value);
-            requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+            requestAnimationFrame(() => {
+                window.dispatchEvent(new Event("sfml-modern-themechange"));
+                window.dispatchEvent(new Event("resize"));
+            });
         }
 
         function setThemeMode(mode) {
