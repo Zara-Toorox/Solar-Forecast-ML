@@ -4,6 +4,8 @@
 
 const SFML_API_BRIDGE_PROTOCOL = "sfml-api-bridge-v1";
 const SFML_API_BRIDGE_PATH = "/sfml-stats-api-bridge";
+const SFML_EXTERNAL_AUTH_CALLBACK = "externalAuthSetToken";
+const SFML_EXTERNAL_AUTH_TIMEOUT_MS = 10000;
 
 const sfmlApiRandomId = () => {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID().replaceAll("-", "");
@@ -11,6 +13,144 @@ const sfmlApiRandomId = () => {
     crypto.getRandomValues(bytes);
     return Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
 };
+
+const sfmlAuthenticatedEndpoint = (value, origin = window.location.origin) => {
+    if (typeof value !== "string" || value.length > 2048) return null;
+    if (/\\|%(?:2f|5c|00)/i.test(value)) return null;
+    let parsed;
+    try {
+        parsed = new URL(value, origin);
+    } catch (_error) {
+        return null;
+    }
+    if (
+        parsed.origin !== origin
+        || !parsed.pathname.startsWith("/api/sfml_stats/")
+        || parsed.username
+        || parsed.password
+        || parsed.hash
+    ) {
+        return null;
+    }
+    return `${parsed.pathname}${parsed.search}`;
+};
+
+const sfmlHassApiPath = (value, origin = window.location.origin) => {
+    const endpoint = sfmlAuthenticatedEndpoint(value, origin);
+    return endpoint ? endpoint.slice("/api/".length) : null;
+};
+
+class SfmlParentHassApiClient {
+    constructor(hostWindow = window) {
+        this.hostWindow = hostWindow;
+    }
+
+    _authenticatedHass() {
+        const host = this.hostWindow;
+        if (host.parent === host || host.top !== host.parent) return null;
+
+        try {
+            const parent = host.parent;
+            if (parent.location.origin !== host.location.origin) return null;
+            const hass = parent.document.querySelector("home-assistant")?.hass;
+            if (typeof hass?.callApi === "function") return hass;
+        } catch (_error) {
+            return null;
+        }
+        return null;
+    }
+
+    isAvailable() {
+        return this._authenticatedHass() !== null;
+    }
+
+    async get(endpoint) {
+        const path = sfmlHassApiPath(endpoint, this.hostWindow.location.origin);
+        if (!path) throw new Error("Authenticated endpoint rejected");
+        const hass = this._authenticatedHass();
+        if (!hass) throw new Error("Home-Assistant-Panel-Anmeldung nicht verfügbar");
+        return hass.callApi("GET", path);
+    }
+}
+
+class SfmlCompanionAuthClient {
+    constructor(hostWindow = window) {
+        this.hostWindow = hostWindow;
+        this.pending = null;
+    }
+
+    isAvailable() {
+        const host = this.hostWindow;
+        if (host.top !== host) return false;
+        return Boolean(
+            host.externalAppV2
+            || host.externalApp?.getExternalAuth
+            || host.webkit?.messageHandlers?.getExternalAuth
+        );
+    }
+
+    async getAccessToken() {
+        if (!this.isAvailable()) return null;
+        if (this.pending) return this.pending;
+
+        this.pending = this._requestAccessToken();
+        try {
+            return await this.pending;
+        } finally {
+            this.pending = null;
+        }
+    }
+
+    _requestAccessToken() {
+        const host = this.hostWindow;
+        return new Promise((resolve, reject) => {
+            const previousCallback = host[SFML_EXTERNAL_AUTH_CALLBACK];
+            let timer;
+
+            const restoreCallback = () => {
+                host.clearTimeout(timer);
+                if (host[SFML_EXTERNAL_AUTH_CALLBACK] !== installedCallback) return;
+                if (previousCallback === undefined) {
+                    delete host[SFML_EXTERNAL_AUTH_CALLBACK];
+                } else {
+                    host[SFML_EXTERNAL_AUTH_CALLBACK] = previousCallback;
+                }
+            };
+
+            const installedCallback = (success, result) => {
+                restoreCallback();
+                const token = success === true ? result?.access_token : null;
+                if (typeof token === "string" && token.length > 0) {
+                    resolve(token);
+                    return;
+                }
+                reject(new Error("Home-Assistant-App-Anmeldung fehlgeschlagen"));
+            };
+            host[SFML_EXTERNAL_AUTH_CALLBACK] = installedCallback;
+            timer = host.setTimeout(() => {
+                restoreCallback();
+                reject(new Error("Home-Assistant-App-Anmeldung nicht verfügbar"));
+            }, SFML_EXTERNAL_AUTH_TIMEOUT_MS);
+
+            const payload = { callback: SFML_EXTERNAL_AUTH_CALLBACK };
+            try {
+                if (host.externalAppV2) {
+                    host.externalAppV2.postMessage(JSON.stringify({
+                        type: "getExternalAuth",
+                        payload,
+                    }));
+                } else if (host.externalApp?.getExternalAuth) {
+                    host.externalApp.getExternalAuth(JSON.stringify(payload));
+                } else {
+                    host.webkit.messageHandlers.getExternalAuth.postMessage(payload);
+                }
+            } catch (error) {
+                restoreCallback();
+                reject(error);
+            }
+        });
+    }
+}
 
 class SfmlAuthenticatedApiClient {
     constructor() {
@@ -139,6 +279,32 @@ const SFMLApi = {
                         errorCode = null;
                     }
                     if (errorCode === "authentication_required") {
+                        const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
+                        if (!authenticatedEndpoint) {
+                            throw new Error("Authenticated endpoint rejected");
+                        }
+                        this.parentHassClient ??= new SfmlParentHassApiClient();
+                        if (this.parentHassClient.isAvailable()) {
+                            const data = await this.parentHassClient.get(endpoint);
+                            this.cache.set(cacheKey, { data, timestamp: Date.now() });
+                            return data;
+                        }
+                        this.companionAuthClient ??= new SfmlCompanionAuthClient();
+                        const accessToken = await this.companionAuthClient.getAccessToken();
+                        if (accessToken) {
+                            const authenticatedResponse = await fetch(authenticatedEndpoint, {
+                                cache: "no-store",
+                                headers: { Authorization: `Bearer ${accessToken}` },
+                            });
+                            if (!authenticatedResponse.ok) {
+                                throw new Error(
+                                    `HTTP ${authenticatedResponse.status}: ${authenticatedResponse.statusText}`
+                                );
+                            }
+                            const data = await authenticatedResponse.json();
+                            this.cache.set(cacheKey, { data, timestamp: Date.now() });
+                            return data;
+                        }
                         this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
                         const data = await this.authenticatedClient.get(endpoint);
                         this.cache.set(cacheKey, { data, timestamp: Date.now() });

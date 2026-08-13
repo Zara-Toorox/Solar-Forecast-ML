@@ -9,6 +9,7 @@ function bridgeMessageSize(value) {
 
 function authenticatedApiPath(value) {
   if (typeof value !== "string" || value.length > 2048) return null;
+  if (/\\|%(?:2f|5c|00)/i.test(value)) return null;
   let parsed;
   try {
     parsed = new URL(value, location.origin);

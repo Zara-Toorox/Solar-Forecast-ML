@@ -122,12 +122,9 @@
           "notify_frost": "Notifications de gel",
           "notify_weather_alert": "Notifications d'alerte meteo",
           "notify_snow_covered_panels": "Notifications de neige sur panneaux",
-          "ml_algorithm": "Mode",
-          "enable_tiny_lstm": "Activer / Desactiver l'IA",
           "pirate_weather_api_key": "Cle API Pirate Weather",
           "adaptive_forecast_mode": "Prevision adaptative",
           "winter_mode": "Mode hiver",
-          "learning_backup_protection": "Protection des donnees d'apprentissage",
           "zero_export_mode": "Injection zero active",
           "has_battery": "Batterie de stockage presente",
           "solar_to_battery_sensor": "Capteur solaire vers batterie",
@@ -144,14 +141,11 @@
           "notify_successful_learning": "Notifier en cas d'entrainement reussi",
           "notify_fog": "Afficher une notification en cas de brouillard",
           "notify_frost": "Afficher une notification en cas de gel",
-          "notify_weather_alert": "Afficher une notification en cas d'alerte meteo (pluie, tempete)",
+          "notify_weather_alert": "Afficher une notification lorsque la meteo mesuree differe de facon inattendue des previsions",
           "notify_snow_covered_panels": "Afficher une notification en cas de neige sur les panneaux",
-          "ml_algorithm": "Choix de l'algorithme : 'Automatique' decide en fonction des donnees disponibles (recommande). 'Ridge' est rapide et stable. 'Reseau neuronal' offre 5-10% de precision en plus avec 100+ echantillons.",
-          "enable_tiny_lstm": "Autoriser l'utilisation du reseau neuronal (necessite 100+ echantillons, 200+ Mo RAM). Retourne automatiquement a Ridge si les conditions ne sont pas remplies. Recommandation : Garder active.",
           "pirate_weather_api_key": "Optionnel : Cle API gratuite de https://pirate-weather.apiable.io/ - Active le modele meteo NOAA GFS/HRRR pour un meilleur melange de couverture nuageuse.",
           "adaptive_forecast_mode": "En cas d'ecarts importants (>35%) entre la prevision du matin et la production reelle, SFML ajuste automatiquement la prevision de l'apres-midi a 12h30. SFML decide de maniere autonome si une correction est judicieuse - basee sur des donnees meteo fraiches et des criteres objectifs. Defaut : DESACTIVE",
-          "winter_mode": "Algorithmes ameliores pour les angles solaires bas (Nov-Fev). Lorsqu'il est active, l'effet de la couverture nuageuse sur la prevision est calcule plus precisement, ameliorant significativement la precision en hiver. Defaut : ACTIVE",
-          "learning_backup_protection": "Synchronise automatiquement les donnees d'apprentissage vers /share/ pour protection contre la restauration de sauvegarde. Lorsqu'elle est activee, la progression de l'apprentissage survit aux restaurations de sauvegarde HA. Defaut : ACTIVE",
+          "winter_mode": "Applique une penalite nuageuse supplementaire a faible hauteur solaire de novembre a fevrier lorsque le rayonnement mesure ou fourni est indisponible et que SFML utilise le repli ciel clair. Defaut : ACTIVE",
           "zero_export_mode": "⚡ DETECTION DE BRIDAGE MPPT\n\nActivez cette option si vous avez une regulation d'injection zero (ex. Shelly).\n\n📌 POURQUOI EST-CE IMPORTANT ?\nAvec l'injection zero, l'onduleur bride la production au besoin du foyer. Le ML apprendrait alors : 'soleil = 200W' au lieu de 'soleil = 1000W (mais bride)'.\n\n✅ Avec cette option activee, les heures bridees sont exclues de l'entrainement ML.\n\n⚠️ Fonctionne uniquement par beau temps (soleil, peu de nuages) ET quand la production est nettement inferieure a la prevision physique.",
           "has_battery": "⚡ DETECTION DE BRIDAGE MPPT (Extension)\n\nActivez cette option si vous avez une batterie de stockage.\n\n📌 POURQUOI EST-CE IMPORTANT ?\nQuand la batterie est pleine ET que l'injection zero est active, le MPPT bride la production. SFML le detecte quand la valeur 'solaire vers batterie' tombe sous 50W.\n\n⚠️ En cas d'activation, le 'Capteur solaire vers batterie' DOIT etre configure !",
           "solar_to_battery_sensor": "⚡ DETECTION DE BRIDAGE MPPT (Capteur)\n\nCapteur de puissance mesurant le flux d'energie du PV vers la batterie (en Watts).\n\n📌 EXEMPLES :\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 COMMENT CA FONCTIONNE ?\nQuand cette valeur tombe sous 50W par beau temps, la batterie n'absorbe plus d'energie → batterie pleine → MPPT bride → heure exclue de l'entrainement.\n\n⚠️ Pertinent uniquement si 'Batterie de stockage presente' est active !",
@@ -162,6 +156,7 @@
     "error": {
       "invalid_interval": "L'intervalle doit etre entre 300 et 86400 secondes",
       "invalid_input": "Format de saisie invalide",
+      "battery_sensor_required": "Selectionnez un capteur de puissance Solaire-vers-Batterie lorsque le stockage sur batterie est active",
       "energy_sensor_not_found": "Capteur d'energie introuvable",
       "energy_sensor_not_numeric": "Le capteur d'energie n'est pas numerique",
       "energy_sensor_not_kwh": "Le capteur du groupe doit etre un capteur kWh",
@@ -621,13 +616,6 @@
         "ml": "Machine Learning (si entraine)",
         "rule_based": "Base sur regles uniquement",
         "auto": "Automatique (ML avec repli)"
-      }
-    },
-    "ml_algorithm": {
-      "options": {
-        "auto": "Automatique (Recommande)",
-        "ridge": "Regression Ridge (Rapide)",
-        "tiny_lstm": "Reseau neuronal (Meilleure precision)"
       }
     }
   }

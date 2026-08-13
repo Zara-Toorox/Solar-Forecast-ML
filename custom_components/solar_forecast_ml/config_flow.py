@@ -36,7 +36,6 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_ADAPTIVE_FORECAST_MODE,
     CONF_DIAGNOSTIC,
-    CONF_ENABLE_TINY_LSTM,
     CONF_EVCC_FORECAST,
     CONF_HAS_BATTERY,
     CONF_HOURLY,
@@ -44,7 +43,6 @@ from .const import (
     CONF_INVERTER_MAX_POWER,
     CONF_LUX_SENSOR,
     CONF_MAX_GRID_EXPORT_W,
-    CONF_ML_ALGORITHM,
     CONF_NOTIFY_FORECAST,
     CONF_NOTIFY_FOG,
     CONF_NOTIFY_FROST,
@@ -72,18 +70,16 @@ from .const import (
     CONF_WINTER_MODE,
     CONF_ZERO_EXPORT_MODE,
     DEFAULT_ADAPTIVE_FORECAST_MODE,
-    DEFAULT_ENABLE_TINY_LSTM,
     DEFAULT_HAS_BATTERY,
     DEFAULT_INVERTER_MAX_POWER,
     DEFAULT_MAX_GRID_EXPORT_W,
-    DEFAULT_ML_ALGORITHM,
     DEFAULT_PANEL_AZIMUTH,
     DEFAULT_PANEL_TILT,
     DEFAULT_SOLAR_CAPACITY,
     DEFAULT_WINTER_MODE,
     DEFAULT_ZERO_EXPORT_MODE,
     DOMAIN,
-    VERSION,
+    UPDATE_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -811,7 +807,9 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
         errors = {}
         if user_input is not None:
             # Validate update_interval @zara
-            interval = user_input.get(CONF_UPDATE_INTERVAL, 1800)
+            interval = user_input.get(
+                CONF_UPDATE_INTERVAL, int(UPDATE_INTERVAL.total_seconds())
+            )
             try:
                 interval_sec = int(float(interval))
                 if not (300 <= interval_sec <= 86400):
@@ -834,6 +832,11 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
             except (ValueError, TypeError):
                 errors[CONF_MAX_GRID_EXPORT_W] = "invalid_input"
 
+            if user_input.get(CONF_HAS_BATTERY, DEFAULT_HAS_BATTERY) and not user_input.get(
+                CONF_SOLAR_TO_BATTERY_SENSOR
+            ):
+                errors[CONF_SOLAR_TO_BATTERY_SENSOR] = "battery_sensor_required"
+
             if errors:
                 return self.async_show_form(
                     step_id="init",
@@ -855,8 +858,6 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 CONF_NOTIFY_FROST,
                 CONF_NOTIFY_WEATHER_ALERT,
                 CONF_NOTIFY_SNOW_COVERED,
-                CONF_ML_ALGORITHM,
-                CONF_ENABLE_TINY_LSTM,
                 CONF_PIRATE_WEATHER_API_KEY,
                 CONF_ADAPTIVE_FORECAST_MODE,
                 CONF_WINTER_MODE,
@@ -869,6 +870,14 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 **self.config_entry.options,
                 **{k: v for k, v in user_input.items() if k in valid_keys},
             }
+            for obsolete_key in (
+                "battery_enabled",
+                "electricity_enabled",
+                "enable_tiny_lstm",
+                "learning_backup_protection",
+                "ml_algorithm",
+            ):
+                updated_options.pop(obsolete_key, None)
             # Remove empty API keys @zara
             if not updated_options.get(CONF_PIRATE_WEATHER_API_KEY):
                 updated_options.pop(CONF_PIRATE_WEATHER_API_KEY, None)
@@ -889,11 +898,15 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
 
         # Safely get update_interval @zara
         try:
-            update_interval = int(current_options.get(CONF_UPDATE_INTERVAL, 1800))
+            update_interval = int(
+                current_options.get(
+                    CONF_UPDATE_INTERVAL, int(UPDATE_INTERVAL.total_seconds())
+                )
+            )
             if not 300 <= update_interval <= 86400:
-                update_interval = 1800
+                update_interval = int(UPDATE_INTERVAL.total_seconds())
         except (ValueError, TypeError):
-            update_interval = 1800
+            update_interval = int(UPDATE_INTERVAL.total_seconds())
 
         zero_export_mode = current_options.get(CONF_ZERO_EXPORT_MODE, DEFAULT_ZERO_EXPORT_MODE)
         max_grid_export_w = current_options.get(
@@ -956,32 +969,6 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 vol.Optional(
                     CONF_NOTIFY_SNOW_COVERED,
                     default=current_options.get(CONF_NOTIFY_SNOW_COVERED, True),
-                ): bool,
-                vol.Optional(
-                    CONF_ML_ALGORITHM,
-                    default=current_options.get(CONF_ML_ALGORITHM, DEFAULT_ML_ALGORITHM),
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            selector.SelectOptionDict(
-                                value="auto", label="Automatic (Recommended)"
-                            ),
-                            selector.SelectOptionDict(
-                                value="ridge", label="Ridge Regression (Fast)"
-                            ),
-                            selector.SelectOptionDict(
-                                value="tiny_lstm", label="Neural Network (Better Accuracy)"
-                            ),
-                        ],
-                        mode=selector.SelectSelectorMode.DROPDOWN,
-                        translation_key="ml_algorithm",
-                    )
-                ),
-                vol.Optional(
-                    CONF_ENABLE_TINY_LSTM,
-                    default=current_options.get(
-                        CONF_ENABLE_TINY_LSTM, DEFAULT_ENABLE_TINY_LSTM
-                    ),
                 ): bool,
                 vol.Optional(
                     CONF_ADAPTIVE_FORECAST_MODE,

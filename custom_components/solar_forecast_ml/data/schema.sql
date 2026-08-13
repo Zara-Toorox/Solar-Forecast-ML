@@ -201,7 +201,8 @@ CREATE TABLE IF NOT EXISTS ai_model_candidate_dispositions (
     disposition TEXT NOT NULL CHECK(disposition IN (
         'superseded_by_confirmed_drift',
         'incompatible_runtime',
-        'migration_superseded'
+        'migration_superseded',
+        'superseded_by_promotion'
     )),
     replacement_candidate_id TEXT,
     retrain_request_id TEXT,
@@ -232,6 +233,18 @@ BEGIN
     SELECT RAISE(ABORT, 'candidate evaluation already exists; disposition is forbidden');
 END;
 
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_dispositions_promotion_guard
+BEFORE INSERT ON ai_model_candidate_dispositions
+WHEN NEW.disposition = 'superseded_by_promotion' AND (
+    NEW.replacement_candidate_id IS NULL
+    OR NEW.replacement_candidate_id = NEW.candidate_id
+    OR NOT EXISTS (
+        SELECT 1 FROM ai_model_promotion_events event
+         WHERE event.candidate_id = NEW.replacement_candidate_id
+    )
+)
+BEGIN SELECT RAISE(ABORT, 'promotion disposition requires promotion provenance'); END;
+
 CREATE TABLE IF NOT EXISTS ai_model_candidate_reconsiderations (
     reconsideration_id TEXT PRIMARY KEY,
     candidate_id TEXT NOT NULL UNIQUE,
@@ -248,19 +261,67 @@ CREATE TRIGGER IF NOT EXISTS ai_model_candidate_reconsiderations_append_only_del
 BEFORE DELETE ON ai_model_candidate_reconsiderations
 BEGIN SELECT RAISE(ABORT, 'ai_model_candidate_reconsiderations is append-only'); END;
 
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_reconsiderations_insert_guard
+BEFORE INSERT ON ai_model_candidate_reconsiderations
+WHEN NEW.candidate_id = NEW.keeper_candidate_id OR NOT EXISTS (
+    SELECT 1 FROM ai_model_candidate_dispositions disposition
+     WHERE disposition.candidate_id = NEW.candidate_id
+       AND disposition.disposition = 'migration_superseded'
+       AND disposition.replacement_candidate_id = NEW.keeper_candidate_id
+)
+BEGIN SELECT RAISE(ABORT, 'invalid migration candidate reconsideration'); END;
+
+CREATE TABLE IF NOT EXISTS ai_model_candidate_reconsideration_closures (
+    candidate_id TEXT PRIMARY KEY,
+    replacement_candidate_id TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id),
+    FOREIGN KEY(replacement_candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_reconsideration_closures_append_only_update
+BEFORE UPDATE ON ai_model_candidate_reconsideration_closures
+BEGIN SELECT RAISE(ABORT, 'ai_model_candidate_reconsideration_closures is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_reconsideration_closures_append_only_delete
+BEFORE DELETE ON ai_model_candidate_reconsideration_closures
+BEGIN SELECT RAISE(ABORT, 'ai_model_candidate_reconsideration_closures is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_reconsideration_closures_insert_guard
+BEFORE INSERT ON ai_model_candidate_reconsideration_closures
+WHEN NEW.candidate_id = NEW.replacement_candidate_id OR NOT EXISTS (
+    SELECT 1
+      FROM ai_model_candidate_reconsiderations reconsideration
+      JOIN ai_model_candidate_dispositions disposition
+        ON disposition.candidate_id = reconsideration.candidate_id
+       AND disposition.disposition = 'migration_superseded'
+       AND disposition.replacement_candidate_id = reconsideration.keeper_candidate_id
+      JOIN ai_model_promotion_events event
+        ON event.candidate_id = NEW.replacement_candidate_id
+     WHERE reconsideration.candidate_id = NEW.candidate_id
+       AND reconsideration.candidate_id != reconsideration.keeper_candidate_id
+)
+BEGIN SELECT RAISE(ABORT, 'invalid candidate reconsideration closure'); END;
+
 CREATE TRIGGER IF NOT EXISTS ai_model_candidates_single_unevaluated_guard
 BEFORE INSERT ON ai_model_candidates
 WHEN EXISTS (
     SELECT 1 FROM ai_model_candidates candidate
      WHERE candidate.status = 'candidate'
+       AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_terminal_events terminal
+                        WHERE terminal.candidate_id = candidate.candidate_id)
        AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_dispositions disposition
                         WHERE disposition.candidate_id = candidate.candidate_id
                           AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_reconsiderations reconsideration
-                                           WHERE reconsideration.candidate_id = disposition.candidate_id))
+                                           WHERE reconsideration.candidate_id = disposition.candidate_id
+                                             AND disposition.disposition = 'migration_superseded'
+                                             AND disposition.replacement_candidate_id = reconsideration.keeper_candidate_id
+                                             AND reconsideration.candidate_id != reconsideration.keeper_candidate_id))
        AND NOT EXISTS (SELECT 1 FROM ai_model_evaluations evaluation
                         WHERE evaluation.candidate_id = candidate.candidate_id)
        AND NOT EXISTS (SELECT 1 FROM ai_model_evaluations_v2 evaluation
                         WHERE evaluation.candidate_id = candidate.candidate_id)
+       AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_reconsideration_closures closure
+                        WHERE closure.candidate_id = candidate.candidate_id)
 )
 BEGIN SELECT RAISE(ABORT, 'unevaluated model candidate already exists'); END;
 
@@ -381,9 +442,15 @@ CREATE TABLE IF NOT EXISTS ai_model_shadow_runs (
     champion_artifact_hash TEXT NOT NULL,
     candidate_artifact_hash TEXT NOT NULL,
     input_snapshot_json TEXT NOT NULL,
+    input_snapshot_blob BLOB,
     input_snapshot_hash TEXT NOT NULL,
     policy_snapshot_json TEXT NOT NULL,
+    policy_snapshot_blob BLOB,
     policy_snapshot_hash TEXT NOT NULL,
+    snapshot_codec TEXT NOT NULL DEFAULT 'plain-json-v1'
+        CHECK(snapshot_codec IN ('plain-json-v1', 'zlib-json-v1')),
+    payload_state TEXT NOT NULL DEFAULT 'hot'
+        CHECK(payload_state IN ('hot', 'compacted')),
     contract_version TEXT NOT NULL,
     created_at TIMESTAMP NOT NULL,
     FOREIGN KEY(morning_batch_id) REFERENCES ensemble_shadow_batches(morning_batch_id),
@@ -403,12 +470,86 @@ CREATE TABLE IF NOT EXISTS ai_model_shadow_predictions (
     input_fingerprint TEXT NOT NULL,
     policy_fingerprint TEXT NOT NULL,
     champion_result_json TEXT NOT NULL,
+    champion_result_blob BLOB,
     champion_result_hash TEXT NOT NULL,
     candidate_result_json TEXT NOT NULL,
+    candidate_result_blob BLOB,
     candidate_result_hash TEXT NOT NULL,
+    result_codec TEXT NOT NULL DEFAULT 'plain-json-v1'
+        CHECK(result_codec IN ('plain-json-v1', 'zlib-json-v1')),
+    payload_state TEXT NOT NULL DEFAULT 'hot'
+        CHECK(payload_state IN ('hot', 'compacted')),
     UNIQUE(shadow_run_id, target_date, target_hour),
     FOREIGN KEY(shadow_run_id) REFERENCES ai_model_shadow_runs(shadow_run_id)
 );
+
+CREATE TABLE IF NOT EXISTS ai_model_candidate_terminal_events (
+    candidate_id TEXT PRIMARY KEY,
+    terminal_reason TEXT NOT NULL CHECK(terminal_reason IN (
+        'promoted', 'no_go', 'invalidated', 'superseded',
+        'incompatible', 'evidence_timeout'
+    )),
+    terminal_at TIMESTAMP NOT NULL,
+    policy_version TEXT NOT NULL,
+    details_hash TEXT NOT NULL CHECK(length(details_hash) = 64),
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_model_shadow_retention_receipts (
+    receipt_id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL UNIQUE,
+    terminal_reason TEXT NOT NULL,
+    policy_version TEXT NOT NULL,
+    compacted_at TIMESTAMP NOT NULL,
+    run_count INTEGER NOT NULL CHECK(run_count >= 0),
+    prediction_count INTEGER NOT NULL CHECK(prediction_count >= 0),
+    actual_version_count INTEGER NOT NULL CHECK(actual_version_count >= 0),
+    payload_count INTEGER NOT NULL CHECK(payload_count >= 0),
+    payload_bytes INTEGER NOT NULL CHECK(payload_bytes >= 0),
+    deleted_run_count INTEGER NOT NULL CHECK(deleted_run_count >= 0),
+    deleted_prediction_count INTEGER NOT NULL CHECK(deleted_prediction_count >= 0),
+    deleted_actual_version_count INTEGER NOT NULL
+        CHECK(deleted_actual_version_count >= 0),
+    deleted_provenance_count INTEGER NOT NULL
+        CHECK(deleted_provenance_count >= 0),
+    min_run_date TEXT,
+    max_run_date TEXT,
+    evidence_root_hash TEXT NOT NULL CHECK(length(evidence_root_hash) = 64),
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id),
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidate_terminal_events(candidate_id)
+);
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_terminal_events_append_only_update
+BEFORE UPDATE ON ai_model_candidate_terminal_events
+BEGIN SELECT RAISE(ABORT, 'ai_model_candidate_terminal_events is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_terminal_events_authorization_guard
+BEFORE INSERT ON ai_model_candidate_terminal_events
+WHEN sfml_governance_write_authorized('terminal', NEW.candidate_id) != 1
+BEGIN SELECT RAISE(ABORT, 'unauthorized candidate terminal event'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_terminal_event_guard
+BEFORE INSERT ON ai_model_evaluations
+WHEN EXISTS (SELECT 1 FROM ai_model_candidate_terminal_events terminal
+             WHERE terminal.candidate_id = NEW.candidate_id)
+BEGIN SELECT RAISE(ABORT, 'candidate lifecycle is terminal'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_candidate_terminal_events_append_only_delete
+BEFORE DELETE ON ai_model_candidate_terminal_events
+BEGIN SELECT RAISE(ABORT, 'ai_model_candidate_terminal_events is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_retention_receipts_append_only_update
+BEFORE UPDATE ON ai_model_shadow_retention_receipts
+BEGIN SELECT RAISE(ABORT, 'ai_model_shadow_retention_receipts is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_retention_receipts_authorization_guard
+BEFORE INSERT ON ai_model_shadow_retention_receipts
+WHEN sfml_governance_write_authorized('retention', NEW.candidate_id) != 1
+BEGIN SELECT RAISE(ABORT, 'unauthorized retention receipt'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_retention_receipts_append_only_delete
+BEFORE DELETE ON ai_model_shadow_retention_receipts
+BEGIN SELECT RAISE(ABORT, 'ai_model_shadow_retention_receipts is append-only'); END;
 
 CREATE TABLE IF NOT EXISTS ai_model_shadow_actual_versions (
     actual_version_id TEXT PRIMARY KEY,
@@ -557,11 +698,17 @@ WHEN EXISTS (
     SELECT 1 FROM ai_model_candidate_dispositions disposition
      WHERE disposition.candidate_id = NEW.candidate_id
        AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_reconsiderations reconsideration
-                        WHERE reconsideration.candidate_id = disposition.candidate_id)
+                        WHERE reconsideration.candidate_id = disposition.candidate_id
+                          AND disposition.disposition = 'migration_superseded'
+                          AND disposition.replacement_candidate_id = reconsideration.keeper_candidate_id
+                          AND reconsideration.candidate_id != reconsideration.keeper_candidate_id)
     UNION ALL
     SELECT 1 FROM ai_model_evaluations WHERE candidate_id = NEW.candidate_id
     UNION ALL
     SELECT 1 FROM ai_model_evaluations_v2 WHERE candidate_id = NEW.candidate_id
+    UNION ALL
+    SELECT 1 FROM ai_model_candidate_reconsideration_closures
+     WHERE candidate_id = NEW.candidate_id
 )
 BEGIN
     SELECT RAISE(ABORT, 'candidate is dispositioned or already evaluated');
@@ -599,6 +746,23 @@ BEGIN
     SELECT RAISE(ABORT, 'ai_model_shadow_runs is append-only');
 END;
 
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_runs_payload_insert_guard
+BEFORE INSERT ON ai_model_shadow_runs
+WHEN NOT (
+    NEW.payload_state = 'hot' AND (
+        (NEW.snapshot_codec = 'plain-json-v1'
+         AND NEW.input_snapshot_blob IS NULL
+         AND NEW.policy_snapshot_blob IS NULL)
+        OR
+        (NEW.snapshot_codec = 'zlib-json-v1'
+         AND length(NEW.input_snapshot_json) = 0
+         AND length(NEW.policy_snapshot_json) = 0
+         AND NEW.input_snapshot_blob IS NOT NULL
+         AND NEW.policy_snapshot_blob IS NOT NULL)
+    )
+)
+BEGIN SELECT RAISE(ABORT, 'invalid shadow run payload storage'); END;
+
 CREATE TRIGGER IF NOT EXISTS ai_model_shadow_runs_append_only_delete
 BEFORE DELETE ON ai_model_shadow_runs
 BEGIN
@@ -621,6 +785,23 @@ BEFORE UPDATE ON ai_model_shadow_predictions
 BEGIN
     SELECT RAISE(ABORT, 'ai_model_shadow_predictions is append-only');
 END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_predictions_payload_insert_guard
+BEFORE INSERT ON ai_model_shadow_predictions
+WHEN NOT (
+    NEW.payload_state = 'hot' AND (
+        (NEW.result_codec = 'plain-json-v1'
+         AND NEW.champion_result_blob IS NULL
+         AND NEW.candidate_result_blob IS NULL)
+        OR
+        (NEW.result_codec = 'zlib-json-v1'
+         AND length(NEW.champion_result_json) = 0
+         AND length(NEW.candidate_result_json) = 0
+         AND NEW.champion_result_blob IS NOT NULL
+         AND NEW.candidate_result_blob IS NOT NULL)
+    )
+)
+BEGIN SELECT RAISE(ABORT, 'invalid shadow prediction payload storage'); END;
 
 CREATE TRIGGER IF NOT EXISTS ai_model_shadow_predictions_append_only_delete
 BEFORE DELETE ON ai_model_shadow_predictions
@@ -742,6 +923,89 @@ CREATE TABLE IF NOT EXISTS ai_model_evaluation_samples_v2 (
 
 CREATE INDEX IF NOT EXISTS idx_ai_model_evaluations_v2_candidate
     ON ai_model_evaluations_v2(candidate_id, created_at);
+
+CREATE TABLE IF NOT EXISTS ai_model_evaluation_invalidations (
+    evaluation_id TEXT PRIMARY KEY,
+    invalidation_reason TEXT NOT NULL CHECK(invalidation_reason IN (
+        'actual_evidence_superseded'
+    )),
+    invalidated_at TIMESTAMP NOT NULL,
+    FOREIGN KEY(evaluation_id) REFERENCES ai_model_evaluations_v2(evaluation_id)
+);
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_invalidations_append_only_update
+BEFORE UPDATE ON ai_model_evaluation_invalidations
+BEGIN SELECT RAISE(ABORT, 'ai_model_evaluation_invalidations is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluation_invalidations_append_only_delete
+BEFORE DELETE ON ai_model_evaluation_invalidations
+BEGIN SELECT RAISE(ABORT, 'ai_model_evaluation_invalidations is append-only'); END;
+
+CREATE TABLE IF NOT EXISTS ai_model_promotion_events (
+    promotion_event_id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL,
+    evaluation_id TEXT NOT NULL UNIQUE,
+    candidate_artifact_hash TEXT NOT NULL,
+    champion_artifact_hash TEXT NOT NULL,
+    promoted_at TIMESTAMP NOT NULL,
+    FOREIGN KEY(candidate_id) REFERENCES ai_model_candidates(candidate_id),
+    FOREIGN KEY(evaluation_id) REFERENCES ai_model_evaluations_v2(evaluation_id),
+    UNIQUE(candidate_id)
+);
+
+CREATE TRIGGER IF NOT EXISTS ai_model_promotion_events_insert_guard
+BEFORE INSERT ON ai_model_promotion_events
+WHEN NOT EXISTS (
+    SELECT 1 FROM ai_model_evaluations_v2 evaluation
+     JOIN ai_model_candidates candidate
+       ON candidate.candidate_id = evaluation.candidate_id
+     WHERE evaluation.evaluation_id = NEW.evaluation_id
+       AND evaluation.candidate_id = NEW.candidate_id
+       AND evaluation.decision = 'GO'
+       AND evaluation.candidate_artifact_hash = NEW.candidate_artifact_hash
+       AND evaluation.champion_artifact_hash = NEW.champion_artifact_hash
+       AND candidate.artifact_hash = NEW.candidate_artifact_hash
+       AND NOT EXISTS (
+           SELECT 1 FROM ai_model_evaluation_invalidations invalidation
+            WHERE invalidation.evaluation_id = evaluation.evaluation_id
+       )
+)
+BEGIN SELECT RAISE(ABORT, 'invalid model promotion event'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_promotion_events_authorization_guard
+BEFORE INSERT ON ai_model_promotion_events
+WHEN sfml_governance_write_authorized('promotion', NEW.candidate_id) != 1
+BEGIN SELECT RAISE(ABORT, 'unauthorized model promotion event'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_model_promotion_events_append_only_update
+BEFORE UPDATE ON ai_model_promotion_events
+BEGIN SELECT RAISE(ABORT, 'ai_model_promotion_events is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_promotion_events_append_only_delete
+BEFORE DELETE ON ai_model_promotion_events
+BEGIN SELECT RAISE(ABORT, 'ai_model_promotion_events is append-only'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_active_model_pointer_promotion_guard_insert
+BEFORE INSERT ON ai_active_model_pointer
+WHEN (NEW.active_candidate_id IS NOT NULL AND NOT EXISTS (
+          SELECT 1 FROM ai_model_promotion_events event
+           WHERE event.candidate_id = NEW.active_candidate_id
+      )) OR (NEW.last_known_good_candidate_id IS NOT NULL AND NOT EXISTS (
+          SELECT 1 FROM ai_model_promotion_events event
+           WHERE event.candidate_id = NEW.last_known_good_candidate_id
+      ))
+BEGIN SELECT RAISE(ABORT, 'active model pointer requires promotion provenance'); END;
+
+CREATE TRIGGER IF NOT EXISTS ai_active_model_pointer_promotion_guard_update
+BEFORE UPDATE ON ai_active_model_pointer
+WHEN (NEW.active_candidate_id IS NOT NULL AND NOT EXISTS (
+          SELECT 1 FROM ai_model_promotion_events event
+           WHERE event.candidate_id = NEW.active_candidate_id
+      )) OR (NEW.last_known_good_candidate_id IS NOT NULL AND NOT EXISTS (
+          SELECT 1 FROM ai_model_promotion_events event
+           WHERE event.candidate_id = NEW.last_known_good_candidate_id
+      ))
+BEGIN SELECT RAISE(ABORT, 'active model pointer requires promotion provenance'); END;
+
 CREATE INDEX IF NOT EXISTS idx_ai_model_evaluation_samples_v2_provenance
     ON ai_model_evaluation_samples_v2(shadow_run_id, shadow_prediction_id, actual_version_id);
 
@@ -770,9 +1034,23 @@ WHEN EXISTS (SELECT 1 FROM ai_model_shadow_run_provenance
                 OR morning_batch_id = NEW.morning_batch_id)
 BEGIN SELECT RAISE(ABORT, 'ai_model_shadow_run_provenance is append-only'); END;
 
+CREATE TRIGGER IF NOT EXISTS ai_model_shadow_run_provenance_pair_guard
+BEFORE INSERT ON ai_model_shadow_run_provenance
+WHEN NOT EXISTS (
+    SELECT 1 FROM ai_model_shadow_runs run
+     WHERE run.shadow_run_id = NEW.shadow_run_id
+       AND run.morning_batch_id = NEW.morning_batch_id
+)
+BEGIN SELECT RAISE(ABORT, 'shadow run provenance pair mismatch'); END;
+
 CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_append_only_update
 BEFORE UPDATE ON ai_model_evaluations_v2
 BEGIN SELECT RAISE(ABORT, 'ai_model_evaluations_v2 is append-only'); END;
+CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_terminal_event_guard
+BEFORE INSERT ON ai_model_evaluations_v2
+WHEN EXISTS (SELECT 1 FROM ai_model_candidate_terminal_events terminal
+             WHERE terminal.candidate_id = NEW.candidate_id)
+BEGIN SELECT RAISE(ABORT, 'candidate lifecycle is terminal'); END;
 CREATE TRIGGER IF NOT EXISTS ai_model_evaluations_v2_append_only_delete
 BEFORE DELETE ON ai_model_evaluations_v2
 BEGIN SELECT RAISE(ABORT, 'ai_model_evaluations_v2 is append-only'); END;
@@ -786,11 +1064,17 @@ WHEN EXISTS (
     SELECT 1 FROM ai_model_candidate_dispositions disposition
      WHERE disposition.candidate_id = NEW.candidate_id
        AND NOT EXISTS (SELECT 1 FROM ai_model_candidate_reconsiderations reconsideration
-                        WHERE reconsideration.candidate_id = disposition.candidate_id)
+                        WHERE reconsideration.candidate_id = disposition.candidate_id
+                          AND disposition.disposition = 'migration_superseded'
+                          AND disposition.replacement_candidate_id = reconsideration.keeper_candidate_id
+                          AND reconsideration.candidate_id != reconsideration.keeper_candidate_id)
     UNION ALL
     SELECT 1 FROM ai_model_evaluations WHERE candidate_id = NEW.candidate_id
     UNION ALL
     SELECT 1 FROM ai_model_evaluations_v2 WHERE candidate_id = NEW.candidate_id
+    UNION ALL
+    SELECT 1 FROM ai_model_candidate_reconsideration_closures
+     WHERE candidate_id = NEW.candidate_id
 )
 BEGIN SELECT RAISE(ABORT, 'candidate is dispositioned or already evaluated'); END;
 
@@ -2812,3 +3096,29 @@ CREATE TABLE IF NOT EXISTS repair_tool_audit (
     dry_run BOOLEAN NOT NULL DEFAULT TRUE,
     payload_json TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS error_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TIMESTAMP NOT NULL,
+    source TEXT NOT NULL,
+    error_type TEXT NOT NULL,
+    classification TEXT NOT NULL,
+    message TEXT NOT NULL,
+    context TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_error_log_timestamp
+ON error_log(timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS retrospective_forecasts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date DATE NOT NULL,
+    hour INTEGER NOT NULL CHECK(hour >= 0 AND hour <= 23),
+    predicted_kwh REAL NOT NULL,
+    simulation_time TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    UNIQUE(date, hour, simulation_time)
+);
+
+CREATE INDEX IF NOT EXISTS idx_retrospective_forecasts_date_hour
+ON retrospective_forecasts(date, hour);
