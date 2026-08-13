@@ -88,6 +88,31 @@ CORRECTIONS_PANEL_PATH = "sfml-stats-corrections-bridge"
 CORRECTIONS_PANEL_URL = (
     f"/api/sfml_stats/static/corrections-bridge.js?v={VERSION}"
 )
+API_BRIDGE_PANEL_PATH = "sfml-stats-api-bridge"
+API_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/api-bridge.js?v={VERSION}"
+
+
+async def _async_register_api_bridge_panel(hass: HomeAssistant) -> None:
+    """Register the hidden authenticated bridge used by the standalone dashboard."""
+    from homeassistant.components import frontend
+
+    if frontend.async_panel_exists(hass, API_BRIDGE_PANEL_PATH):
+        return
+    frontend.async_register_built_in_panel(
+        hass,
+        component_name="custom",
+        frontend_url_path=API_BRIDGE_PANEL_PATH,
+        config={
+            "_panel_custom": {
+                "name": "sfml-stats-api-bridge",
+                "embed_iframe": False,
+                "trust_external": False,
+                "module_url": API_BRIDGE_PANEL_URL,
+            }
+        },
+        require_admin=False,
+        show_in_sidebar=False,
+    )
 
 
 async def _async_register_corrections_panel(hass: HomeAssistant) -> None:
@@ -373,6 +398,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # --- Forward sensor platforms ---
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _async_register_lovelace_card(hass)
+    await _async_register_api_bridge_panel(hass)
     await _async_register_corrections_panel(hass)
 
     # --- Update listener ---
@@ -586,6 +612,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         frontend.async_remove_panel(
             hass, CORRECTIONS_PANEL_PATH, warn_if_unknown=False
+        )
+        frontend.async_remove_panel(
+            hass, API_BRIDGE_PANEL_PATH, warn_if_unknown=False
         )
     return unload_ok
 
