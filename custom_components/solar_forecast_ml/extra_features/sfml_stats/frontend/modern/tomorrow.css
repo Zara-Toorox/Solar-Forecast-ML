@@ -1,0 +1,632 @@
+/* Copyright (c) 2025 Zara-Toorox. See ../../LICENSE for license terms. */
+
+.tomorrow-page,
+.tomorrow-page * { box-sizing: border-box; }
+
+.tomorrow-page .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.tomorrow-page {
+    --journal-cyan: #69dcff;
+    --journal-mint: #76efc4;
+    --journal-solar: #ffd56a;
+    --journal-violet: #9b9cff;
+    display: grid;
+    gap: 22px;
+    width: min(1660px, 100%);
+    margin: 0 auto;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.tomorrow-loading,
+.tomorrow-error {
+    display: grid;
+    min-height: 62vh;
+    place-content: center;
+    place-items: center;
+    gap: 10px;
+    text-align: center;
+}
+
+.tomorrow-loading span,
+.tomorrow-error span { color: var(--text-secondary); }
+
+.tomorrow-loader {
+    width: 58px;
+    height: 58px;
+    margin-bottom: 8px;
+    border: 2px solid color-mix(in srgb, var(--journal-cyan) 16%, transparent);
+    border-top-color: var(--journal-cyan);
+    border-radius: 50%;
+    animation: tomorrow-spin .9s linear infinite;
+}
+
+.tomorrow-error button,
+.tomorrow-retry {
+    margin-top: 12px;
+    padding: 11px 16px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    background: var(--surface-raised);
+    cursor: pointer;
+}
+
+.tomorrow-lock {
+    position: relative;
+    min-height: min(760px, calc(100vh - 150px));
+    overflow: hidden;
+    isolation: isolate;
+    border: 1px solid rgba(105, 220, 255, .24);
+    border-radius: 32px;
+    background: #06111c;
+    box-shadow: 0 36px 90px rgba(0, 0, 0, .34);
+}
+
+.tomorrow-lock-media,
+.tomorrow-lock-shade { position: absolute; inset: 0; }
+
+.tomorrow-lock-media {
+    z-index: -3;
+    background: url("/api/sfml_stats/static/modern/assets/tomorrow-expected-v1.webp") center / cover no-repeat;
+    filter: saturate(.82) brightness(.7);
+}
+
+.tomorrow-lock-shade {
+    z-index: -2;
+    background: linear-gradient(90deg, rgba(3, 11, 20, .97), rgba(3, 11, 20, .78) 45%, rgba(3, 11, 20, .16));
+}
+
+.tomorrow-lock-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    min-height: inherit;
+    max-width: 760px;
+    padding: clamp(42px, 8vw, 112px);
+    color: #f4f9ff;
+}
+
+.tomorrow-lock h2 {
+    margin: 12px 0 20px;
+    font-size: clamp(3rem, 6vw, 6.6rem);
+    font-weight: 620;
+    line-height: .92;
+    letter-spacing: -.07em;
+}
+
+.tomorrow-lock-content > p:not(.tomorrow-overline) {
+    max-width: 590px;
+    margin: 0;
+    color: rgba(233, 244, 255, .78);
+    font-size: 1.08rem;
+    line-height: 1.65;
+}
+
+.tomorrow-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: clamp(600px, 70vh, 820px);
+    overflow: hidden;
+    isolation: isolate;
+    padding: clamp(24px, 4vw, 58px);
+    padding-top: clamp(18px, 2vw, 30px);
+    color: #f5faff;
+    border: 1px solid rgba(152, 218, 255, .2);
+    border-radius: 32px;
+    background: #06111c;
+    box-shadow: 0 34px 95px rgba(0, 0, 0, .36);
+}
+
+.tomorrow-hero-photo {
+    position: absolute;
+    inset: 0;
+    z-index: -3;
+    opacity: 0;
+    background-position: center;
+    background-size: cover;
+    transition: opacity 520ms ease;
+}
+
+.tomorrow-hero-photo.active { opacity: 1; }
+
+.tomorrow-hero-shade {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+        radial-gradient(circle at 72% 38%, transparent 0 18%, rgba(1, 9, 18, .12) 58%),
+        linear-gradient(90deg, rgba(2, 10, 19, .68), rgba(2, 10, 19, .25) 48%, rgba(2, 10, 19, .04) 78%),
+        linear-gradient(0deg, rgba(2, 10, 19, .92), transparent 52%, rgba(2, 10, 19, .28));
+}
+
+.tomorrow-hero-foot,
+.tomorrow-section-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.tomorrow-brand-pill,
+.tomorrow-license-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    width: max-content;
+    padding: 7px 11px;
+    border: 1px solid rgba(127, 224, 255, .28);
+    border-radius: 999px;
+    background: rgba(5, 19, 32, .52);
+    box-shadow: inset 0 1px rgba(255, 255, 255, .08);
+    backdrop-filter: blur(20px);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .14em;
+}
+
+.tomorrow-brand-pill i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--journal-cyan);
+    box-shadow: 0 0 0 5px rgba(105, 220, 255, .12), 0 0 18px var(--journal-cyan);
+}
+
+.tomorrow-overline,
+.tomorrow-section-head p,
+.tomorrow-story-copy > p {
+    margin: 0;
+    color: var(--journal-cyan);
+    font-size: .66rem;
+    font-weight: 850;
+    letter-spacing: .2em;
+}
+
+.tomorrow-hero-copy {
+    position: relative;
+    z-index: 1;
+    align-self: flex-start;
+    max-width: 720px;
+    margin: 0;
+    text-shadow: 0 5px 32px rgba(0, 0, 0, .55);
+}
+
+.tomorrow-hero-copy p { margin: 0 0 10px; color: var(--journal-cyan); font-size: .7rem; font-weight: 900; letter-spacing: .2em; }
+.tomorrow-hero-copy h2 {
+    max-width: 700px;
+    margin: 0 0 16px;
+    font-size: clamp(2.5rem, 4vw, 4.75rem);
+    font-weight: 620;
+    line-height: .98;
+    letter-spacing: -.055em;
+    text-wrap: balance;
+}
+
+.tomorrow-hero-copy > span {
+    display: block;
+    max-width: 660px;
+    color: rgba(239, 248, 255, .78);
+    font-size: clamp(.96rem, 1.4vw, 1.14rem);
+    line-height: 1.6;
+}
+
+.tomorrow-hero-hour-stats {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 9px;
+    width: min(100%, 1120px);
+    margin-top: auto;
+    transform: translateY(clamp(32px, 3.2vw, 52px));
+}
+
+.tomorrow-hero-hour-stats article {
+    display: grid;
+    align-content: center;
+    gap: 3px;
+    min-height: 78px;
+    padding: 12px 15px;
+    border: 1px solid rgba(167, 218, 245, .18);
+    border-radius: 14px;
+    background: rgba(4, 17, 28, .68);
+    box-shadow: inset 0 1px rgba(255, 255, 255, .06);
+    backdrop-filter: blur(14px) saturate(125%);
+}
+
+.tomorrow-hero-hour-stats span {
+    color: rgba(224, 239, 250, .7);
+    font-size: .58rem;
+    font-weight: 800;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+}
+
+.tomorrow-hero-hour-stats strong {
+    color: #f7fbff;
+    font-size: clamp(1rem, 1.45vw, 1.3rem);
+    line-height: 1.1;
+    letter-spacing: -.025em;
+}
+
+.tomorrow-hero-hour-stats small {
+    overflow: hidden;
+    color: rgba(206, 225, 239, .56);
+    font-size: .61rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tomorrow-hero-hour-stats .energy-export strong { color: var(--journal-mint); }
+.tomorrow-hero-hour-stats .energy-import strong { color: #ffb4a8; }
+
+.tomorrow-time-machine {
+    position: relative;
+    display: grid;
+    gap: 18px;
+    width: 100%;
+    padding: clamp(20px, 2.5vw, 30px);
+    color: #f4f9ff;
+    border: 1px solid var(--border-default);
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at 92% 0, rgba(255, 213, 106, .1), transparent 34%),
+        linear-gradient(135deg, #081d2d, #0a1723 58%, #07111b);
+    box-shadow: var(--glass-shadow), inset 0 1px rgba(255, 255, 255, .05);
+}
+
+.tomorrow-time-machine-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.tomorrow-time-machine-head > div { display: grid; gap: 4px; }
+.tomorrow-time-machine-head p {
+    margin: 0;
+    color: var(--journal-cyan);
+    font-size: .62rem;
+    font-weight: 900;
+    letter-spacing: .19em;
+}
+.tomorrow-time-machine-head h3 { margin: 0; font-size: clamp(1.15rem, 2vw, 1.75rem); letter-spacing: -.035em; }
+.tomorrow-time-marker {
+    display: grid;
+    justify-items: end;
+    gap: 8px;
+    text-align: right;
+}
+.tomorrow-time-marker small {
+    color: var(--journal-cyan);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .14em;
+}
+.tomorrow-time-marker strong {
+    color: var(--journal-solar);
+    font-size: clamp(1.9rem, 3.4vw, 3.25rem);
+    line-height: .9;
+    letter-spacing: -.06em;
+}
+
+.tomorrow-hour-control { position: relative; display: grid; gap: 8px; padding: 2px 0 0; }
+.tomorrow-hour-control input {
+    width: 100%;
+    height: 24px;
+    margin: 0;
+    accent-color: var(--journal-solar);
+    cursor: grab;
+}
+.tomorrow-hour-control input:active { cursor: grabbing; }
+.tomorrow-hour-control input:focus-visible { outline: 2px solid var(--journal-cyan); outline-offset: 4px; }
+.tomorrow-hour-track { display: flex; justify-content: space-between; color: rgba(239, 248, 255, .5); font-size: .58rem; }
+
+.tomorrow-live-hour {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.tomorrow-live-hour > span {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .045);
+}
+.tomorrow-live-hour small { color: rgba(239, 248, 255, .56); font-size: .64rem; }
+.tomorrow-live-hour b { font-size: 1rem; }
+.tomorrow-live-hour .energy-export b { color: var(--journal-solar); }
+.tomorrow-live-hour .energy-import b { color: var(--journal-cyan); }
+
+.tomorrow-timeline-unavailable { display: grid; gap: 4px; padding: 18px; border-radius: 16px; background: rgba(255, 255, 255, .05); }
+.tomorrow-timeline-unavailable span { color: rgba(239, 248, 255, .6); font-size: .74rem; }
+
+.tomorrow-hero-foot { align-items: flex-end; margin-top: auto; }
+
+.tomorrow-day-score {
+    display: grid;
+    gap: 3px;
+    padding: 16px 19px;
+    border: 1px solid rgba(255, 255, 255, .15);
+    border-radius: 18px;
+    background: rgba(3, 14, 24, .62);
+    backdrop-filter: blur(24px);
+}
+
+.tomorrow-day-score strong { color: var(--journal-mint); font-size: clamp(1.8rem, 3vw, 3rem); line-height: 1; }
+.tomorrow-day-score span { color: rgba(239, 248, 255, .62); font-size: .72rem; }
+
+.tomorrow-day-facts {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 9px;
+}
+
+.tomorrow-day-facts span {
+    display: grid;
+    gap: 3px;
+    min-width: 124px;
+    padding: 13px 15px;
+    border: 1px solid rgba(255, 255, 255, .13);
+    border-radius: 15px;
+    background: rgba(3, 14, 24, .57);
+    color: rgba(239, 248, 255, .6);
+    backdrop-filter: blur(22px);
+    font-size: .69rem;
+}
+
+.tomorrow-day-facts b { color: #f5fbff; font-size: 1rem; }
+
+.tomorrow-demo-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 13px 17px;
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border-default));
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--warning) 9%, var(--bg-card));
+}
+
+.tomorrow-demo-banner > div { display: grid; gap: 2px; }
+.tomorrow-demo-banner span { color: var(--text-secondary); font-size: .75rem; }
+.tomorrow-demo-banner a { color: var(--warning); font-weight: 850; }
+
+.tomorrow-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.tomorrow-kpi {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 148px;
+    overflow: hidden;
+    padding: clamp(18px, 2vw, 24px);
+    border: 1px solid var(--border-default);
+    border-radius: 25px;
+    background:
+        radial-gradient(circle at 90% 0, rgba(105, 220, 255, .13), transparent 42%),
+        var(--bg-card);
+    box-shadow: var(--glass-shadow);
+}
+
+.tomorrow-kpi::after {
+    content: "";
+    position: absolute;
+    inset: auto -30px -70px auto;
+    width: 160px;
+    height: 160px;
+    border: 1px solid rgba(105, 220, 255, .13);
+    border-radius: 50%;
+}
+
+.tomorrow-kpi-icon {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(105, 220, 255, .24);
+    border-radius: 16px;
+    background: radial-gradient(circle, rgba(105, 220, 255, .5) 0 8%, rgba(105, 220, 255, .1) 10% 43%, transparent 45%);
+    box-shadow: 0 0 35px rgba(105, 220, 255, .12);
+}
+
+.tomorrow-kpi.self_supply .tomorrow-kpi-icon { filter: hue-rotate(78deg); }
+.tomorrow-kpi.own_energy .tomorrow-kpi-icon { filter: hue-rotate(155deg); }
+.tomorrow-kpi > div { display: grid; gap: 5px; min-width: 0; }
+.tomorrow-kpi p { margin: 0; color: var(--text-secondary); font-size: .78rem; font-weight: 760; }
+.tomorrow-kpi strong { font-size: clamp(2rem, 3vw, 3.35rem); font-weight: 630; line-height: 1; letter-spacing: -.055em; }
+.tomorrow-kpi strong small { color: var(--text-secondary); font-size: .76rem; font-weight: 730; letter-spacing: 0; }
+.tomorrow-kpi > div > span { color: var(--text-muted); font-size: .72rem; }
+
+.tomorrow-journal,
+.tomorrow-devices {
+    padding: clamp(22px, 3vw, 34px);
+    border: 1px solid var(--border-default);
+    border-radius: 26px;
+    background: var(--bg-card);
+    box-shadow: var(--glass-shadow);
+}
+
+.tomorrow-section-head { align-items: flex-end; margin-bottom: 28px; }
+.tomorrow-section-head > div { display: grid; gap: 7px; }
+.tomorrow-section-head h3 { margin: 0; font-size: clamp(1.45rem, 2.4vw, 2.35rem); font-weight: 650; letter-spacing: -.045em; }
+.tomorrow-section-head > span { color: var(--text-secondary); font-size: .76rem; }
+
+.tomorrow-month-axis {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 2px 10px;
+    color: var(--text-muted);
+    font-size: .63rem;
+    text-transform: uppercase;
+}
+
+.tomorrow-heatmap {
+    display: grid;
+    grid-template-rows: repeat(7, minmax(10px, 1fr));
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(10px, 1fr);
+    gap: clamp(3px, .4vw, 7px);
+    min-height: 120px;
+    overflow-x: auto;
+    padding: 5px 4px 10px;
+    scrollbar-width: thin;
+}
+
+.tomorrow-day {
+    min-width: 0;
+    aspect-ratio: 1;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.tomorrow-day span {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 1px solid rgba(255, 255, 255, .05);
+    border-radius: inherit;
+    background: #283644;
+    transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+}
+
+.tomorrow-day.balanced span { background: #2f7691; }
+.tomorrow-day.strong span { background: #37b990; }
+.tomorrow-day.autonomous span { background: #a9f7b4; box-shadow: inset 0 0 9px rgba(255, 255, 255, .4); }
+.tomorrow-day:hover span { transform: translateY(-3px) scale(1.12); filter: brightness(1.2); }
+.tomorrow-day.selected span { outline: 2px solid var(--text-primary); outline-offset: 3px; transform: scale(1.12); box-shadow: 0 0 22px rgba(105, 220, 255, .38); }
+.tomorrow-day:focus-visible { outline: 2px solid var(--journal-cyan); outline-offset: 4px; }
+
+.tomorrow-legend {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 16px;
+    color: var(--text-muted);
+    font-size: .66rem;
+}
+
+.tomorrow-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.tomorrow-legend i { width: 10px; height: 10px; border-radius: 3px; background: #283644; }
+.tomorrow-legend i.balanced { background: #2f7691; }
+.tomorrow-legend i.strong { background: #37b990; }
+.tomorrow-legend i.autonomous { background: #a9f7b4; }
+
+.tomorrow-story {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto minmax(260px, 1fr) minmax(340px, .9fr);
+    align-items: center;
+    gap: clamp(22px, 4vw, 58px);
+    overflow: hidden;
+    padding: clamp(26px, 4vw, 48px);
+    border: 1px solid rgba(105, 220, 255, .2);
+    border-radius: 28px;
+    background:
+        radial-gradient(circle at 0 100%, rgba(105, 220, 255, .18), transparent 38%),
+        linear-gradient(135deg, #081d2d, #0a1723 58%, #07111b);
+    box-shadow: 0 28px 70px rgba(0, 0, 0, .24);
+    color: #f4f9ff;
+}
+
+.tomorrow-story.autonomous { border-color: rgba(118, 239, 196, .32); }
+.tomorrow-story-date { display: grid; place-items: center; min-width: 116px; }
+.tomorrow-story-date span { color: var(--journal-cyan); font-size: .68rem; font-weight: 800; text-transform: uppercase; }
+.tomorrow-story-date strong { font-size: clamp(4.2rem, 7vw, 7rem); font-weight: 600; line-height: .95; letter-spacing: -.08em; }
+.tomorrow-story-date small { color: rgba(239, 248, 255, .58); font-size: .72rem; }
+.tomorrow-story-copy { display: grid; gap: 9px; }
+.tomorrow-story-copy h3 { margin: 0; font-size: clamp(1.6rem, 3vw, 3rem); line-height: 1.05; letter-spacing: -.05em; }
+.tomorrow-story-copy > span { color: rgba(239, 248, 255, .68); line-height: 1.55; }
+
+.tomorrow-story-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.tomorrow-story-values div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px; background: rgba(255, 255, 255, .045); }
+.tomorrow-story-values dt { color: rgba(239, 248, 255, .55); font-size: .66rem; }
+.tomorrow-story-values dd { margin: 0; font-size: 1.08rem; font-weight: 740; }
+
+.tomorrow-device-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.tomorrow-device { position: relative; display: grid; gap: 8px; min-height: 160px; padding: 25px; overflow: hidden; border: 1px solid var(--border-default); border-radius: 20px; background: var(--surface-raised); }
+.tomorrow-device::after { content: ""; position: absolute; right: -28px; bottom: -48px; width: 130px; height: 130px; border: 18px solid rgba(105, 220, 255, .08); border-radius: 50%; }
+.tomorrow-device > span { color: var(--text-secondary); font-size: .78rem; font-weight: 800; }
+.tomorrow-device strong { font-size: clamp(2rem, 4vw, 3.8rem); letter-spacing: -.055em; }
+.tomorrow-device small { color: var(--text-muted); }
+.tomorrow-device.wallbox::after { border-color: rgba(155, 156, 255, .1); }
+
+.tomorrow-footnote { margin: -4px 4px 16px; color: var(--text-muted); font-size: .7rem; text-align: center; }
+
+@keyframes tomorrow-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 1050px) {
+    .tomorrow-kpi-grid { grid-template-columns: 1fr; }
+    .tomorrow-kpi { min-height: 132px; }
+    .tomorrow-story { grid-template-columns: auto 1fr; }
+    .tomorrow-story-values { grid-column: 1 / -1; }
+}
+
+@media (max-width: 760px) {
+    .tomorrow-hero { min-height: 620px; border-radius: 23px; }
+    .tomorrow-hero-foot, .tomorrow-section-head { flex-direction: column; align-items: flex-start; }
+    .tomorrow-day-facts { justify-content: flex-start; }
+    .tomorrow-day-facts span { min-width: 104px; }
+    .tomorrow-month-axis { display: none; }
+    .tomorrow-heatmap { grid-auto-columns: 13px; min-height: 126px; }
+    .tomorrow-story { grid-template-columns: 1fr; }
+    .tomorrow-story-date { justify-items: start; place-items: start; }
+    .tomorrow-story-values { grid-column: auto; }
+    .tomorrow-device-grid { grid-template-columns: 1fr; }
+    .tomorrow-time-machine-head { align-items: flex-start; }
+    .tomorrow-time-marker { justify-items: start; text-align: left; }
+    .tomorrow-live-hour { grid-template-columns: 1fr; }
+    .tomorrow-hero-hour-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        transform: translateY(18px);
+    }
+}
+
+@media (max-width: 480px) {
+    .tomorrow-page { gap: 14px; }
+    .tomorrow-hero { min-height: 680px; padding: 20px; border-radius: 20px; }
+    .tomorrow-brand-pill { max-width: 100%; font-size: .58rem; }
+    .tomorrow-hero-copy h2 { font-size: 2.65rem; }
+    .tomorrow-day-facts { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
+    .tomorrow-day-facts span { min-width: 0; padding: 11px; }
+    .tomorrow-day-facts b { font-size: .78rem; }
+    .tomorrow-kpi { min-height: 132px; padding: 20px; }
+    .tomorrow-kpi-icon { width: 42px; height: 42px; }
+    .tomorrow-journal, .tomorrow-devices { padding: 20px; border-radius: 20px; }
+    .tomorrow-heatmap { grid-auto-columns: 12px; gap: 5px; }
+    .tomorrow-story { padding: 22px; border-radius: 21px; }
+    .tomorrow-story-values { grid-template-columns: 1fr; }
+    .tomorrow-hero-hour-stats article { min-height: 70px; padding: 10px 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tomorrow-loader { animation: none; }
+    .tomorrow-day span { transition: none; }
+    .tomorrow-hero-photo { transition: none; }
+}

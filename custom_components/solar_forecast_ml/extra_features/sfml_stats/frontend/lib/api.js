@@ -272,44 +272,36 @@ const SFMLApi = {
                     credentials: "same-origin"
                 });
                 if (response.status === 401) {
-                    let errorCode = null;
-                    try {
-                        errorCode = (await response.clone().json())?.error?.code;
-                    } catch (_error) {
-                        errorCode = null;
+                    const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
+                    if (!authenticatedEndpoint) {
+                        throw new Error("Authenticated endpoint rejected");
                     }
-                    if (errorCode === "authentication_required") {
-                        const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
-                        if (!authenticatedEndpoint) {
-                            throw new Error("Authenticated endpoint rejected");
-                        }
-                        this.parentHassClient ??= new SfmlParentHassApiClient();
-                        if (this.parentHassClient.isAvailable()) {
-                            const data = await this.parentHassClient.get(endpoint);
-                            this.cache.set(cacheKey, { data, timestamp: Date.now() });
-                            return data;
-                        }
-                        this.companionAuthClient ??= new SfmlCompanionAuthClient();
-                        const accessToken = await this.companionAuthClient.getAccessToken();
-                        if (accessToken) {
-                            const authenticatedResponse = await fetch(authenticatedEndpoint, {
-                                cache: "no-store",
-                                headers: { Authorization: `Bearer ${accessToken}` },
-                            });
-                            if (!authenticatedResponse.ok) {
-                                throw new Error(
-                                    `HTTP ${authenticatedResponse.status}: ${authenticatedResponse.statusText}`
-                                );
-                            }
-                            const data = await authenticatedResponse.json();
-                            this.cache.set(cacheKey, { data, timestamp: Date.now() });
-                            return data;
-                        }
-                        this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
-                        const data = await this.authenticatedClient.get(endpoint);
+                    this.parentHassClient ??= new SfmlParentHassApiClient();
+                    if (this.parentHassClient.isAvailable()) {
+                        const data = await this.parentHassClient.get(endpoint);
                         this.cache.set(cacheKey, { data, timestamp: Date.now() });
                         return data;
                     }
+                    this.companionAuthClient ??= new SfmlCompanionAuthClient();
+                    const accessToken = await this.companionAuthClient.getAccessToken();
+                    if (accessToken) {
+                        const authenticatedResponse = await fetch(authenticatedEndpoint, {
+                            cache: "no-store",
+                            headers: { Authorization: `Bearer ${accessToken}` },
+                        });
+                        if (!authenticatedResponse.ok) {
+                            throw new Error(
+                                `HTTP ${authenticatedResponse.status}: ${authenticatedResponse.statusText}`
+                            );
+                        }
+                        const data = await authenticatedResponse.json();
+                        this.cache.set(cacheKey, { data, timestamp: Date.now() });
+                        return data;
+                    }
+                    this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
+                    const data = await this.authenticatedClient.get(endpoint);
+                    this.cache.set(cacheKey, { data, timestamp: Date.now() });
+                    return data;
                 }
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);

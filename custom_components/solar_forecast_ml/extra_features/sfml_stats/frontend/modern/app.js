@@ -63,6 +63,7 @@ const COPY = {
         mobile: { dashboard: "Cockpit", home: "Übersicht", solar: "Solar", energy: "Energie" },
         pages: {
             dashboard: ["Solar Cockpit", "Energie, Prognose und Premium Intelligence auf einen Blick"],
+            tomorrow: ["Dein Energietag", "Deine historische Energy Story und echte Energie-Unabhängigkeit"],
             home: ["Live & Prognose", "Ausführlicher Energiefluss und Prognosestatus"],
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],
             weather: ["Wetter", "Prognose, Strahlung und Historie"],
@@ -86,7 +87,7 @@ const COPY = {
         unavailableText: "Die zuletzt geladenen Werte bleiben sichtbar. Neue Daten werden automatisch abgerufen, sobald das Backend wieder erreichbar ist.",
         more: "Mehr",
         help: "Hilfe",
-        buyLicense: "Lizenz kaufen",
+        licenseLabel: "Lizenz",
     },
     en: {
         product: "Solar Forecast Stats",
@@ -94,6 +95,7 @@ const COPY = {
         mobile: { dashboard: "Cockpit", home: "Overview", solar: "Solar", energy: "Energy" },
         pages: {
             dashboard: ["Solar Cockpit", "Energy, forecast and premium intelligence at a glance"],
+            tomorrow: ["Your Energy Day", "Your historical Energy Story and real energy independence"],
             home: ["Live & Forecast", "Detailed energy flow and forecast status"],
             solar: ["Solar & Forecast", "Yield, models, deviations and shading"],
             weather: ["Weather", "Forecast, radiation and history"],
@@ -117,7 +119,7 @@ const COPY = {
         unavailableText: "The last loaded values remain visible. New data will be fetched automatically when the backend is available again.",
         more: "More",
         help: "Help",
-        buyLicense: "Buy license",
+        licenseLabel: "License",
     },
     pl: {
         product: "Solar Forecast Stats",
@@ -125,6 +127,7 @@ const COPY = {
         mobile: { dashboard: "Kokpit", home: "Przegląd", solar: "Solar", energy: "Energia" },
         pages: {
             dashboard: ["Solar Cockpit", "Energia, prognoza i funkcje Premium w jednym miejscu"],
+            tomorrow: ["Twój dzień energii", "Twoja historyczna Energy Story i rzeczywista niezależność energetyczna"],
             home: ["Na żywo i prognoza", "Szczegółowy przepływ energii i stan prognozy"],
             solar: ["Energia słoneczna", "Produkcja, modele, odchylenia i cień"],
             weather: ["Pogoda", "Prognoza, promieniowanie i historia"],
@@ -148,7 +151,7 @@ const COPY = {
         unavailableText: "Ostatnie wartości pozostają widoczne. Nowe dane zostaną pobrane automatycznie po przywróceniu backendu.",
         more: "Więcej",
         help: "Pomoc",
-        buyLicense: "Kup licencję",
+        licenseLabel: "Licencja",
     },
 };
 
@@ -377,7 +380,7 @@ const ModernApp = {
                     <a class="nav-item sidebar-help-link" href="https://ko-fi.com/s/8bc3808d22"
                        target="_blank" rel="noopener noreferrer">
                         <ui-icon name="license"></ui-icon>
-                        <span>{{ copy.buyLicense }}</span>
+                        <span>{{ copy.licenseLabel }}</span>
                     </a>
                     <div class="connection-card" :class="connectionState">
                         <span class="connection-dot" aria-hidden="true"></span>
@@ -485,6 +488,7 @@ const ModernApp = {
         const currentDetail = ref("");
         const dashboardMode = ref("loading");
         const premiumCorrections = ref(false);
+        const deviceVisibility = reactive({ heat_pump: false, wallbox: false });
         const drawerOpen = ref(false);
         const hasLoaded = ref(false);
         const requestPending = ref(false);
@@ -511,7 +515,7 @@ const ModernApp = {
             country: "DE",
         });
 
-        const navigation = [
+        const navigationDefinition = [
             {
                 id: "live",
                 items: [
@@ -527,8 +531,9 @@ const ModernApp = {
                     { id: "weather_energy", icon: "weather" },
                     { id: "weather", icon: "weather" },
                     { id: "energy", icon: "energy" },
-                    { id: "eai", icon: "heatpump", premium: true },
-                    { id: "mobility", icon: "mobility" },
+                    { id: "tomorrow", icon: "play", premium: true, panel: true },
+                    { id: "eai", icon: "heatpump", premium: true, feature: "heat_pump" },
+                    { id: "mobility", icon: "mobility", feature: "wallbox" },
                     { id: "eai_weather", icon: "weather" },
                 ],
             },
@@ -541,6 +546,12 @@ const ModernApp = {
                 ],
             },
         ];
+        const navigation = computed(() => navigationDefinition.map((section) => ({
+            ...section,
+            items: section.items.filter((item) => (
+                !item.feature || deviceVisibility[item.feature] === true
+            )),
+        })));
 
         const mobileNavigation = [
             { id: "home", icon: "home" },
@@ -563,6 +574,7 @@ const ModernApp = {
             weather_energy: window.ModernWeatherEnergyPage,
             weather: window.WeatherPage,
             energy: window.EnergyPage,
+            tomorrow: window.TomorrowPage,
             eai: window.ModernEAIPage,
             mobility: window.ModernMobilityPage,
             eai_weather: window.ModernEAIWeatherPage,
@@ -644,6 +656,8 @@ const ModernApp = {
 
         function navigate(page, detail = "") {
             if (!pages[page]) return;
+            if (page === "eai" && !deviceVisibility.heat_pump) return;
+            if (page === "mobility" && !deviceVisibility.wallbox) return;
             if (page === "dashboard") dashboardMode.value = "loading";
             currentPage.value = page;
             currentDetail.value = detail || "";
@@ -655,7 +669,11 @@ const ModernApp = {
 
         function handleHashChange() {
             const [hashPage, hashDetail = ""] = window.location.hash.slice(1).split("/");
-            const page = pages[hashPage] ? hashPage : "home";
+            const requestedPage = pages[hashPage] ? hashPage : "home";
+            const page = (
+                (requestedPage === "eai" && !deviceVisibility.heat_pump)
+                || (requestedPage === "mobility" && !deviceVisibility.wallbox)
+            ) ? "home" : requestedPage;
             if (page === "dashboard" && currentPage.value !== "dashboard") {
                 dashboardMode.value = "loading";
             }
@@ -672,15 +690,27 @@ const ModernApp = {
             if (event.key === "Escape") closeDrawer();
         }
 
-        async function loadCorrectionCapability() {
+        async function loadPremiumCapabilities() {
             try {
-                const response = await SFMLApi.fetch(
-                    "/api/sfml_stats/modern/premium-dashboard",
-                    { forceRefresh: true, ttl: 0 }
-                );
-                premiumCorrections.value = response?.data?.premium?.licensed === true;
+                const [dashboardResponse, journalResponse] = await Promise.all([
+                    SFMLApi.fetch(
+                        "/api/sfml_stats/modern/premium-dashboard",
+                        { forceRefresh: true, ttl: 0 }
+                    ),
+                    SFMLApi.fetch(
+                        "/api/sfml_stats/modern/tomorrow",
+                        { forceRefresh: true, ttl: 0 }
+                    ),
+                ]);
+                premiumCorrections.value = dashboardResponse?.data?.premium?.licensed === true;
+                const devices = journalResponse?.data?.devices || {};
+                deviceVisibility.heat_pump = devices.heat_pump?.visible === true;
+                deviceVisibility.wallbox = devices.wallbox?.visible === true;
+                handleHashChange();
             } catch (_error) {
                 premiumCorrections.value = false;
+                deviceVisibility.heat_pump = false;
+                deviceVisibility.wallbox = false;
             }
         }
 
@@ -789,7 +819,7 @@ const ModernApp = {
             window.addEventListener("keydown", handleKeydown);
             colorScheme.addEventListener("change", handleColorScheme);
             syncShellPolling();
-            loadCorrectionCapability();
+            loadPremiumCapabilities();
         });
 
         onUnmounted(() => {

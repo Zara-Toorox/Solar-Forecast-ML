@@ -608,6 +608,27 @@ const PremiumDashboardPage = ((Vue) => {
                 const number = numeric(value);
                 return number !== null && number > 10;
             };
+            const haTimeZone = computed(() => {
+                const candidate = dashboard.time_context?.timezone;
+                try {
+                    new Intl.DateTimeFormat("en-US", { timeZone: candidate || "UTC" });
+                    return candidate || "UTC";
+                } catch {
+                    return "UTC";
+                }
+            });
+            const haDateParts = (value) => {
+                const date = value instanceof Date ? value : new Date(value);
+                if (Number.isNaN(date.getTime())) return {};
+                return Object.fromEntries(
+                    new Intl.DateTimeFormat("en-US", {
+                        timeZone: haTimeZone.value,
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hourCycle: "h23",
+                    }).formatToParts(date).map((part) => [part.type, part.value]),
+                );
+            };
 
             const relevantFreshness = computed(() => PremiumDashboardLogic.relevantFreshness(
                 dashboard,
@@ -620,7 +641,11 @@ const PremiumDashboardPage = ((Vue) => {
             );
             const updatedTime = computed(() => {
                 return Number.isFinite(oldestRelevantFreshness.value)
-                    ? new Date(oldestRelevantFreshness.value).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+                    ? new Intl.DateTimeFormat(locale, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        timeZone: haTimeZone.value,
+                    }).format(new Date(oldestRelevantFreshness.value))
                     : "—";
             });
             const dataState = computed(
@@ -711,7 +736,8 @@ const PremiumDashboardPage = ((Vue) => {
             const dayArc = computed(() => {
                 const parsed = Date.parse(dashboard.generated_at);
                 const date = Number.isFinite(parsed) ? new Date(parsed) : new Date();
-                const hour = date.getHours() + date.getMinutes() / 60;
+                const parts = haDateParts(date);
+                const hour = Number(parts.hour || 0) + Number(parts.minute || 0) / 60;
                 const progress = Math.max(0, Math.min(100, ((hour - 6) / 15) * 100));
                 const t = progress / 100;
                 const inverse = 1 - t;
@@ -764,7 +790,12 @@ const PremiumDashboardPage = ((Vue) => {
                 severe_weather: "🚨", forecast_stale: "🕒",
             }[warning?.code] || "ℹ️"));
             const warningPeriod = (warning) => warning?.start
-                ? new Date(warning.start).toLocaleString(locale, { weekday: "short", hour: "2-digit", minute: "2-digit" })
+                ? new Intl.DateTimeFormat(locale, {
+                    weekday: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    timeZone: haTimeZone.value,
+                }).format(new Date(warning.start))
                 : "";
             const warningSourceLabel = (warning) => warning?.official_alert === true
                 ? "Amtliche Warnung"
@@ -855,8 +886,9 @@ const PremiumDashboardPage = ((Vue) => {
                 const lastActual = actualPoints[actualPoints.length - 1];
                 const generatedAt = Date.parse(dashboard.generated_at);
                 const generated = Number.isFinite(generatedAt) ? new Date(generatedAt) : null;
+                const generatedParts = generated ? haDateParts(generated) : {};
                 const generatedHour = generated
-                    ? generated.getHours() + generated.getMinutes() / 60
+                    ? Number(generatedParts.hour || 0) + Number(generatedParts.minute || 0) / 60
                     : null;
                 return {
                     hasData: values.length > 0,
