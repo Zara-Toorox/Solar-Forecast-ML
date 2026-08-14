@@ -361,7 +361,7 @@ window.TomorrowPage = {
             try {
                 const response = await SFMLApi.fetch(
                     "/api/sfml_stats/modern/tomorrow",
-                    { forceRefresh: true, ttl: 0 }
+                    { forceRefresh: true, ttl: 0, authenticated: true }
                 );
                 assignPayload(response?.data || response);
             } catch (requestError) {
@@ -379,7 +379,7 @@ window.TomorrowPage = {
                 const query = new URLSearchParams({ date: value });
                 const response = await SFMLApi.fetch(
                     `/api/sfml_stats/modern/tomorrow?${query.toString()}`,
-                    { forceRefresh: true, ttl: 0 }
+                    { forceRefresh: true, ttl: 0, authenticated: true }
                 );
                 if (requestId === timelineRequest) assignPayload(response?.data || response, value);
             } catch (requestError) {

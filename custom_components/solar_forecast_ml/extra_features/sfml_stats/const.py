@@ -18,7 +18,9 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "44.0.6"
+VERSION: Final = "44.0.8"
+RUNTIME_READY_KEY: Final = "_runtime_ready"
+RUNTIME_READY_TIMEOUT_SECONDS: Final = 15.0
 
 PLATFORMS: Final = [Platform.SENSOR, Platform.BINARY_SENSOR]
 

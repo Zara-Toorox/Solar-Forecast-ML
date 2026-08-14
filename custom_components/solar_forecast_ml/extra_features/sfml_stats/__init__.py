@@ -25,6 +25,7 @@ try:
     import pyarmor_runtime_009810  # noqa: F401
 except ImportError:
     pass  # Runtime not present (development mode)
+import asyncio
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -39,6 +40,7 @@ from .const import (
     DOMAIN,
     NAME,
     VERSION,
+    RUNTIME_READY_KEY,
     PLATFORMS,
     SOLAR_FORECAST_DB,
     CONF_WEATHER_ENTITY,
@@ -243,7 +245,9 @@ async def _async_register_lovelace_card(hass: HomeAssistant) -> None:
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the SFML Stats component."""
-    hass.data.setdefault(DOMAIN, {})
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if not isinstance(domain_data.get(RUNTIME_READY_KEY), asyncio.Event):
+        domain_data[RUNTIME_READY_KEY] = asyncio.Event()
     await async_setup_views(hass)
     await async_setup_websocket(hass)
     return True
@@ -302,6 +306,9 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up SFML Stats from a config entry. @zara"""
     _LOGGER.info("Setting up %s v%s (Entry: %s)", NAME, VERSION, entry.entry_id)
+
+    runtime_ready = hass.data[DOMAIN][RUNTIME_READY_KEY]
+    runtime_ready.clear()
 
     entry_config = {**entry.data, **entry.options}
 
@@ -526,6 +533,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     register_provider(sensor_mapping_providers, entry.entry_id, sensor_mapping_provider)
 
+    runtime_ready.set()
     _LOGGER.info("%s v%s successfully set up", NAME, VERSION)
     return True
 
@@ -586,6 +594,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await async_dismiss(hass, f"{DOMAIN}_no_sources")
     except Exception:
         pass
+
+    runtime_ready = hass.data[DOMAIN].get(RUNTIME_READY_KEY)
+    if isinstance(runtime_ready, asyncio.Event):
+        runtime_ready.clear()
 
     # Close DB (last!)
     try:

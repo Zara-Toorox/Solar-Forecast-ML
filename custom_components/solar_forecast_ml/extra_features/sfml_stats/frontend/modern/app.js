@@ -699,7 +699,7 @@ const ModernApp = {
                     ),
                     SFMLApi.fetch(
                         "/api/sfml_stats/modern/tomorrow",
-                        { forceRefresh: true, ttl: 0 }
+                        { forceRefresh: true, ttl: 0, authenticated: true }
                     ),
                 ]);
                 premiumCorrections.value = dashboardResponse?.data?.premium?.licensed === true;

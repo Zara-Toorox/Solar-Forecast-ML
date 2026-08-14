@@ -245,9 +245,43 @@ const SFMLApi = {
     pendingRequests: new Map(),
     defaultTTL: 30000, // 30 seconds
 
+    async _getAuthenticated(endpoint) {
+        const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
+        if (!authenticatedEndpoint) {
+            throw new Error("Authenticated endpoint rejected");
+        }
+        this.parentHassClient ??= new SfmlParentHassApiClient();
+        if (this.parentHassClient.isAvailable()) {
+            return this.parentHassClient.get(endpoint);
+        }
+        this.companionAuthClient ??= new SfmlCompanionAuthClient();
+        const accessToken = await this.companionAuthClient.getAccessToken();
+        if (accessToken) {
+            const authenticatedResponse = await fetch(authenticatedEndpoint, {
+                cache: "no-store",
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (!authenticatedResponse.ok) {
+                throw new Error(
+                    `HTTP ${authenticatedResponse.status}: ${authenticatedResponse.statusText}`
+                );
+            }
+            return authenticatedResponse.json();
+        }
+        this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
+        return this.authenticatedClient.get(endpoint);
+    },
+
     async fetch(endpoint, options = {}) {
-        const { ttl = this.defaultTTL, forceRefresh = false } = options;
-        const cacheKey = endpoint;
+        const {
+            ttl = this.defaultTTL,
+            forceRefresh = false,
+            authenticated = false,
+        } = options;
+        if (authenticated && !sfmlAuthenticatedEndpoint(endpoint)) {
+            throw new Error("Authenticated endpoint rejected");
+        }
+        const cacheKey = `${authenticated ? "authenticated" : "public"}:${endpoint}`;
 
         // Check cache first (unless force refresh)
         if (!forceRefresh && this.cache.has(cacheKey)) {
@@ -265,6 +299,11 @@ const SFMLApi = {
         // Make the request
         const requestPromise = (async () => {
             try {
+                if (authenticated) {
+                    const data = await this._getAuthenticated(endpoint);
+                    this.cache.set(cacheKey, { data, timestamp: Date.now() });
+                    return data;
+                }
                 // The in-memory TTL is the single cache authority. Browser HTTP
                 // caches must not retain volatile Home Assistant API snapshots.
                 const response = await fetch(endpoint, {
@@ -272,34 +311,7 @@ const SFMLApi = {
                     credentials: "same-origin"
                 });
                 if (response.status === 401) {
-                    const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
-                    if (!authenticatedEndpoint) {
-                        throw new Error("Authenticated endpoint rejected");
-                    }
-                    this.parentHassClient ??= new SfmlParentHassApiClient();
-                    if (this.parentHassClient.isAvailable()) {
-                        const data = await this.parentHassClient.get(endpoint);
-                        this.cache.set(cacheKey, { data, timestamp: Date.now() });
-                        return data;
-                    }
-                    this.companionAuthClient ??= new SfmlCompanionAuthClient();
-                    const accessToken = await this.companionAuthClient.getAccessToken();
-                    if (accessToken) {
-                        const authenticatedResponse = await fetch(authenticatedEndpoint, {
-                            cache: "no-store",
-                            headers: { Authorization: `Bearer ${accessToken}` },
-                        });
-                        if (!authenticatedResponse.ok) {
-                            throw new Error(
-                                `HTTP ${authenticatedResponse.status}: ${authenticatedResponse.statusText}`
-                            );
-                        }
-                        const data = await authenticatedResponse.json();
-                        this.cache.set(cacheKey, { data, timestamp: Date.now() });
-                        return data;
-                    }
-                    this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
-                    const data = await this.authenticatedClient.get(endpoint);
+                    const data = await this._getAuthenticated(endpoint);
                     this.cache.set(cacheKey, { data, timestamp: Date.now() });
                     return data;
                 }
