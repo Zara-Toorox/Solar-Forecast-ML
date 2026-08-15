@@ -471,6 +471,21 @@ textarea:focus-visible,
     line-height: 1.2;
 }
 
+.page-beta {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border: 1px solid color-mix(in srgb, #ffc95b 55%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, #ffc95b 18%, transparent);
+    color: #ffc95b;
+    font-size: 0.62em;
+    font-weight: 850;
+    letter-spacing: .06em;
+    vertical-align: middle;
+}
+
 .topbar p {
     max-width: 60ch;
     margin: 3px 0 0;

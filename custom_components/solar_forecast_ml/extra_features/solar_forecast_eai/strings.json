@@ -3,12 +3,12 @@
     "step": {
       "license": {
         "title": "Offline license",
-        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection.",
+        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection. Leave the field empty to activate the EMS demo with synthetic mock data.",
         "data": {
           "license_key": "EAI license key"
         },
         "data_description": {
-          "license_key": "The license key starts with EAI1. and is issued by your EAI provider."
+          "license_key": "The license key starts with EAI1. and is issued by your EAI provider. Leave it empty for the EMS demo."
         }
       },
       "features": {

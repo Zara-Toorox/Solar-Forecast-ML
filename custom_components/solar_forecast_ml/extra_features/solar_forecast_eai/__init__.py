@@ -141,12 +141,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     provider = get_capability_provider(hass)
     result = get_license_validator(hass).validate(entry.data.get(CONF_LICENSE_KEY, ""))
     provider.update_license(result)
     if result.status.value != "valid":
         hass.data[DOMAIN].pop(entry.entry_id, None)
-        entry.async_start_reauth(hass)
+        if str(entry.data.get(CONF_LICENSE_KEY, "")).strip():
+            entry.async_start_reauth(hass)
         return True
     provider.update_configuration(
         configured=True,
@@ -175,7 +177,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         provider.reset()
         raise
     runtime.schedule_license_monitor(result.payload.expires_at)
-    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
     return True
 
 

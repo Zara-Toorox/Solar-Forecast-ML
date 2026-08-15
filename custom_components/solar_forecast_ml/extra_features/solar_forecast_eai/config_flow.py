@@ -622,7 +622,7 @@ def _entity_schema(
 def _license_schema() -> vol.Schema:
     return vol.Schema(
         {
-            vol.Required(CONF_LICENSE_KEY): selector.TextSelector(
+            vol.Optional(CONF_LICENSE_KEY, default=""): selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
             )
         }
@@ -1009,13 +1009,25 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
+            license_key = str(user_input.get(CONF_LICENSE_KEY, "")).strip()
+            if not license_key:
+                await self.async_set_unique_id("solar_forecast_eai")
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title="Solar Forecast Energy AI Demo",
+                    data={
+                        CONF_LICENSE_KEY: "",
+                        CONF_LICENSE_STATUS: "not_provided",
+                        CONF_ONBOARDING_STATE: "demo",
+                    },
+                )
             result = get_license_validator(self.hass).validate(
-                user_input.get(CONF_LICENSE_KEY, "")
+                license_key
             )
             if result.status.value == "valid" and result.payload is not None:
                 self._data.update(
                     {
-                        CONF_LICENSE_KEY: user_input[CONF_LICENSE_KEY],
+                        CONF_LICENSE_KEY: license_key,
                         CONF_LICENSE_STATUS: result.status.value,
                         CONF_LICENSE_ID: result.payload.license_id,
                     }

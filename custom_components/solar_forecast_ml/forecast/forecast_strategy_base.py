@@ -21,6 +21,10 @@ from typing import Any, Dict, List, Optional
 _LOGGER = logging.getLogger(__name__)
 
 
+class ForecastGenerationError(Exception):
+    """Raised when forecast creation cannot produce a persistable result."""
+
+
 @dataclass
 class ForecastResult:
     """Standardized result object returned by all forecast strategies. @zara"""

@@ -3,7 +3,7 @@
   "name": "Solar Forecast Energy AI",
   "codeowners": ["@Zara-Toorox"],
   "config_flow": true,
-  "dependencies": ["solar_forecast_ml", "sfml_stats"],
+  "dependencies": ["frontend", "http", "panel_custom", "solar_forecast_ml", "sfml_stats"],
   "documentation": "https://github.com/Zara-Toorox/ha-solar-forecast-eai",
   "integration_type": "device",
   "iot_class": "local_polling",
@@ -12,5 +12,5 @@
     "aiosqlite>=0.21.0",
     "numpy>=2.3.2"
   ],
-  "version": "44.0.8"
+  "version": "44.2.1"
 }

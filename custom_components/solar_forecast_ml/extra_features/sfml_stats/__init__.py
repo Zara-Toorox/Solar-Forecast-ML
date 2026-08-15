@@ -8,6 +8,7 @@
 # ******************************************************************************
 
 """SFML Stats V17 — Solar Command Center integration for Home Assistant. @zara"""
+
 from __future__ import annotations
 
 # ruff: noqa: E402, F401
@@ -16,6 +17,7 @@ from __future__ import annotations
 # PyArmor Runtime Path Setup - MUST be before any protected module imports
 import sys
 from pathlib import Path as _Path
+
 _runtime_path = str(_Path(__file__).parent)
 if _runtime_path not in sys.path:
     sys.path.insert(0, _runtime_path)
@@ -87,9 +89,9 @@ _LOGGER = logging.getLogger(__name__)
 
 LOVELACE_CARD_URL = f"/api/sfml_stats/static/sfml-stats-card.js?v={VERSION}"
 CORRECTIONS_PANEL_PATH = "sfml-stats-corrections-bridge"
-CORRECTIONS_PANEL_URL = (
-    f"/api/sfml_stats/static/corrections-bridge.js?v={VERSION}"
-)
+CORRECTIONS_PANEL_URL = f"/api/sfml_stats/static/corrections-bridge.js?v={VERSION}"
+EMS_BRIDGE_PANEL_PATH = "sfml-stats-ems-bridge"
+EMS_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/ems-bridge.js?v={VERSION}"
 API_BRIDGE_PANEL_PATH = "sfml-stats-api-bridge"
 API_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/api-bridge.js?v={VERSION}"
 
@@ -140,6 +142,29 @@ async def _async_register_corrections_panel(hass: HomeAssistant) -> None:
     )
 
 
+async def _async_register_ems_bridge_panel(hass: HomeAssistant) -> None:
+    """Register the hidden authenticated admin-only EMS control bridge."""
+    from homeassistant.components import frontend
+
+    if frontend.async_panel_exists(hass, EMS_BRIDGE_PANEL_PATH):
+        return
+    frontend.async_register_built_in_panel(
+        hass,
+        component_name="custom",
+        frontend_url_path=EMS_BRIDGE_PANEL_PATH,
+        config={
+            "_panel_custom": {
+                "name": "sfml-stats-ems-bridge",
+                "embed_iframe": False,
+                "trust_external": False,
+                "module_url": EMS_BRIDGE_PANEL_URL,
+            }
+        },
+        require_admin=True,
+        show_in_sidebar=False,
+    )
+
+
 class GPMProviderView:
     """Read-only STATS view of the coordinator owned by GPM."""
 
@@ -158,7 +183,9 @@ class GPMProviderView:
         return next(
             (
                 coordinator
-                for coordinator in self._hass.data.get("grid_price_monitor", {}).values()
+                for coordinator in self._hass.data.get(
+                    "grid_price_monitor", {}
+                ).values()
                 if hasattr(coordinator, "data")
             ),
             None,
@@ -199,7 +226,9 @@ class GPMProviderView:
             self._provider_unsubscribe = None
         self._bound_provider = provider
         if provider is not None and hasattr(provider, "async_add_listener"):
-            self._provider_unsubscribe = provider.async_add_listener(self._notify_listeners)
+            self._provider_unsubscribe = provider.async_add_listener(
+                self._notify_listeners
+            )
         self._notify_listeners()
 
     def _notify_listeners(self) -> None:
@@ -224,7 +253,9 @@ async def _async_register_lovelace_card(hass: HomeAssistant) -> None:
     """Register the STATS Lovelace card resource when storage mode is available."""
     try:
         lovelace = hass.data.get("lovelace")
-        resources = getattr(lovelace, "resources", None) if lovelace is not None else None
+        resources = (
+            getattr(lovelace, "resources", None) if lovelace is not None else None
+        )
         if resources is None:
             return
         mode = getattr(lovelace, "mode", None)
@@ -238,7 +269,9 @@ async def _async_register_lovelace_card(hass: HomeAssistant) -> None:
             if isinstance(item, dict)
         ):
             return
-        await resources.async_create_item({"res_type": "module", "url": LOVELACE_CARD_URL})
+        await resources.async_create_item(
+            {"res_type": "module", "url": LOVELACE_CARD_URL}
+        )
     except Exception as err:
         _LOGGER.debug("Could not register STATS Lovelace card resource: %s", err)
 
@@ -252,33 +285,28 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     await async_setup_websocket(hass)
     return True
 
+
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Migrate old entry to new version. @zara"""
-    _LOGGER.info(
-        "Migrating SFML Stats from version %s to %s",
-        config_entry.version, 9
-    )
+    _LOGGER.info("Migrating SFML Stats from version %s to %s", config_entry.version, 9)
     new_data = {**config_entry.data}
     new_options = {**config_entry.options}
 
     if config_entry.version < 6:
-        hass.config_entries.async_update_entry(
-            config_entry, data=new_data, version=6
-        )
+        hass.config_entries.async_update_entry(config_entry, data=new_data, version=6)
         _LOGGER.info("Migration to version 6 successful")
 
     if config_entry.version < 7:
         # V7: GPM integration merged
         new_data.setdefault(CONF_COUNTRY, DEFAULT_COUNTRY)
         new_data.setdefault(CONF_VAT_RATE, DEFAULT_VAT_RATE_DE)
-        hass.config_entries.async_update_entry(
-            config_entry, data=new_data, version=7
-        )
+        hass.config_entries.async_update_entry(config_entry, data=new_data, version=7)
         _LOGGER.info("Migration to version 7 successful (GPM merged)")
 
     if config_entry.version < 8:
         removed = sorted(
-            key for key in LEGACY_POWER_ENERGY_SENSOR_KEYS
+            key
+            for key in LEGACY_POWER_ENERGY_SENSOR_KEYS
             if key in new_data or key in new_options
         )
         for key in removed:
@@ -325,6 +353,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await db_manager.async_bootstrap_stats_schema()
         from .readers.solar_reader import SolarDataReader
         from .readers.weather_reader import WeatherDataReader
+
         SolarDataReader._db_manager = db_manager
         WeatherDataReader._db_manager = db_manager
         _LOGGER.info("STATS database schema gate completed")
@@ -340,16 +369,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .core.tariff_manager import MonthlyTariffManager
     from .core.forecast_collector import ForecastComparisonCollector
     from .core.energy_context import StatsEnergyContextProvider
+    from .core.ems import EMSManager
 
     aggregator = DailyEnergyAggregator(hass, config_path)
     billing_calculator = BillingCalculator(hass, config_path, entry_data=entry_config)
-    monthly_tariff_manager = MonthlyTariffManager(hass, config_path, entry_data=entry_config)
+    monthly_tariff_manager = MonthlyTariffManager(
+        hass, config_path, entry_data=entry_config
+    )
 
     # --- Hourly Billing Aggregator (dynamic pricing) ---
     from .core.hourly_aggregator import HourlyBillingAggregator
+
     hourly_aggregator = HourlyBillingAggregator(hass, config_path)
-    _LOGGER.info("Hourly billing aggregator initialized (price_mode: %s)",
-                 entry_config.get("billing_price_mode", "dynamic"))
+    _LOGGER.info(
+        "Hourly billing aggregator initialized (price_mode: %s)",
+        entry_config.get("billing_price_mode", "dynamic"),
+    )
 
     energy_context_provider = (
         StatsEnergyContextProvider(hass, db_manager) if db_manager is not None else None
@@ -359,10 +394,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # --- Power Sources Collector ---
     from .power_sources_collector import PowerSourcesCollector
+
     power_sources_path = config_path / "sfml_stats" / "data"
-    power_sources_collector = PowerSourcesCollector(hass, entry_config, power_sources_path)
+    power_sources_collector = PowerSourcesCollector(
+        hass, entry_config, power_sources_path
+    )
     try:
         await power_sources_collector.start()
+        if energy_context_provider is not None:
+            await energy_context_provider.async_refresh()
     except Exception as err:
         _LOGGER.error("Failed to start power sources collector: %s", err)
 
@@ -371,6 +411,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry_config.get(CONF_WEATHER_ENTITY):
         try:
             from .weather_collector import WeatherDataCollector
+
             weather_collector = WeatherDataCollector(
                 hass, config_path / "sfml_stats_weather"
             )
@@ -385,6 +426,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ForecastComparisonCollector._db_manager = db_manager
 
     gpm_coordinator = GPMProviderView(hass)
+    ems_manager = EMSManager(hass, entry, entry_config)
+    await ems_manager.async_setup()
 
     # --- Store everything ---
     hass.data[DOMAIN][entry.entry_id] = {
@@ -400,6 +443,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "gpm_coordinator": gpm_coordinator,
         "hourly_aggregator": hourly_aggregator,
         "energy_context_provider": energy_context_provider,
+        "ems_manager": ems_manager,
     }
 
     # --- Forward sensor platforms ---
@@ -407,6 +451,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_lovelace_card(hass)
     await _async_register_api_bridge_panel(hass)
     await _async_register_corrections_panel(hass)
+    await _async_register_ems_bridge_panel(hass)
 
     # --- Update listener ---
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -420,7 +465,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Daily aggregation failed: %s", err)
 
     cancel_daily = async_track_time_change(
-        hass, _daily_aggregation_job,
+        hass,
+        _daily_aggregation_job,
         hour=DAILY_AGGREGATION_HOUR,
         minute=DAILY_AGGREGATION_MINUTE,
         second=DAILY_AGGREGATION_SECOND,
@@ -433,7 +479,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id]["cancel_forecast_morning_job"] = cancel_morning
 
     # Start database self-healing migration for historical forecast comparison correction
-    hass.async_create_task(forecast_comparison_collector.async_migrate_historical_forecasts())
+    hass.async_create_task(
+        forecast_comparison_collector.async_migrate_historical_forecasts()
+    )
 
     async def _forecast_evening_job(now: datetime) -> None:
         """Collect evening actuals. @zara"""
@@ -443,8 +491,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Evening actual collection failed: %s", err)
 
     cancel_evening = async_track_time_change(
-        hass, _forecast_evening_job,
-        hour=FORECAST_EVENING_HOUR, minute=FORECAST_EVENING_MINUTE, second=0,
+        hass,
+        _forecast_evening_job,
+        hour=FORECAST_EVENING_HOUR,
+        minute=FORECAST_EVENING_MINUTE,
+        second=0,
     )
     hass.data[DOMAIN][entry.entry_id]["cancel_forecast_evening_job"] = cancel_evening
 
@@ -463,10 +514,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Hourly billing aggregation failed: %s", err)
 
     cancel_hourly_billing = async_track_time_change(
-        hass, _hourly_billing_job,
-        minute=7, second=0,
+        hass,
+        _hourly_billing_job,
+        minute=7,
+        second=0,
     )
-    hass.data[DOMAIN][entry.entry_id]["cancel_hourly_billing_job"] = cancel_hourly_billing
+    hass.data[DOMAIN][entry.entry_id]["cancel_hourly_billing_job"] = (
+        cancel_hourly_billing
+    )
     _LOGGER.info("Hourly billing aggregation scheduled (every hour at :07)")
 
     # --- Background Tasks ---
@@ -483,9 +538,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _initial_forecast_collection() -> None:
         import asyncio
+
         try:
             from .readers.forecast_comparison_reader import ForecastComparisonReader
-            reader = ForecastComparisonReader(config_path / SOLAR_FORECAST_DB, hass=hass)
+
+            reader = ForecastComparisonReader(
+                config_path / SOLAR_FORECAST_DB, hass=hass
+            )
             needs_historical = not reader.is_available
             if not needs_historical:
                 days = await reader.async_get_comparison_days(days=7)
@@ -505,22 +564,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         lovelace = hass.data.get("lovelace")
         if lovelace and getattr(lovelace, "mode", "storage") == "storage":
-            registered_urls = {res.get("url") for res in lovelace.resources.async_items()}
-            
+            registered_urls = {
+                res.get("url") for res in lovelace.resources.async_items()
+            }
+
             sfml_url = f"/api/{DOMAIN}/static/sfml-card.js"
             if sfml_url not in registered_urls:
-                await lovelace.resources.async_create_item({
-                    "res_type": "module",
-                    "url": sfml_url
-                })
+                await lovelace.resources.async_create_item(
+                    {"res_type": "module", "url": sfml_url}
+                )
                 _LOGGER.info("SFML Lovelace card registered successfully")
 
             stats_url = f"/api/{DOMAIN}/static/stats-flow-card.js"
             if stats_url not in registered_urls:
-                await lovelace.resources.async_create_item({
-                    "res_type": "module",
-                    "url": stats_url
-                })
+                await lovelace.resources.async_create_item(
+                    {"res_type": "module", "url": stats_url}
+                )
                 _LOGGER.info("STATS Flow Lovelace card registered successfully")
     except Exception as err:
         _LOGGER.warning("Could not auto-register Lovelace resources: %s", err)
@@ -545,16 +604,25 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if entry.entry_id not in hass.data.get(DOMAIN, {}):
         return True
 
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    ems_manager = entry_data.get("ems_manager")
+    if ems_manager is not None and not await ems_manager.async_shutdown():
+        _LOGGER.error(
+            "EMS safe release is still pending for Entry %s; refusing unload",
+            entry.entry_id,
+        )
+        return False
+
     # Unload sensor platforms
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if not unload_ok:
+        if ems_manager is not None:
+            ems_manager.resume_after_failed_unload()
         _LOGGER.warning(
             "Platform unload failed for Entry %s; keeping runtime state intact",
             entry.entry_id,
         )
         return False
-
-    entry_data = hass.data[DOMAIN][entry.entry_id]
 
     gpm_coordinator = entry_data.get("gpm_coordinator")
     if gpm_coordinator is not None:
@@ -591,6 +659,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Dismiss notifications
     try:
         from homeassistant.components.persistent_notification import async_dismiss
+
         await async_dismiss(hass, f"{DOMAIN}_no_sources")
     except Exception:
         pass
@@ -622,12 +691,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ):
         from homeassistant.components import frontend
 
-        frontend.async_remove_panel(
-            hass, CORRECTIONS_PANEL_PATH, warn_if_unknown=False
-        )
-        frontend.async_remove_panel(
-            hass, API_BRIDGE_PANEL_PATH, warn_if_unknown=False
-        )
+        frontend.async_remove_panel(hass, CORRECTIONS_PANEL_PATH, warn_if_unknown=False)
+        frontend.async_remove_panel(hass, API_BRIDGE_PANEL_PATH, warn_if_unknown=False)
+        frontend.async_remove_panel(hass, EMS_BRIDGE_PANEL_PATH, warn_if_unknown=False)
     return unload_ok
 
 
@@ -639,6 +705,9 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     entry_data = hass.data[DOMAIN][entry.entry_id]
     new_config = {**entry.data, **entry.options}
     entry_data["config"] = new_config
+    ems_manager = entry_data.get("ems_manager")
+    if ems_manager is not None:
+        await ems_manager.async_update_config(new_config)
 
     for key in ("billing_calculator", "monthly_tariff_manager"):
         obj = entry_data.get(key)
@@ -658,7 +727,6 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
             except Exception as err:
                 _LOGGER.warning("Error updating %s: %s", key, err)
 
-
     from .sensor_mapping_provider import SensorMappingProvider, register_provider
 
     sensor_mapping_provider = SensorMappingProvider(entry.entry_id, new_config)
@@ -666,5 +734,10 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
         "sensor_mapping_providers", {}
     )
     register_provider(sensor_mapping_providers, entry.entry_id, sensor_mapping_provider)
+
+    gpm_coordinator = entry_data.get("gpm_coordinator")
+    notify_listeners = getattr(gpm_coordinator, "_notify_listeners", None)
+    if callable(notify_listeners):
+        notify_listeners()
 
     _LOGGER.info("Configuration refresh complete")

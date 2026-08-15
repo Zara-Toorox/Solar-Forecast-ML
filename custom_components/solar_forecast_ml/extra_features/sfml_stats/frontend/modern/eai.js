@@ -151,6 +151,11 @@ const ModernEAIPage = {
                 const unwrap = (response) => response?.success === true ? response.data : response;
                 Object.assign(status, unwrap(responses[0]));
                 tabs.forEach((tab, index) => { sections[tab.id] = unwrap(responses[index + 1])?.data || {}; });
+                const overviewPayload = unwrap(responses[1]);
+                if (typeof overviewPayload?.is_demo === "boolean") {
+                    status.is_demo = overviewPayload.is_demo;
+                    if (overviewPayload.data_mode) status.data_mode = overviewPayload.data_mode;
+                }
                 hasLoaded = true;
                 error.value = "";
                 if (status.is_demo) {

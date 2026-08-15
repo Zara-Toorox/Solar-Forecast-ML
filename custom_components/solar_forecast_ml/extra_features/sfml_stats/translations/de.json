@@ -382,6 +382,9 @@
           "force_charge_price": "Preis-Schwelle extrem guenstig (ct/kWh)",
           "battery_soc_sensor": "Batterie-SOC Sensor",
           "smart_charging_switch": "Ladeschalter / Ladesteuerung",
+          "ems_surplus_switch": "S-Plus Verbraucher-Freigabe",
+          "ems_wallbox_switch": "EMS Wallbox-Ladefreigabe",
+          "ems_heat_pump_boost_switch": "EMS Wärmepumpen-PV-Boost",
           "sensor_price_total": "Strompreis-Sensor"
         },
         "data_description": {
@@ -393,6 +396,9 @@
           "force_charge_price": "Preis unterhalb dieser Schwelle loest tagsüber bei solarem Defizit oder nachts Zwangsnetzladung bis max_soc aus.",
           "battery_soc_sensor": "Batterie-Ladezustand-Sensor (0-100%). Ohne Sensor arbeitet die Logik im Preis-Fallback.",
           "smart_charging_switch": "Schalter-Entität in Home Assistant zur Steuerung der Netzladung.",
+          "ems_surplus_switch": "Optionaler Schalter für einen flexiblen Verbraucher. EMS schaltet ihn nur bei stabiler S-Plus-Freigabe.",
+          "ems_wallbox_switch": "Optionaler, sicher abschaltbarer Freigabeschalter der Wallbox. Nicht den Hauptschalter verwenden.",
+          "ems_heat_pump_boost_switch": "Optionaler, sicher abschaltbarer PV-Boost-/SG-Ready-Schalter. Niemals die Stromversorgung der Wärmepumpe wählen.",
           "sensor_price_total": "Sensor für den aktuellen dynamischen Gesamtstrompreis (z.B. von Tibber)."
         }
       },

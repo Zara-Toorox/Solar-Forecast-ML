@@ -146,6 +146,11 @@ window.TomorrowPage = {
                             <strong>Für diesen Tag fehlen ausreichende Stundenwerte.</strong>
                             <span>Die historische Tagesbilanz bleibt weiterhin verfügbar.</span>
                         </div>
+
+                        <div v-if="timelineError" class="tomorrow-timeline-unavailable" role="alert">
+                            <strong>Stundenwerte für diesen Tag konnten nicht geladen werden.</strong>
+                            <span>{{ timelineError }}</span>
+                        </div>
                 </section>
 
                 <div v-if="payload.is_demo" class="tomorrow-demo-banner" role="status">
@@ -224,21 +229,21 @@ window.TomorrowPage = {
                 <section v-if="hasDeviceInsights" class="tomorrow-devices" aria-labelledby="tomorrow-devices-title">
                     <div class="tomorrow-section-head">
                         <div>
-                            <p>ECHTE VERBRAUCHERHISTORIE</p>
+                            <p>VERBRAUCHER</p>
                             <h3 id="tomorrow-devices-title">Große Verbraucher an diesem Tag</h3>
                         </div>
-                        <span>Nur sichtbar bei verfügbarer Entität und ausreichender Historie.</span>
+                        <span>{{ deviceInsightHint }}</span>
                     </div>
                     <div class="tomorrow-device-grid">
-                        <article v-if="payload.devices.heat_pump.visible" class="tomorrow-device heat-pump">
+                        <article v-if="payload.devices?.heat_pump?.visible" class="tomorrow-device heat-pump">
                             <span>Wärmepumpe</span>
                             <strong>{{ formatEnergy(selectedDay.heat_pump_kwh) }}</strong>
-                            <small>{{ payload.devices.heat_pump.active_history_days }} aktive historische Tage bestätigt</small>
+                            <small>{{ payload.devices.heat_pump.is_demo ? "Beispielwerte, bis die Wärmepumpe konfiguriert ist. Nicht in der Tagesbilanz." : (payload.devices.heat_pump.active_history_days + " aktive historische Tage bestätigt") }}</small>
                         </article>
-                        <article v-if="payload.devices.wallbox.visible" class="tomorrow-device wallbox">
+                        <article v-if="payload.devices?.wallbox?.visible" class="tomorrow-device wallbox">
                             <span>Wallbox</span>
                             <strong>{{ formatEnergy(selectedDay.wallbox_kwh) }}</strong>
-                            <small>{{ payload.devices.wallbox.active_history_days }} aktive historische Tage bestätigt</small>
+                            <small>{{ payload.devices.wallbox.is_demo ? "Beispielwerte, bis die Wallbox konfiguriert ist. Nicht in der Tagesbilanz." : (payload.devices.wallbox.active_history_days + " aktive historische Tage bestätigt") }}</small>
                         </article>
                     </div>
                 </section>
@@ -327,6 +332,11 @@ window.TomorrowPage = {
         const selectedMonthYear = Vue.computed(() => tomorrowDate(selectedDay.value.date, { month: "long", year: "numeric" }));
         const hasDeviceInsights = Vue.computed(() => Boolean(
             payload.devices?.heat_pump?.visible || payload.devices?.wallbox?.visible
+        ));
+        const deviceInsightHint = Vue.computed(() => (
+            payload.devices?.heat_pump?.is_demo || payload.devices?.wallbox?.is_demo
+                ? "Beispielwerte, bis der Verbraucher konfiguriert ist. Nicht in der Tagesbilanz."
+                : "Nur sichtbare Historie aus konfigurierten Verbrauchern."
         ));
         const visibleMonths = Vue.computed(() => {
             const months = [];
@@ -432,7 +442,7 @@ window.TomorrowPage = {
             hasBatterySoc,
             displayForecastAccuracy, forecastQualityDetail,
             selectedDateLong, selectedWeekday, selectedDayNumber, selectedMonthYear,
-            hasDeviceInsights, visibleMonths, load, selectDay, formatEnergy,
+            hasDeviceInsights, deviceInsightHint, visibleMonths, load, selectDay, formatEnergy,
             formatPercent, formatQuality, formatKpi, band, dayLabel,
         };
     },

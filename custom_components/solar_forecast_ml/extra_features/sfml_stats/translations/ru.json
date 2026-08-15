@@ -376,6 +376,9 @@
           "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
           "battery_soc_sensor": "Сенсор SOC батареи",
           "smart_charging_switch": "Выключатель управления зарядкой",
+          "ems_surplus_switch": "Разрешение гибкой нагрузки S-Plus",
+          "ems_wallbox_switch": "Разрешение зарядки wallbox через EMS",
+          "ems_heat_pump_boost_switch": "Фотоэлектрический режим теплового насоса EMS",
           "sensor_price_total": "Сенсор цены электричества"
         },
         "data_description": {
@@ -387,6 +390,9 @@
           "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
           "battery_soc_sensor": "Сенсор уровня заряда батареи (0-100%). Без него логика переходит в режим работы только по цене.",
           "smart_charging_switch": "Выключатель в Home Assistant для включения/выключения зарядки из сети.",
+          "ems_surplus_switch": "Дополнительный выключатель гибкой нагрузки, активируемый только стабильным сигналом S-Plus.",
+          "ems_wallbox_switch": "Дополнительный безопасный выключатель разрешения зарядки. Не выбирайте главный выключатель.",
+          "ems_heat_pump_boost_switch": "Дополнительный PV/SG-Ready выключатель. Никогда не выбирайте основное питание теплового насоса.",
           "sensor_price_total": "Сенсор стоимости, передающий текущую динамическую цену (например, от Tibber)."
         }
       },

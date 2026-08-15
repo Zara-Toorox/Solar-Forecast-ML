@@ -69,6 +69,7 @@ const COPY = {
             weather: ["Wetter", "Prognose, Strahlung und Historie"],
             energy: ["Energie & Finanzen", "Bilanz, Verbraucher, Tarife und Amortisation"],
             smart_charging: ["Smart Charging", "Ladeentscheidung, Preise und Batterieziel"],
+            ems: ["EMS", "BETA v2! · Was jetzt tun – und warum"],
             settings: ["Systemstatus", "Konfiguration, Sensoren und Datenqualität"],
             corrections: ["Korrekturen", "Premium · geprüfte Tageswerte berichtigen"],
             quality: ["Forecast Intelligence", "Qualität, Modelle und Entwicklung nachvollziehen"],
@@ -101,6 +102,7 @@ const COPY = {
             weather: ["Weather", "Forecast, radiation and history"],
             energy: ["Energy & Finance", "Balance, consumers, tariffs and payback"],
             smart_charging: ["Smart Charging", "Charge decision, prices and battery target"],
+            ems: ["EMS", "BETA v2! · What to do now – and why"],
             settings: ["System Status", "Configuration, sensors and data quality"],
             corrections: ["Corrections", "Premium · correct verified daily values"],
             quality: ["Forecast Intelligence", "Understand quality, models and development"],
@@ -133,6 +135,7 @@ const COPY = {
             weather: ["Pogoda", "Prognoza, promieniowanie i historia"],
             energy: ["Energia i finanse", "Bilans, odbiorniki, taryfy i amortyzacja"],
             smart_charging: ["Smart Charging", "Decyzja ładowania, ceny i cel baterii"],
+            ems: ["EMS", "BETA v2! · Co teraz zrobić – i dlaczego"],
             settings: ["Stan systemu", "Konfiguracja, czujniki i jakość danych"],
             corrections: ["Korekty", "Premium · korekta zweryfikowanych wartości dziennych"],
             quality: ["Forecast Intelligence", "Jakość, modele i długoterminowy rozwój"],
@@ -401,7 +404,7 @@ const ModernApp = {
                         </button>
                         <div>
                             <div class="eyebrow">{{ copy.product }}</div>
-                            <h1>{{ currentPageCopy[0] }}</h1>
+                            <h1>{{ currentPageCopy[0] }} <span v-if="currentPage === 'ems'" class="page-beta">BETA v2!</span></h1>
                             <p>{{ currentPageCopy[1] }}</p>
                         </div>
                     </div>
@@ -540,18 +543,13 @@ const ModernApp = {
             {
                 id: "system",
                 items: [
-                    { id: "smart_charging", icon: "charge" },
+                    { id: "ems", icon: "energy" },
                     { id: "corrections", icon: "settings", panel: true },
                     { id: "settings", icon: "settings" },
                 ],
             },
         ];
-        const navigation = computed(() => navigationDefinition.map((section) => ({
-            ...section,
-            items: section.items.filter((item) => (
-                !item.feature || deviceVisibility[item.feature] === true
-            )),
-        })));
+        const navigation = computed(() => navigationDefinition);
 
         const mobileNavigation = [
             { id: "home", icon: "home" },
@@ -579,6 +577,7 @@ const ModernApp = {
             mobility: window.ModernMobilityPage,
             eai_weather: window.ModernEAIWeatherPage,
             smart_charging: window.SmartChargingPage,
+            ems: window.ModernEMSPage,
             corrections: window.ModernCorrectionsPage,
             settings: window.SettingsPage,
         };
@@ -656,8 +655,6 @@ const ModernApp = {
 
         function navigate(page, detail = "") {
             if (!pages[page]) return;
-            if (page === "eai" && !deviceVisibility.heat_pump) return;
-            if (page === "mobility" && !deviceVisibility.wallbox) return;
             if (page === "dashboard") dashboardMode.value = "loading";
             currentPage.value = page;
             currentDetail.value = detail || "";
@@ -670,10 +667,7 @@ const ModernApp = {
         function handleHashChange() {
             const [hashPage, hashDetail = ""] = window.location.hash.slice(1).split("/");
             const requestedPage = pages[hashPage] ? hashPage : "home";
-            const page = (
-                (requestedPage === "eai" && !deviceVisibility.heat_pump)
-                || (requestedPage === "mobility" && !deviceVisibility.wallbox)
-            ) ? "home" : requestedPage;
+            const page = requestedPage;
             if (page === "dashboard" && currentPage.value !== "dashboard") {
                 dashboardMode.value = "loading";
             }

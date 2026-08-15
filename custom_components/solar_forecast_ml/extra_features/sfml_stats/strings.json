@@ -385,6 +385,9 @@
           "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
           "battery_soc_sensor": "Battery SOC Sensor",
           "smart_charging_switch": "Charging Control Switch",
+          "ems_surplus_switch": "S-Plus Flexible Load Enable",
+          "ems_wallbox_switch": "EMS Wallbox Charge Enable",
+          "ems_heat_pump_boost_switch": "EMS Heat Pump PV Boost",
           "sensor_price_total": "Electricity Price Sensor"
         },
         "data_description": {
@@ -396,6 +399,9 @@
           "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
           "battery_soc_sensor": "Battery State-of-Charge sensor (0-100%). Without it, logic falls back to price-only mode.",
           "smart_charging_switch": "Switch entity to turn grid charging on/off in Home Assistant.",
+          "ems_surplus_switch": "Optional switch for a flexible load. EMS only enables it after the stable S-Plus surplus gate.",
+          "ems_wallbox_switch": "Optional fail-safe charge-enable switch for the wallbox. Do not select its main power switch.",
+          "ems_heat_pump_boost_switch": "Optional fail-safe PV boost or SG-Ready switch. Never select the heat pump power supply.",
           "sensor_price_total": "Monetary sensor providing current dynamic price (e.g. from Tibber)."
         }
       },

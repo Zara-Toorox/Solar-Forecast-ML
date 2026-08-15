@@ -204,7 +204,7 @@ def main():
         if model_type == "weather_mlp":
             from custom_components.solar_forecast_ml.ai.ai_weather_mlp import TinyWeatherMLP
             mlp = TinyWeatherMLP(
-                input_size=model_config.get("input_size", 8),
+                input_size=model_config.get("input_size", 12),
                 hidden1=model_config.get("hidden1", 16),
                 hidden2=model_config.get("hidden2", 8),
                 learning_rate=model_config.get("learning_rate", 0.001)

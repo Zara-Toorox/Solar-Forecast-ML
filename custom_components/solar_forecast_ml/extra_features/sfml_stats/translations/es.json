@@ -376,6 +376,9 @@
           "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
           "battery_soc_sensor": "Sensor de SOC de la batería",
           "smart_charging_switch": "Interruptor de control de carga",
+          "ems_surplus_switch": "Habilitación de carga flexible S-Plus",
+          "ems_wallbox_switch": "Habilitación de carga EMS para wallbox",
+          "ems_heat_pump_boost_switch": "Impulso fotovoltaico EMS para bomba de calor",
           "sensor_price_total": "Sensor de precio de la electricidad"
         },
         "data_description": {
@@ -387,6 +390,9 @@
           "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
           "battery_soc_sensor": "Sensor del estado de carga de la batería (0-100%). Sin él, la lógica vuelve al modo de solo precio.",
           "smart_charging_switch": "Entidad de interruptor para activar/desactivar la carga desde la red en Home Assistant.",
+          "ems_surplus_switch": "Interruptor opcional para una carga flexible, habilitado solo tras la señal estable S-Plus.",
+          "ems_wallbox_switch": "Interruptor opcional y seguro de habilitación de carga. No selecciones el interruptor principal.",
+          "ems_heat_pump_boost_switch": "Interruptor opcional de impulso FV o SG-Ready. Nunca selecciones la alimentación principal.",
           "sensor_price_total": "Sensor monetario que proporciona el precio dinámico actual (por ejemplo, de Tibber)."
         }
       },

@@ -14,7 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, CONF_SMART_CHARGING_ENABLED
+from .const import DOMAIN
 from .sensors.binary_sensors import (
     CheapEnergyBinarySensor,
     SmartChargingBinarySensor,
@@ -34,6 +34,5 @@ async def async_setup_entry(
     entities = [SurplusAvailableBinarySensor(hass, entry)]
     if coordinator is not None:
         entities.append(CheapEnergyBinarySensor(coordinator, entry))
-        if entry.data.get(CONF_SMART_CHARGING_ENABLED):
-            entities.append(SmartChargingBinarySensor(coordinator, entry))
+        entities.append(SmartChargingBinarySensor(coordinator, entry))
     async_add_entities(entities)

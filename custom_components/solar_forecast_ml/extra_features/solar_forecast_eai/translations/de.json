@@ -3,12 +3,12 @@
     "step": {
       "license": {
         "title": "Offline-Lizenz",
-        "description": "Gib den signierten EAI-Lizenzschlüssel ein. Die Prüfung erfolgt lokal und benötigt keine Internetverbindung.",
+        "description": "Gib den signierten EAI-Lizenzschlüssel ein. Die Prüfung erfolgt lokal und benötigt keine Internetverbindung. Lasse das Feld leer, um die EMS-Demo mit synthetischen Mock-Daten zu aktivieren.",
         "data": {
           "license_key": "EAI-Lizenzschlüssel"
         },
         "data_description": {
-          "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt."
+          "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt. Für die EMS-Demo leer lassen."
         }
       },
       "features": {

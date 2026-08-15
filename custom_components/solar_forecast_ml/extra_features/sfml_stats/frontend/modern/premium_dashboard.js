@@ -438,9 +438,9 @@ const PremiumDashboardPage = ((Vue) => {
                                     <div>
                                         <small>ENERGY AI</small>
                                         <strong>{{ copy.heatPump }}</strong>
-                                        <span>{{ heatPump.configured ? (heatPump.recommendation || heatPumpMode) : copy.notConfigured }}</span>
+                                        <span>{{ heatPump.is_demo ? "Premium-Demo" : (heatPump.configured ? (heatPump.recommendation || heatPumpMode) : copy.notConfigured) }}</span>
                                     </div>
-                                    <b>{{ heatPump.configured ? powerKw(heatPump.power_kw) : "→" }}</b>
+                                    <b>{{ (heatPump.configured || heatPump.is_demo) ? powerKw(heatPump.power_kw) : "→" }}</b>
                                 </button>
 
                                 <button type="button" class="orbit-device wallbox" @click="navigate('mobility')">
@@ -450,9 +450,9 @@ const PremiumDashboardPage = ((Vue) => {
                                     <div>
                                         <small>ENERGY AI</small>
                                         <strong>{{ copy.wallbox }}</strong>
-                                        <span>{{ wallbox.configured ? (wallbox.recommendation || wallboxState) : copy.notConfigured }}</span>
+                                        <span>{{ wallbox.is_demo ? "Premium-Demo" : (wallbox.configured ? (wallbox.recommendation || wallboxState) : copy.notConfigured) }}</span>
                                     </div>
-                                    <b>{{ wallbox.configured ? powerKw(wallbox.power_kw) : "→" }}</b>
+                                    <b>{{ (wallbox.configured || wallbox.is_demo) ? powerKw(wallbox.power_kw) : "→" }}</b>
                                 </button>
 
                                 <button type="button" class="orbit-device quality" @click="navigate('weather_energy')">

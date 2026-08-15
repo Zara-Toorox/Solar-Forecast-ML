@@ -53,6 +53,9 @@ from .const import (
     normalize_ui_mode,
     CONF_SMART_CHARGING_ENABLED,
     CONF_SMART_CHARGING_SWITCH,
+    CONF_EMS_SURPLUS_SWITCH,
+    CONF_EMS_WALLBOX_SWITCH,
+    CONF_EMS_HEAT_PUMP_BOOST_SWITCH,
     CONF_BATTERY_CAPACITY,
     CONF_MIN_SOC,
     CONF_MAX_SOC,
@@ -797,12 +800,19 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             elif CONF_BATTERY_SOC_SENSOR in new_data:
                 del new_data[CONF_BATTERY_SOC_SENSOR]
 
-            # Switch controls
-            sc_switch = user_input.get(CONF_SMART_CHARGING_SWITCH)
-            if sc_switch:
-                new_data[CONF_SMART_CHARGING_SWITCH] = sc_switch
-            elif CONF_SMART_CHARGING_SWITCH in new_data:
-                del new_data[CONF_SMART_CHARGING_SWITCH]
+            # EMS actuator switches. Each target is an explicit, server-side
+            # allowlist entry; the dashboard can never submit an entity ID.
+            for key in (
+                CONF_SMART_CHARGING_SWITCH,
+                CONF_EMS_SURPLUS_SWITCH,
+                CONF_EMS_WALLBOX_SWITCH,
+                CONF_EMS_HEAT_PUMP_BOOST_SWITCH,
+            ):
+                entity_id = user_input.get(key)
+                if entity_id:
+                    new_data[key] = entity_id
+                elif key in new_data:
+                    del new_data[key]
 
             # Price sensor
             price_sensor = user_input.get(CONF_SENSOR_PRICE_TOTAL)
@@ -851,6 +861,18 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_SMART_CHARGING_SWITCH,
                     description=_sv(CONF_SMART_CHARGING_SWITCH),
+                ): _entity(domain="switch"),
+                vol.Optional(
+                    CONF_EMS_SURPLUS_SWITCH,
+                    description=_sv(CONF_EMS_SURPLUS_SWITCH),
+                ): _entity(domain="switch"),
+                vol.Optional(
+                    CONF_EMS_WALLBOX_SWITCH,
+                    description=_sv(CONF_EMS_WALLBOX_SWITCH),
+                ): _entity(domain="switch"),
+                vol.Optional(
+                    CONF_EMS_HEAT_PUMP_BOOST_SWITCH,
+                    description=_sv(CONF_EMS_HEAT_PUMP_BOOST_SWITCH),
                 ): _entity(domain="switch"),
                 vol.Optional(
                     CONF_SENSOR_PRICE_TOTAL,

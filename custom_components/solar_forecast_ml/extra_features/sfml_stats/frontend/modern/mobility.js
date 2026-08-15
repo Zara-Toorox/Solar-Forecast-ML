@@ -171,7 +171,12 @@ const ModernMobilityPage = {
                 ]);
                 const unwrap = (response) => response?.success === true ? response.data : response;
                 Object.assign(status, unwrap(statusResponse));
-                Object.assign(mobility, unwrap(mobilityResponse)?.data || {});
+                const mobilityPayload = unwrap(mobilityResponse);
+                Object.assign(mobility, mobilityPayload?.data || {});
+                if (typeof mobilityPayload?.is_demo === "boolean") {
+                    status.is_demo = mobilityPayload.is_demo;
+                    if (mobilityPayload.data_mode) status.data_mode = mobilityPayload.data_mode;
+                }
                 if (mobility.control_services_called === true) throw new Error("Unsicherer Provider-Vertrag");
                 const demo = status.is_demo === true;
                 const valueOrDemo = (value, fallback) => finiteNumber(value) ?? (demo ? fallback : null);

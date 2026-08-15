@@ -18,7 +18,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "44.0.8"
+VERSION: Final = "44.2.0"
 RUNTIME_READY_KEY: Final = "_runtime_ready"
 RUNTIME_READY_TIMEOUT_SECONDS: Final = 15.0
 
@@ -405,6 +405,9 @@ CONF_MAX_SOC: Final = "max_soc"
 CONF_MIN_SOC: Final = "min_soc"
 CONF_SMART_CHARGING_SWITCH: Final = "smart_charging_switch"
 CONF_FORCE_CHARGE_PRICE: Final = "force_charge_price"
+CONF_EMS_SURPLUS_SWITCH: Final = "ems_surplus_switch"
+CONF_EMS_WALLBOX_SWITCH: Final = "ems_wallbox_switch"
+CONF_EMS_HEAT_PUMP_BOOST_SWITCH: Final = "ems_heat_pump_boost_switch"
 
 # GPM Defaults
 DEFAULT_COUNTRY: Final = "DE"

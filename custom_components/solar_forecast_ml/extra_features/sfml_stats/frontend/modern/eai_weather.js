@@ -563,11 +563,17 @@ const ModernEAIWeatherPage = {
                     ttl: 0
                 })) || {};
                 let nextWeather;
+                let weatherPayload = {};
                 try {
-                    nextWeather = unwrap(await SFMLApi.fetch(endpoint("weather"), {
+                    weatherPayload = unwrap(await SFMLApi.fetch(endpoint("weather"), {
                         forceRefresh: true,
                         ttl: 0
-                    }))?.data || {};
+                    })) || {};
+                    nextWeather = weatherPayload.data || {};
+                    if (typeof weatherPayload.is_demo === "boolean") {
+                        nextStatus.is_demo = weatherPayload.is_demo;
+                        if (weatherPayload.data_mode) nextStatus.data_mode = weatherPayload.data_mode;
+                    }
                 } catch (weatherError) {
                     if (!nextStatus.is_demo) throw weatherError;
                     nextWeather = EAI_WEATHER_DEMO;
