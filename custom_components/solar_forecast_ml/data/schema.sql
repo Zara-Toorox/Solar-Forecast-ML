@@ -1285,6 +1285,8 @@ CREATE TABLE IF NOT EXISTS weather_cache_bright_sky (
     forecast_date DATE NOT NULL,
     hour INTEGER NOT NULL CHECK(hour >= 0 AND hour <= 23),
     cloud_cover REAL,
+    solar_wm2 REAL,
+    sunshine_min REAL,
     fetched_at TIMESTAMP,
     UNIQUE(forecast_date, hour)
 );
@@ -1325,6 +1327,12 @@ CREATE TABLE IF NOT EXISTS weather_cache_open_meteo (
     weather_code INTEGER,
     snowfall REAL,              -- Schneefallmenge cm/h von Open-Meteo
     rain REAL,                  -- Regen separat mm von Open-Meteo
+    ghi_icon_d2 REAL,
+    direct_radiation_icon_d2 REAL,
+    diffuse_radiation_icon_d2 REAL,
+    ghi_icon_eu REAL,
+    direct_radiation_icon_eu REAL,
+    diffuse_radiation_icon_eu REAL,
     UNIQUE(forecast_date, hour)
 );
 
