@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "solar_forecast_eai"
-VERSION = "44.2.1"
+VERSION = "44.2.2"
 CONF_LICENSE_KEY = "license_key"
 CONF_LICENSE_STATUS = "license_status"
 CONF_LICENSE_ID = "license_id"

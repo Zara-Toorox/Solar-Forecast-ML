@@ -233,7 +233,7 @@ const _WeatherPage = {
                             <div class="history-kpi-label">{{ $t('common.min') }}</div>
                         </div>
                         <div class="history-kpi">
-                            <div class="history-kpi-value" style="color:#3b82f6;">{{ fmt(history.stats.totalRain, 1) }} mm</div>
+                            <div class="history-kpi-value" style="color:#3b82f6;">{{ fmt(rainHistoryValue, 1) }} {{ rainHistoryUnit }}</div>
                             <div class="history-kpi-label">{{ $t('weather.precipitation') }}</div>
                         </div>
                         <div class="history-kpi">
@@ -461,6 +461,14 @@ const _WeatherPage = {
             const detail = Number.isFinite(hours) ? ` (${hours} Stunden)` : '';
             return `${days.length} unvollständige${days.length === 1 ? 'r Tag ist' : ' Tage sind'} enthalten${detail}; Tageswerte werden nicht hochgerechnet.`;
         });
+        const rainHistoryIsRate = computed(() => (
+            history.data.some((d) => d?.precipitation_semantics === 'rate')
+            && !history.data.some((d) => d?.precipitation_semantics === 'amount')
+        ));
+        const rainHistoryUnit = computed(() => (rainHistoryIsRate.value ? 'mm/h' : 'mm'));
+        const rainHistoryValue = computed(() => (
+            rainHistoryIsRate.value ? history.stats.maxRainRate : history.stats.totalRain
+        ));
         // Helpers ------------------------------------------------------
         function fmt(v, digits = 1) {
             if (v == null || v === '' || Number.isNaN(Number(v))) return '--';
@@ -721,6 +729,7 @@ const _WeatherPage = {
             if (!historyChart) historyChart = echarts.init(historyChartEl.value);
 
             const dates = history.data.map(d => d.date);
+            const rainAxis = rainHistoryIsRate.value ? 'mm/h' : 'mm';
             historyChart.setOption({
                 backgroundColor: 'transparent',
                 grid: { left: 55, right: 55, top: 30, bottom: 40 },
@@ -735,7 +744,7 @@ const _WeatherPage = {
                 xAxis: { type: 'category', data: dates, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
                 yAxis: [
                     { type: 'value', name: '°C', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.06)') } } },
-                    { type: 'value', name: 'mm', position: 'right', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { show: false } },
+                    { type: 'value', name: rainAxis, position: 'right', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { show: false } },
                 ],
                 series: [
                     { name: t('weather.tempMax'), type: 'line', data: history.data.map(d => d.temp_max), smooth: true, symbol: 'none', lineStyle: { color: '#ef4444', width: 1 }, itemStyle: { color: '#ef4444' } },
@@ -807,14 +816,18 @@ const _WeatherPage = {
             const mins = data.map(d => d.temp_min).filter(v => v != null);
             const winds = data.map(d => d.wind_avg).filter(v => v != null);
             const rains = data
-                .filter(d => d?.precipitation_semantics === 'amount' || d?.precipitation_semantics == null)
+                .filter(d => d?.precipitation_semantics === 'amount')
                 .map(d => d.rain_total).filter(v => v != null);
+            const rates = data
+                .filter(d => d?.precipitation_semantics === 'rate')
+                .map(d => d.rain_rate_max ?? d.rain).filter(v => v != null);
             const suns = data.map(d => d.sun_hours || 0);
             return {
                 avgTemp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null,
                 maxTemp: maxs.length ? Math.max(...maxs) : null,
                 minTemp: mins.length ? Math.min(...mins) : null,
-                totalRain: rains.reduce((a, b) => a + b, 0),
+                totalRain: rains.length ? rains.reduce((a, b) => a + b, 0) : null,
+                maxRainRate: rates.length ? Math.max(...rates) : null,
                 avgWind: winds.length ? winds.reduce((a, b) => a + b, 0) / winds.length : null,
                 sunHours: suns.reduce((a, b) => a + b, 0),
             };
@@ -864,7 +877,7 @@ const _WeatherPage = {
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,
             dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis,
             fmt, formatTime,
-            historyAvailabilityText, historyPartialDayText,
+            historyAvailabilityText, historyPartialDayText, rainHistoryValue, rainHistoryUnit,
             setHistoryTab,
         };
     },
