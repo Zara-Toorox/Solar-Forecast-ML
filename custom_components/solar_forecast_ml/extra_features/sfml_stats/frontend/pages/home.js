@@ -604,6 +604,13 @@ const _HomePage = {
                             <span class="metric-badge-label">{{ $t('home.forecastDayKpi') }}</span>
                         </div>
                     </div>
+                    <div v-if="restOfDayForecastTotal != null" class="metric-badge-card" :title="$t('home.restOfDayKpiTitle')">
+                        <span class="metric-badge-icon">🔄</span>
+                        <div class="metric-badge-info">
+                            <span class="metric-badge-value" style="color: #38bdf8">{{ restOfDayForecastTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-label">{{ $t('home.restOfDayKpi') }}</span>
+                        </div>
+                    </div>
                     <div v-if="hasConservativeForecast" class="metric-badge-card">
                         <span class="metric-badge-icon">🔀</span>
                         <div class="metric-badge-info">
@@ -1327,11 +1334,24 @@ const _HomePage = {
         }
 
         const forecastTotal = computed(() => {
-            if (Number.isFinite(forecastData.operationalTotal)) {
-                return forecastData.operationalTotal.toFixed(1);
-            }
             const source = forecastData.forecastRaw.length ? forecastData.forecastRaw : forecastData.forecast;
             const sum = source.reduce((s, v) => s + valueOrZero(v), 0);
+            return sum.toFixed(1);
+        });
+
+        const restOfDayForecastTotal = computed(() => {
+            if (!isSelectedToday.value) return null;
+            if (!forecastData.hybrid.some(v => v != null)) return null;
+            const nowHour = selectedDayCurrentHour();
+            let sum = 0;
+            let count = 0;
+            forecastData.hours.forEach((hour, index) => {
+                if (Number(hour) > nowHour && forecastData.hybrid[index] != null) {
+                    sum += valueOrZero(forecastData.hybrid[index]);
+                    count += 1;
+                }
+            });
+            if (count === 0) return null;
             return sum.toFixed(1);
         });
 
@@ -3443,7 +3463,7 @@ const _HomePage = {
             panelDayProgressTitle, panelGroupMetaLine, panelGroupMetaTitle,
             weatherTrace, hasWeatherTrace,
             currentTime, lastPowerUpdate,
-            isNightTime, forecastTotal, hybridForecastTotal, conservativeForecastTotal, hasHybridForecast,
+            isNightTime, forecastTotal, restOfDayForecastTotal, hybridForecastTotal, conservativeForecastTotal, hasHybridForecast,
             hasConservativeForecast,
             actualTotal, deviationPercent, deviationLabel, hybridDeviationPercent,
             hybridDeviationLabel, cleanEvalStats, todayLearningBasisLabel,

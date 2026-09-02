@@ -31,6 +31,7 @@ from .const import (
     CONF_STORAGE_VOLUME_L,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_ELECTRICITY_PRICE_UNIT,
+    CONF_ENERGY_COUNTER_MODE,
     CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY,
     CONF_EV_BATTERY_CAPACITY_KWH,
     CONF_EV_CHARGING_EFFICIENCY_PERCENT,
@@ -88,6 +89,7 @@ from .const import (
     DEFAULT_EV_TARGET_SOC,
     DEFAULT_COP_RATED,
     DEFAULT_ELECTRICAL_MEASUREMENT_TOPOLOGY,
+    DEFAULT_ENERGY_COUNTER_MODE,
     DEFAULT_HEATING_CAPACITY_KW,
     DEFAULT_WP_TYPE,
     DOMAIN,
@@ -114,12 +116,15 @@ from .const import (
     STANDARD_SENSORS,
     SUPPORTED_WP_TYPES,
     SUPPORTED_COUNTER_SCOPES,
+    SUPPORTED_ENERGY_COUNTER_MODES,
     WALLBOX_SENSORS,
 )
-from .sensor_mapping import (
-    SensorMappingCandidate,
-    discover_sensor_mapping_candidates,
+from .device_profiles import (
+    device_mapping_candidate,
+    discover_device_profile_candidates,
+    profile_attribute_updates,
 )
+from .sensor_mapping import discover_sensor_mapping_candidates
 from .setup_state import (
     entity_assignment_error,
     hydraulics_setup_incomplete,
@@ -128,6 +133,7 @@ from .setup_state import (
 
 WEATHER_FUSION_DOMAIN = "weather_fusion_ai"
 CONF_USE_DISCOVERED_MAPPINGS = "use_discovered_sensor_mappings"
+CONF_HEAT_PUMP_DEVICE = "heat_pump_device"
 SENSOR_SOURCE_FIELDS = {
     "environment": "environment_sensor_source",
     "heat_pump": "heat_pump_sensor_source",
@@ -152,21 +158,79 @@ WALLBOX_OPTION_KEYS = (
 )
 
 
+def _sensor_source_candidates(hass: Any, config: dict[str, Any]) -> tuple[Any, ...]:
+    """Return ecosystem providers and recognised device profiles together.
+
+    Both kinds satisfy the same narrow contract - ``source_id`` plus
+    ``values_for`` - so one confirmation step covers a Toorox integration and
+    an EMS-ESP installation alike.
+    """
+    return discover_sensor_mapping_candidates(hass) + (
+        discover_device_profile_candidates(hass, config=config)
+    )
+
+
+def _candidate_labels(candidates: tuple[Any, ...]) -> dict[str, str]:
+    """Return the dropdown label for every offered source."""
+    ordinals: dict[str, int] = {}
+    labels: dict[str, str] = {}
+    for candidate in candidates:
+        own_label = getattr(candidate, "label", None)
+        if isinstance(own_label, str) and own_label:
+            labels[candidate.source_id] = own_label
+            continue
+        domain = candidate.source_domain
+        ordinals[domain] = ordinals.get(domain, 0) + 1
+        labels[candidate.source_id] = (
+            f"{SENSOR_SOURCE_LABELS[domain]} {ordinals[domain]}"
+        )
+    return labels
+
+
+def _selected_candidates(
+    candidates: tuple[Any, ...],
+    user_input: dict[str, Any],
+    enabled: dict[str, bool],
+) -> tuple[Any, ...]:
+    """Return the sources the customer confirmed, without re-validating them."""
+    if not user_input.get(CONF_USE_DISCOVERED_MAPPINGS):
+        return ()
+    by_id = {candidate.source_id: candidate for candidate in candidates}
+    selected: dict[str, Any] = {}
+    for category, field in SENSOR_SOURCE_FIELDS.items():
+        source_id = user_input.get(field)
+        if not enabled.get(category) or not source_id:
+            continue
+        candidate = by_id.get(source_id)
+        if candidate is not None:
+            selected[source_id] = candidate
+    return tuple(selected.values())
+
+
+def _apply_profile_attributes(
+    target: dict[str, Any],
+    selected: tuple[Any, ...],
+    *,
+    existing: dict[str, Any] | None = None,
+) -> None:
+    """Prefill manufacturer and model from the recognised device registry entry."""
+    baseline = existing if existing is not None else target
+    for candidate in selected:
+        if not hasattr(candidate, "attributes"):
+            continue
+        for key, value in profile_attribute_updates(candidate, baseline).items():
+            if not target.get(key):
+                target[key] = value
+
+
 def _sensor_source_schema(
-    candidates: tuple[SensorMappingCandidate, ...],
+    candidates: tuple[Any, ...],
     enabled: dict[str, bool],
 ) -> vol.Schema:
     fields: dict[Any, Any] = {
         vol.Required(CONF_USE_DISCOVERED_MAPPINGS, default=False): bool
     }
-    ordinals: dict[str, int] = {}
-    labels: dict[str, str] = {}
-    for candidate in candidates:
-        ordinals[candidate.source_domain] = ordinals.get(candidate.source_domain, 0) + 1
-        labels[candidate.source_id] = (
-            f"{SENSOR_SOURCE_LABELS[candidate.source_domain]} "
-            f"{ordinals[candidate.source_domain]}"
-        )
+    labels = _candidate_labels(candidates)
     for category, field in SENSOR_SOURCE_FIELDS.items():
         if not enabled.get(category):
             continue
@@ -201,7 +265,7 @@ def _source_enabled(data: dict[str, Any]) -> dict[str, bool]:
 
 
 def _mapping_suggestions(
-    candidates: tuple[SensorMappingCandidate, ...],
+    candidates: tuple[Any, ...],
     user_input: dict[str, Any],
     enabled: dict[str, bool],
 ) -> tuple[dict[str, str], set[str]]:
@@ -771,7 +835,9 @@ def _required_sensor_errors(hass: Any, data: dict[str, Any]) -> list[str]:
         if unit not in compatible_units[key]:
             errors.append(key)
             continue
-        assignment_error = entity_assignment_error(state, key, required=True)
+        assignment_error = entity_assignment_error(
+            state, key, required=True, config=data
+        )
         if assignment_error:
             errors.append(key)
     return errors
@@ -786,7 +852,7 @@ def _sensor_field_errors(
         if not entity_id:
             continue
         state = hass.states.get(entity_id)
-        error = entity_assignment_error(state, key)
+        error = entity_assignment_error(state, key, config=data)
         if error:
             errors[key] = error
     return errors
@@ -885,7 +951,58 @@ def _counter_scope_schema(defaults: dict[str, Any]) -> vol.Schema:
                 translation_key="counter_scope",
             )
         )
+    energy_mode = defaults.get(CONF_ENERGY_COUNTER_MODE, DEFAULT_ENERGY_COUNTER_MODE)
+    if energy_mode not in SUPPORTED_ENERGY_COUNTER_MODES:
+        energy_mode = DEFAULT_ENERGY_COUNTER_MODE
+    # "auto" reads the state class of the assigned entity, so a lifetime meter
+    # needs no question. The explicit modes stay available for sources that
+    # publish a misleading state class.
+    fields[
+        vol.Required(CONF_ENERGY_COUNTER_MODE, default=energy_mode)
+    ] = selector.SelectSelector(
+        selector.SelectSelectorConfig(
+            options=list(SUPPORTED_ENERGY_COUNTER_MODES),
+            mode=selector.SelectSelectorMode.DROPDOWN,
+            translation_key="energy_counter_mode",
+        )
+    )
     return vol.Schema(fields)
+
+
+def _heat_pump_device_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    """Ask for the heat-pump device instead of for 25 single entities."""
+    defaults = defaults or {}
+    marker: Any = vol.Optional(CONF_HEAT_PUMP_DEVICE)
+    device = defaults.get(CONF_HEAT_PUMP_DEVICE)
+    if isinstance(device, str) and device:
+        marker = vol.Optional(
+            CONF_HEAT_PUMP_DEVICE, description={"suggested_value": device}
+        )
+    return vol.Schema({marker: selector.DeviceSelector()})
+
+
+def _heat_pump_sensors_assigned(data: dict[str, Any]) -> bool:
+    """Return whether every mandatory heat-pump measurement already has a source."""
+    return all(data.get(key) for key in REQUIRED_SENSORS)
+
+
+def _apply_device_candidate(
+    target: dict[str, Any],
+    candidate: Any,
+    *,
+    existing: dict[str, Any] | None = None,
+) -> None:
+    """Prefill one device's proposals without overwriting manual assignments."""
+    _apply_mapping_suggestions(
+        target,
+        {
+            **candidate.values_for("environment"),
+            **candidate.values_for("heat_pump"),
+        },
+        {"environment", "heat_pump"},
+        existing=existing,
+    )
+    _apply_profile_attributes(target, (candidate,), existing=existing)
 
 
 def _automation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -1184,6 +1301,31 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._reconfigure_after_hydraulics = True
             return await self.async_step_hydraulics()
         if user_input is not None:
+            device_id = user_input.get(CONF_HEAT_PUMP_DEVICE)
+            user_input = {
+                key: value
+                for key, value in user_input.items()
+                if key != CONF_HEAT_PUMP_DEVICE
+            }
+            if device_id:
+                # Reconfigure is one combined form, so the proposals are shown
+                # in it for confirmation instead of being saved right away.
+                merged = {**current, **user_input}
+                candidate = device_mapping_candidate(
+                    self.hass, device_id, config=merged
+                )
+                if candidate is None:
+                    return self.async_show_form(
+                        step_id="reconfigure",
+                        data_schema=self._reconfigure_schema(merged),
+                        errors={"base": "device_mapping_empty"},
+                    )
+                self._data = dict(merged)
+                _apply_device_candidate(self._data, candidate)
+                return self.async_show_form(
+                    step_id="reconfigure",
+                    data_schema=self._reconfigure_schema(self._data),
+                )
             try:
                 user_input = _validated_heat_pump_input(user_input)
             except vol.Invalid:
@@ -1200,7 +1342,11 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 updated_options,
                 user_input,
                 sensor_keys
-                + (CONF_RUNTIME_COUNTER_SCOPE, CONF_STARTS_COUNTER_SCOPE),
+                + (
+                    CONF_RUNTIME_COUNTER_SCOPE,
+                    CONF_STARTS_COUNTER_SCOPE,
+                    CONF_ENERGY_COUNTER_MODE,
+                ),
                 clear_missing=True,
             )
             _replace_options(
@@ -1242,7 +1388,12 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _reconfigure_schema(current: dict[str, Any]) -> vol.Schema:
         sensors = _sensor_options_schema(current)
         heat_pump = _heat_pump_schema(current)
-        return vol.Schema({**heat_pump.schema, **sensors.schema})
+        # Never carry a previous pick as a suggestion: submitting the form
+        # again would silently repeat the import.
+        device = _heat_pump_device_schema()
+        return vol.Schema(
+            {**device.schema, **heat_pump.schema, **sensors.schema}
+        )
 
     async def async_step_license(
         self, user_input: dict[str, Any] | None = None
@@ -1312,15 +1463,40 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def _async_step_after_sensor_sources(self) -> FlowResult:
         if self._data.get(CONF_HEAT_PUMP_ENABLED):
+            if not _heat_pump_sensors_assigned(self._data):
+                return await self.async_step_heat_pump_device()
             return await self.async_step_heat_pump()
         if self._data.get(CONF_WALLBOX_ENABLED):
             return await self.async_step_wallbox()
         return await self.async_step_weather_intelligence()
 
+    async def async_step_heat_pump_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            device_id = user_input.get(CONF_HEAT_PUMP_DEVICE)
+            if not device_id:
+                # Skipping stays allowed: the entity pages are the manual path.
+                return await self.async_step_heat_pump()
+            candidate = device_mapping_candidate(
+                self.hass, device_id, config=self._data
+            )
+            if candidate is None:
+                errors["base"] = "device_mapping_empty"
+            else:
+                _apply_device_candidate(self._data, candidate)
+                return await self.async_step_heat_pump()
+        return self.async_show_form(
+            step_id="heat_pump_device",
+            data_schema=_heat_pump_device_schema({**self._data, **(user_input or {})}),
+            errors=errors,
+        )
+
     async def async_step_sensor_sources(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        candidates = discover_sensor_mapping_candidates(self.hass)
+        candidates = _sensor_source_candidates(self.hass, self._data)
         if not candidates and user_input is None:
             return await self._async_step_after_sensor_sources()
         enabled = _source_enabled(self._data)
@@ -1334,6 +1510,10 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "sensor_source_invalid"
             else:
                 _apply_mapping_suggestions(self._data, suggestions, selected)
+                _apply_profile_attributes(
+                    self._data,
+                    _selected_candidates(candidates, user_input, enabled),
+                )
                 return await self._async_step_after_sensor_sources()
         return self.async_show_form(
             step_id="sensor_sources",
@@ -1638,6 +1818,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 "license",
                 "features",
                 "sensor_sources",
+                "heat_pump_device",
                 "heat_pump",
                 "hydraulics",
                 "sensors",
@@ -1699,7 +1880,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         current = {**self.config_entry.data, **self._options}
-        candidates = discover_sensor_mapping_candidates(self.hass)
+        candidates = _sensor_source_candidates(self.hass, current)
         if not candidates and user_input is None:
             return await self._async_finish_feature_sequence()
         enabled = _source_enabled(current)
@@ -1718,17 +1899,52 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                     selected,
                     existing=current,
                 )
-                pending = getattr(self, "_pending_feature_steps", [])
-                review_steps: list[str] = []
-                if selected & {"environment", "heat_pump"} and "sensors" not in pending:
-                    review_steps.append("sensors")
-                if "wallbox" in selected and "wallbox" not in pending:
-                    review_steps.append("wallbox")
-                self._pending_feature_steps = review_steps + pending
+                _apply_profile_attributes(
+                    self._options,
+                    _selected_candidates(candidates, user_input, enabled),
+                    existing=current,
+                )
+                self._queue_mapping_review(selected)
                 return await self._async_finish_feature_sequence()
         return self.async_show_form(
             step_id="sensor_sources",
             data_schema=_sensor_source_schema(candidates, enabled),
+            errors=errors,
+        )
+
+    def _queue_mapping_review(self, selected: set[str]) -> None:
+        """Show the affected entity pages so no proposal is saved unseen."""
+        pending = getattr(self, "_pending_feature_steps", [])
+        review_steps: list[str] = []
+        if selected & {"environment", "heat_pump"} and "sensors" not in pending:
+            review_steps.append("sensors")
+        if "wallbox" in selected and "wallbox" not in pending:
+            review_steps.append("wallbox")
+        self._pending_feature_steps = review_steps + pending
+
+    async def async_step_heat_pump_device(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        current = {**self.config_entry.data, **self._options}
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            device_id = user_input.get(CONF_HEAT_PUMP_DEVICE)
+            if not device_id:
+                return await self._async_finish_feature_sequence()
+            candidate = device_mapping_candidate(
+                self.hass, device_id, config=current
+            )
+            if candidate is None:
+                errors["base"] = "device_mapping_empty"
+            else:
+                _apply_device_candidate(
+                    self._options, candidate, existing=current
+                )
+                self._queue_mapping_review({"environment", "heat_pump"})
+                return await self._async_finish_feature_sequence()
+        return self.async_show_form(
+            step_id="heat_pump_device",
+            data_schema=_heat_pump_device_schema({**current, **(user_input or {})}),
             errors=errors,
         )
 
@@ -1823,7 +2039,11 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 REQUIRED_SENSORS
                 + STANDARD_SENSORS
                 + ADVANCED_SENSORS
-                + (CONF_RUNTIME_COUNTER_SCOPE, CONF_STARTS_COUNTER_SCOPE),
+                + (
+                    CONF_RUNTIME_COUNTER_SCOPE,
+                    CONF_STARTS_COUNTER_SCOPE,
+                    CONF_ENERGY_COUNTER_MODE,
+                ),
                 clear_missing=True,
             )
             merged = {**self.config_entry.data, **proposed}

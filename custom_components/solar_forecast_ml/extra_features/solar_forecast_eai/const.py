@@ -78,6 +78,21 @@ SUPPORTED_COUNTER_SCOPES = (
     COUNTER_SCOPE_LIFETIME,
     COUNTER_SCOPE_DAILY,
 )
+
+CONF_ENERGY_COUNTER_MODE = "energy_counter_mode"
+ENERGY_COUNTER_MODE_AUTO = "auto"
+ENERGY_COUNTER_MODE_DAILY = "daily"
+ENERGY_COUNTER_MODE_CUMULATIVE = "cumulative"
+SUPPORTED_ENERGY_COUNTER_MODES = (
+    ENERGY_COUNTER_MODE_AUTO,
+    ENERGY_COUNTER_MODE_DAILY,
+    ENERGY_COUNTER_MODE_CUMULATIVE,
+)
+DEFAULT_ENERGY_COUNTER_MODE = ENERGY_COUNTER_MODE_AUTO
+# A running total never answers "how much today". EMS-ESP, Modbus bridges and
+# most MQTT meters publish exactly these two state classes, so EAI derives the
+# day value from a midnight baseline instead of rejecting the assignment.
+CUMULATIVE_ENERGY_STATE_CLASSES = frozenset({"total", "total_increasing"})
 CONF_ELECTRICITY_PRICE_ENTITY = "electricity_price_entity"
 CONF_ELECTRICITY_PRICE_UNIT = "electricity_price_unit"
 CONF_FEED_IN_TARIFF_ENTITY = "feed_in_tariff_entity"

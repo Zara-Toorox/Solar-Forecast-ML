@@ -27,7 +27,7 @@
       },
       "sensor_sources": {
         "title": "Vorhandene Sensorzuordnungen übernehmen",
-        "description": "EAI hat lokal veröffentlichte, kompatible Zuordnungen installierter Toorox-Integrationen gefunden. Es wird nichts übernommen, bevor du die Übernahme aktivierst und eine Quelle bestätigst. Manuelle Zuordnungen haben immer Vorrang.",
+        "description": "EAI hat kompatible Zuordnungen gefunden: lokal veröffentlicht von installierten Toorox-Integrationen sowie erkannte Wärmepumpen-Gateways wie EMS-ESP. Es wird nichts übernommen, solange du die Übernahme nicht aktivierst und eine Quelle bestätigst. Bestehende manuelle Zuordnungen haben immer Vorrang.",
         "data": {
           "use_discovered_sensor_mappings": "Kompatible Zuordnungen übernehmen",
           "environment_sensor_source": "Quelle für Außenbedingungen",
@@ -39,6 +39,16 @@
           "environment_sensor_source": "Liefert eine kompatible Entität für die Außentemperatur.",
           "heat_pump_sensor_source": "Liefert kompatible Verdichter- und, sofern vorhanden, Heizstab-Entitäten.",
           "wallbox_sensor_source": "Liefert kompatible Entitäten für Wallbox-Leistung und -Energie."
+        }
+      },
+      "heat_pump_device": {
+        "title": "Wärmepumpen-Gerät",
+        "description": "Wähle das Gerät, unter dem deine Wärmepumpe in Home Assistant veröffentlicht wird. EAI liest die Entitäten dieses Geräts und füllt die folgenden Seiten vor, die du anschließend bestätigst. Leer lassen, um alle Sensoren manuell zuzuordnen.",
+        "data": {
+          "heat_pump_device": "Wärmepumpen-Gerät"
+        },
+        "data_description": {
+          "heat_pump_device": "Erwartet: das Gerät deiner Wärmepumpen-Integration, zum Beispiel EMS-ESP, ViCare, Daikin, MELCloud, Nibe oder eine Modbus-Bridge. Vorschläge werden nur vorbelegt und nie unbesehen gespeichert."
         }
       },
       "heat_pump": {
@@ -102,7 +112,8 @@
           "runtime_heating_entity": "Betriebsstundenzähler Heizung",
           "runtime_dhw_entity": "Betriebsstundenzähler Warmwasser",
           "runtime_counter_scope": "Zeitraum des Betriebsstundenzählers",
-          "starts_counter_scope": "Zeitraum des Kompressor-Startzählers"
+          "starts_counter_scope": "Zeitraum des Kompressor-Startzählers",
+          "energy_counter_mode": "Art der Energiezähler"
         },
         "data_description": {
           "indoor_temp_entity": "Erwartet: Temperatursensor eines repräsentativen Innen- oder Referenzraums. Einheit: °C. Optional.",
@@ -120,7 +131,8 @@
           "runtime_heating_entity": "Erwartet: Betriebsstundenzähler nur für Raumheizung. Einheit: h. Optional; wird zusammen mit Warmwasser zur Gesamtlaufzeit addiert, wenn kein Gesamtzähler vorhanden ist.",
           "runtime_dhw_entity": "Erwartet: Betriebsstundenzähler nur für Warmwasserbereitung. Einheit: h. Optional; wird zusammen mit Heizung zur Gesamtlaufzeit addiert, wenn kein Gesamtzähler vorhanden ist.",
           "runtime_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Betriebsstundenzähler abdeckt. Einheit: keine. Die mittlere Laufzeit je Start wird nur bei übereinstimmenden Zählerzeiträumen berechnet.",
-          "starts_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Startzähler abdeckt. Einheit: keine. Starts seit Mitternacht dürfen nicht mit Betriebsstunden seit Inbetriebnahme verrechnet werden."
+          "starts_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Startzähler abdeckt. Einheit: keine. Starts seit Mitternacht dürfen nicht mit Betriebsstunden seit Inbetriebnahme verrechnet werden.",
+          "energy_counter_mode": "Erwartet: Auswahl, wie die zugeordneten Energie-Entitäten zu lesen sind. Einheit: keine. Automatisch erkennt einen Lebensdauerzähler an der State-Class total oder total_increasing (zum Beispiel EMS-ESP meter total) und rechnet ihn über einen Mitternachts-Bezugswert in einen Tageswert um. Nur überschreiben, wenn eine Quelle eine irreführende State-Class meldet."
         }
       },
       "advanced_sensors": {
@@ -254,6 +266,7 @@
         "title": "EAI neu konfigurieren",
         "description": "Aktualisiere Wärmepumpendaten und Sensorzuordnungen.",
         "data": {
+          "heat_pump_device": "Wärmepumpen-Gerät",
           "wp_type": "Wärmepumpentyp",
           "manufacturer": "Hersteller",
           "model": "Modellbezeichnung",
@@ -283,6 +296,7 @@
           "runtime_dhw_entity": "Warmwasser-Betriebsstunden",
           "runtime_counter_scope": "Zeitraum des Betriebsstundenzählers",
           "starts_counter_scope": "Zeitraum des Kompressor-Startzählers",
+          "energy_counter_mode": "Art der Energiezähler",
           "thermal_energy_entity": "Thermische Tagesenergie",
           "jaz_entity": "Gemessene Arbeitszahl",
           "volume_flow_entity": "Volumenstrom",
@@ -344,7 +358,8 @@
       "wallbox_required": "Für die Wallbox-Analyse werden die Wallbox-Leistung und mindestens eine Bedarfsquelle benötigt.",
       "wallbox_demand_required": "Wähle mindestens eine Bedarfsquelle: Fahrzeug-Ladezustand, gewünschte Zusatzenergie oder geplante Strecke.",
       "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort.",
-      "energy_today_not_daily": "Das sieht nach einem Lebensdauer-Energiezähler aus, nicht nach einem Tageswert.",
+      "device_mapping_empty": "Auf diesem Gerät wurden keine verwendbaren Wärmepumpen-Sensoren gefunden. Wähle ein anderes Gerät oder ordne die Sensoren manuell zu.",
+      "energy_today_not_daily": "Das ist ein Lebensdauer-Energiezähler. Stelle die Art der Energiezähler auf automatisch oder auf Lebensdauerzähler, damit EAI den Tageswert ableitet.",
       "invalid_energy_unit": "Diese Entität liefert keine Energie in Wh, kWh oder MWh.",
       "invalid_power_unit": "Diese Entität liefert keine Leistung in W, kW oder MW.",
       "invalid_temperature_unit": "Diese Entität liefert keine Temperatur in °C, °F oder K."
@@ -364,6 +379,7 @@
           "license": "Lizenz erneuern",
           "features": "Premium-Funktionen",
           "sensor_sources": "Sensorzuordnungen übernehmen",
+          "heat_pump_device": "Sensoren von einem Gerät übernehmen",
           "heat_pump": "Wärmepumpendaten",
           "sensors": "Sensorzuordnungen",
           "wallbox": "E-Mobilität und Wallbox",
@@ -388,7 +404,7 @@
       },
       "sensor_sources": {
         "title": "Vorhandene Sensorzuordnungen übernehmen",
-        "description": "Wähle nur Zuordnungen aus, die EAI vorschlagen soll. Manuelle Zuordnungen werden nie überschrieben; die gewählten Entitäten werden anschließend noch einmal zur Prüfung angezeigt.",
+        "description": "EAI hat kompatible Zuordnungen gefunden: lokal veröffentlicht von installierten Toorox-Integrationen sowie erkannte Wärmepumpen-Gateways wie EMS-ESP. Es wird nichts übernommen, solange du die Übernahme nicht aktivierst und eine Quelle bestätigst. Bestehende manuelle Zuordnungen haben immer Vorrang.",
         "data": {
           "use_discovered_sensor_mappings": "Kompatible Zuordnungen übernehmen",
           "environment_sensor_source": "Quelle für Außenbedingungen",
@@ -400,6 +416,16 @@
           "environment_sensor_source": "Liefert eine kompatible Entität für die Außentemperatur.",
           "heat_pump_sensor_source": "Liefert kompatible Verdichter- und Heizstab-Entitäten.",
           "wallbox_sensor_source": "Liefert kompatible Entitäten für Wallbox-Leistung und -Energie."
+        }
+      },
+      "heat_pump_device": {
+        "title": "Wärmepumpen-Gerät",
+        "description": "Wähle das Gerät, unter dem deine Wärmepumpe in Home Assistant veröffentlicht wird. EAI liest die Entitäten dieses Geräts und füllt die folgenden Seiten vor, die du anschließend bestätigst. Leer lassen, um alle Sensoren manuell zuzuordnen.",
+        "data": {
+          "heat_pump_device": "Wärmepumpen-Gerät"
+        },
+        "data_description": {
+          "heat_pump_device": "Erwartet: das Gerät deiner Wärmepumpen-Integration, zum Beispiel EMS-ESP, ViCare, Daikin, MELCloud, Nibe oder eine Modbus-Bridge. Vorschläge werden nur vorbelegt und nie unbesehen gespeichert."
         }
       },
       "license": {
@@ -463,6 +489,7 @@
           "runtime_dhw_entity": "Betriebsstundenzähler Warmwasser",
           "runtime_counter_scope": "Zeitraum des Betriebsstundenzählers",
           "starts_counter_scope": "Zeitraum des Kompressor-Startzählers",
+          "energy_counter_mode": "Art der Energiezähler",
           "thermal_energy_entity": "Thermischer Tages-Verbrauchszähler (kWh)",
           "jaz_entity": "JAZ / gemessene Arbeitszahl",
           "volume_flow_entity": "Volumenstrom",
@@ -499,7 +526,8 @@
           "circulation_pump_entity": "Erwartet: Schalter, Binärsensor oder numerischer Sensor für die Zirkulationspumpe. Einheit: keine. Optional; ein Smart Plug ist geeignet.",
           "circulation_return_temp_entity": "Erwartet: Temperatursensor am Rücklauf der Zirkulationsleitung nahe dem Speicher. Einheit: °C. Optional.",
           "runtime_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Betriebsstundenzähler abdeckt. Einheit: keine. Die mittlere Laufzeit je Start wird nur bei übereinstimmenden Zählerzeiträumen berechnet.",
-          "starts_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Startzähler abdeckt. Einheit: keine. Starts seit Mitternacht dürfen nicht mit Betriebsstunden seit Inbetriebnahme verrechnet werden."
+          "starts_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Startzähler abdeckt. Einheit: keine. Starts seit Mitternacht dürfen nicht mit Betriebsstunden seit Inbetriebnahme verrechnet werden.",
+          "energy_counter_mode": "Erwartet: Auswahl, wie die zugeordneten Energie-Entitäten zu lesen sind. Einheit: keine. Automatisch erkennt einen Lebensdauerzähler an der State-Class total oder total_increasing (zum Beispiel EMS-ESP meter total) und rechnet ihn über einen Mitternachts-Bezugswert in einen Tageswert um. Nur überschreiben, wenn eine Quelle eine irreführende State-Class meldet."
         }
       },
       "wallbox": {
@@ -622,7 +650,8 @@
       "invalid_heat_pump_values": "Gib endliche Zahlenwerte ein: Heizleistung von 1 bis 100 kW und COP von 1 bis 10.",
       "wallbox_required": "Für die Wallbox-Analyse werden Leistung und eine Ladebedarfsquelle benötigt.",
       "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort.",
-      "energy_today_not_daily": "Das sieht nach einem Lebensdauer-Energiezähler aus, nicht nach einem Tageswert.",
+      "device_mapping_empty": "Auf diesem Gerät wurden keine verwendbaren Wärmepumpen-Sensoren gefunden. Wähle ein anderes Gerät oder ordne die Sensoren manuell zu.",
+      "energy_today_not_daily": "Das ist ein Lebensdauer-Energiezähler. Stelle die Art der Energiezähler auf automatisch oder auf Lebensdauerzähler, damit EAI den Tageswert ableitet.",
       "invalid_energy_unit": "Diese Entität liefert keine Energie in Wh, kWh oder MWh.",
       "invalid_power_unit": "Diese Entität liefert keine Leistung in W, kW oder MW.",
       "invalid_temperature_unit": "Diese Entität liefert keine Temperatur in °C, °F oder K."
@@ -1051,6 +1080,13 @@
         "unknown": "Unbekannt — Durchschnitt nicht berechnen",
         "lifetime": "Gesamt seit Inbetriebnahme",
         "daily": "Täglich — Rücksetzung um Mitternacht"
+      }
+    },
+    "energy_counter_mode": {
+      "options": {
+        "auto": "Automatisch — anhand der Entität erkennen",
+        "daily": "Tageswert — wird um Mitternacht zurückgesetzt",
+        "cumulative": "Lebensdauerzähler — Tageswert ableiten"
       }
     },
     "wp_type": {

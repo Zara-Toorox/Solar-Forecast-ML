@@ -27,7 +27,7 @@
       },
       "sensor_sources": {
         "title": "Reuse existing sensor assignments",
-        "description": "EAI found compatible assignments published locally by installed Toorox integrations. Nothing is copied unless you enable reuse and confirm a source. Existing manual assignments always take precedence.",
+        "description": "EAI found compatible assignments: published locally by installed Toorox integrations, and recognised heat-pump gateways such as EMS-ESP. Nothing is copied unless you enable reuse and confirm a source. Existing manual assignments always take precedence.",
         "data": {
           "use_discovered_sensor_mappings": "Reuse compatible assignments",
           "environment_sensor_source": "Source for outdoor conditions",
@@ -39,6 +39,16 @@
           "environment_sensor_source": "Provides a compatible outdoor-temperature entity.",
           "heat_pump_sensor_source": "Provides compatible compressor and, where available, backup-heater entities.",
           "wallbox_sensor_source": "Provides compatible wallbox power and energy entities."
+        }
+      },
+      "heat_pump_device": {
+        "title": "Heat pump device",
+        "description": "Pick the device your heat pump is published under. EAI reads that device's entities and prefills the following pages, which you then confirm. Leave the field empty to assign every sensor by hand.",
+        "data": {
+          "heat_pump_device": "Heat pump device"
+        },
+        "data_description": {
+          "heat_pump_device": "Expected: the device of your heat-pump integration, for example EMS-ESP, ViCare, Daikin, MELCloud, Nibe or a Modbus bridge. Proposals are only prefilled and never saved unseen."
         }
       },
       "heat_pump": {
@@ -102,7 +112,8 @@
           "runtime_heating_entity": "Space-heating operating-hours meter",
           "runtime_dhw_entity": "Domestic-hot-water operating-hours meter",
           "runtime_counter_scope": "Operating-hours counter period",
-          "starts_counter_scope": "Compressor-start counter period"
+          "starts_counter_scope": "Compressor-start counter period",
+          "energy_counter_mode": "Energy counter type"
         },
         "data_description": {
           "indoor_temp_entity": "Expected: temperature sensor in a representative indoor or reference room. Unit: °C. Optional.",
@@ -120,7 +131,8 @@
           "runtime_heating_entity": "Expected: operating-hours meter for space heating only. Unit: h. Optional; combined with domestic hot water when no total meter exists.",
           "runtime_dhw_entity": "Expected: operating-hours meter for domestic hot water only. Unit: h. Optional; combined with space heating when no total meter exists.",
           "runtime_counter_scope": "Select the period covered by the operating-hours counter. The average runtime per start is calculated only when both counter periods match.",
-          "starts_counter_scope": "Select the period covered by the start counter. Do not combine starts since midnight with lifetime operating hours."
+          "starts_counter_scope": "Select the period covered by the start counter. Do not combine starts since midnight with lifetime operating hours.",
+          "energy_counter_mode": "Expected: a choice of how the assigned energy entities have to be read. Unit: none. Automatic recognises a lifetime counter from the state class total or total_increasing (for example an EMS-ESP meter total) and converts it into a daily value against a midnight baseline. Override this only when a source reports a misleading state class."
         }
       },
       "advanced_sensors": {
@@ -254,6 +266,7 @@
         "title": "Reconfigure EAI",
         "description": "Update heat-pump details and sensor assignments.",
         "data": {
+          "heat_pump_device": "Heat pump device",
           "wp_type": "Heat pump type",
           "manufacturer": "Manufacturer",
           "model": "Model designation",
@@ -283,6 +296,7 @@
           "runtime_dhw_entity": "Domestic-hot-water operating hours",
           "runtime_counter_scope": "Operating-hours counter period",
           "starts_counter_scope": "Compressor-start counter period",
+          "energy_counter_mode": "Energy counter type",
           "thermal_energy_entity": "Thermal daily energy",
           "jaz_entity": "Measured performance factor",
           "volume_flow_entity": "Volume flow",
@@ -344,7 +358,8 @@
       "wallbox_required": "Wallbox analytics require wallbox power and at least one charging-demand source.",
       "wallbox_demand_required": "Select at least one demand source: vehicle state of charge, requested energy, or planned distance.",
       "sensor_source_invalid": "The selected sensor source changed, is incompatible, or is no longer available. Select it again or continue without reuse.",
-      "energy_today_not_daily": "This looks like a lifetime energy counter, not a daily energy value.",
+      "device_mapping_empty": "No usable heat-pump sensors were found on this device. Pick a different device or assign the sensors by hand.",
+      "energy_today_not_daily": "This is a lifetime energy counter. Set the energy counter type to automatic or to lifetime counter so EAI derives the daily value.",
       "invalid_energy_unit": "This entity does not report energy in Wh, kWh or MWh.",
       "invalid_power_unit": "This entity does not report power in W, kW or MW.",
       "invalid_temperature_unit": "This entity does not report temperature in °C, °F or K."
@@ -364,6 +379,7 @@
           "license": "Renew license",
           "features": "Premium functions",
           "sensor_sources": "Reuse sensor assignments",
+          "heat_pump_device": "Import sensors from a device",
           "heat_pump": "Heat pump details",
           "sensors": "Sensor assignments",
           "wallbox": "E-mobility and wallbox",
@@ -388,7 +404,7 @@
       },
       "sensor_sources": {
         "title": "Reuse existing sensor assignments",
-        "description": "Select only assignments you want EAI to propose. Existing manual assignments are never overwritten, and the selected entities are shown again for review.",
+        "description": "EAI found compatible assignments: published locally by installed Toorox integrations, and recognised heat-pump gateways such as EMS-ESP. Nothing is copied unless you enable reuse and confirm a source. Existing manual assignments always take precedence.",
         "data": {
           "use_discovered_sensor_mappings": "Reuse compatible assignments",
           "environment_sensor_source": "Source for outdoor conditions",
@@ -400,6 +416,16 @@
           "environment_sensor_source": "Provides a compatible outdoor-temperature entity.",
           "heat_pump_sensor_source": "Provides compatible compressor and backup-heater entities.",
           "wallbox_sensor_source": "Provides compatible wallbox power and energy entities."
+        }
+      },
+      "heat_pump_device": {
+        "title": "Heat pump device",
+        "description": "Pick the device your heat pump is published under. EAI reads that device's entities and prefills the following pages, which you then confirm. Leave the field empty to assign every sensor by hand.",
+        "data": {
+          "heat_pump_device": "Heat pump device"
+        },
+        "data_description": {
+          "heat_pump_device": "Expected: the device of your heat-pump integration, for example EMS-ESP, ViCare, Daikin, MELCloud, Nibe or a Modbus bridge. Proposals are only prefilled and never saved unseen."
         }
       },
       "license": {
@@ -463,6 +489,7 @@
           "runtime_dhw_entity": "Domestic-hot-water operating-hours meter",
           "runtime_counter_scope": "Operating-hours counter period",
           "starts_counter_scope": "Compressor-start counter period",
+          "energy_counter_mode": "Energy counter type",
           "thermal_energy_entity": "Thermal daily consumption meter (kWh)",
           "jaz_entity": "Annual / measured performance factor",
           "volume_flow_entity": "Volume flow",
@@ -499,7 +526,8 @@
           "circulation_pump_entity": "Expected: switch, binary sensor, or numeric state for the circulation pump. Unit: none. Optional; a smart plug is suitable.",
           "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; plausibility evidence only.",
           "runtime_counter_scope": "Select the period covered by the operating-hours counter. The average runtime per start is calculated only when both counter periods match.",
-          "starts_counter_scope": "Select the period covered by the start counter. Do not combine starts since midnight with lifetime operating hours."
+          "starts_counter_scope": "Select the period covered by the start counter. Do not combine starts since midnight with lifetime operating hours.",
+          "energy_counter_mode": "Expected: a choice of how the assigned energy entities have to be read. Unit: none. Automatic recognises a lifetime counter from the state class total or total_increasing (for example an EMS-ESP meter total) and converts it into a daily value against a midnight baseline. Override this only when a source reports a misleading state class."
         }
       },
       "wallbox": {
@@ -622,7 +650,8 @@
       "invalid_heat_pump_values": "Enter finite numeric values: heating output from 1 to 100 kW and COP from 1 to 10.",
       "wallbox_required": "Wallbox analytics require wallbox power and at least one charging-demand source.",
       "sensor_source_invalid": "The selected sensor source changed, is incompatible, or is no longer available. Select it again or continue without reuse.",
-      "energy_today_not_daily": "This looks like a lifetime energy counter, not a daily energy value.",
+      "device_mapping_empty": "No usable heat-pump sensors were found on this device. Pick a different device or assign the sensors by hand.",
+      "energy_today_not_daily": "This is a lifetime energy counter. Set the energy counter type to automatic or to lifetime counter so EAI derives the daily value.",
       "invalid_energy_unit": "This entity does not report energy in Wh, kWh or MWh.",
       "invalid_power_unit": "This entity does not report power in W, kW or MW.",
       "invalid_temperature_unit": "This entity does not report temperature in °C, °F or K."
@@ -1051,6 +1080,13 @@
         "unknown": "Unknown — do not calculate an average",
         "lifetime": "Lifetime total",
         "daily": "Daily — resets at midnight"
+      }
+    },
+    "energy_counter_mode": {
+      "options": {
+        "auto": "Automatic — detect from the entity",
+        "daily": "Daily value — resets at midnight",
+        "cumulative": "Lifetime counter — derive today's value"
       }
     },
     "wp_type": {

@@ -29,6 +29,7 @@ from .const import (
     CONF_HYDRAULICS_ANSWERED,
     CONF_STORAGE_TEMP_ENTITY,
     CONF_STORAGE_VOLUME_L,
+    CONF_THERMAL_ENERGY_ENTITY,
     CONF_WALLBOX_ENERGY_TODAY_ENTITY,
     CONF_WP_ENERGY_TODAY,
     COP_MODE_DHW,
@@ -41,12 +42,16 @@ from .const import (
     DHW_QUANTITY_TAP,
     DHW_TOPOLOGY_FRESH_WATER,
     DHW_TOPOLOGY_NONE,
-    ENERGY_TODAY_STATE_CLASS_FORBIDDEN,
     ISSUE_HYDRAULICS_SETUP_INCOMPLETE,
     SUPPORTED_DATA_QUALITY_TIERS,
     SUPPORTED_DHW_TOPOLOGIES,
     SUPPORTED_ELECTRICAL_TOPOLOGIES,
     SUPPORTED_HEATING_CIRCUIT_CONTROLS,
+)
+from .daily_energy import (
+    ENERGY_COUNTER_MODE_DAILY,
+    is_cumulative_state_class,
+    resolve_energy_counter_mode,
 )
 
 TRUE_VALUES = {True, "true", "1", "yes", "on"}
@@ -56,6 +61,17 @@ ENERGY_TODAY_KEYS = frozenset(
         CONF_WP_ENERGY_TODAY,
         CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
         CONF_WALLBOX_ENERGY_TODAY_ENTITY,
+    }
+)
+# Only these are read through the insights reading path, which converts a
+# running total into today's value against a midnight baseline. The wallbox
+# counter has its own reader in mobility, so a lifetime meter has to stay an
+# error there.
+DERIVED_ENERGY_TODAY_KEYS = frozenset(
+    {
+        CONF_WP_ENERGY_TODAY,
+        CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
+        CONF_THERMAL_ENERGY_ENTITY,
     }
 )
 POWER_UNITS = {"w", "kw", "mw"}
@@ -385,9 +401,18 @@ def apply_recommendation_choke(
 
 
 def entity_assignment_error(
-    state: Any | None, key: str, *, required: bool = False
+    state: Any | None,
+    key: str,
+    *,
+    required: bool = False,
+    config: dict[str, Any] | None = None,
 ) -> str | None:
-    """Return a translation key when an assigned entity is the wrong kind of data."""
+    """Return a translation key when an assigned entity is the wrong kind of data.
+
+    A cumulative energy counter is no longer an error: EAI derives the day value
+    from a midnight baseline (see :mod:`daily_energy`).  It is only rejected
+    when the customer explicitly declared the counter to be a daily value.
+    """
     if state is None:
         return "required" if required else None
     status = str(getattr(state, "state", "")).strip().lower()
@@ -399,7 +424,11 @@ def entity_assignment_error(
     if key in ENERGY_TODAY_KEYS:
         if unit and unit not in ENERGY_UNITS:
             return "invalid_energy_unit"
-        if state_class == ENERGY_TODAY_STATE_CLASS_FORBIDDEN:
+        if is_cumulative_state_class(state_class) and (
+            key not in DERIVED_ENERGY_TODAY_KEYS
+            or resolve_energy_counter_mode(config, state_class)
+            == ENERGY_COUNTER_MODE_DAILY
+        ):
             return "energy_today_not_daily"
         return None
     if key.endswith("_power_entity") or key == "wp_power_entity":
