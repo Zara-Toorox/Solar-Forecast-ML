@@ -35,6 +35,7 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_ADAPTIVE_FORECAST_MODE,
+    CONF_BATTERY_SOC_SENSOR,
     CONF_DIAGNOSTIC,
     CONF_EVCC_FORECAST,
     CONF_HAS_BATTERY,
@@ -832,10 +833,11 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
             except (ValueError, TypeError):
                 errors[CONF_MAX_GRID_EXPORT_W] = "invalid_input"
 
-            if user_input.get(CONF_HAS_BATTERY, DEFAULT_HAS_BATTERY) and not user_input.get(
-                CONF_SOLAR_TO_BATTERY_SENSOR
-            ):
-                errors[CONF_SOLAR_TO_BATTERY_SENSOR] = "battery_sensor_required"
+            if user_input.get(CONF_HAS_BATTERY, DEFAULT_HAS_BATTERY):
+                if not user_input.get(CONF_SOLAR_TO_BATTERY_SENSOR):
+                    errors[CONF_SOLAR_TO_BATTERY_SENSOR] = "battery_sensor_required"
+                if not user_input.get(CONF_BATTERY_SOC_SENSOR):
+                    errors[CONF_BATTERY_SOC_SENSOR] = "battery_soc_sensor_required"
 
             if errors:
                 return self.async_show_form(
@@ -864,6 +866,7 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 CONF_ZERO_EXPORT_MODE,
                 CONF_HAS_BATTERY,
                 CONF_SOLAR_TO_BATTERY_SENSOR,
+                CONF_BATTERY_SOC_SENSOR,
                 CONF_MAX_GRID_EXPORT_W,
             ]
             updated_options = {
@@ -1001,6 +1004,20 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                     selector.EntitySelectorConfig(
                         domain=["sensor"],
                         device_class=["power"],
+                        multiple=False,
+                    )
+                ),
+                vol.Optional(
+                    CONF_BATTERY_SOC_SENSOR,
+                    description={
+                        "suggested_value": current_options.get(
+                            CONF_BATTERY_SOC_SENSOR, ""
+                        )
+                    },
+                ): selector.EntitySelector(
+                    selector.EntitySelectorConfig(
+                        domain=["sensor"],
+                        device_class=["battery"],
                         multiple=False,
                     )
                 ),

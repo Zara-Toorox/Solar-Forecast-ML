@@ -26,23 +26,27 @@ from .capability import EAICapabilityProvider
 from .const import (
     CONF_CAPABILITY_LEVEL,
     CONF_COP_RATED,
-    CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY,
+    CONF_COP_RATED_CONFIRMED,
     CONF_HEAT_PUMP_ENABLED,
+    CONF_HEATING_CAPACITY_CONFIRMED,
     CONF_HEATING_CAPACITY_KW,
     CONF_LICENSE_KEY,
     CONF_OUTDOOR_TEMP_ENTITY,
     CONF_WALLBOX_ENABLED,
     CONF_WEATHER_INTELLIGENCE_ENABLED,
     CONF_WP_TYPE,
-    DEFAULT_COP_RATED,
-    DEFAULT_ELECTRICAL_MEASUREMENT_TOPOLOGY,
-    DEFAULT_HEATING_CAPACITY_KW,
-    DEFAULT_WP_TYPE,
+    CONFIG_ENTRY_VERSION,
     DOMAIN,
+    ISSUE_HYDRAULICS_SETUP_INCOMPLETE,
     SUPPORTED_WP_TYPES,
 )
 from .license import OfflineLicenseValidator
 from .runtime import EAIRuntime
+from .setup_state import (
+    hydraulics_setup_incomplete,
+    issue_id_for_entry,
+    mark_shipping_defaults_unconfirmed,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,8 +78,45 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+def _merged_entry_config(entry: ConfigEntry) -> dict[str, object]:
+    return {**entry.data, **entry.options}
+
+
+def _validate_optional_positive(
+    value: object, minimum: float, maximum: float
+) -> bool:
+    if value in (None, ""):
+        return True
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return False
+    return math.isfinite(parsed) and minimum <= parsed <= maximum
+
+
+async def _async_sync_hydraulics_repair(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    from homeassistant.helpers import issue_registry as ir
+
+    issue_id = issue_id_for_entry(entry.entry_id)
+    config = _merged_entry_config(entry)
+    if hydraulics_setup_incomplete(config):
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=True,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_HYDRAULICS_SETUP_INCOMPLETE,
+            data={"entry_id": entry.entry_id},
+        )
+        return
+    ir.async_delete_issue(hass, DOMAIN, issue_id)
+
+
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    if entry.version > 3:
+    if entry.version > CONFIG_ENTRY_VERSION:
         return False
     data = dict(entry.data)
     options = dict(entry.options)
@@ -84,26 +125,10 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if CONF_OUTDOOR_TEMP_ENTITY not in target and target.get("temp_sensor"):
             target[CONF_OUTDOOR_TEMP_ENTITY] = target["temp_sensor"]
             changed = True
-    if CONF_WP_TYPE not in data and CONF_WP_TYPE not in options:
-        data[CONF_WP_TYPE] = DEFAULT_WP_TYPE
-        changed = True
     configured_type = options.get(CONF_WP_TYPE, data.get(CONF_WP_TYPE))
-    if configured_type not in SUPPORTED_WP_TYPES:
+    if configured_type not in (None, "") and configured_type not in SUPPORTED_WP_TYPES:
         return False
-    if CONF_COP_RATED not in data and CONF_COP_RATED not in options:
-        data[CONF_COP_RATED] = DEFAULT_COP_RATED
-        changed = True
-    if CONF_HEATING_CAPACITY_KW not in data and CONF_HEATING_CAPACITY_KW not in options:
-        data[CONF_HEATING_CAPACITY_KW] = DEFAULT_HEATING_CAPACITY_KW
-        changed = True
-    if (
-        CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY not in data
-        and CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY not in options
-    ):
-        data[CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY] = (
-            DEFAULT_ELECTRICAL_MEASUREMENT_TOPOLOGY
-        )
-        changed = True
+    # Safe feature-off defaults only. Hydraulics keys stay unanswered.
     if CONF_WALLBOX_ENABLED not in data and CONF_WALLBOX_ENABLED not in options:
         data[CONF_WALLBOX_ENABLED] = False
         changed = True
@@ -116,26 +141,20 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ):
         data[CONF_WEATHER_INTELLIGENCE_ENABLED] = False
         changed = True
-    try:
-        configured_cop = float(options.get(CONF_COP_RATED, data.get(CONF_COP_RATED)))
-        configured_capacity = float(
-            options.get(
-                CONF_HEATING_CAPACITY_KW,
-                data.get(CONF_HEATING_CAPACITY_KW),
-            )
-        )
-    except (TypeError, ValueError):
+    flagged = mark_shipping_defaults_unconfirmed({**data, **options})
+    for key in (CONF_COP_RATED_CONFIRMED, CONF_HEATING_CAPACITY_CONFIRMED):
+        if flagged.get(key) != options.get(key, data.get(key)):
+            data[key] = flagged.get(key)
+            changed = True
+    cop = options.get(CONF_COP_RATED, data.get(CONF_COP_RATED))
+    capacity = options.get(CONF_HEATING_CAPACITY_KW, data.get(CONF_HEATING_CAPACITY_KW))
+    if not _validate_optional_positive(cop, 1.0, 10.0):
         return False
-    if (
-        not math.isfinite(configured_cop)
-        or not 1.0 <= configured_cop <= 10.0
-        or not math.isfinite(configured_capacity)
-        or not 1.0 <= configured_capacity <= 100.0
-    ):
+    if not _validate_optional_positive(capacity, 1.0, 100.0):
         return False
-    if changed or entry.version < 3:
+    if changed or entry.version < CONFIG_ENTRY_VERSION:
         hass.config_entries.async_update_entry(
-            entry, data=data, options=options, version=3
+            entry, data=data, options=options, version=CONFIG_ENTRY_VERSION
         )
     return True
 
@@ -177,6 +196,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         provider.reset()
         raise
     runtime.schedule_license_monitor(result.payload.expires_at)
+    await _async_sync_hydraulics_repair(hass, entry)
     return True
 
 

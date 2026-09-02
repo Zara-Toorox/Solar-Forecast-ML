@@ -195,6 +195,7 @@
           "zero_export_mode": "Nulleinspeisung aktiv",
           "has_battery": "Batteriespeicher vorhanden",
           "solar_to_battery_sensor": "Solar-zu-Akku Sensor",
+          "battery_soc_sensor": "Akku-SOC Sensor",
           "max_grid_export_w": "Max. erlaubte Netzeinspeisung"
         },
         "data_description": {
@@ -214,8 +215,9 @@
           "adaptive_forecast_mode": "Bei starken Abweichungen (>35%) zwischen Vormittags-Prognose und IST-Produktion passt SFML die Nachmittagsprognose um 12:30 Uhr automatisch an. SFML entscheidet autonom ob eine Korrektur sinnvoll ist - basierend auf frischen Wetterdaten und objektiven Kriterien. Standard: AUS",
           "winter_mode": "Wendet von November bis Februar eine zusätzliche Wolkenkorrektur bei niedrigem Sonnenstand an, wenn keine gemessene oder vom Wetteranbieter gelieferte Strahlung verfügbar ist und SFML den Clear-Sky-Fallback nutzt. Standard: AN",
           "zero_export_mode": "⚡ MPPT-DROSSELERKENNUNG\n\nAktiviere diese Option wenn du eine Nulleinspeise-Regelung hast (z.B. Shelly).\n\n📌 WARUM IST DAS WICHTIG?\nBei Nulleinspeisung drosselt der Wechselrichter die Produktion auf den Hausbedarf. Das ML würde dann lernen: 'Sonnenschein = 200W' statt 'Sonnenschein = 1000W (aber gedrosselt)'.\n\n✅ Mit aktivierter Option werden gedrosselte Stunden vom ML-Training ausgeschlossen.\n\n⚠️ Funktioniert nur bei guten Wetterbedingungen (Sonne, wenig Wolken) UND wenn die Produktion deutlich unter der Physik-Vorhersage liegt.",
-          "has_battery": "⚡ MPPT-DROSSELERKENNUNG (Erweiterung)\n\nAktiviere diese Option wenn du einen Batteriespeicher hast.\n\n📌 WARUM IST DAS WICHTIG?\nWenn der Akku voll ist UND Nulleinspeisung aktiv ist, drosselt der MPPT die Produktion. SFML erkennt das wenn der 'Solar-zu-Akku' Wert unter 50W fällt.\n\n⚠️ Bei Aktivierung MUSS der 'Solar-zu-Akku Sensor' konfiguriert werden!",
-          "solar_to_battery_sensor": "⚡ MPPT-DROSSELERKENNUNG (Sensor)\n\nLeistungs-Sensor der den Energiefluss von PV zur Batterie misst (in Watt).\n\n📌 BEISPIELE:\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 WIE FUNKTIONIERT ES?\nWenn dieser Wert bei gutem Wetter unter 50W fällt, nimmt der Akku keine Energie mehr auf → Akku ist voll → MPPT drosselt → Stunde wird vom Training ausgeschlossen.\n\n⚠️ Nur relevant wenn 'Batteriespeicher vorhanden' aktiviert ist!",
+          "has_battery": "⚡ MPPT-DROSSELERKENNUNG (Erweiterung)\n\nAktiviere diese Option wenn du einen Batteriespeicher hast.\n\n📌 WARUM IST DAS WICHTIG?\nAkku-Abregelung wird nur erkannt, wenn der SOC mindestens 95 % erreicht UND der Solar-zu-Akku-Fluss zusammenbricht.\n\n⚠️ Bei Aktivierung MÜSSEN 'Solar-zu-Akku Sensor' und 'Akku-SOC Sensor' konfiguriert werden!",
+          "solar_to_battery_sensor": "⚡ MPPT-DROSSELERKENNUNG (Sensor)\n\nLeistungs-Sensor der den Energiefluss von PV zur Batterie misst (in Watt).\n\n📌 BEISPIELE:\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n⚠️ Pflichtfeld wenn 'Batteriespeicher vorhanden' aktiviert ist. Allein reicht dieser Sensor nicht — der SOC-Sensor ist zwingend.",
+          "battery_soc_sensor": "⚡ MPPT-DROSSELERKENNUNG (SOC)\n\nLadezustand des Akkus in Prozent (0–100).\n\n📌 BEISPIELE:\n• sensor.battery_soc\n• sensor.speicher_ladestand\n\n🔍 Vermutete Akku-Abregelung feuert NUR bei SOC ≥ 95 %. Ohne diesen Sensor und ohne Akku niemals.\n\n⚠️ Pflichtfeld wenn 'Batteriespeicher vorhanden' aktiviert ist!",
           "max_grid_export_w": "Optionales Einspeise- oder AC-Ausgangslimit in Watt. Standard: 800 W. Bei aktiver Nulleinspeisung verwendet SFML intern 0 W. Der Wert hilft, Drosselung bei vollem Akku zu erkennen, wenn der Hausbedarf gedeckt ist und die Produktion trotzdem am Limit hängt."
         }
       }
@@ -224,6 +226,7 @@
       "invalid_interval": "Intervall muss zwischen 300 und 86400 Sekunden liegen",
       "invalid_input": "Ungültiges Eingabeformat",
       "battery_sensor_required": "Bei aktiviertem Batteriespeicher muss ein Solar-zu-Akku-Leistungssensor ausgewählt werden",
+      "battery_soc_sensor_required": "Bei aktiviertem Batteriespeicher muss ein Akku-SOC-Sensor ausgewählt werden",
       "energy_sensor_not_found": "Energy-Sensor nicht gefunden",
       "energy_sensor_not_numeric": "Energy-Sensor ist nicht numerisch",
       "energy_sensor_not_kwh": "Panelgruppen-Sensor muss ein kWh-Sensor sein",
@@ -378,7 +381,7 @@
         "name": "Monatsverbrauch"
       },
       "today_forecast": {
-        "name": "Prognose (heute Rest)"
+        "name": "Resttag"
       },
       "tomorrow_forecast": {
         "name": "Prognose (morgen)"

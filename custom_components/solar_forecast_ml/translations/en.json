@@ -128,6 +128,7 @@
           "zero_export_mode": "Zero Export Mode (MPPT Detection)",
           "has_battery": "Battery Storage System",
           "solar_to_battery_sensor": "Solar-to-Battery Power Sensor",
+          "battery_soc_sensor": "Battery State of Charge Sensor",
           "max_grid_export_w": "Max Allowed Grid Export"
         },
         "data_description": {
@@ -147,8 +148,9 @@
           "adaptive_forecast_mode": "When significant deviations (>35%) between morning forecast and actual production are detected, SFML automatically adjusts the afternoon forecast at 12:30. SFML autonomously decides whether a correction is beneficial - based on fresh weather data and objective criteria. Default: OFF",
           "winter_mode": "Applies an additional low-sun cloud penalty from November through February when measured or provider radiation is unavailable and SFML uses its clear-sky fallback. Default: ON",
           "zero_export_mode": "MPPT THROTTLE DETECTION: Enable if you have a zero-export regulation (e.g. Shelly). This prevents ML from learning incorrect values when your inverter throttles due to no grid export being allowed. When active and production is much lower than expected on sunny days, the hour is excluded from training.",
-          "has_battery": "MPPT THROTTLE DETECTION: Enable if you have a battery storage system. When enabled, you must configure the Solar-to-Battery sensor below. This allows detection of throttling when the battery is full.",
-          "solar_to_battery_sensor": "MPPT THROTTLE DETECTION: Power sensor showing energy flow from PV to battery (in Watts). When this value drops below 50W during good weather conditions, the system assumes the battery is full and excludes the hour from ML training. Examples: sensor.pv_to_battery_power, sensor.battery_charging_power",
+          "has_battery": "MPPT THROTTLE DETECTION: Enable if you have a battery storage system. When enabled, you must configure the Solar-to-Battery sensor and the Battery SOC sensor. Battery curtailment is detected only when SOC is at least 95%.",
+          "solar_to_battery_sensor": "MPPT THROTTLE DETECTION: Power sensor showing energy flow from PV to battery (in Watts). Required together with the SOC sensor when battery storage is enabled. Examples: sensor.pv_to_battery_power, sensor.battery_charging_power",
+          "battery_soc_sensor": "MPPT THROTTLE DETECTION: Battery state of charge in percent (0-100). Required when battery storage is enabled. Suspected battery curtailment never fires without this sensor and never fires below 95% SOC.",
           "max_grid_export_w": "Optional export or AC output limit in Watt. Default: 800 W. When zero export mode is active, SFML internally uses 0 W. This helps detect full-battery curtailment when production is capped although house load is covered."
         }
       }
@@ -157,6 +159,7 @@
       "invalid_interval": "Interval must be 300-86400 seconds",
       "invalid_input": "Invalid input format",
       "battery_sensor_required": "Select a Solar-to-Battery power sensor when battery storage is enabled",
+      "battery_soc_sensor_required": "Select a battery SOC sensor when battery storage is enabled",
       "energy_sensor_not_found": "Energy sensor not found",
       "energy_sensor_not_numeric": "Energy sensor is not numeric",
       "energy_sensor_not_kwh": "Panel group sensor must be a kWh sensor",
@@ -311,7 +314,7 @@
         "name": "Monthly Consumption"
       },
       "today_forecast": {
-        "name": "Forecast Today Remaining"
+        "name": "Rest of Day"
       },
       "tomorrow_forecast": {
         "name": "Forecast Tomorrow"

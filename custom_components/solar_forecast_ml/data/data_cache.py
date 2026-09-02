@@ -200,7 +200,7 @@ class DataCache(DataManagerIO):
         try:
             row = await self.fetch_one(
                 """SELECT temperature, solar_radiation_wm2, wind, humidity,
-                          rain, clouds, pressure, updated_at
+                          rain, clouds, pressure, updated_at, correction_snapshot_id
                    FROM weather_forecast
                    WHERE forecast_date = ? AND hour = ?""",
                 (forecast_date, hour),
@@ -218,6 +218,7 @@ class DataCache(DataManagerIO):
                 "clouds": row[5],
                 "pressure": row[6],
                 "updated_at": row[7],
+                "correction_snapshot_id": row[8],
             }
 
         except Exception as e:
@@ -239,7 +240,7 @@ class DataCache(DataManagerIO):
         try:
             rows = await self.fetch_all(
                 """SELECT hour, temperature, solar_radiation_wm2, wind,
-                          humidity, rain, clouds, pressure
+                          humidity, rain, clouds, pressure, correction_snapshot_id
                    FROM weather_forecast
                    WHERE forecast_date = ?
                    ORDER BY hour""",
@@ -256,6 +257,7 @@ class DataCache(DataManagerIO):
                     "rain": row[5],
                     "clouds": row[6],
                     "pressure": row[7],
+                    "correction_snapshot_id": row[8],
                 }
                 for row in rows
             }

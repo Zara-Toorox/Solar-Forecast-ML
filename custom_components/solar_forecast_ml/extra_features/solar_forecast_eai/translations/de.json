@@ -292,6 +292,38 @@
           "circulation_pump_entity": "Zirkulationspumpe aktiv",
           "circulation_return_temp_entity": "Zirkulations-Rücklauftemperatur"
         }
+      },
+      "hydraulics": {
+        "title": "Hydraulik und Datenqualität",
+        "description": "Beschreibe, wie die Wärmepumpe eingebunden ist und welche Messwerte belastbar sind. Bestehende Einträge bleiben unvollständig, bis diese Seite beantwortet ist. COP 4,0 und 10 kW aus älteren Setups gelten als unbestätigte Platzhalter.",
+        "data": {
+          "has_heating_buffer": "Heizungspuffer / hydraulische Weiche vorhanden",
+          "heating_buffer_volume_l": "Heizungspuffer-Volumen (L)",
+          "dhw_topology": "Warmwasserbereitung",
+          "has_circulation": "Warmwasser-Zirkulation vorhanden",
+          "dhw_daily_draw_l": "Tägliche Zapfmenge (L)",
+          "heating_circuit_control": "Regelung der Heizkreise",
+          "heating_element_in_wp_meter": "Heizstab in der Wärmepumpen-Strommessung enthalten",
+          "dhw_tap_max_c": "Maximale Zapftemperatur (°C)",
+          "dhw_storage_max_c": "Maximale Speichertemperatur (°C)",
+          "dhw_target_c": "Warmwasser-Solltemperatur (°C)",
+          "design_flow_temp_c": "Auslegungsvorlauf Heizung (°C)",
+          "data_quality_tier": "Herkunft der Wärmemengen"
+        },
+        "data_description": {
+          "has_heating_buffer": "Aktivieren, wenn zwischen Wärmepumpe und Heizkreisen ein Puffer, eine Weiche oder ein Trennspeicher sitzt.",
+          "heating_buffer_volume_l": "Erwartet: nutzbares Puffervolumen der Heizung. Einheit: L. Optional.",
+          "dhw_topology": "Registerspeicher, Frischwasserstation, Kombispeicher oder kein Warmwasser. FriWa nutzt die Zapftemperatur, Register und Kombi die Speichertemperatur.",
+          "has_circulation": "Aktivieren, wenn ein Zirkulationskreis vorhanden ist.",
+          "dhw_daily_draw_l": "Erwartet: Zapfmenge des Haushalts pro Tag, nicht das Speichervolumen. Einheit: L. Pflicht bei Warmwasser. Ein Vier-Personen-Haushalt liegt typisch bei 150-250 L/Tag.",
+          "heating_circuit_control": "Wärmepumpe wählen, wenn EAI den WP-Regler liest, extern wenn z. B. eine UVR die Heizkreise führt.",
+          "heating_element_in_wp_meter": "Nur aktivieren, wenn der Heizstabstrom bereits in Leistungs- und Tagesenergiezählern der Wärmepumpe enthalten ist.",
+          "dhw_tap_max_c": "Erwartet: höchste zulässige Zapftemperatur. Einheit: °C. Pflicht bei Frischwasserstation; das ist die Empfehlungsgrenze.",
+          "dhw_storage_max_c": "Erwartet: höchste zulässige Speichertemperatur. Einheit: °C. Pflicht bei Register- und Kombispeicher; das ist die Empfehlungsgrenze.",
+          "dhw_target_c": "Sollwert der Warmwasserbereitung. Einheit: °C. Optional. Wird als Senkentemperatur im WW-Betrieb verwendet, wenn kein gemessener Vorlauf vorliegt.",
+          "design_flow_temp_c": "35 °C bei Fußbodenheizung, 55 °C bei Heizkörpern. Einheit: °C. Speist die Heizkurve, wenn kein gemessener Vorlauf vorliegt.",
+          "data_quality_tier": "Gemessen = Wärmemengenzähler, herstellerintern = WP-Schätzung, modelliert = EAI-Rechnung. Die Oberfläche zeigt diese Herkunft immer an."
+        }
       }
     },
     "error": {
@@ -311,7 +343,11 @@
       "invalid_heat_pump_values": "Gib endliche Zahlenwerte ein: Heizleistung von 1 bis 100 kW und COP von 1 bis 10.",
       "wallbox_required": "Für die Wallbox-Analyse werden die Wallbox-Leistung und mindestens eine Bedarfsquelle benötigt.",
       "wallbox_demand_required": "Wähle mindestens eine Bedarfsquelle: Fahrzeug-Ladezustand, gewünschte Zusatzenergie oder geplante Strecke.",
-      "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort."
+      "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort.",
+      "energy_today_not_daily": "Das sieht nach einem Lebensdauer-Energiezähler aus, nicht nach einem Tageswert.",
+      "invalid_energy_unit": "Diese Entität liefert keine Energie in Wh, kWh oder MWh.",
+      "invalid_power_unit": "Diese Entität liefert keine Leistung in W, kW oder MW.",
+      "invalid_temperature_unit": "Diese Entität liefert keine Temperatur in °C, °F oder K."
     },
     "abort": {
       "not_confirmed": "Die Einrichtung wurde nicht bestätigt.",
@@ -332,7 +368,8 @@
           "sensors": "Sensorzuordnungen",
           "wallbox": "E-Mobilität und Wallbox",
           "weather_intelligence": "Wetterintelligenz",
-          "automation": "Automationssignale"
+          "automation": "Automationssignale",
+          "hydraulics": "Hydraulik und Datenqualität"
         }
       },
       "features": {
@@ -534,6 +571,38 @@
           "feed_in_tariff_unit": "Erwartet: automatische Erkennung oder feste Auswahl. Einheit: EUR/kWh oder ct/kWh.",
           "low_price_threshold_ct": "Preis, unterhalb dessen EAI ein Niedrigpreisfenster signalisiert. Einheit: ct/kWh."
         }
+      },
+      "hydraulics": {
+        "title": "Hydraulik und Datenqualität",
+        "description": "Beschreibe, wie die Wärmepumpe eingebunden ist und welche Messwerte belastbar sind. Bestehende Einträge bleiben unvollständig, bis diese Seite beantwortet ist. COP 4,0 und 10 kW aus älteren Setups gelten als unbestätigte Platzhalter.",
+        "data": {
+          "has_heating_buffer": "Heizungspuffer / hydraulische Weiche vorhanden",
+          "heating_buffer_volume_l": "Heizungspuffer-Volumen (L)",
+          "dhw_topology": "Warmwasserbereitung",
+          "has_circulation": "Warmwasser-Zirkulation vorhanden",
+          "dhw_daily_draw_l": "Tägliche Zapfmenge (L)",
+          "heating_circuit_control": "Regelung der Heizkreise",
+          "heating_element_in_wp_meter": "Heizstab in der Wärmepumpen-Strommessung enthalten",
+          "dhw_tap_max_c": "Maximale Zapftemperatur (°C)",
+          "dhw_storage_max_c": "Maximale Speichertemperatur (°C)",
+          "dhw_target_c": "Warmwasser-Solltemperatur (°C)",
+          "design_flow_temp_c": "Auslegungsvorlauf Heizung (°C)",
+          "data_quality_tier": "Herkunft der Wärmemengen"
+        },
+        "data_description": {
+          "has_heating_buffer": "Aktivieren, wenn zwischen Wärmepumpe und Heizkreisen ein Puffer, eine Weiche oder ein Trennspeicher sitzt.",
+          "heating_buffer_volume_l": "Erwartet: nutzbares Puffervolumen der Heizung. Einheit: L. Optional.",
+          "dhw_topology": "Registerspeicher, Frischwasserstation, Kombispeicher oder kein Warmwasser. FriWa nutzt die Zapftemperatur, Register und Kombi die Speichertemperatur.",
+          "has_circulation": "Aktivieren, wenn ein Zirkulationskreis vorhanden ist.",
+          "dhw_daily_draw_l": "Erwartet: Zapfmenge des Haushalts pro Tag, nicht das Speichervolumen. Einheit: L. Pflicht bei Warmwasser. Ein Vier-Personen-Haushalt liegt typisch bei 150-250 L/Tag.",
+          "heating_circuit_control": "Wärmepumpe wählen, wenn EAI den WP-Regler liest, extern wenn z. B. eine UVR die Heizkreise führt.",
+          "heating_element_in_wp_meter": "Nur aktivieren, wenn der Heizstabstrom bereits in Leistungs- und Tagesenergiezählern der Wärmepumpe enthalten ist.",
+          "dhw_tap_max_c": "Erwartet: höchste zulässige Zapftemperatur. Einheit: °C. Pflicht bei Frischwasserstation; das ist die Empfehlungsgrenze.",
+          "dhw_storage_max_c": "Erwartet: höchste zulässige Speichertemperatur. Einheit: °C. Pflicht bei Register- und Kombispeicher; das ist die Empfehlungsgrenze.",
+          "dhw_target_c": "Sollwert der Warmwasserbereitung. Einheit: °C. Optional. Wird als Senkentemperatur im WW-Betrieb verwendet, wenn kein gemessener Vorlauf vorliegt.",
+          "design_flow_temp_c": "35 °C bei Fußbodenheizung, 55 °C bei Heizkörpern. Einheit: °C. Speist die Heizkurve, wenn kein gemessener Vorlauf vorliegt.",
+          "data_quality_tier": "Gemessen = Wärmemengenzähler, herstellerintern = WP-Schätzung, modelliert = EAI-Rechnung. Die Oberfläche zeigt diese Herkunft immer an."
+        }
       }
     },
     "error": {
@@ -552,87 +621,414 @@
       "validation_required": "Prüfe fehlende oder doppelt zugeordnete Sensoren.",
       "invalid_heat_pump_values": "Gib endliche Zahlenwerte ein: Heizleistung von 1 bis 100 kW und COP von 1 bis 10.",
       "wallbox_required": "Für die Wallbox-Analyse werden Leistung und eine Ladebedarfsquelle benötigt.",
-      "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort."
+      "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort.",
+      "energy_today_not_daily": "Das sieht nach einem Lebensdauer-Energiezähler aus, nicht nach einem Tageswert.",
+      "invalid_energy_unit": "Diese Entität liefert keine Energie in Wh, kWh oder MWh.",
+      "invalid_power_unit": "Diese Entität liefert keine Leistung in W, kW oder MW.",
+      "invalid_temperature_unit": "Diese Entität liefert keine Temperatur in °C, °F oder K."
     }
   },
   "entity": {
     "sensor": {
-      "recommended_action": {"name": "Empfohlene Aktion", "state": {"none": "Keine", "dhw": "Warmwasser", "heating": "Heizen", "thermal_storage": "Thermischer Speicher", "defer": "Verschieben"}},
-      "recommendation_reason": {"name": "Grund der Empfehlung", "state": {"none": "Keiner", "pv_surplus": "PV-Überschuss", "low_price": "Niedriger Strompreis", "comfort_need": "Komfortbedarf", "high_price": "Hoher Strompreis", "data_unavailable": "Daten nicht verfügbar"}},
-      "recommendation_explanation": {"name": "Erklärung der Empfehlung"},
-      "recommendation_confidence": {"name": "Vertrauen der Empfehlung"},
-      "forecast_uncertainty": {"name": "Prognoseunsicherheit"},
-      "next_action_start": {"name": "Nächster empfohlener Start"},
-      "recommendation_valid_until": {"name": "Empfehlung gültig bis"},
-      "recommended_duration": {"name": "Empfohlene Dauer"},
-      "consumption_next_hour": {"name": "Verbrauch nächste Stunde"},
-      "consumption_today": {"name": "Erwarteter Verbrauch heute"},
-      "consumption_tomorrow": {"name": "Erwarteter Verbrauch morgen"},
-      "expected_pv_surplus": {"name": "Erwarteter PV-Überschuss"},
-      "estimated_cost_advantage": {"name": "Geschätzter Kostenvorteil"},
-      "data_quality": {"name": "Datenqualität"},
-      "model_status": {"name": "Modellstatus", "state": {"learning": "Lernt", "ready": "Bereit", "degraded": "Eingeschränkt"}},
-      "weather_intelligence_status": {"name": "Status der Wetterintelligenz", "state": {"disabled": "Deaktiviert", "dependency_missing": "Voraussetzung fehlt", "degraded": "Eingeschränkt", "cold_start": "Lernt", "ready": "Bereit"}},
-      "weather_data_quality": {"name": "Wetterdatenqualität"},
-      "weather_paired_samples": {"name": "Wetter-Prognose-Ist-Paare"},
-      "weather_temperature_mae": {"name": "Lokaler Temperaturprognose-MAE"},
-      "weather_temperature_bias": {"name": "Lokale Temperaturprognose-Abweichung"},
-      "weather_temperature_uncertainty": {"name": "Lokale Temperaturunsicherheit"},
-      "weather_active_event": {"name": "Aktives Wetterereignis", "state": {"none": "Keines", "forecast_stale": "Prognose veraltet", "forecast_unavailable": "Prognose nicht verfügbar", "freeze_risk": "Frostgefahr", "heat_stress": "Hitzebelastung", "heavy_precipitation": "Starkregen", "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit", "strong_wind": "Starker Wind", "storm_wind": "Sturmwind", "thunderstorm": "Gewitter", "hail": "Hagel", "snow_or_ice": "Schnee oder Glätte", "dense_fog": "Dichter Nebel", "severe_weather": "Unwetter"}},
-      "weather_forecast_valid_until": {"name": "Wetterprognose gültig bis"},
-      "weather_next_event": {"name": "Nächstes Wetterereignis", "state": {"none": "Keines", "forecast_stale": "Prognose veraltet", "forecast_unavailable": "Prognose nicht verfügbar", "freeze_risk": "Frostgefahr", "heat_stress": "Hitzebelastung", "heavy_precipitation": "Starkregen", "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit", "strong_wind": "Starker Wind", "storm_wind": "Sturmwind", "thunderstorm": "Gewitter", "hail": "Hagel", "snow_or_ice": "Schnee oder Glätte", "dense_fog": "Dichter Nebel", "severe_weather": "Unwetter"}},
-      "weather_most_important_warning": {"name": "Wichtigste Wetterwarnung", "state": {"none": "Keine", "forecast_stale": "Prognose veraltet", "forecast_unavailable": "Prognose nicht verfügbar", "freeze_risk": "Frostgefahr", "heat_stress": "Hitzebelastung", "heavy_precipitation": "Starkregen", "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit", "strong_wind": "Starker Wind", "storm_wind": "Sturmwind", "thunderstorm": "Gewitter", "hail": "Hagel", "snow_or_ice": "Schnee oder Glätte", "dense_fog": "Dichter Nebel", "severe_weather": "Unwetter"}},
-      "weather_event_today": {"name": "Wetterereignis heute", "state": {"none": "Keines", "forecast_stale": "Prognose veraltet", "forecast_unavailable": "Prognose nicht verfügbar", "freeze_risk": "Frostgefahr", "heat_stress": "Hitzebelastung", "heavy_precipitation": "Starkregen", "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit", "strong_wind": "Starker Wind", "storm_wind": "Sturmwind", "thunderstorm": "Gewitter", "hail": "Hagel", "snow_or_ice": "Schnee oder Glätte", "dense_fog": "Dichter Nebel", "severe_weather": "Unwetter"}},
-      "weather_event_tomorrow": {"name": "Wetterereignis morgen", "state": {"none": "Keines", "forecast_stale": "Prognose veraltet", "forecast_unavailable": "Prognose nicht verfügbar", "freeze_risk": "Frostgefahr", "heat_stress": "Hitzebelastung", "heavy_precipitation": "Starkregen", "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit", "strong_wind": "Starker Wind", "storm_wind": "Sturmwind", "thunderstorm": "Gewitter", "hail": "Hagel", "snow_or_ice": "Schnee oder Glätte", "dense_fog": "Dichter Nebel", "severe_weather": "Unwetter"}},
-      "weather_event_day_after_tomorrow": {"name": "Wetterereignis übermorgen", "state": {"none": "Keines", "forecast_stale": "Prognose veraltet", "forecast_unavailable": "Prognose nicht verfügbar", "freeze_risk": "Frostgefahr", "heat_stress": "Hitzebelastung", "heavy_precipitation": "Starkregen", "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit", "strong_wind": "Starker Wind", "storm_wind": "Sturmwind", "thunderstorm": "Gewitter", "hail": "Hagel", "snow_or_ice": "Schnee oder Glätte", "dense_fog": "Dichter Nebel", "severe_weather": "Unwetter"}},
-      "weather_next_event_severity": {"name": "Schweregrad des nächsten Wetterereignisses", "state": {"none": "Keiner", "advisory": "Hinweis", "warning": "Warnung", "critical": "Kritisch"}},
-      "weather_next_event_start": {"name": "Beginn des nächsten Wetterereignisses"}, "weather_next_event_end": {"name": "Ende des nächsten Wetterereignisses"}, "weather_precipitation_next_24h": {"name": "Prognostizierter Niederschlag nächste 24 Stunden"}, "weather_precipitation_probability_next_24h": {"name": "Maximale Niederschlagswahrscheinlichkeit nächste 24 Stunden"}, "weather_temperature_min_next_24h": {"name": "Minimale Temperatur nächste 24 Stunden"}, "weather_temperature_max_next_24h": {"name": "Maximale Temperatur nächste 24 Stunden"}, "weather_wind_speed_max_next_24h": {"name": "Maximale Windgeschwindigkeit nächste 24 Stunden"}, "weather_forecast_confidence": {"name": "Verlässlichkeit der Wetterprognose"},
-      "wallbox_recommended_action": {"name": "Wallbox-Empfehlung", "state": {"data_unavailable": "Daten fehlen", "connect": "Fahrzeug verbinden", "charge": "Laden", "defer": "Warten", "complete": "Ladeziel erreicht"}},
-      "wallbox_recommendation_reason": {"name": "Grund der Wallbox-Empfehlung", "state": {"data_unavailable": "Daten fehlen", "pv_surplus": "Verbleibender PV-Überschuss", "pv_window_upcoming": "PV-Fenster folgt", "low_price": "Niedriger Strompreis", "departure_deadline": "Abfahrtsziel", "deadline_plan": "Ladeplan bis Abfahrt", "target_reached": "Ladeziel erreicht", "planning_window_incomplete": "Planungsfenster unvollständig"}},
-      "wallbox_recommendation_explanation": {"name": "Erklärung der Wallbox-Empfehlung"},
-      "wallbox_recommendation_confidence": {"name": "Vertrauen der Wallbox-Empfehlung"},
-      "wallbox_forecast_uncertainty": {"name": "Wallbox-Prognoseunsicherheit"},
-      "wallbox_next_start": {"name": "Nächster empfohlener Ladestart"},
-      "wallbox_recommended_end": {"name": "Empfohlenes Ladeende"},
-      "wallbox_required_energy": {"name": "Benötigte Ladeenergie"},
-      "wallbox_expected_pv_share": {"name": "Erwarteter PV-Ladeanteil"},
-      "wallbox_estimated_cost": {"name": "Geschätzte Ladekosten"},
-      "wallbox_estimated_cost_advantage": {"name": "Geschätzter Kostenvorteil der Ladeplanung"},
-      "wallbox_departure_readiness": {"name": "Abfahrtsbereitschaft"},
-      "wallbox_data_quality": {"name": "Wallbox-Datenqualität"},
-      "storage_heat_loss_coefficient": {"name": "Speicher-Verlustkoeffizient"},
-      "storage_standby_loss": {"name": "Speicher-Bereitschaftsverlust pro Tag"},
-      "circulation_loss": {"name": "Zirkulationsverlust pro Tag"},
-      "thermal_loss_forecast": {"name": "Thermische Verluste nächste 24 Stunden"},
-      "thermal_loss_data_quality": {"name": "Datenqualität der Verlustanalyse"},
-      "thermal_loss_status": {"name": "Status der Verlustanalyse", "state": {"not_configured": "Nicht konfiguriert", "learning": "Lernt", "partial": "Teilweise verfügbar", "implausible": "Unplausibel", "ready": "Bereit"}}
+      "recommended_action": {
+        "name": "Empfohlene Aktion",
+        "state": {
+          "none": "Keine",
+          "dhw": "Warmwasser",
+          "heating": "Heizen",
+          "thermal_storage": "Thermischer Speicher",
+          "defer": "Verschieben"
+        }
+      },
+      "recommendation_reason": {
+        "name": "Grund der Empfehlung",
+        "state": {
+          "none": "Keiner",
+          "pv_surplus": "PV-Überschuss",
+          "low_price": "Niedriger Strompreis",
+          "comfort_need": "Komfortbedarf",
+          "high_price": "Hoher Strompreis",
+          "data_unavailable": "Daten nicht verfügbar",
+          "hydraulics_setup_incomplete": "Hydraulik-Einrichtung unvollständig",
+          "dhw_max_reached": "Warmwassergrenze erreicht",
+          "dhw_unanswered": "Warmwasser nicht bestätigt",
+          "dhw_limit_unanswered": "Warmwassergrenze fehlt",
+          "dhw_disabled": "Warmwasser deaktiviert"
+        }
+      },
+      "recommendation_explanation": {
+        "name": "Erklärung der Empfehlung"
+      },
+      "recommendation_confidence": {
+        "name": "Vertrauen der Empfehlung"
+      },
+      "forecast_uncertainty": {
+        "name": "Prognoseunsicherheit"
+      },
+      "next_action_start": {
+        "name": "Nächster empfohlener Start"
+      },
+      "recommendation_valid_until": {
+        "name": "Empfehlung gültig bis"
+      },
+      "recommended_duration": {
+        "name": "Empfohlene Dauer"
+      },
+      "consumption_next_hour": {
+        "name": "Verbrauch nächste Stunde"
+      },
+      "consumption_today": {
+        "name": "Erwarteter Verbrauch heute"
+      },
+      "consumption_tomorrow": {
+        "name": "Erwarteter Verbrauch morgen"
+      },
+      "expected_pv_surplus": {
+        "name": "Erwarteter PV-Überschuss"
+      },
+      "estimated_cost_advantage": {
+        "name": "Geschätzter Kostenvorteil"
+      },
+      "data_quality": {
+        "name": "Datenqualität"
+      },
+      "model_status": {
+        "name": "Modellstatus",
+        "state": {
+          "learning": "Lernt",
+          "ready": "Bereit",
+          "degraded": "Eingeschränkt"
+        }
+      },
+      "weather_intelligence_status": {
+        "name": "Status der Wetterintelligenz",
+        "state": {
+          "disabled": "Deaktiviert",
+          "dependency_missing": "Voraussetzung fehlt",
+          "degraded": "Eingeschränkt",
+          "cold_start": "Lernt",
+          "ready": "Bereit"
+        }
+      },
+      "weather_data_quality": {
+        "name": "Wetterdatenqualität"
+      },
+      "weather_paired_samples": {
+        "name": "Wetter-Prognose-Ist-Paare"
+      },
+      "weather_temperature_mae": {
+        "name": "Lokaler Temperaturprognose-MAE"
+      },
+      "weather_temperature_bias": {
+        "name": "Lokale Temperaturprognose-Abweichung"
+      },
+      "weather_temperature_uncertainty": {
+        "name": "Lokale Temperaturunsicherheit"
+      },
+      "weather_active_event": {
+        "name": "Aktives Wetterereignis",
+        "state": {
+          "none": "Keines",
+          "forecast_stale": "Prognose veraltet",
+          "forecast_unavailable": "Prognose nicht verfügbar",
+          "freeze_risk": "Frostgefahr",
+          "heat_stress": "Hitzebelastung",
+          "heavy_precipitation": "Starkregen",
+          "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit",
+          "strong_wind": "Starker Wind",
+          "storm_wind": "Sturmwind",
+          "thunderstorm": "Gewitter",
+          "hail": "Hagel",
+          "snow_or_ice": "Schnee oder Glätte",
+          "dense_fog": "Dichter Nebel",
+          "severe_weather": "Unwetter"
+        }
+      },
+      "weather_forecast_valid_until": {
+        "name": "Wetterprognose gültig bis"
+      },
+      "weather_next_event": {
+        "name": "Nächstes Wetterereignis",
+        "state": {
+          "none": "Keines",
+          "forecast_stale": "Prognose veraltet",
+          "forecast_unavailable": "Prognose nicht verfügbar",
+          "freeze_risk": "Frostgefahr",
+          "heat_stress": "Hitzebelastung",
+          "heavy_precipitation": "Starkregen",
+          "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit",
+          "strong_wind": "Starker Wind",
+          "storm_wind": "Sturmwind",
+          "thunderstorm": "Gewitter",
+          "hail": "Hagel",
+          "snow_or_ice": "Schnee oder Glätte",
+          "dense_fog": "Dichter Nebel",
+          "severe_weather": "Unwetter"
+        }
+      },
+      "weather_most_important_warning": {
+        "name": "Wichtigste Wetterwarnung",
+        "state": {
+          "none": "Keine",
+          "forecast_stale": "Prognose veraltet",
+          "forecast_unavailable": "Prognose nicht verfügbar",
+          "freeze_risk": "Frostgefahr",
+          "heat_stress": "Hitzebelastung",
+          "heavy_precipitation": "Starkregen",
+          "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit",
+          "strong_wind": "Starker Wind",
+          "storm_wind": "Sturmwind",
+          "thunderstorm": "Gewitter",
+          "hail": "Hagel",
+          "snow_or_ice": "Schnee oder Glätte",
+          "dense_fog": "Dichter Nebel",
+          "severe_weather": "Unwetter"
+        }
+      },
+      "weather_event_today": {
+        "name": "Wetterereignis heute",
+        "state": {
+          "none": "Keines",
+          "forecast_stale": "Prognose veraltet",
+          "forecast_unavailable": "Prognose nicht verfügbar",
+          "freeze_risk": "Frostgefahr",
+          "heat_stress": "Hitzebelastung",
+          "heavy_precipitation": "Starkregen",
+          "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit",
+          "strong_wind": "Starker Wind",
+          "storm_wind": "Sturmwind",
+          "thunderstorm": "Gewitter",
+          "hail": "Hagel",
+          "snow_or_ice": "Schnee oder Glätte",
+          "dense_fog": "Dichter Nebel",
+          "severe_weather": "Unwetter"
+        }
+      },
+      "weather_event_tomorrow": {
+        "name": "Wetterereignis morgen",
+        "state": {
+          "none": "Keines",
+          "forecast_stale": "Prognose veraltet",
+          "forecast_unavailable": "Prognose nicht verfügbar",
+          "freeze_risk": "Frostgefahr",
+          "heat_stress": "Hitzebelastung",
+          "heavy_precipitation": "Starkregen",
+          "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit",
+          "strong_wind": "Starker Wind",
+          "storm_wind": "Sturmwind",
+          "thunderstorm": "Gewitter",
+          "hail": "Hagel",
+          "snow_or_ice": "Schnee oder Glätte",
+          "dense_fog": "Dichter Nebel",
+          "severe_weather": "Unwetter"
+        }
+      },
+      "weather_event_day_after_tomorrow": {
+        "name": "Wetterereignis übermorgen",
+        "state": {
+          "none": "Keines",
+          "forecast_stale": "Prognose veraltet",
+          "forecast_unavailable": "Prognose nicht verfügbar",
+          "freeze_risk": "Frostgefahr",
+          "heat_stress": "Hitzebelastung",
+          "heavy_precipitation": "Starkregen",
+          "high_precipitation_probability": "Hohe Niederschlagswahrscheinlichkeit",
+          "strong_wind": "Starker Wind",
+          "storm_wind": "Sturmwind",
+          "thunderstorm": "Gewitter",
+          "hail": "Hagel",
+          "snow_or_ice": "Schnee oder Glätte",
+          "dense_fog": "Dichter Nebel",
+          "severe_weather": "Unwetter"
+        }
+      },
+      "weather_next_event_severity": {
+        "name": "Schweregrad des nächsten Wetterereignisses",
+        "state": {
+          "none": "Keiner",
+          "advisory": "Hinweis",
+          "warning": "Warnung",
+          "critical": "Kritisch"
+        }
+      },
+      "weather_next_event_start": {
+        "name": "Beginn des nächsten Wetterereignisses"
+      },
+      "weather_next_event_end": {
+        "name": "Ende des nächsten Wetterereignisses"
+      },
+      "weather_precipitation_next_24h": {
+        "name": "Prognostizierter Niederschlag nächste 24 Stunden"
+      },
+      "weather_precipitation_probability_next_24h": {
+        "name": "Maximale Niederschlagswahrscheinlichkeit nächste 24 Stunden"
+      },
+      "weather_temperature_min_next_24h": {
+        "name": "Minimale Temperatur nächste 24 Stunden"
+      },
+      "weather_temperature_max_next_24h": {
+        "name": "Maximale Temperatur nächste 24 Stunden"
+      },
+      "weather_wind_speed_max_next_24h": {
+        "name": "Maximale Windgeschwindigkeit nächste 24 Stunden"
+      },
+      "weather_forecast_confidence": {
+        "name": "Verlässlichkeit der Wetterprognose"
+      },
+      "wallbox_recommended_action": {
+        "name": "Wallbox-Empfehlung",
+        "state": {
+          "data_unavailable": "Daten fehlen",
+          "connect": "Fahrzeug verbinden",
+          "charge": "Laden",
+          "defer": "Warten",
+          "complete": "Ladeziel erreicht"
+        }
+      },
+      "wallbox_recommendation_reason": {
+        "name": "Grund der Wallbox-Empfehlung",
+        "state": {
+          "data_unavailable": "Daten fehlen",
+          "pv_surplus": "Verbleibender PV-Überschuss",
+          "pv_window_upcoming": "PV-Fenster folgt",
+          "low_price": "Niedriger Strompreis",
+          "departure_deadline": "Abfahrtsziel",
+          "deadline_plan": "Ladeplan bis Abfahrt",
+          "target_reached": "Ladeziel erreicht",
+          "planning_window_incomplete": "Planungsfenster unvollständig"
+        }
+      },
+      "wallbox_recommendation_explanation": {
+        "name": "Erklärung der Wallbox-Empfehlung"
+      },
+      "wallbox_recommendation_confidence": {
+        "name": "Vertrauen der Wallbox-Empfehlung"
+      },
+      "wallbox_forecast_uncertainty": {
+        "name": "Wallbox-Prognoseunsicherheit"
+      },
+      "wallbox_next_start": {
+        "name": "Nächster empfohlener Ladestart"
+      },
+      "wallbox_recommended_end": {
+        "name": "Empfohlenes Ladeende"
+      },
+      "wallbox_required_energy": {
+        "name": "Benötigte Ladeenergie"
+      },
+      "wallbox_expected_pv_share": {
+        "name": "Erwarteter PV-Ladeanteil"
+      },
+      "wallbox_estimated_cost": {
+        "name": "Geschätzte Ladekosten"
+      },
+      "wallbox_estimated_cost_advantage": {
+        "name": "Geschätzter Kostenvorteil der Ladeplanung"
+      },
+      "wallbox_departure_readiness": {
+        "name": "Abfahrtsbereitschaft"
+      },
+      "wallbox_data_quality": {
+        "name": "Wallbox-Datenqualität"
+      },
+      "storage_heat_loss_coefficient": {
+        "name": "Speicher-Verlustkoeffizient"
+      },
+      "storage_standby_loss": {
+        "name": "Speicher-Bereitschaftsverlust pro Tag"
+      },
+      "circulation_loss": {
+        "name": "Zirkulationsverlust pro Tag"
+      },
+      "thermal_loss_forecast": {
+        "name": "Thermische Verluste nächste 24 Stunden"
+      },
+      "thermal_loss_data_quality": {
+        "name": "Datenqualität der Verlustanalyse"
+      },
+      "thermal_loss_status": {
+        "name": "Status der Verlustanalyse",
+        "state": {
+          "not_configured": "Nicht konfiguriert",
+          "learning": "Lernt",
+          "partial": "Teilweise verfügbar",
+          "implausible": "Unplausibel",
+          "ready": "Bereit"
+        }
+      }
     },
     "binary_sensor": {
-      "automation_ready": {"name": "Automation bereit"},
-      "pv_window_active": {"name": "Wärmepumpen-PV-Fenster aktiv"},
-      "dhw_recommended": {"name": "Warmwasser empfohlen"},
-      "heating_recommended": {"name": "Heizen empfohlen"},
-      "thermal_storage_recommended": {"name": "Thermischer Speicher empfohlen"},
-      "low_price_window_active": {"name": "Niedrigpreisfenster aktiv"},
-      "operation_deferrable": {"name": "Betrieb verschiebbar"},
-      "critical_data_issue": {"name": "Kritisches Datenproblem"},
-      "wallbox_charging_window_active": {"name": "Wallbox-Ladefenster aktiv"},
-      "wallbox_pv_charging_recommended": {"name": "PV-Laden empfohlen"},
-      "wallbox_residual_pv_window_active": {"name": "Wallbox-Rest-PV-Fenster aktiv"},
-      "wallbox_low_price_charging_recommended": {"name": "Niedrigpreis-Laden empfohlen"},
-      "wallbox_departure_risk": {"name": "Abfahrtsziel gefährdet"}
-      ,"weather_alert_active": {"name": "Wetterwarnung aktiv"}
-      ,"weather_frost_risk": {"name": "Frostgefahr"}
-      ,"weather_heavy_rain_risk": {"name": "Starkregenrisiko"}
-      ,"weather_high_wind_risk": {"name": "Starkwindrisiko"}
-      ,"weather_heat_stress_risk": {"name": "Hitzebelastungsrisiko"}
-      ,"weather_forecast_stale": {"name": "Wetterprognose veraltet"}
+      "automation_ready": {
+        "name": "Automation bereit"
+      },
+      "pv_window_active": {
+        "name": "Wärmepumpen-PV-Fenster aktiv"
+      },
+      "dhw_recommended": {
+        "name": "Warmwasser empfohlen"
+      },
+      "heating_recommended": {
+        "name": "Heizen empfohlen"
+      },
+      "thermal_storage_recommended": {
+        "name": "Thermischer Speicher empfohlen"
+      },
+      "low_price_window_active": {
+        "name": "Niedrigpreisfenster aktiv"
+      },
+      "operation_deferrable": {
+        "name": "Betrieb verschiebbar"
+      },
+      "critical_data_issue": {
+        "name": "Kritisches Datenproblem"
+      },
+      "wallbox_charging_window_active": {
+        "name": "Wallbox-Ladefenster aktiv"
+      },
+      "wallbox_pv_charging_recommended": {
+        "name": "PV-Laden empfohlen"
+      },
+      "wallbox_residual_pv_window_active": {
+        "name": "Wallbox-Rest-PV-Fenster aktiv"
+      },
+      "wallbox_low_price_charging_recommended": {
+        "name": "Niedrigpreis-Laden empfohlen"
+      },
+      "wallbox_departure_risk": {
+        "name": "Abfahrtsziel gefährdet"
+      },
+      "weather_alert_active": {
+        "name": "Wetterwarnung aktiv"
+      },
+      "weather_frost_risk": {
+        "name": "Frostgefahr"
+      },
+      "weather_heavy_rain_risk": {
+        "name": "Starkregenrisiko"
+      },
+      "weather_high_wind_risk": {
+        "name": "Starkwindrisiko"
+      },
+      "weather_heat_stress_risk": {
+        "name": "Hitzebelastungsrisiko"
+      },
+      "weather_forecast_stale": {
+        "name": "Wetterprognose veraltet"
+      }
     },
     "switch": {
-      "automation_signals": {"name": "Automationssignale freigeben"},
-      "pv_optimization": {"name": "PV-Signale"},
-      "tariff_optimization": {"name": "Tarif-Signale"},
-      "wallbox_optimization": {"name": "Wallbox-Signale"}
+      "automation_signals": {
+        "name": "Automationssignale freigeben"
+      },
+      "pv_optimization": {
+        "name": "PV-Signale"
+      },
+      "tariff_optimization": {
+        "name": "Tarif-Signale"
+      },
+      "wallbox_optimization": {
+        "name": "Wallbox-Signale"
+      }
     }
   },
   "selector": {
@@ -662,6 +1058,44 @@
         "air_water": "Luft/Wasser",
         "brine_water": "Sole/Wasser",
         "water_water": "Wasser/Wasser"
+      }
+    },
+    "dhw_topology": {
+      "options": {
+        "register": "Speicher mit Register",
+        "fresh_water": "Frischwasserstation",
+        "combined": "Kombi-/Hygienespeicher",
+        "none": "Kein Warmwasser"
+      }
+    },
+    "heating_circuit_control": {
+      "options": {
+        "heat_pump": "Wärmepumpen-Regler",
+        "external": "Fremdregler (z. B. UVR)"
+      }
+    },
+    "data_quality_tier": {
+      "options": {
+        "measured": "Gemessener Wärmemengenzähler",
+        "manufacturer": "Herstellerinterne Schätzung",
+        "modeled": "Von EAI modelliert"
+      }
+    }
+  },
+  "issues": {
+    "hydraulics_setup_incomplete": {
+      "title": "Wärmepumpen-Einrichtung ist unvollständig",
+      "description": "Diese Installation wurde ohne ausdrückliche Hydraulik-Antwort übernommen. COP, Ersparnis und Warmwasserempfehlungen bleiben gesperrt, bis du die Wärmepumpe neu einrichtest. COP 4,0 und 10 kW aus dem alten Default gelten als unbestätigt.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Hydraulik-Einrichtung abschließen",
+            "description": "Bestätige, wie die Wärmepumpe eingebunden ist und welche Temperaturen nicht überschritten werden dürfen. Kennzahlen bleiben bis dahin gesperrt.\n\nCOP 4,0 und 10 kW aus dem alten Default gelten als unbestätigt und brauchen eine ausdrückliche Antwort.\n\nMit „Absenden“ öffnet sich die Neu-Einrichtung."
+          }
+        },
+        "abort": {
+          "reconfigure_started": "Die Neu-Einrichtung ist geöffnet. Dieser Hinweis bleibt bestehen, bis die Hydraulik-Angaben vollständig sind, und verschwindet danach von selbst."
+        }
       }
     }
   }

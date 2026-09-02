@@ -37,6 +37,13 @@ class WeatherExpert(ABC):
         self.name = name
         self._last_error: Optional[str] = None
         self._consecutive_failures: int = 0
+        self.stale_read_hook: Optional[Any] = None
+
+    def notify_stale_cache_read(self) -> None:
+        """Report a TTL-expired cache read to the blender, if wired."""
+        hook = self.stale_read_hook
+        if callable(hook):
+            hook()
 
     @abstractmethod
     async def get_cloud_cover(self, date: str, hour: int) -> Optional[float]:

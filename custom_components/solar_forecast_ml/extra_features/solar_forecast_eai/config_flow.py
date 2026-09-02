@@ -20,6 +20,14 @@ from .const import (
     CONF_CIRCULATION_PUMP_ENTITY,
     CONF_COMPRESSOR_ENTITY,
     CONF_COP_RATED,
+    CONF_COP_RATED_CONFIRMED,
+    CONF_DATA_QUALITY_TIER,
+    CONF_DESIGN_FLOW_TEMP_C,
+    CONF_DHW_DAILY_DRAW_L,
+    CONF_DHW_STORAGE_MAX_C,
+    CONF_DHW_TAP_MAX_C,
+    CONF_DHW_TARGET_C,
+    CONF_DHW_TOPOLOGY,
     CONF_STORAGE_VOLUME_L,
     CONF_ELECTRICITY_PRICE_ENTITY,
     CONF_ELECTRICITY_PRICE_UNIT,
@@ -35,13 +43,20 @@ from .const import (
     CONF_EV_TARGET_SOC,
     CONF_FEED_IN_TARIFF_ENTITY,
     CONF_FEED_IN_TARIFF_UNIT,
+    CONF_HAS_CIRCULATION,
     CONF_HAS_DHW,
+    CONF_HAS_HEATING_BUFFER,
     CONF_HAS_HEATING_ELEMENT,
     CONF_HEAT_PUMP_ENABLED,
+    CONF_HEATING_BUFFER_VOLUME_L,
+    CONF_HEATING_CAPACITY_CONFIRMED,
     CONF_HEATING_CAPACITY_KW,
+    CONF_HEATING_CIRCUIT_CONTROL,
     CONF_HEATING_ELEMENT_ENTITY,
     CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
+    CONF_HEATING_ELEMENT_IN_WP_METER,
     CONF_HEATING_ELEMENT_POWER_ENTITY,
+    CONF_HYDRAULICS_ANSWERED,
     CONF_INDOOR_TEMP_ENTITY,
     CONF_LICENSE_ID,
     CONF_LICENSE_KEY,
@@ -82,7 +97,19 @@ from .const import (
     ELECTRICAL_TOPOLOGY_LEGACY_AGGREGATE,
     ELECTRICAL_TOPOLOGY_SEPARATE,
     DEFAULT_WEATHER_HISTORY_DAYS,
+    CONFIG_ENTRY_VERSION,
     COUNTER_SCOPE_UNKNOWN,
+    DATA_QUALITY_MANUFACTURER,
+    DATA_QUALITY_MEASURED,
+    DATA_QUALITY_MODELED,
+    DHW_DAILY_DRAW_L_MAX,
+    DHW_DAILY_DRAW_L_MIN,
+    DHW_TOPOLOGY_COMBINED,
+    DHW_TOPOLOGY_FRESH_WATER,
+    DHW_TOPOLOGY_NONE,
+    DHW_TOPOLOGY_REGISTER,
+    HEATING_CIRCUIT_CONTROL_EXTERNAL,
+    HEATING_CIRCUIT_CONTROL_HEAT_PUMP,
     REQUIRED_SENSORS,
     STANDARD_SENSORS,
     SUPPORTED_WP_TYPES,
@@ -92,6 +119,11 @@ from .const import (
 from .sensor_mapping import (
     SensorMappingCandidate,
     discover_sensor_mapping_candidates,
+)
+from .setup_state import (
+    entity_assignment_error,
+    hydraulics_setup_incomplete,
+    mark_heat_pump_values_confirmed,
 )
 
 WEATHER_FUSION_DOMAIN = "weather_fusion_ai"
@@ -222,14 +254,7 @@ def _apply_mapping_suggestions(
                 CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY,
                 ELECTRICAL_TOPOLOGY_SEPARATE,
             )
-        if not heater_disabled and any(
-            key in suggestions
-            for key in (
-                CONF_HEATING_ELEMENT_POWER_ENTITY,
-                CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
-            )
-        ):
-            target.setdefault(CONF_HAS_HEATING_ELEMENT, True)
+        # Discovery may suggest heater entities. It must not write True.
 
 HEAT_PUMP_OPTION_KEYS = (
     CONF_WP_TYPE,
@@ -242,6 +267,23 @@ HEAT_PUMP_OPTION_KEYS = (
     CONF_HAS_DHW,
     CONF_STORAGE_VOLUME_L,
     CONF_BUILDING_REF,
+    CONF_COP_RATED_CONFIRMED,
+    CONF_HEATING_CAPACITY_CONFIRMED,
+)
+HYDRAULICS_OPTION_KEYS = (
+    CONF_HAS_HEATING_BUFFER,
+    CONF_HEATING_BUFFER_VOLUME_L,
+    CONF_DHW_TOPOLOGY,
+    CONF_HAS_CIRCULATION,
+    CONF_HEATING_CIRCUIT_CONTROL,
+    CONF_HEATING_ELEMENT_IN_WP_METER,
+    CONF_DHW_DAILY_DRAW_L,
+    CONF_DHW_TAP_MAX_C,
+    CONF_DHW_STORAGE_MAX_C,
+    CONF_DHW_TARGET_C,
+    CONF_DESIGN_FLOW_TEMP_C,
+    CONF_DATA_QUALITY_TIER,
+    CONF_HYDRAULICS_ANSWERED,
 )
 
 NUMERIC_HEAT_PUMP_ENTITY_KEYS = frozenset(
@@ -296,7 +338,7 @@ def _validated_heat_pump_input(user_input: dict[str, Any]) -> dict[str, Any]:
     validated[CONF_COP_RATED] = _finite_range(1.0, 10.0)(
         user_input.get(CONF_COP_RATED)
     )
-    return validated
+    return mark_heat_pump_values_confirmed(validated)
 
 
 def _safe_bool_default(value: Any, fallback: bool) -> bool:
@@ -432,6 +474,175 @@ def _heat_pump_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     )
 
 
+def _optional_number_marker(
+    key: str, defaults: dict[str, Any], minimum: float, maximum: float
+) -> vol.Optional:
+    value = defaults.get(key)
+    normalized = _safe_number_default(value, 0.0, minimum, maximum) if value not in (None, "") else None
+    if normalized:
+        return vol.Optional(key, description={"suggested_value": normalized})
+    return vol.Optional(key)
+
+
+def _hydraulics_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+    defaults = defaults or {}
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_HAS_HEATING_BUFFER,
+                default=_safe_bool_default(defaults.get(CONF_HAS_HEATING_BUFFER), False),
+            ): bool,
+            _optional_number_marker(
+                CONF_HEATING_BUFFER_VOLUME_L, defaults, 20.0, 5000.0
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=20,
+                    max=5000,
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="L",
+                )
+            ),
+            vol.Required(
+                CONF_DHW_TOPOLOGY,
+                default=_safe_choice_default(
+                    defaults.get(CONF_DHW_TOPOLOGY),
+                    {
+                        DHW_TOPOLOGY_NONE,
+                        DHW_TOPOLOGY_REGISTER,
+                        DHW_TOPOLOGY_FRESH_WATER,
+                        DHW_TOPOLOGY_COMBINED,
+                    },
+                    DHW_TOPOLOGY_REGISTER
+                    if _safe_bool_default(defaults.get(CONF_HAS_DHW), True)
+                    else DHW_TOPOLOGY_NONE,
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        DHW_TOPOLOGY_REGISTER,
+                        DHW_TOPOLOGY_FRESH_WATER,
+                        DHW_TOPOLOGY_COMBINED,
+                        DHW_TOPOLOGY_NONE,
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="dhw_topology",
+                )
+            ),
+            vol.Required(
+                CONF_HAS_CIRCULATION,
+                default=_safe_bool_default(defaults.get(CONF_HAS_CIRCULATION), False),
+            ): bool,
+            _optional_number_marker(
+                CONF_DHW_DAILY_DRAW_L, defaults, DHW_DAILY_DRAW_L_MIN, DHW_DAILY_DRAW_L_MAX
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=int(DHW_DAILY_DRAW_L_MIN),
+                    max=int(DHW_DAILY_DRAW_L_MAX),
+                    step=1,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="L",
+                )
+            ),
+            vol.Required(
+                CONF_HEATING_CIRCUIT_CONTROL,
+                default=_safe_choice_default(
+                    defaults.get(CONF_HEATING_CIRCUIT_CONTROL),
+                    {
+                        HEATING_CIRCUIT_CONTROL_HEAT_PUMP,
+                        HEATING_CIRCUIT_CONTROL_EXTERNAL,
+                    },
+                    HEATING_CIRCUIT_CONTROL_HEAT_PUMP,
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        HEATING_CIRCUIT_CONTROL_HEAT_PUMP,
+                        HEATING_CIRCUIT_CONTROL_EXTERNAL,
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="heating_circuit_control",
+                )
+            ),
+            vol.Required(
+                CONF_HEATING_ELEMENT_IN_WP_METER,
+                default=_safe_bool_default(
+                    defaults.get(CONF_HEATING_ELEMENT_IN_WP_METER), True
+                ),
+            ): bool,
+            _optional_number_marker(
+                CONF_DHW_TAP_MAX_C, defaults, 35.0, 75.0
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=35,
+                    max=75,
+                    step=0.5,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+            _optional_number_marker(
+                CONF_DHW_STORAGE_MAX_C, defaults, 35.0, 85.0
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=35,
+                    max=85,
+                    step=0.5,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+            _optional_number_marker(
+                CONF_DHW_TARGET_C, defaults, 35.0, 70.0
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=35,
+                    max=70,
+                    step=0.5,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+            vol.Required(
+                CONF_DESIGN_FLOW_TEMP_C,
+                default=_safe_number_default(
+                    defaults.get(CONF_DESIGN_FLOW_TEMP_C), 35.0, 25.0, 75.0
+                ),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=25,
+                    max=75,
+                    step=0.5,
+                    mode=selector.NumberSelectorMode.BOX,
+                    unit_of_measurement="°C",
+                )
+            ),
+            vol.Required(
+                CONF_DATA_QUALITY_TIER,
+                default=_safe_choice_default(
+                    defaults.get(CONF_DATA_QUALITY_TIER),
+                    {
+                        DATA_QUALITY_MEASURED,
+                        DATA_QUALITY_MANUFACTURER,
+                        DATA_QUALITY_MODELED,
+                    },
+                    DATA_QUALITY_MODELED,
+                ),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        DATA_QUALITY_MEASURED,
+                        DATA_QUALITY_MANUFACTURER,
+                        DATA_QUALITY_MODELED,
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                    translation_key="data_quality_tier",
+                )
+            ),
+        }
+    )
+
+
 def _replace_options(
     options: dict[str, Any],
     user_input: dict[str, Any],
@@ -559,6 +770,25 @@ def _required_sensor_errors(hass: Any, data: dict[str, Any]) -> list[str]:
         unit = str((state.attributes or {}).get("unit_of_measurement") or "").lower()
         if unit not in compatible_units[key]:
             errors.append(key)
+            continue
+        assignment_error = entity_assignment_error(state, key, required=True)
+        if assignment_error:
+            errors.append(key)
+    return errors
+
+
+def _sensor_field_errors(
+    hass: Any, data: dict[str, Any], keys: tuple[str, ...]
+) -> dict[str, str]:
+    errors: dict[str, str] = {}
+    for key in keys:
+        entity_id = data.get(key)
+        if not entity_id:
+            continue
+        state = hass.states.get(entity_id)
+        error = entity_assignment_error(state, key)
+        if error:
+            errors[key] = error
     return errors
 
 
@@ -926,7 +1156,7 @@ def _capability(data: dict[str, Any]) -> str:
 
 @config_entries.HANDLERS.register(DOMAIN)
 class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    VERSION = 3
+    VERSION = CONFIG_ENTRY_VERSION
 
     def __init__(self) -> None:
         self._data: dict[str, Any] = {}
@@ -947,8 +1177,12 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         entry = self._get_reconfigure_entry()
-        current = {**entry.data, **entry.options}
+        current = {**entry.data, **entry.options, **getattr(self, "_data", {})}
         sensor_keys = REQUIRED_SENSORS + STANDARD_SENSORS + ADVANCED_SENSORS
+        if user_input is None and hydraulics_setup_incomplete(current):
+            self._data = dict(current)
+            self._reconfigure_after_hydraulics = True
+            return await self.async_step_hydraulics()
         if user_input is not None:
             try:
                 user_input = _validated_heat_pump_input(user_input)
@@ -973,6 +1207,12 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 updated_options,
                 user_input,
                 HEAT_PUMP_OPTION_KEYS,
+                clear_missing=True,
+            )
+            _replace_options(
+                updated_options,
+                {**getattr(self, "_data", {}), **user_input},
+                HYDRAULICS_OPTION_KEYS,
                 clear_missing=True,
             )
             _mask_disabled_heating_element(updated_options, user_input)
@@ -1121,10 +1361,35 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except vol.Invalid:
                 errors["base"] = "invalid_heat_pump_values"
             else:
-                return await self.async_step_required_sensors()
+                return await self.async_step_hydraulics()
         return self.async_show_form(
             step_id="heat_pump",
             data_schema=_heat_pump_schema({**self._data, **(user_input or {})}),
+            errors=errors,
+        )
+
+    async def async_step_hydraulics(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            self._data.update(user_input)
+            self._data[CONF_HYDRAULICS_ANSWERED] = True
+            if user_input.get(CONF_DHW_TOPOLOGY) == DHW_TOPOLOGY_NONE:
+                self._data[CONF_HAS_DHW] = False
+            elif user_input.get(CONF_DHW_TOPOLOGY):
+                self._data[CONF_HAS_DHW] = True
+            if getattr(self, "_reconfigure_after_hydraulics", False):
+                self._reconfigure_after_hydraulics = False
+                current = dict(self._data)
+                return self.async_show_form(
+                    step_id="reconfigure",
+                    data_schema=self._reconfigure_schema(current),
+                )
+            return await self.async_step_required_sensors()
+        return self.async_show_form(
+            step_id="hydraulics",
+            data_schema=_hydraulics_schema({**self._data, **(user_input or {})}),
             errors=errors,
         )
 
@@ -1132,6 +1397,15 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         if user_input is not None:
+            field_errors = _sensor_field_errors(self.hass, user_input, REQUIRED_SENSORS)
+            if field_errors:
+                return self.async_show_form(
+                    step_id="required_sensors",
+                    data_schema=_entity_schema(
+                        REQUIRED_SENSORS, required=True, defaults={**self._data, **user_input}
+                    ),
+                    errors=field_errors,
+                )
             self._data.update(user_input)
             return await self.async_step_standard_sensors()
         return self.async_show_form(
@@ -1365,6 +1639,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 "features",
                 "sensor_sources",
                 "heat_pump",
+                "hydraulics",
                 "sensors",
                 "wallbox",
                 "weather_intelligence",
@@ -1391,6 +1666,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 if merged.get(CONF_HEAT_PUMP_ENABLED):
                     if not previous.get(CONF_HEAT_PUMP_ENABLED):
                         self._pending_feature_steps.append("heat_pump")
+                        self._pending_feature_steps.append("hydraulics")
                     if not previous.get(
                         CONF_HEAT_PUMP_ENABLED
                     ) or _required_sensor_errors(self.hass, merged):
@@ -1510,6 +1786,29 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_hydraulics(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None:
+            _replace_options(
+                self._options,
+                user_input,
+                HYDRAULICS_OPTION_KEYS,
+                clear_missing=True,
+            )
+            self._options[CONF_HYDRAULICS_ANSWERED] = True
+            if user_input.get(CONF_DHW_TOPOLOGY) == DHW_TOPOLOGY_NONE:
+                self._options[CONF_HAS_DHW] = False
+            elif user_input.get(CONF_DHW_TOPOLOGY):
+                self._options[CONF_HAS_DHW] = True
+            return await self._async_finish_feature_sequence()
+        return self.async_show_form(
+            step_id="hydraulics",
+            data_schema=_hydraulics_schema(
+                {**self.config_entry.data, **self._options, **(user_input or {})}
+            ),
         )
 
     async def async_step_sensors(

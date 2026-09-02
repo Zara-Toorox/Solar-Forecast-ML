@@ -89,7 +89,7 @@ const _WeatherPage = {
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F327}</div>
-                        <div class="weather-stat-value">{{ fmt(current.precipitation_mm, 1) }}<span class="weather-stat-unit">mm</span></div>
+                        <div class="weather-stat-value">{{ fmt(current.precipitation_mm, 1) }}<span class="weather-stat-unit">{{ currentPrecipitationUnit }}</span></div>
                         <div class="weather-stat-label">{{ $t('weather.precipitation') }}</div>
                     </div>
                 </div>
@@ -412,6 +412,7 @@ const _WeatherPage = {
             temperature: null, feels_like: null, humidity: null,
             wind_speed: null, pressure: null, pressure_trend: null,
             visibility_km: null, cloud_cover: null, precipitation_mm: null,
+            precipitation_unit: null, precipitation_semantics: null,
             condition: null, dewpoint: null, solar_radiation_wm2: null,
             solar_potential: null, timestamp: null,
         });
@@ -464,6 +465,11 @@ const _WeatherPage = {
         const rainHistoryIsRate = computed(() => (
             history.data.some((d) => d?.precipitation_semantics === 'rate')
             && !history.data.some((d) => d?.precipitation_semantics === 'amount')
+        ));
+        const currentPrecipitationUnit = computed(() => (
+            current.precipitation_unit === 'mm/h' || current.precipitation_semantics === 'rate'
+                ? 'mm/h'
+                : 'mm'
         ));
         const rainHistoryUnit = computed(() => (rainHistoryIsRate.value ? 'mm/h' : 'mm'));
         const rainHistoryValue = computed(() => (
@@ -878,6 +884,7 @@ const _WeatherPage = {
             dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis,
             fmt, formatTime,
             historyAvailabilityText, historyPartialDayText, rainHistoryValue, rainHistoryUnit,
+            currentPrecipitationUnit,
             setHistoryTab,
         };
     },

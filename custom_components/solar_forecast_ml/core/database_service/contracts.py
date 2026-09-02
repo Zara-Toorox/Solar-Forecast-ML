@@ -205,7 +205,7 @@ class DomainManifest:
                     "Duplicate operation declaration", domain=self.domain_id
                 )
             operation_ids.add(operation.operation_id)
-            if not 1 <= operation.timeout_ms <= 2_000:
+            if not 1 <= operation.timeout_ms <= 15_000:
                 raise ManifestInvalid(
                     "Operation timeout outside service limits", domain=self.domain_id
                 )

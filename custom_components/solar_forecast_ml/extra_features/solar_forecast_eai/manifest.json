@@ -12,5 +12,5 @@
     "aiosqlite>=0.21.0",
     "numpy>=2.3.2"
   ],
-  "version": "44.2.2"
+  "version": "46.0.0"
 }

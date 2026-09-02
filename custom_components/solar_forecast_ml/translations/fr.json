@@ -128,6 +128,7 @@
           "zero_export_mode": "Injection zero active",
           "has_battery": "Batterie de stockage presente",
           "solar_to_battery_sensor": "Capteur solaire vers batterie",
+          "battery_soc_sensor": "Capteur SOC batterie",
           "max_grid_export_w": "Max allowed grid export"
         },
         "data_description": {
@@ -147,8 +148,9 @@
           "adaptive_forecast_mode": "En cas d'ecarts importants (>35%) entre la prevision du matin et la production reelle, SFML ajuste automatiquement la prevision de l'apres-midi a 12h30. SFML decide de maniere autonome si une correction est judicieuse - basee sur des donnees meteo fraiches et des criteres objectifs. Defaut : DESACTIVE",
           "winter_mode": "Applique une penalite nuageuse supplementaire a faible hauteur solaire de novembre a fevrier lorsque le rayonnement mesure ou fourni est indisponible et que SFML utilise le repli ciel clair. Defaut : ACTIVE",
           "zero_export_mode": "⚡ DETECTION DE BRIDAGE MPPT\n\nActivez cette option si vous avez une regulation d'injection zero (ex. Shelly).\n\n📌 POURQUOI EST-CE IMPORTANT ?\nAvec l'injection zero, l'onduleur bride la production au besoin du foyer. Le ML apprendrait alors : 'soleil = 200W' au lieu de 'soleil = 1000W (mais bride)'.\n\n✅ Avec cette option activee, les heures bridees sont exclues de l'entrainement ML.\n\n⚠️ Fonctionne uniquement par beau temps (soleil, peu de nuages) ET quand la production est nettement inferieure a la prevision physique.",
-          "has_battery": "⚡ DETECTION DE BRIDAGE MPPT (Extension)\n\nActivez cette option si vous avez une batterie de stockage.\n\n📌 POURQUOI EST-CE IMPORTANT ?\nQuand la batterie est pleine ET que l'injection zero est active, le MPPT bride la production. SFML le detecte quand la valeur 'solaire vers batterie' tombe sous 50W.\n\n⚠️ En cas d'activation, le 'Capteur solaire vers batterie' DOIT etre configure !",
-          "solar_to_battery_sensor": "⚡ DETECTION DE BRIDAGE MPPT (Capteur)\n\nCapteur de puissance mesurant le flux d'energie du PV vers la batterie (en Watts).\n\n📌 EXEMPLES :\n• sensor.pv_to_battery_power\n• sensor.battery_charging_power\n• sensor.solar_battery_flow\n\n🔍 COMMENT CA FONCTIONNE ?\nQuand cette valeur tombe sous 50W par beau temps, la batterie n'absorbe plus d'energie → batterie pleine → MPPT bride → heure exclue de l'entrainement.\n\n⚠️ Pertinent uniquement si 'Batterie de stockage presente' est active !",
+          "has_battery": "⚡ DETECTION DE BRIDAGE MPPT (Extension)\n\nActivez cette option si vous avez une batterie de stockage.\n\nLe bridage batterie n'est detecte que si le SOC est >= 95%.\n\n⚠️ En cas d'activation, le capteur solaire vers batterie ET le capteur SOC DOIVENT etre configures !",
+          "solar_to_battery_sensor": "Capteur de puissance PV vers batterie (W). Obligatoire avec le capteur SOC si le stockage est active.",
+          "battery_soc_sensor": "Etat de charge de la batterie en pourcentage (0-100). Obligatoire si le stockage est active. Sans ce capteur, ou sous 95% SOC, aucun bridage batterie.",
           "max_grid_export_w": "Optional export or AC output limit in Watt. Default: 800 W. With zero export mode active, SFML internally uses 0 W. Helps detect full-battery curtailment when house load is covered and production is capped."
         }
       }
@@ -157,6 +159,7 @@
       "invalid_interval": "L'intervalle doit etre entre 300 et 86400 secondes",
       "invalid_input": "Format de saisie invalide",
       "battery_sensor_required": "Selectionnez un capteur de puissance Solaire-vers-Batterie lorsque le stockage sur batterie est active",
+      "battery_soc_sensor_required": "Selectionnez un capteur SOC batterie lorsque le stockage sur batterie est active",
       "energy_sensor_not_found": "Capteur d'energie introuvable",
       "energy_sensor_not_numeric": "Le capteur d'energie n'est pas numerique",
       "energy_sensor_not_kwh": "Le capteur du groupe doit etre un capteur kWh",

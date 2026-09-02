@@ -822,9 +822,9 @@ async def _sync_current_panel_group_prediction_rows(db, groups: list[dict]) -> i
                 topology = topology_by_group.get(group_name, {})
                 await db.execute(
                     """INSERT INTO prediction_panel_groups
-                       (prediction_id, group_name, prediction_kwh,
+                       (prediction_id, group_name, prediction_kwh, raw_physics_kwh,
                         config_epoch_id, group_uid, group_lineage_uid, power_wp_at_prediction)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)
+                       VALUES (?, ?, ?, NULL, ?, ?, ?, ?)
                        ON CONFLICT(prediction_id, group_name) DO UPDATE SET
                            prediction_kwh = excluded.prediction_kwh,
                            config_epoch_id = excluded.config_epoch_id,

@@ -139,6 +139,7 @@ CREATE TABLE IF NOT EXISTS ai_weather_mlp_meta (
     training_samples INTEGER DEFAULT 0,
     accuracy REAL DEFAULT 0.0,
     rmse REAL DEFAULT 0.0,
+    training_contract_version TEXT,
     last_trained TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -1140,7 +1141,8 @@ CREATE TABLE IF NOT EXISTS physics_calibration_groups (
     global_factor REAL DEFAULT 1.0,
     sample_count INTEGER DEFAULT 0,
     confidence REAL DEFAULT 0.0,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    learning_contract_version TEXT NOT NULL DEFAULT 'physics_calibration_legacy_mixed_v0'
 );
 
 CREATE TABLE IF NOT EXISTS physics_calibration_hourly (
@@ -1185,6 +1187,109 @@ CREATE TABLE IF NOT EXISTS physics_calibration_history (
     UNIQUE(date, group_name, bucket_name, hour)
 );
 
+CREATE TABLE IF NOT EXISTS physics_calibration_samples (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date DATE NOT NULL,
+    group_name TEXT NOT NULL,
+    hour INTEGER NOT NULL CHECK(hour >= 0 AND hour <= 23),
+    physics_ref_kind TEXT NOT NULL CHECK(
+        physics_ref_kind IN ('forecast_physics', 'ghi_scaled_clearsky')
+    ),
+    physics_ref_kwh REAL NOT NULL,
+    actual_kwh REAL NOT NULL,
+    unclamped_ratio REAL NOT NULL,
+    clamped_ratio REAL NOT NULL,
+    ratio_clamp_hit INTEGER NOT NULL DEFAULT 0 CHECK(ratio_clamp_hit IN (0, 1)),
+    bucket_name TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, group_name, hour)
+);
+
+CREATE INDEX IF NOT EXISTS idx_physics_calibration_samples_date
+    ON physics_calibration_samples(date);
+
+CREATE TABLE IF NOT EXISTS physics_calibration_clamp_hits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date DATE NOT NULL,
+    group_name TEXT NOT NULL,
+    hour INTEGER CHECK(hour IS NULL OR (hour >= 0 AND hour <= 23)),
+    bucket_name TEXT,
+    clamp_kind TEXT NOT NULL CHECK(
+        clamp_kind IN (
+            'ratio',
+            'global_factor',
+            'hourly_factor',
+            'bucket_global',
+            'bucket_hourly'
+        )
+    ),
+    unclamped_value REAL NOT NULL,
+    clamped_value REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_physics_calibration_clamp_hits_date
+    ON physics_calibration_clamp_hits(date);
+
+CREATE TABLE IF NOT EXISTS physics_calibration_hourly_shape (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date DATE NOT NULL,
+    group_name TEXT NOT NULL,
+    min_hour INTEGER NOT NULL,
+    max_hour INTEGER NOT NULL,
+    hour_count INTEGER NOT NULL,
+    min_factor REAL NOT NULL,
+    max_factor REAL NOT NULL,
+    spread REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, group_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_physics_calibration_hourly_shape_date
+    ON physics_calibration_hourly_shape(date);
+
+CREATE TABLE IF NOT EXISTS ghi_sensor_geometry_bins (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    computed_on DATE NOT NULL,
+    elev_bin INTEGER NOT NULL,
+    az_bin INTEGER NOT NULL,
+    sample_count INTEGER NOT NULL,
+    k_avg REAL,
+    k_p90 REAL,
+    k_max REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(computed_on, elev_bin, az_bin)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ghi_sensor_geometry_bins_computed
+    ON ghi_sensor_geometry_bins(computed_on);
+
+CREATE TABLE IF NOT EXISTS ghi_sensor_geometry_sectors (
+    computed_on DATE NOT NULL,
+    elev_bin INTEGER NOT NULL,
+    sector TEXT NOT NULL,
+    sample_count INTEGER NOT NULL,
+    k_avg REAL,
+    k_p90 REAL,
+    k_max REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (computed_on, elev_bin, sector)
+);
+
+CREATE INDEX IF NOT EXISTS idx_ghi_sensor_geometry_sectors_computed
+    ON ghi_sensor_geometry_sectors(computed_on);
+
+CREATE TABLE IF NOT EXISTS ghi_sensor_geometry_daily (
+    computed_on DATE PRIMARY KEY,
+    lookback_days INTEGER NOT NULL,
+    sample_hours INTEGER NOT NULL,
+    bin_count INTEGER NOT NULL,
+    overlapping_elev_bins INTEGER NOT NULL,
+    max_east_west_k_p90_ratio REAL,
+    diagnosis TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS weather_forecast (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     forecast_date DATE NOT NULL,
@@ -1202,19 +1307,107 @@ CREATE TABLE IF NOT EXISTS weather_forecast (
     direct_radiation REAL,
     diffuse_radiation REAL,
     visibility_m REAL,
+    visibility_source TEXT,
     fog_detected BOOLEAN,
     fog_type TEXT,
     weather_code INTEGER,  -- V16.1: Open-Meteo weather code for snow detection @zara
+    correction_snapshot_id TEXT,
     version TEXT DEFAULT '4.3',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(forecast_date, hour)
 );
+
+-- Immutable end-to-end weather provenance. The radiation snapshot stops before
+-- learned calibration; this row records the complete chain through the value
+-- actually consumed by the forecast engine.
+CREATE TABLE IF NOT EXISTS weather_forecast_correction_snapshots (
+    correction_snapshot_id TEXT PRIMARY KEY,
+    contract_version TEXT NOT NULL,
+    radiation_snapshot_id TEXT NOT NULL,
+    corrected_at TIMESTAMP NOT NULL,
+    target_datetime TIMESTAMP NOT NULL,
+    target_date DATE NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour >= 0 AND target_hour <= 23),
+    weather_type TEXT,
+    observation_mode TEXT NOT NULL CHECK(observation_mode IN ('measured_local', 'provider_only')),
+    local_observation_available BOOLEAN NOT NULL,
+    raw_blend_ghi REAL,
+    ensemble_ghi REAL,
+    ensemble_dni REAL,
+    ensemble_dhi REAL,
+    learned_solar_factor REAL,
+    static_solar_factor_applied REAL NOT NULL DEFAULT 1.0,
+    mlp_factor REAL,
+    mlp_confidence REAL NOT NULL DEFAULT 0.0,
+    combined_solar_factor_applied REAL NOT NULL DEFAULT 1.0,
+    coherence_cap_applied BOOLEAN NOT NULL DEFAULT FALSE,
+    coherence_cap_scale REAL NOT NULL DEFAULT 1.0,
+    kalman_applied BOOLEAN NOT NULL DEFAULT FALSE,
+    kalman_bias REAL NOT NULL DEFAULT 0.0,
+    final_used_ghi REAL,
+    final_used_dni REAL,
+    final_used_dhi REAL,
+    final_used_temperature REAL,
+    final_used_humidity REAL,
+    final_used_clouds REAL,
+    final_used_rain REAL,
+    final_used_wind REAL,
+    final_used_pressure REAL,
+    temperature REAL,
+    humidity REAL,
+    clouds REAL,
+    rain REAL,
+    wind REAL,
+    pressure REAL,
+    cloud_cover_low REAL,
+    cloud_cover_mid REAL,
+    cloud_cover_high REAL,
+    visibility_m REAL,
+    sun_elevation REAL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (radiation_snapshot_id) REFERENCES weather_radiation_snapshots(snapshot_id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_weather_forecast_correction_target
+    ON weather_forecast_correction_snapshots(target_date, target_hour, corrected_at);
+
+CREATE TABLE IF NOT EXISTS weather_forecast_usage_snapshots (
+    usage_snapshot_id TEXT PRIMARY KEY,
+    contract_version TEXT NOT NULL,
+    prediction_id TEXT NOT NULL,
+    morning_batch_id TEXT NOT NULL,
+    correction_snapshot_id TEXT NOT NULL,
+    locked_at TIMESTAMP NOT NULL,
+    target_datetime TIMESTAMP NOT NULL,
+    target_date DATE NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour >= 0 AND target_hour <= 23),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(morning_batch_id, prediction_id),
+    FOREIGN KEY (correction_snapshot_id) REFERENCES weather_forecast_correction_snapshots(correction_snapshot_id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_weather_forecast_usage_target
+    ON weather_forecast_usage_snapshots(target_date, target_hour, locked_at);
+
+CREATE TRIGGER IF NOT EXISTS trg_weather_forecast_correction_no_update
+BEFORE UPDATE ON weather_forecast_correction_snapshots
+BEGIN SELECT RAISE(ABORT, 'weather forecast correction snapshots are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS trg_weather_forecast_correction_no_delete
+BEFORE DELETE ON weather_forecast_correction_snapshots
+BEGIN SELECT RAISE(ABORT, 'weather forecast correction snapshots are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS trg_weather_forecast_usage_no_update
+BEFORE UPDATE ON weather_forecast_usage_snapshots
+BEGIN SELECT RAISE(ABORT, 'weather forecast usage snapshots are append-only'); END;
+CREATE TRIGGER IF NOT EXISTS trg_weather_forecast_usage_no_delete
+BEFORE DELETE ON weather_forecast_usage_snapshots
+BEGIN SELECT RAISE(ABORT, 'weather forecast usage snapshots are append-only'); END;
 
 CREATE TABLE IF NOT EXISTS weather_expert_weights (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cloud_type TEXT NOT NULL,
     expert_name TEXT NOT NULL CHECK(expert_name IN ('open_meteo', 'wttr_in', 'ecmwf_layers', 'bright_sky', 'pirate_weather')),
     weight REAL NOT NULL,
+    learning_contract_version TEXT NOT NULL DEFAULT 'weather_expert_legacy_mutable_cache_v0',
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(cloud_type, expert_name)
 );
@@ -1235,6 +1428,7 @@ CREATE TABLE IF NOT EXISTS weather_expert_learning (
     mae REAL NOT NULL,
     weight_after REAL NOT NULL,
     comparison_hours INTEGER,
+    learning_contract_version TEXT NOT NULL DEFAULT 'weather_expert_legacy_mutable_cache_v0',
     learned_at TIMESTAMP NOT NULL,
     UNIQUE(date, cloud_type, expert_name)
 );
@@ -1322,7 +1516,9 @@ CREATE TABLE IF NOT EXISTS weather_cache_open_meteo (
     ghi REAL,
     global_tilted_irradiance REAL,
     visibility_m REAL,
+    visibility_source TEXT,
     source TEXT DEFAULT 'open-meteo',
+    ghi_source_identity TEXT,
     fetched_at TIMESTAMP,
     weather_code INTEGER,
     snowfall REAL,              -- Schneefallmenge cm/h von Open-Meteo
@@ -1337,6 +1533,85 @@ CREATE TABLE IF NOT EXISTS weather_cache_open_meteo (
 );
 
 CREATE INDEX IF NOT EXISTS idx_weather_cache_open_meteo_date ON weather_cache_open_meteo(forecast_date);
+
+CREATE TABLE IF NOT EXISTS weather_radiation_snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    contract_version TEXT,
+    snapshot_kind TEXT NOT NULL CHECK(snapshot_kind IN ('provider_fetch', 'ensemble_compose')),
+    retrieved_at TIMESTAMP NOT NULL,
+    provider_run_at TIMESTAMP,
+    target_datetime TIMESTAMP NOT NULL,
+    target_date DATE NOT NULL,
+    target_hour INTEGER NOT NULL CHECK(target_hour >= 0 AND target_hour <= 23),
+    lead_hours INTEGER,
+    raw_blend_ghi REAL,
+    residual_scale REAL,
+    kalman_applied BOOLEAN,
+    kalman_bias REAL,
+    final_ghi REAL,
+    final_dni REAL,
+    final_dhi REAL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_weather_radiation_snapshots_target
+    ON weather_radiation_snapshots(target_date, target_hour, retrieved_at);
+CREATE INDEX IF NOT EXISTS idx_weather_radiation_snapshots_kind
+    ON weather_radiation_snapshots(snapshot_kind, retrieved_at);
+
+CREATE TABLE IF NOT EXISTS weather_radiation_snapshot_sources (
+    snapshot_id TEXT NOT NULL,
+    source_name TEXT NOT NULL CHECK(source_name IN ('ifs', 'icon_d2', 'icon_eu', 'bright_sky')),
+    source_identity TEXT,
+    available BOOLEAN NOT NULL,
+    ghi REAL,
+    dni REAL,
+    dhi REAL,
+    weight_used REAL,
+    PRIMARY KEY (snapshot_id, source_name),
+    FOREIGN KEY (snapshot_id) REFERENCES weather_radiation_snapshots(snapshot_id) ON DELETE RESTRICT
+);
+
+CREATE INDEX IF NOT EXISTS idx_weather_radiation_snapshot_sources_source
+    ON weather_radiation_snapshot_sources(source_name, available);
+
+CREATE TRIGGER IF NOT EXISTS trg_weather_radiation_snapshots_no_update
+BEFORE UPDATE ON weather_radiation_snapshots
+BEGIN
+    SELECT RAISE(ABORT, 'weather radiation snapshots are append-only');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_weather_radiation_snapshots_no_duplicate_insert
+BEFORE INSERT ON weather_radiation_snapshots
+WHEN EXISTS (
+    SELECT 1 FROM weather_radiation_snapshots WHERE snapshot_id = NEW.snapshot_id
+)
+BEGIN
+    SELECT RAISE(ABORT, 'weather radiation snapshots are append-only');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_weather_radiation_snapshots_no_delete
+BEFORE DELETE ON weather_radiation_snapshots
+BEGIN
+    SELECT RAISE(ABORT, 'weather radiation snapshots are append-only');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_weather_radiation_snapshot_sources_no_update
+BEFORE UPDATE ON weather_radiation_snapshot_sources
+BEGIN
+    SELECT RAISE(ABORT, 'weather radiation snapshot sources are append-only');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_weather_radiation_snapshot_sources_no_duplicate_insert
+BEFORE INSERT ON weather_radiation_snapshot_sources
+WHEN EXISTS (
+    SELECT 1 FROM weather_radiation_snapshot_sources
+    WHERE snapshot_id = NEW.snapshot_id AND source_name = NEW.source_name
+)
+BEGIN
+    SELECT RAISE(ABORT, 'weather radiation snapshot sources are append-only');
+END;
+CREATE TRIGGER IF NOT EXISTS trg_weather_radiation_snapshot_sources_no_delete
+BEFORE DELETE ON weather_radiation_snapshot_sources
+BEGIN
+    SELECT RAISE(ABORT, 'weather radiation snapshot sources are append-only');
+END;
 
 CREATE TABLE IF NOT EXISTS hourly_predictions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1654,6 +1929,7 @@ CREATE TABLE IF NOT EXISTS prediction_panel_groups (
     exclusion_reason_group TEXT,                         -- V17.0.0: Reason for per-group exclusion @zara
     snow_covered_group BOOLEAN DEFAULT FALSE,            -- V17.0.0: Per-group snow status @zara
     shadow_type_group TEXT,                              -- V17.0.0: Per-group shadow type @zara
+    raw_physics_kwh REAL,
     FOREIGN KEY (prediction_id) REFERENCES hourly_predictions(prediction_id) ON DELETE CASCADE,
     UNIQUE(prediction_id, group_name)
 );
@@ -1794,6 +2070,7 @@ CREATE TABLE IF NOT EXISTS ops_prediction_panel_groups (
     ridge_kwh REAL,
     tfs_kwh REAL,
     actual_kwh REAL,
+    raw_physics_kwh REAL,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
     superseded_at TIMESTAMP,
     FOREIGN KEY (forecast_row_id) REFERENCES ops_hourly_forecasts(forecast_row_id) ON DELETE CASCADE,
@@ -1940,6 +2217,25 @@ CREATE TABLE IF NOT EXISTS method_performance_learning (
     last_updated TIMESTAMP,
     season TEXT DEFAULT NULL,                            -- V17.0.0: Seasonal bucket separation @zara
     UNIQUE(cloud_bucket, hour_bucket, season)
+);
+
+-- Per-group method MAE sidecar used by panel-group donor/rename migration.
+CREATE TABLE IF NOT EXISTS group_method_performance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_name TEXT NOT NULL,
+    cloud_bucket TEXT NOT NULL CHECK(cloud_bucket IN ('clear', 'partly_cloudy', 'overcast')),
+    hour_bucket TEXT NOT NULL CHECK(hour_bucket IN ('morning', 'midday', 'afternoon')),
+    season TEXT DEFAULT NULL,
+    physics_mae REAL DEFAULT 0.0,
+    ai_mae REAL DEFAULT 0.0,
+    lstm_mae REAL DEFAULT 0.0,
+    ridge_mae REAL DEFAULT 0.0,
+    blend_mae REAL DEFAULT 0.0,
+    best_method TEXT DEFAULT 'physics',
+    ai_advantage_factor REAL DEFAULT 1.0,
+    sample_count INTEGER DEFAULT 0,
+    last_updated TIMESTAMP,
+    UNIQUE(group_name, cloud_bucket, hour_bucket, season)
 );
 
 CREATE TABLE IF NOT EXISTS ensemble_group_weights (
@@ -2270,6 +2566,11 @@ CREATE TABLE IF NOT EXISTS weather_precision_daily (
     clouds_forecast REAL,
     clouds_actual REAL,
     clouds_factor REAL,
+    usage_snapshot_id TEXT,
+    forecast_contract_version TEXT,
+    solar_sample_eligible BOOLEAN NOT NULL DEFAULT FALSE,
+    solar_exclusion_reason TEXT,
+    FOREIGN KEY (usage_snapshot_id) REFERENCES weather_forecast_usage_snapshots(usage_snapshot_id) ON DELETE RESTRICT,
     UNIQUE(date, hour)
 );
 
@@ -2285,7 +2586,14 @@ CREATE TABLE IF NOT EXISTS weather_precision_daily_summary (
     avg_clouds_factor REAL,
     avg_humidity_factor REAL,
     avg_wind_factor REAL,
-    avg_rain_diff REAL
+    avg_rain_diff REAL,
+    solar_sample_hours INTEGER NOT NULL DEFAULT 0,
+    ghi_mae_wm2 REAL,
+    ghi_rmse_wm2 REAL,
+    ghi_bias_wm2 REAL,
+    ghi_nmae_percent REAL,
+    weather_metric_basis TEXT,
+    forecast_contract_version TEXT
 );
 
 CREATE TABLE IF NOT EXISTS weather_precision_factors (
@@ -2589,6 +2897,9 @@ CREATE TABLE IF NOT EXISTS hourly_shadow_detection (
     -- Weights
     weight_theory_ratio REAL,
     weight_sensor_fusion REAL,
+    evaluable BOOLEAN,
+    learning_eligible BOOLEAN,
+    observation_class TEXT,
 
     FOREIGN KEY (prediction_id) REFERENCES hourly_predictions(prediction_id) ON DELETE CASCADE
 );
@@ -2831,6 +3142,10 @@ CREATE TABLE IF NOT EXISTS shadow_learning_history (
     theoretical_max_kwh REAL,
     actual_kwh REAL,
     efficiency_ratio REAL,
+    fusion_mode TEXT,
+    observation_class TEXT,
+    evaluable BOOLEAN,
+    learning_eligible BOOLEAN,
     -- Metadata
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(group_name, date, hour)

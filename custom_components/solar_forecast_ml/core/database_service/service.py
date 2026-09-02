@@ -54,6 +54,70 @@ SQLiteAuthorizer = Callable[[int, str | None, str | None, str | None, str | None
 
 _LOGGER = logging.getLogger(__name__)
 
+_IDEMPOTENCY_CACHE_LIMIT = 512
+
+_ALLOWED_SQL_FUNCTIONS = frozenset(
+    {
+        "abs",
+        "avg",
+        "coalesce",
+        "count",
+        "date",
+        "datetime",
+        "group_concat",
+        "ifnull",
+        "instr",
+        "julianday",
+        "length",
+        "lower",
+        "ltrim",
+        "max",
+        "min",
+        "nullif",
+        "printf",
+        "replace",
+        "round",
+        "rtrim",
+        "strftime",
+        "substr",
+        "sum",
+        "time",
+        "total",
+        "trim",
+        "typeof",
+        "upper",
+    }
+)
+_ALLOWED_SQL_PRAGMAS = frozenset(
+    {
+        "busy_timeout",
+        "foreign_keys",
+        "quick_check",
+        "table_info",
+        "index_list",
+        "index_info",
+        "database_list",
+    }
+)
+
+
+def _authorize_shared_action(
+    action: int,
+    table: str | None,
+    detail: str | None = None,
+) -> int | None:
+    if action == sqlite3.SQLITE_SELECT:
+        return sqlite3.SQLITE_OK
+    if action == sqlite3.SQLITE_FUNCTION:
+        if detail is not None and detail.lower() in _ALLOWED_SQL_FUNCTIONS:
+            return sqlite3.SQLITE_OK
+        return sqlite3.SQLITE_DENY
+    if action == sqlite3.SQLITE_PRAGMA:
+        if table is not None and table.lower() in _ALLOWED_SQL_PRAGMAS:
+            return sqlite3.SQLITE_OK
+        return sqlite3.SQLITE_DENY
+    return None
+
 
 async def _set_connection_authorizer(
     connection: aiosqlite.Connection,
@@ -82,10 +146,24 @@ async def _set_connection_authorizer(
     )
 
 
+async def _detach_connection_authorizer(connection: aiosqlite.Connection) -> None:
+    detach = asyncio.create_task(_set_connection_authorizer(connection, None))
+    cancelled = False
+    while not detach.done():
+        try:
+            await asyncio.shield(detach)
+        except asyncio.CancelledError:
+            cancelled = True
+    await detach
+    if cancelled:
+        raise asyncio.CancelledError
+
+
 @asynccontextmanager
 async def _connection_authorizer(
     connection: aiosqlite.Connection,
     authorizer: SQLiteAuthorizer,
+    on_detach_failure: Callable[[BaseException], None] | None = None,
 ) -> AsyncIterator[None]:
     """Install and reliably remove an authorizer around one operation."""
 
@@ -98,8 +176,13 @@ async def _connection_authorizer(
         raise
     finally:
         try:
-            await _set_connection_authorizer(connection, None)
+            await _detach_connection_authorizer(connection)
+        except asyncio.CancelledError:
+            if operation_error is None:
+                raise
         except BaseException as cleanup_error:
+            if on_detach_failure is not None:
+                on_detach_failure(cleanup_error)
             if operation_error is None:
                 raise
             operation_error.add_note(
@@ -147,6 +230,7 @@ class CentralDatabaseService:
         self._idempotency_inflight: dict[
             tuple[str, str, str], tuple[str, asyncio.Task[OperationResult]]
         ] = {}
+        self._authorizer_recovery_task: asyncio.Task[None] | None = None
         self.database_id = hashlib.sha256(str(self._path).encode()).hexdigest()[:16]
 
     @property
@@ -384,10 +468,9 @@ class CentralDatabaseService:
         )
 
         async def runner(connection: aiosqlite.Connection) -> OperationResult:
-            runtime_deadline = min(
-                effective_deadline,
-                monotonic() + (spec.timeout_ms / 1000),
-            )
+            runtime_deadline = monotonic() + (spec.timeout_ms / 1000)
+            if deadline is not None:
+                runtime_deadline = min(runtime_deadline, deadline)
             return await self._execute_transaction(
                 connection,
                 request_id,
@@ -417,6 +500,8 @@ class CentralDatabaseService:
                     self._idempotency_inflight.pop(idempotency_id, None)
                     raise
                 self._idempotency[idempotency_id] = (payload_hash, result)
+                while len(self._idempotency) > _IDEMPOTENCY_CACHE_LIMIT:
+                    self._idempotency.pop(next(iter(self._idempotency)))
                 self._idempotency_inflight.pop(idempotency_id, None)
                 return result
 
@@ -451,10 +536,9 @@ class CentralDatabaseService:
         async def runner(
             connection: aiosqlite.Connection,
         ) -> tuple[tuple[Value, ...], ...]:
-            runtime_deadline = min(
-                effective_deadline,
-                monotonic() + (spec.timeout_ms / 1000),
-            )
+            runtime_deadline = monotonic() + (spec.timeout_ms / 1000)
+            if deadline is not None:
+                runtime_deadline = min(runtime_deadline, deadline)
             return await self._execute_read(
                 connection,
                 lease.domain_id,
@@ -617,13 +701,16 @@ class CentralDatabaseService:
         def authorize(
             action: int,
             table: str | None,
-            _column: str | None,
+            detail: str | None,
             database: str | None,
             _trigger: str | None,
         ) -> int:
             if action == sqlite3.SQLITE_TRANSACTION:
                 return sqlite3.SQLITE_OK
-            if database != "main":
+            shared = _authorize_shared_action(action, table, detail)
+            if shared is not None:
+                return shared
+            if database not in (None, "main"):
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_READ:
                 return (
@@ -641,7 +728,9 @@ class CentralDatabaseService:
                 )
             return sqlite3.SQLITE_DENY
 
-        async with _connection_authorizer(connection, authorize):
+        async with _connection_authorizer(
+            connection, authorize, self._mark_authorizer_detach_failure
+        ):
             try:
                 await connection.execute("BEGIN IMMEDIATE")
                 for statement in operation.statements:
@@ -703,13 +792,14 @@ class CentralDatabaseService:
         def authorize(
             action: int,
             table: str | None,
-            _column: str | None,
+            detail: str | None,
             database: str | None,
             _trigger: str | None,
         ) -> int:
-            if action == sqlite3.SQLITE_SELECT:
-                return sqlite3.SQLITE_OK
-            if database != "main":
+            shared = _authorize_shared_action(action, table, detail)
+            if shared is not None:
+                return shared
+            if database not in (None, "main"):
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_READ:
                 return (
@@ -717,7 +807,9 @@ class CentralDatabaseService:
                 )
             return sqlite3.SQLITE_DENY
 
-        async with _connection_authorizer(connection, authorize):
+        async with _connection_authorizer(
+            connection, authorize, self._mark_authorizer_detach_failure
+        ):
             try:
                 rows: list[tuple[Value, ...]] = []
                 for statement in operation.statements:
@@ -754,13 +846,16 @@ class CentralDatabaseService:
         def authorize(
             action: int,
             table: str | None,
-            _column: str | None,
+            detail: str | None,
             database: str | None,
             _trigger: str | None,
         ) -> int:
             if action == sqlite3.SQLITE_TRANSACTION:
                 return sqlite3.SQLITE_OK
-            if database != "main":
+            shared = _authorize_shared_action(action, table, detail)
+            if shared is not None:
+                return shared
+            if database not in (None, "main"):
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_READ:
                 return (
@@ -778,7 +873,9 @@ class CentralDatabaseService:
                 )
             return sqlite3.SQLITE_DENY
 
-        async with _connection_authorizer(connection, authorize):
+        async with _connection_authorizer(
+            connection, authorize, self._mark_authorizer_detach_failure
+        ):
             for statement in operation.statements:
                 parameters = tuple(payload[name] for name in statement.parameters)
                 cursor = await connection.execute(statement.sql, parameters)
@@ -805,13 +902,14 @@ class CentralDatabaseService:
         def authorize(
             action: int,
             table: str | None,
-            _column: str | None,
+            detail: str | None,
             database: str | None,
             _trigger: str | None,
         ) -> int:
-            if action == sqlite3.SQLITE_SELECT:
-                return sqlite3.SQLITE_OK
-            if database != "main":
+            shared = _authorize_shared_action(action, table, detail)
+            if shared is not None:
+                return shared
+            if database not in (None, "main"):
                 return sqlite3.SQLITE_DENY
             if action == sqlite3.SQLITE_READ:
                 return (
@@ -819,7 +917,9 @@ class CentralDatabaseService:
                 )
             return sqlite3.SQLITE_DENY
 
-        async with _connection_authorizer(connection, authorize):
+        async with _connection_authorizer(
+            connection, authorize, self._mark_authorizer_detach_failure
+        ):
             rows: list[tuple[Value, ...]] = []
             for statement in operation.statements:
                 parameters = tuple(payload[name] for name in statement.parameters)
@@ -854,6 +954,50 @@ class CentralDatabaseService:
             runner=serialized_runner,
         )
 
+    def _mark_authorizer_detach_failure(self, error: BaseException) -> None:
+        self._last_error_code = "authorizer_not_detached"
+        self._state = ServiceState.DEGRADED_READ_ONLY
+        _LOGGER.error(
+            "Shared database connection kept an active SQLite authorizer (%s: %s)",
+            type(error).__name__,
+            error,
+        )
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        pending = self._authorizer_recovery_task
+        if pending is not None and not pending.done():
+            return
+        self._authorizer_recovery_task = loop.create_task(
+            self._recover_after_authorizer_leak()
+        )
+
+    async def _recover_after_authorizer_leak(self) -> None:
+        """Clear a leaked authorizer without opening a second SQLite writer."""
+
+        try:
+            manager = self._shared_database_manager
+            if manager is not None:
+                await manager.clear_stale_authorizer()
+            elif self._connection is not None:
+                await _detach_connection_authorizer(self._connection)
+            async with self._lifecycle_lock:
+                if (
+                    self._state is ServiceState.DEGRADED_READ_ONLY
+                    and self._last_error_code == "authorizer_not_detached"
+                    and self._queue is not None
+                    and self._connection is not None
+                ):
+                    self._state = ServiceState.READY
+                    _LOGGER.error(
+                        "Shared database writer recovered after an authorizer leak"
+                    )
+        except Exception:
+            _LOGGER.exception(
+                "Could not recover the shared database writer after an authorizer leak"
+            )
+
     def _require_ready(self) -> None:
         if self._state is not ServiceState.READY:
             raise ServiceUnavailable("Central database service is not ready")
@@ -881,7 +1025,7 @@ class CentralDatabaseService:
 
     @staticmethod
     def _queue_wait_limit(operation: OperationSpec) -> float:
-        return {10: 2.0, 20: 5.0, 30: 5.0, 40: 30.0}[int(operation.priority)]
+        return {10: 10.0, 20: 5.0, 30: 5.0, 40: 30.0}[int(operation.priority)]
 
     @staticmethod
     def _validate_payload(

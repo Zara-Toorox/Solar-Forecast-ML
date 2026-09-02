@@ -16,6 +16,7 @@ from .const import (
     DEFAULT_WP_TYPE,
     WP_TYPE_AIR_WATER,
 )
+from .setup_state import is_true
 
 
 def is_allowed_shared_assignment(
@@ -35,7 +36,7 @@ def is_allowed_shared_assignment(
         and keys == {CONF_OUTDOOR_TEMP_ENTITY, CONF_SOURCE_TEMP_ENTITY}
     ):
         return True
-    return bool(
-        config.get(CONF_HAS_DHW)
-        and keys == {CONF_DHW_TEMP_ENTITY, CONF_STORAGE_TEMP_ENTITY}
-    )
+    return is_true(config, CONF_HAS_DHW) and keys == {
+        CONF_DHW_TEMP_ENTITY,
+        CONF_STORAGE_TEMP_ENTITY,
+    }
