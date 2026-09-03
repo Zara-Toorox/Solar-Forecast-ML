@@ -26,7 +26,10 @@
 .ems-section-head { margin-bottom: 14px; }
 .ems-section-head h3, .ems-card h3, .ems-actor h4 { margin: 5px 0 0; letter-spacing: -.025em; }
 .ems-section-head > span { color: var(--text-muted, #7891a3); font-size: 11px; text-align: right; }
-.ems-card > p { color: var(--text-secondary, #9db1c1); line-height: 1.55; }
+.ems-coverage-story, .ems-next-window { margin: 0 0 12px; color: var(--text-secondary, #9db1c1); line-height: 1.5; }
+.ems-next-window strong { color: var(--text-primary, #edf6fc); }
+.ems-next-window small { display: block; margin-top: 4px; }
+.ems-ops-tariff { margin: 0 0 12px; color: var(--text-muted, #7891a3); font-size: 12px; }
 
 .ems-now-card { border-color: rgba(96,197,255,.3); background: linear-gradient(145deg, rgba(96,197,255,.12), rgba(91,216,166,.07)); }
 .ems-now-card h3 { font-size: clamp(24px, 3vw, 32px); }

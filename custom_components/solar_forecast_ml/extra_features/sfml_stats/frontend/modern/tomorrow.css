@@ -63,7 +63,7 @@
 
 .tomorrow-lock {
     position: relative;
-    min-height: min(760px, calc(100vh - 150px));
+    min-height: min(560px, calc(100vh - 160px));
     overflow: hidden;
     isolation: isolate;
     border: 1px solid rgba(105, 220, 255, .24);
@@ -99,7 +99,7 @@
 
 .tomorrow-lock h2 {
     margin: 12px 0 20px;
-    font-size: clamp(3rem, 6vw, 6.6rem);
+    font-size: clamp(2rem, 6vw, 4.4rem);
     font-weight: 620;
     line-height: .92;
     letter-spacing: -.07em;
@@ -118,11 +118,10 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    min-height: clamp(600px, 70vh, 820px);
+    min-height: 0;
     overflow: hidden;
     isolation: isolate;
-    padding: clamp(24px, 4vw, 58px);
-    padding-top: clamp(18px, 2vw, 30px);
+    padding: clamp(18px, 3vw, 40px);
     color: #f5faff;
     border: 1px solid rgba(152, 218, 255, .2);
     border-radius: 32px;
@@ -208,9 +207,9 @@
 .tomorrow-hero-copy h2 {
     max-width: 700px;
     margin: 0 0 16px;
-    font-size: clamp(2.5rem, 4vw, 4.75rem);
+    font-size: clamp(1.7rem, 4vw, 3.4rem);
     font-weight: 620;
-    line-height: .98;
+    line-height: 1.05;
     letter-spacing: -.055em;
     text-wrap: balance;
 }
@@ -230,8 +229,8 @@
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 9px;
     width: min(100%, 1120px);
-    margin-top: auto;
-    transform: translateY(clamp(32px, 3.2vw, 52px));
+    margin-top: 22px;
+    transform: none;
 }
 
 .tomorrow-hero-hour-stats article {
@@ -341,6 +340,11 @@
     gap: 9px;
 }
 
+.tomorrow-battery-hour {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 9px;
+}
+
 .tomorrow-live-hour > span {
     display: grid;
     gap: 4px;
@@ -354,6 +358,18 @@
 .tomorrow-live-hour .energy-export b { color: var(--journal-solar); }
 .tomorrow-live-hour .energy-import b { color: var(--journal-cyan); }
 
+.tomorrow-time-machine { position: relative; }
+.tomorrow-timeline-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    color: rgba(239, 248, 255, .78);
+    background: rgba(6, 17, 28, .46);
+    border-radius: inherit;
+    font-size: .84rem;
+}
 .tomorrow-timeline-unavailable { display: grid; gap: 4px; padding: 18px; border-radius: 16px; background: rgba(255, 255, 255, .05); }
 .tomorrow-timeline-unavailable span { color: rgba(239, 248, 255, .6); font-size: .74rem; }
 
@@ -473,31 +489,74 @@
 .tomorrow-section-head h3 { margin: 0; font-size: clamp(1.45rem, 2.4vw, 2.35rem); font-weight: 650; letter-spacing: -.045em; }
 .tomorrow-section-head > span { color: var(--text-secondary); font-size: .76rem; }
 
+.tomorrow-journal-calendar {
+    --tomorrow-heat-gap: clamp(2px, 0.35vw, 5px);
+    overflow-x: visible;
+    max-width: 100%;
+    padding: 0 4px 10px;
+    scrollbar-width: thin;
+}
+
 .tomorrow-month-axis {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 0 2px 10px;
+    display: grid;
+    grid-template-columns: repeat(var(--tomorrow-weeks, 1), minmax(0, 1fr));
+    column-gap: var(--tomorrow-heat-gap);
+    width: 100%;
+    margin: 0 0 10px 28px;
     color: var(--text-muted);
     font-size: .63rem;
     text-transform: uppercase;
 }
 
-.tomorrow-heatmap {
-    --tomorrow-heat-cell: 14px;
+.tomorrow-month-axis span {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.tomorrow-heatmap-wrap {
     display: grid;
-    grid-template-rows: repeat(7, var(--tomorrow-heat-cell));
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 8px;
+    align-items: stretch;
+    width: 100%;
+}
+
+.tomorrow-weekdays {
+    display: grid;
+    grid-template-rows: repeat(7, minmax(8px, 1fr));
+    gap: var(--tomorrow-heat-gap);
+    color: var(--text-muted);
+    font-size: .58rem;
+    line-height: 1;
+}
+
+.tomorrow-weekdays span {
+    display: flex;
+    align-items: center;
+}
+
+.tomorrow-heatmap {
+    display: grid;
+    grid-template-rows: repeat(7, minmax(8px, 1fr));
+    grid-template-columns: repeat(var(--tomorrow-weeks, 1), minmax(8px, 1fr));
     grid-auto-flow: column;
-    grid-auto-columns: var(--tomorrow-heat-cell);
-    gap: 5px;
-    width: max-content;
-    max-width: 100%;
-    overflow-x: auto;
-    padding: 5px 4px 10px;
-    scrollbar-width: thin;
+    gap: var(--tomorrow-heat-gap);
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tomorrow-heatmap > li {
+    min-width: 0;
+    min-height: 0;
 }
 
 .tomorrow-day {
+    display: block;
+    width: 100%;
     min-width: 0;
     aspect-ratio: 1;
     padding: 0;
@@ -506,6 +565,13 @@
     background: transparent;
     cursor: pointer;
 }
+
+.tomorrow-day.is-empty {
+    cursor: default;
+    pointer-events: none;
+}
+
+.tomorrow-day.pad span { background: transparent; border-color: transparent; }
 
 .tomorrow-day span {
     display: block;
@@ -517,12 +583,14 @@
     transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
 }
 
+.tomorrow-day.unknown span { background: #5b6774; }
 .tomorrow-day.balanced span { background: #2f7691; }
 .tomorrow-day.strong span { background: #37b990; }
 .tomorrow-day.autonomous span { background: #a9f7b4; box-shadow: inset 0 0 9px rgba(255, 255, 255, .4); }
 .tomorrow-day:hover span { transform: translateY(-3px) scale(1.12); filter: brightness(1.2); }
 .tomorrow-day.selected span { outline: 2px solid var(--text-primary); outline-offset: 3px; transform: scale(1.12); box-shadow: 0 0 22px rgba(105, 220, 255, .38); }
 .tomorrow-day:focus-visible { outline: 2px solid var(--journal-cyan); outline-offset: 4px; }
+.tomorrow-day.is-empty:hover span { transform: none; filter: none; }
 
 .tomorrow-legend {
     display: flex;
@@ -536,6 +604,7 @@
 
 .tomorrow-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .tomorrow-legend i { width: 10px; height: 10px; border-radius: 3px; background: #283644; }
+.tomorrow-legend i.unknown { background: #5b6774; }
 .tomorrow-legend i.balanced { background: #2f7691; }
 .tomorrow-legend i.strong { background: #37b990; }
 .tomorrow-legend i.autonomous { background: #a9f7b4; }
@@ -543,9 +612,9 @@
 .tomorrow-story {
     position: relative;
     display: grid;
-    grid-template-columns: auto minmax(260px, 1fr) minmax(340px, .9fr);
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, .9fr);
     align-items: center;
-    gap: clamp(22px, 4vw, 58px);
+    gap: clamp(16px, 3vw, 40px);
     overflow: hidden;
     padding: clamp(26px, 4vw, 48px);
     border: 1px solid rgba(105, 220, 255, .2);
@@ -558,9 +627,9 @@
 }
 
 .tomorrow-story.autonomous { border-color: rgba(118, 239, 196, .32); }
-.tomorrow-story-date { display: grid; place-items: center; min-width: 116px; }
+.tomorrow-story-date { display: grid; place-items: center; min-width: 0; }
 .tomorrow-story-date span { color: var(--journal-cyan); font-size: .68rem; font-weight: 800; text-transform: uppercase; }
-.tomorrow-story-date strong { font-size: clamp(4.2rem, 7vw, 7rem); font-weight: 600; line-height: .95; letter-spacing: -.08em; }
+.tomorrow-story-date strong { font-size: clamp(2.4rem, 6vw, 4.8rem); font-weight: 600; line-height: .95; letter-spacing: -.08em; }
 .tomorrow-story-date small { color: rgba(239, 248, 255, .58); font-size: .72rem; }
 .tomorrow-story-copy { display: grid; gap: 9px; }
 .tomorrow-story-copy h3 { margin: 0; font-size: clamp(1.6rem, 3vw, 3rem); line-height: 1.05; letter-spacing: -.05em; }
@@ -578,6 +647,48 @@
 .tomorrow-device strong { font-size: clamp(2rem, 4vw, 3.8rem); letter-spacing: -.055em; }
 .tomorrow-device small { color: var(--text-muted); }
 .tomorrow-device.wallbox::after { border-color: rgba(155, 156, 255, .1); }
+.tomorrow-device.heating-rod::after { border-color: rgba(255, 213, 106, .12); }
+.tomorrow-device-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+
+.tomorrow-insight-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+    gap: 14px;
+}
+
+.tomorrow-insight {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+    padding: 20px 22px;
+    border: 1px solid var(--border-default);
+    border-radius: 20px;
+    background: var(--surface-raised);
+}
+
+.tomorrow-insight p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: .72rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.tomorrow-insight strong { font-size: clamp(1.4rem, 2.4vw, 2.1rem); letter-spacing: -.04em; }
+.tomorrow-insight span, .tomorrow-insight small { color: var(--text-muted); font-size: .74rem; }
+
+.tomorrow-weather-link { margin: 0; text-align: center; }
+.tomorrow-weather-link button {
+    padding: 0;
+    color: var(--journal-cyan);
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
 
 .tomorrow-footnote { margin: -4px 4px 16px; color: var(--text-muted); font-size: .7rem; text-align: center; }
 
@@ -588,15 +699,17 @@
     .tomorrow-kpi { min-height: 132px; }
     .tomorrow-story { grid-template-columns: auto 1fr; }
     .tomorrow-story-values { grid-column: 1 / -1; }
+    .tomorrow-battery-hour { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
-    .tomorrow-hero { min-height: 620px; border-radius: 23px; }
+    .tomorrow-hero { min-height: 0; border-radius: 23px; }
     .tomorrow-hero-foot, .tomorrow-section-head { flex-direction: column; align-items: flex-start; }
     .tomorrow-day-facts { justify-content: flex-start; }
     .tomorrow-day-facts span { min-width: 104px; }
-    .tomorrow-month-axis { display: none; }
-    .tomorrow-heatmap { --tomorrow-heat-cell: 13px; }
+    .tomorrow-month-axis { margin-left: 0; }
+    .tomorrow-weekdays { display: none; }
+    .tomorrow-heatmap-wrap { grid-template-columns: 1fr; }
     .tomorrow-story { grid-template-columns: 1fr; }
     .tomorrow-story-date { justify-items: start; place-items: start; }
     .tomorrow-story-values { grid-column: auto; }
@@ -606,22 +719,21 @@
     .tomorrow-live-hour { grid-template-columns: 1fr; }
     .tomorrow-hero-hour-stats {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        transform: translateY(18px);
+        transform: none;
     }
 }
 
 @media (max-width: 480px) {
     .tomorrow-page { gap: 14px; }
-    .tomorrow-hero { min-height: 680px; padding: 20px; border-radius: 20px; }
+    .tomorrow-hero { min-height: 0; padding: 16px; border-radius: 20px; }
     .tomorrow-brand-pill { max-width: 100%; font-size: .58rem; }
-    .tomorrow-hero-copy h2 { font-size: 2.65rem; }
+    .tomorrow-hero-copy h2 { font-size: clamp(1.45rem, 8vw, 2.2rem); }
     .tomorrow-day-facts { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
     .tomorrow-day-facts span { min-width: 0; padding: 11px; }
     .tomorrow-day-facts b { font-size: .78rem; }
     .tomorrow-kpi { min-height: 132px; padding: 20px; }
     .tomorrow-kpi-icon { width: 42px; height: 42px; }
     .tomorrow-journal, .tomorrow-devices { padding: 20px; border-radius: 20px; }
-    .tomorrow-heatmap { --tomorrow-heat-cell: 12px; }
     .tomorrow-story { padding: 22px; border-radius: 21px; }
     .tomorrow-story-values { grid-template-columns: 1fr; }
     .tomorrow-hero-hour-stats article { min-height: 70px; padding: 10px 12px; }

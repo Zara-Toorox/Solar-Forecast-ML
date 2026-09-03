@@ -166,13 +166,18 @@ async def _async_register_ems_bridge_panel(hass: HomeAssistant) -> None:
 
 
 class GPMProviderView:
-    """Read-only STATS view of the coordinator owned by GPM."""
+    """STATS view of the GPM coordinator, with local Smart Charging actuation."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
         self._listeners: list[Any] = []
         self._provider_unsubscribe: Any | None = None
         self._bound_provider: Any | None = None
+        self._smart_charging: Any | None = None
+        self._forecast_reader: Any | None = None
+        self._smc_overlay: dict[str, Any] = {}
+        self._smc_task_pending = False
+        self._config: dict[str, Any] = {}
         self._unsubscribe_dispatcher = async_dispatcher_connect(
             hass, "grid_price_monitor_provider_changed", self._async_rebind
         )
@@ -195,6 +200,8 @@ class GPMProviderView:
     def data(self) -> dict[str, Any]:
         provider = self._provider
         data = dict(getattr(provider, "data", None) or {})
+        if self._smc_overlay:
+            data.update(self._smc_overlay)
         data.setdefault("smart_charging_decision", "not_load")
         data.setdefault("smart_charging_requested_grid_charge_kwh", 0.0)
         data.setdefault("smart_charging_effective_storage_cost_ct_kwh", None)
@@ -231,9 +238,189 @@ class GPMProviderView:
             )
         self._notify_listeners()
 
-    def _notify_listeners(self) -> None:
+    def _emit_listeners(self) -> None:
         for listener in tuple(self._listeners):
             listener()
+
+    def _notify_listeners(self) -> None:
+        self._emit_listeners()
+        self._schedule_smart_charging()
+
+    def _schedule_smart_charging(self) -> None:
+        if self._smc_task_pending or self._smart_charging is None:
+            return
+        create_task = getattr(self._hass, "async_create_task", None)
+        if not callable(create_task):
+            return
+        self._smc_task_pending = True
+        create_task(self._async_refresh_smart_charging())
+
+    def _future_price_slots(self, data: dict[str, Any]) -> list[dict[str, Any]]:
+        from datetime import timedelta
+
+        from homeassistant.util import dt as dt_util
+
+        now = dt_util.now()
+        slots: list[dict[str, Any]] = []
+        for day_offset, key in ((0, "forecast_today"), (1, "forecast_tomorrow")):
+            day = now.date() + timedelta(days=day_offset)
+            raw_slots = data.get(key)
+            if not isinstance(raw_slots, list):
+                continue
+            for item in raw_slots:
+                if not isinstance(item, dict):
+                    continue
+                hour = item.get("hour")
+                price = item.get("total_price", item.get("price"))
+                if hour is None or price is None:
+                    continue
+                try:
+                    stamp = datetime.combine(day, datetime.min.time(), tzinfo=now.tzinfo)
+                    stamp = stamp.replace(hour=int(hour))
+                except (TypeError, ValueError):
+                    continue
+                if stamp <= now:
+                    continue
+                slots.append(
+                    {
+                        "timestamp": stamp,
+                        "total_price": price,
+                        "duration_hours": 1.0,
+                    }
+                )
+        return slots
+
+    def _disabled_overlay(self) -> dict[str, Any]:
+        return {
+            "smart_charging_active": False,
+            "smart_charging_decision": "not_load",
+            "smart_charging_reason": "smart_charging_disabled",
+            "smart_charging_requested_grid_charge_kwh": 0.0,
+            "smart_charging_reserved_future_grid_charge_kwh": 0.0,
+        }
+
+    def _overlay_from_state(self, state: Any) -> dict[str, Any]:
+        return {
+            "smart_charging_active": bool(state.is_active),
+            "smart_charging_target_soc": state.target_soc,
+            "smart_charging_current_soc": state.current_soc,
+            "smart_charging_reason": state.reason,
+            "smart_charging_decision": state.economic_decision,
+            "smart_charging_requested_grid_charge_kwh": state.requested_grid_charge_kwh,
+            "smart_charging_effective_storage_cost_ct_kwh": (
+                state.effective_storage_cost_ct_kwh
+            ),
+            "smart_charging_compared_future_price_ct_kwh": (
+                state.compared_future_price_ct_kwh
+            ),
+            "smart_charging_effective_roundtrip_efficiency": (
+                state.effective_roundtrip_efficiency
+            ),
+            "smart_charging_reserved_future_grid_charge_kwh": (
+                state.reserved_future_grid_charge_kwh
+            ),
+            "solar_forecast_today": state.solar_forecast_today_kwh,
+            "solar_forecast_tomorrow": state.solar_forecast_tomorrow_kwh,
+        }
+
+    def _manager_kwargs(self, config: dict[str, Any]) -> dict[str, Any]:
+        battery_capacity = config.get(CONF_BATTERY_CAPACITY)
+        if battery_capacity is None:
+            battery_capacity = DEFAULT_BATTERY_CAPACITY
+        max_soc = config.get(CONF_MAX_SOC)
+        if max_soc is None:
+            max_soc = DEFAULT_MAX_SOC
+        min_soc = config.get(CONF_MIN_SOC)
+        if min_soc is None:
+            min_soc = DEFAULT_MIN_SOC
+        force_charge_price = config.get(CONF_FORCE_CHARGE_PRICE)
+        if force_charge_price is None:
+            force_charge_price = DEFAULT_FORCE_CHARGE_PRICE
+        return {
+            "battery_capacity_kwh": battery_capacity,
+            "soc_sensor_entity": config.get(CONF_BATTERY_SOC_SENSOR, "")
+            or config.get(CONF_SENSOR_BATTERY_SOC, ""),
+            "max_soc": max_soc,
+            "min_soc": min_soc,
+            "smart_charging_switch": config.get(CONF_SMART_CHARGING_SWITCH),
+            "home_consumption_sensor": config.get(CONF_SENSOR_HOME_CONSUMPTION),
+            "solar_power_sensor": config.get(CONF_SENSOR_SOLAR_TO_HOUSE),
+            "force_charge_price": force_charge_price,
+            "main_soc_sensor_entity": config.get(CONF_SENSOR_BATTERY_SOC, ""),
+        }
+
+    async def async_configure(self, config: dict[str, Any]) -> None:
+        """Create or refresh the STATS Smart Charging manager from current config."""
+        self._config = dict(config)
+        enabled = bool(config.get(CONF_SMART_CHARGING_ENABLED))
+        if not enabled:
+            if self._smart_charging is not None:
+                await self._smart_charging.async_force_off()
+                self._smart_charging = None
+            self._smc_overlay = self._disabled_overlay()
+            self._emit_listeners()
+            return
+        kwargs = self._manager_kwargs(config)
+        if self._smart_charging is None:
+            try:
+                from .core.smart_charging import SmartChargingManager
+                from .core.solar_forecast_reader_gpm import SolarForecastReader
+
+                db = get_manager()
+                if db is None:
+                    _LOGGER.warning("Smart charging skipped: database manager unavailable")
+                    return
+                self._forecast_reader = SolarForecastReader(db)
+                self._smart_charging = SmartChargingManager(
+                    hass=self._hass,
+                    forecast_reader=self._forecast_reader,
+                    **kwargs,
+                )
+                _LOGGER.info("Smart charging initialized")
+            except Exception as err:
+                _LOGGER.error("Failed to initialize smart charging: %s", err)
+                self._smart_charging = None
+                return
+        else:
+            self._smart_charging.update_config(**kwargs)
+        self._schedule_smart_charging()
+
+    async def _async_refresh_smart_charging(self) -> None:
+        try:
+            manager = self._smart_charging
+            if manager is None:
+                return
+            provider_data = dict(getattr(self._provider, "data", None) or {})
+            current_price = provider_data.get("total_price")
+            is_cheap = bool(provider_data.get("is_cheap", False))
+            if current_price is not None:
+                try:
+                    is_cheap = float(current_price) < float(
+                        self._config.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE)
+                    )
+                except (TypeError, ValueError):
+                    pass
+            future_slots = self._future_price_slots(provider_data)
+            state = await manager.async_update(
+                is_cheap,
+                current_price=current_price,
+                future_total_price_slots=future_slots or None,
+            )
+            self._smc_overlay = self._overlay_from_state(state)
+        except Exception as err:
+            _LOGGER.warning("Smart charging update failed: %s", err)
+        finally:
+            self._smc_task_pending = False
+        self._emit_listeners()
+
+    async def async_shutdown_smart_charging(self) -> None:
+        if self._smart_charging is not None:
+            try:
+                await self._smart_charging.async_force_off()
+            except Exception as err:
+                _LOGGER.warning("Error turning off smart charging: %s", err)
+            self._smart_charging = None
+        self._smc_overlay = {}
 
     def async_close(self) -> None:
         if self._provider_unsubscribe is not None:
@@ -241,6 +428,8 @@ class GPMProviderView:
             self._provider_unsubscribe = None
         self._unsubscribe_dispatcher()
         self._listeners.clear()
+        self._smart_charging = None
+        self._smc_overlay = {}
 
     def __getattr__(self, name: str) -> Any:
         provider = self._provider
@@ -426,6 +615,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ForecastComparisonCollector._db_manager = db_manager
 
     gpm_coordinator = GPMProviderView(hass)
+    await gpm_coordinator.async_configure(entry_config)
     ems_manager = EMSManager(hass, entry, entry_config)
     await ems_manager.async_setup()
 
@@ -626,6 +816,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     gpm_coordinator = entry_data.get("gpm_coordinator")
     if gpm_coordinator is not None:
+        shutdown_smc = getattr(gpm_coordinator, "async_shutdown_smart_charging", None)
+        if callable(shutdown_smc):
+            try:
+                await shutdown_smc()
+            except Exception as err:
+                _LOGGER.warning("Error shutting down smart charging: %s", err)
         gpm_coordinator.async_close()
 
     # Cancel scheduled jobs
@@ -708,6 +904,11 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     ems_manager = entry_data.get("ems_manager")
     if ems_manager is not None:
         await ems_manager.async_update_config(new_config)
+
+    gpm_coordinator = entry_data.get("gpm_coordinator")
+    configure_smc = getattr(gpm_coordinator, "async_configure", None)
+    if callable(configure_smc):
+        await configure_smc(new_config)
 
     for key in ("billing_calculator", "monthly_tariff_manager"):
         obj = entry_data.get(key)

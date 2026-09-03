@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, time, timedelta, timezone
 from functools import partial
-from math import atan2, cos, degrees, radians, sin
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
+
+from .blend_math import circular_average as _circular_average
 
 
 HISTORY_CONTRACT_VERSION = 1
@@ -384,8 +385,14 @@ def _utc_timestamp(value, assumed_zone, is_end=False) -> datetime | None:
 def _public_values(raw, metrics):
     values = {}
     for metric in metrics:
-        source = "rain" if metric == "precipitation" and "precipitation" not in raw else metric
-        value = raw.get(source)
+        if metric == "precipitation" and raw.get("precipitation_semantics") == "counter":
+            value = raw.get("precipitation_counter")
+            if value is None:
+                value = raw.get("precipitation", raw.get("rain"))
+        elif metric == "precipitation" and "precipitation" not in raw:
+            value = raw.get("rain")
+        else:
+            value = raw.get(metric)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
             values[metric] = float(value)
     return values
@@ -450,11 +457,6 @@ def _finite_number(value: Any) -> float | None:
 
 def _metrics_from_samples(samples):
     return {metric for sample in samples for metric in sample["values"]}
-
-
-def _circular_average(values):
-    radians_values = [radians(value) for value in values]
-    return round((degrees(atan2(sum(sin(value) for value in radians_values), sum(cos(value) for value in radians_values))) + 360) % 360, 3)
 
 
 def _integrate_hourly_rate(samples):

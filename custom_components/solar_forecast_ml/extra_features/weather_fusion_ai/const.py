@@ -15,7 +15,7 @@ from typing import Final
 
 DOMAIN: Final = "weather_fusion_ai"
 NAME: Final = "Weather Fusion AI"
-VERSION: Final = "42.0.6"
+VERSION: Final = "46.0.2"
 
 # Internal Home Assistant data registry keys for the public forecast provider.
 DATA_FORECAST_PROVIDERS: Final = "forecast_providers"
@@ -34,8 +34,15 @@ CONF_PRESSURE_SENSOR: Final = "pressure_sensor"
 CONF_WIND_SPEED_SENSOR: Final = "wind_speed_sensor"
 CONF_WIND_DIRECTION_SENSOR: Final = "wind_direction_sensor"
 CONF_RAIN_SENSOR: Final = "rain_sensor"
-CONF_UV_SENSOR: Final = "uv_sensor"
-CONF_VISIBILITY_SENSOR: Final = "visibility_sensor"
+
+SENSOR_CONFIG_KEYS: Final = (
+    CONF_TEMP_SENSOR,
+    CONF_HUMIDITY_SENSOR,
+    CONF_PRESSURE_SENSOR,
+    CONF_WIND_SPEED_SENSOR,
+    CONF_WIND_DIRECTION_SENSOR,
+    CONF_RAIN_SENSOR,
+)
 
 # Optional API keys
 CONF_PIRATE_WEATHER_API_KEY: Final = "pirate_weather_api_key"
@@ -60,12 +67,33 @@ LEARNING_SMOOTHING_FACTOR: Final = 0.3
 CLOUD_CLEAR_MAX: Final = 25.0
 CLOUD_FAIR_MAX: Final = 50.0
 CLOUD_MIXED_MAX: Final = 75.0
+CLOUD_CIRRUS_HIGH_MIN: Final = 50.0
+CLOUD_CIRRUS_LOW_MAX: Final = 20.0
+CLOUD_STRATUS_LOW_MIN: Final = 50.0
+CLOUD_OVERCAST_LOW_MIN: Final = 60.0
+CLOUD_OVERCAST_MID_MIN: Final = 40.0
+CLOUD_OVERCAST_HIGH_MIN: Final = 40.0
+CLOUD_TYPES: Final = (
+    "clear",
+    "cirrus",
+    "fair",
+    "mixed",
+    "stratus",
+    "overcast",
+)
 
-# File names
-FILE_WEATHER_CACHE: Final = "weather_cache.json"
+# Expert blending keys (internal; never display names)
+EXPERT_WEIGHT_KEYS: Final = (
+    "open_meteo",
+    "bright_sky",
+    "wttr_in",
+    "pirate_weather",
+)
 FILE_EXPERT_WEIGHTS: Final = "expert_weights.json"
-FILE_PRECISION_DATA: Final = "precision_data.json"
-FILE_HOURLY_ACTUAL: Final = "hourly_actual.json"
+
+# Canonical visibility is metres; the weather entity converts to km.
+VISIBILITY_MIN_M: Final = 0.0
+VISIBILITY_MAX_M: Final = 100000.0
 
 # Data directory
 DATA_DIR_NAME: Final = "weather_fusion_ai_data"

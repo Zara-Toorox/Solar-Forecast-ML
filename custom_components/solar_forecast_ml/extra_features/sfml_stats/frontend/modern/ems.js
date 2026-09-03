@@ -174,7 +174,7 @@ const ModernEMSPage = {
             <div v-if="message" :class="['ems-message', messageError ? 'error' : 'ok']" :role="messageError ? 'alert' : 'status'">{{ message }}</div>
             <div v-if="data?.safety_alarm" class="ems-message error" role="alert"><strong>Sicherheitsfreigabe ausstehend:</strong> Ein vom EMS übernommenes Gerät konnte noch nicht bestätigt ausgeschaltet werden. Das EMS versucht die Freigabe erneut und bleibt gesperrt.</div>
             <div v-if="loading" class="ems-loading"><span></span>EMS lädt den aktuellen Plan …</div>
-            <div v-else-if="locked" class="ems-message error"><strong>EMS-Verbindung nicht verfügbar</strong><br>{{ locked }}</div>
+            <div v-else-if="locked" :class="['ems-message', adminLocked ? 'ok' : 'error']" :role="adminLocked ? 'status' : 'alert'"><strong>{{ adminLocked ? "EMS ist nur für Administratoren" : "EMS-Verbindung nicht verfügbar" }}</strong><br>{{ adminLocked ? "Dieses Steuerpanel bleibt für Nicht-Administratoren gesperrt. Ein Administrator kann Geräte freigeben und den Automatikmodus setzen." : locked }}</div>
 
             <template v-else-if="data">
                 <div v-if="data.mode === 'mock'" class="ems-demo"><strong>Demo-Modus</strong><span>Ohne gültige Freigabe siehst du Beispielwerte. Geräte können nicht geschaltet werden.</span></div>
@@ -261,6 +261,7 @@ const ModernEMSPage = {
                 <section v-if="operations" class="ems-card ems-ops-card" aria-labelledby="ems-ops-title">
                     <div class="ems-section-head"><div><span class="ems-eyebrow">Betrieb</span><h3 id="ems-ops-title">EMS-Kennzahlen</h3></div><span>{{ operations.horizon?.when_label || "Rest des Tages" }}</span></div>
                     <p class="ems-ops-story">{{ operations.opportunity?.detail }}</p>
+                    <p v-if="operations.tariff?.detail" class="ems-ops-tariff">{{ operations.tariff.detail }}</p>
                     <div class="ems-ops-kpis">
                         <article v-for="kpi in operationKpis" :key="kpi.id">
                             <span>{{ kpi.label }}</span>
@@ -293,6 +294,7 @@ const ModernEMSPage = {
                         <span>{{ selectedDayCaption }} · {{ dayValueScope }}</span>
                     </div>
                     <p class="ems-coverage-story">{{ coverageStory }}</p>
+                    <p v-if="todayBrief.next_window_label" class="ems-next-window"><strong>Nächstes Fenster:</strong> {{ todayBrief.next_window_label }}<span v-if="todayBrief.next_window_when"> · {{ todayBrief.next_window_when }}</span><small v-if="todayBrief.next_window_detail">{{ todayBrief.next_window_detail }}</small></p>
                     <div class="ems-today-metrics">
                         <article><span>PV-Ertrag</span><strong>{{ energy(selectedSummary.pv_kwh) }}</strong><small>Solarprognose</small></article>
                         <article><span>Bedarf</span><strong>{{ energy(selectedSummary.demand_kwh) }}</strong><small>{{ demandComponentsLabel }}</small></article>
@@ -346,9 +348,9 @@ const ModernEMSPage = {
                     <div class="ems-section-head"><div><span class="ems-eyebrow">Geräte</span><h3>Freigaben und Sollzustand</h3></div><span>Nur freigegebene Geräte dürfen geschaltet werden</span></div>
                     <div class="ems-actor-grid">
                         <article v-for="actor in visibleActors" :key="actor.id" :class="['ems-card', 'ems-actor', actor.ready ? 'ready' : 'blocked']">
-                            <div class="ems-actor-head"><div><span>{{ actor.source }}</span><h4>{{ actor.label }}</h4></div><span v-if="actor.is_demo" class="ems-pill mock">Demo</span><button type="button" class="ems-toggle" :class="{ on: actor.enabled }" :disabled="busy || data.mode !== 'live' || !actor.configured || actor.is_demo" :aria-pressed="actor.enabled" @click="setActor(actor)"><i></i>{{ actor.enabled ? "Freigegeben" : "Gesperrt" }}</button></div>
+                            <div class="ems-actor-head"><div><span>{{ actor.source }}</span><h4>{{ actor.label }}</h4></div><span v-if="actor.is_demo" class="ems-pill mock">Demo</span><span v-else-if="actor.paused" class="ems-pill quiet">Pausiert</span><button type="button" class="ems-toggle" :class="{ on: actor.enabled }" :disabled="busy || data.mode !== 'live' || !actor.configured || actor.is_demo" :aria-pressed="actor.enabled" @click="setActor(actor)"><i></i>{{ actor.enabled ? "Freigegeben" : "Gesperrt" }}</button></div>
                             <div class="ems-actor-state"><span>Ist <strong>{{ state(actor.current) }}</strong></span><span>Soll <strong>{{ decision(actor) }}</strong></span></div>
-                            <p>{{ actor.detail }}</p><small>{{ reason(actor.reason) }}</small>
+                            <p>{{ actor.detail }}</p><small>{{ actor.reason_label || reason(actor.reason) }}</small>
                             <button v-if="data.control_mode === 'confirm' && actor.confirm_token" type="button" class="ems-action" :disabled="busy" @click="confirmActor(actor)">{{ actor.desired ? "Einschalten bestätigen" : "Ausschalten bestätigen" }}</button>
                             <div v-else-if="!actor.configured" class="ems-actor-note">In den Einstellungen ist noch kein Schalter hinterlegt.</div>
                             <div v-else-if="!actor.ready" class="ems-actor-note">Noch nicht schaltbereit: Daten, Konfiguration oder eine Schutzregel blockieren den Schritt.</div>
@@ -367,7 +369,7 @@ const ModernEMSPage = {
                         <div class="ems-audit-block">
                             <div class="ems-section-head"><div><span class="ems-eyebrow">Ereignisse</span><h3>Letzte Schaltungen</h3></div><button type="button" class="ems-refresh" :disabled="busy" @click="refresh">Aktualisieren</button></div>
                             <div v-if="!data.audit.length" class="ems-empty">Noch keine Schaltung. Im Beobachten-Modus ist das der erwartete Zustand.</div>
-                            <div v-else class="ems-audit-list"><div v-for="row in data.audit" :key="row.timestamp + row.event"><time>{{ dateTime(row.timestamp) }}</time><strong>{{ eventLabel(row.event) }}</strong><span>{{ row.actor_id || row.mode || "EMS" }}</span><b :class="row.success ? 'ok' : 'bad'">{{ row.success ? "OK" : "Blockiert" }}</b></div></div>
+                            <div v-else class="ems-audit-list"><div v-for="row in data.audit" :key="row.timestamp + row.event"><time>{{ dateTime(row.timestamp) }}</time><strong>{{ row.label || eventLabel(row.event) }}</strong><span>{{ row.actor_id || row.mode || "EMS" }}</span><b :class="row.success ? 'ok' : 'bad'">{{ row.success ? "OK" : "Blockiert" }}</b></div></div>
                         </div>
                     </div>
                 </details>
@@ -419,6 +421,7 @@ const ModernEMSPage = {
         const todayBrief = computed(() => data.value?.today_brief || {});
         const forecastWindows = computed(() => Array.isArray(data.value?.forecast_windows) ? data.value.forecast_windows : []);
         const operations = computed(() => data.value?.operations && typeof data.value.operations === "object" ? data.value.operations : null);
+        const adminLocked = computed(() => /admin/i.test(String(locked.value || "")));
         const operationKpis = computed(() => Array.isArray(operations.value?.kpis) ? operations.value.kpis : []);
         const intelligence = computed(() => data.value?.intelligence && typeof data.value.intelligence === "object" ? data.value.intelligence : null);
         const showIntelligence = computed(() => !!(intelligence.value?.available || intelligence.value?.why?.length || intelligence.value?.allocation?.length));
@@ -550,6 +553,11 @@ const ModernEMSPage = {
                 { name: "PV-Potenzial nach Direktdeckung", type: "line", data: hours.map((point) => point.pv_potential_after_direct_kwh),
                     connectNulls: false, symbol: "none", lineStyle: { width: 3, type: "dashed", color: "#61e2af" }, areaStyle: { color: "rgba(97,226,175,.1)" }, z: 2,
                     tooltip: { valueFormatter } },
+                ...(hours.some((point) => point.price_ct_kwh != null) ? [{
+                    name: "Strompreis", type: "line", yAxisIndex: 1, data: hours.map((point) => point.price_ct_kwh),
+                    symbol: "none", lineStyle: { width: 2, type: "dotted", color: "#ffc95b" }, z: 5,
+                    tooltip: { valueFormatter: (value) => value == null ? "fehlend" : `${Number(value).toFixed(2)} ct/kWh` },
+                }] : []),
             ];
             const allocationSeries = [
                 { name: "PV → Haus", type: "bar", stack: "alloc", data: hours.map((point) => point.household_pv_kwh),
@@ -571,13 +579,19 @@ const ModernEMSPage = {
             ];
             const series = chartView.value === "grid" ? gridSeries : chartView.value === "allocation" ? allocationSeries : energySeries;
             const compactChart = chart.value.clientWidth < 520;
+            const priceAxis = chartView.value === "grid" && series.some((item) => item.yAxisIndex === 1);
             chartInstance.setOption({
                 animationDuration: 450,
                 tooltip: { trigger: "axis" },
                 legend: { type: "scroll", data: series.map((item) => item.name), top: 4 },
-                grid: { left: 42, right: 24, top: compactChart ? 76 : 52, bottom: 38, containLabel: true },
+                grid: { left: 42, right: priceAxis ? 48 : 24, top: compactChart ? 76 : 52, bottom: 38, containLabel: true },
                 xAxis: { type: "category", boundaryGap: false, data: labels, axisLabel: { interval: compactChart ? 3 : 1 } },
-                yAxis: { type: "value", name: "kWh", min: 0 },
+                yAxis: priceAxis
+                    ? [
+                        { type: "value", name: "kWh", min: 0 },
+                        { type: "value", name: "ct/kWh", splitLine: { show: false } },
+                    ]
+                    : { type: "value", name: "kWh", min: 0 },
                 series,
             }, true);
             chartResizeTimers.forEach((resizeTimer) => window.clearTimeout(resizeTimer));
@@ -705,7 +719,9 @@ const ModernEMSPage = {
             } finally {
                 if (!disposed) {
                     loading.value = false;
-                    timer = window.setInterval(refresh, 30000);
+                    if (!/admin/i.test(String(locked.value || ""))) {
+                        timer = window.setInterval(refresh, 30000);
+                    }
                     window.addEventListener("resize", handleResize);
                 }
             }
@@ -728,7 +744,7 @@ const ModernEMSPage = {
 
         return { bridgeHost, chart, dayStrip, data, selectedDate, selectedDay, selectedDayIndex,
             selectedSummary, selectedDayCaption, dayValueScope, demandComponentsLabel, coverageRows, coverageStory,
-            chartView, chartAriaLabel, chartSummary, loading, locked, busy, message,
+            chartView, chartAriaLabel, chartSummary, loading, locked, adminLocked, busy, message,
             messageError, detailsOpen, modes, primaryAction, nextActions, todayBrief, forecastWindows,
             operations, operationKpis, intelligence, showIntelligence, allocationStory, hasAllocation,
             canConfirmPrimary, visibleActors, availabilityLabel, statusHint, currentModeLabel, currentModeScope,

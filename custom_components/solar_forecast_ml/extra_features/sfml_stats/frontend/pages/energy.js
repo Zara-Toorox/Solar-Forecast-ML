@@ -573,6 +573,11 @@ const _EnergyPage = {
                                 <span class="cd-stat-value" :style="{color: consumerDetail.heatpump.live.jaz >= 3.5 ? '#22c55e' : consumerDetail.heatpump.live.jaz >= 2.5 ? '#fbbf24' : '#ef4444'}">{{ consumerDetail.heatpump.live.jaz }}</span>
                                 <span class="cd-stat-label">JAZ</span>
                             </div>
+                            <div class="cd-stat" v-if="consumerDetail.heatpump.live.daily_kwh != null">
+                                <span class="cd-stat-icon">🔋</span>
+                                <span class="cd-stat-value">{{ consumerDetail.heatpump.live.daily_kwh }} kWh</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.energyToday') }}</span>
+                            </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.pv_energy_today != null">
                                 <span class="cd-stat-icon">☀️</span>
                                 <span class="cd-stat-value" style="color:#fbbf24;">{{ consumerDetail.heatpump.live.pv_energy_today }} kWh</span>
@@ -583,10 +588,20 @@ const _EnergyPage = {
                                 <span class="cd-stat-value" style="color:#a855f7;">{{ consumerDetail.heatpump.live.grid_energy_today }} kWh</span>
                                 <span class="cd-stat-label">{{ $t('energy.heatpump.gridToHpToday') }}</span>
                             </div>
+                            <div class="cd-stat" v-if="consumerDetail.heatpump.live.unassigned_energy_today != null">
+                                <span class="cd-stat-icon">🔌</span>
+                                <span class="cd-stat-value" style="color:#38bdf8;">{{ consumerDetail.heatpump.live.unassigned_energy_today }} kWh</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.unassignedToday') }}</span>
+                            </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.pv_share_percent != null">
                                 <span class="cd-stat-icon">🌿</span>
                                 <span class="cd-stat-value" style="color:#22c55e;">{{ consumerDetail.heatpump.live.pv_share_percent }}%</span>
                                 <span class="cd-stat-label">{{ $t('energy.heatpump.pvShare') }}</span>
+                            </div>
+                            <div class="cd-stat" v-if="consumerDetail.heatpump.live.grid_share_percent != null">
+                                <span class="cd-stat-icon">⚡</span>
+                                <span class="cd-stat-value" style="color:#a855f7;">{{ consumerDetail.heatpump.live.grid_share_percent }}%</span>
+                                <span class="cd-stat-label">{{ $t('energy.heatpump.gridShare') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.compressor_starts != null">
                                 <span class="cd-stat-icon">🔄</span>

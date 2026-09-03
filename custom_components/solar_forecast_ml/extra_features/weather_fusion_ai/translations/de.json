@@ -25,6 +25,7 @@
           "humidity_sensor": "Luftfeuchtigkeitssensor",
           "pressure_sensor": "Luftdrucksensor",
           "wind_speed_sensor": "Windgeschwindigkeitssensor",
+          "wind_direction_sensor": "Windrichtungssensor",
           "rain_sensor": "Regensensor"
         },
         "data_description": {
@@ -32,6 +33,7 @@
           "humidity_sensor": "Lokaler Luftfeuchtigkeitssensor",
           "pressure_sensor": "Lokaler Barometer-Sensor",
           "wind_speed_sensor": "Lokaler Windgeschwindigkeitssensor",
+          "wind_direction_sensor": "Lokaler Windrichtungssensor",
           "rain_sensor": "Lokaler Regensensor (mm/h oder Tagesakkumulation)"
         }
       },
@@ -67,6 +69,7 @@
           "humidity_sensor": "Luftfeuchtigkeitssensor",
           "pressure_sensor": "Luftdrucksensor",
           "wind_speed_sensor": "Windgeschwindigkeitssensor",
+          "wind_direction_sensor": "Windrichtungssensor",
           "rain_sensor": "Regensensor",
           "pirate_weather_api_key": "Pirate Weather API-Schlüssel"
         }
@@ -80,6 +83,12 @@
       },
       "learning_progress": {
         "name": "Lernfortschritt"
+      },
+      "status": {
+        "name": "Status"
+      },
+      "cloud_type": {
+        "name": "Wolkenart"
       },
       "active_sources": {
         "name": "Aktive Wetterquellen"

@@ -25,6 +25,7 @@
           "humidity_sensor": "Humidity Sensor",
           "pressure_sensor": "Pressure Sensor",
           "wind_speed_sensor": "Wind Speed Sensor",
+          "wind_direction_sensor": "Wind Direction Sensor",
           "rain_sensor": "Rain Sensor"
         },
         "data_description": {
@@ -32,6 +33,7 @@
           "humidity_sensor": "Local humidity sensor",
           "pressure_sensor": "Local barometric pressure sensor",
           "wind_speed_sensor": "Local wind speed sensor",
+          "wind_direction_sensor": "Local wind direction sensor",
           "rain_sensor": "Local rain sensor (mm/h or daily accumulation)"
         }
       },
@@ -67,6 +69,7 @@
           "humidity_sensor": "Humidity Sensor",
           "pressure_sensor": "Pressure Sensor",
           "wind_speed_sensor": "Wind Speed Sensor",
+          "wind_direction_sensor": "Wind Direction Sensor",
           "rain_sensor": "Rain Sensor",
           "pirate_weather_api_key": "Pirate Weather API Key"
         }
@@ -80,6 +83,12 @@
       },
       "learning_progress": {
         "name": "Learning Progress"
+      },
+      "status": {
+        "name": "Status"
+      },
+      "cloud_type": {
+        "name": "Cloud Type"
       },
       "active_sources": {
         "name": "Active Weather Sources"

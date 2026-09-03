@@ -73,8 +73,10 @@ def _public_value(field: str, value: Any) -> Any:
         if not isinstance(value, str) or len(value) > 64:
             return None
         try:
-            datetime.fromisoformat(value.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError:
+            return None
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
             return None
         return value
     if field == "condition":

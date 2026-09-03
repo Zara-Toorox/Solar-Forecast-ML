@@ -364,12 +364,14 @@ const ModernApp = {
                     <div v-for="section in navigation" :key="section.id" class="nav-section">
                         <div class="nav-section-label">{{ copy.sections[section.id] }}</div>
                         <button v-for="item in section.items" :key="item.id" type="button"
-                                class="nav-item" :class="{ active: currentPage === item.id, 'premium-item': item.premium }"
+                                class="nav-item" :class="{ active: currentPage === item.id, 'premium-item': item.premium, disabled: item.admin && !isAdmin }"
                                 :aria-current="currentPage === item.id ? 'page' : null"
+                                :title="item.admin && !isAdmin ? 'Nur Administrator' : undefined"
                                 @click="navigate(item.id)">
                             <ui-icon :name="item.icon"></ui-icon>
                             <span>{{ pageCopy(item.id)[0] }}</span>
                             <small v-if="item.panel && !premiumCorrections">🔒 Premium</small>
+                            <small v-else-if="item.admin && !isAdmin">Nur Admin</small>
                         </button>
                     </div>
                 </nav>
@@ -491,7 +493,6 @@ const ModernApp = {
         const currentDetail = ref("");
         const dashboardMode = ref("loading");
         const premiumCorrections = ref(false);
-        const deviceVisibility = reactive({ heat_pump: false, wallbox: false });
         const drawerOpen = ref(false);
         const hasLoaded = ref(false);
         const requestPending = ref(false);
@@ -543,13 +544,24 @@ const ModernApp = {
             {
                 id: "system",
                 items: [
-                    { id: "ems", icon: "energy" },
+                    { id: "smart_charging", icon: "charge" },
+                    { id: "ems", icon: "energy", admin: true },
                     { id: "corrections", icon: "settings", panel: true },
                     { id: "settings", icon: "settings" },
                 ],
             },
         ];
         const navigation = computed(() => navigationDefinition);
+        const isAdmin = computed(() => {
+            try {
+                if (window.parent === window || window.top !== window.parent) return true;
+                const user = window.parent.document.querySelector("home-assistant")?.hass?.user;
+                if (!user) return true;
+                return user.is_admin === true;
+            } catch (_error) {
+                return true;
+            }
+        });
 
         const mobileNavigation = [
             { id: "home", icon: "home" },
@@ -672,7 +684,7 @@ const ModernApp = {
                 dashboardMode.value = "loading";
             }
             currentPage.value = page;
-            currentDetail.value = ["quality", "weather_energy"].includes(page) ? hashDetail : "";
+            currentDetail.value = ["quality", "weather_energy", "tomorrow"].includes(page) ? hashDetail : "";
             document.title = `${pageCopy(page)[0]} · ${copy.product}`;
         }
 
@@ -686,25 +698,14 @@ const ModernApp = {
 
         async function loadPremiumCapabilities() {
             try {
-                const [dashboardResponse, journalResponse] = await Promise.all([
-                    SFMLApi.fetch(
-                        "/api/sfml_stats/modern/premium-dashboard",
-                        { forceRefresh: true, ttl: 0 }
-                    ),
-                    SFMLApi.fetch(
-                        "/api/sfml_stats/modern/tomorrow",
-                        { forceRefresh: true, ttl: 0, authenticated: true }
-                    ),
-                ]);
+                const dashboardResponse = await SFMLApi.fetch(
+                    "/api/sfml_stats/modern/premium-dashboard",
+                    { forceRefresh: true, ttl: 0 }
+                );
                 premiumCorrections.value = dashboardResponse?.data?.premium?.licensed === true;
-                const devices = journalResponse?.data?.devices || {};
-                deviceVisibility.heat_pump = devices.heat_pump?.visible === true;
-                deviceVisibility.wallbox = devices.wallbox?.visible === true;
                 handleHashChange();
             } catch (_error) {
                 premiumCorrections.value = false;
-                deviceVisibility.heat_pump = false;
-                deviceVisibility.wallbox = false;
             }
         }
 
@@ -836,6 +837,7 @@ const ModernApp = {
             currentPageCopy,
             currentPageComponent,
             navigation,
+            isAdmin,
             premiumCorrections,
             mobileNavigation,
             themeOptions,

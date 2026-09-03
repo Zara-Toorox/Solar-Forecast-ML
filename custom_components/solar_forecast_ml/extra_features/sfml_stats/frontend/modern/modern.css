@@ -303,9 +303,14 @@ textarea:focus-visible,
     margin-top: 3px;
 }
 
-.nav-item:hover {
-    background: var(--surface-soft);
-    color: var(--text-primary);
+.nav-item.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.nav-item.disabled:hover {
+    background: transparent;
+    color: var(--text-secondary);
 }
 
 .nav-item.active {
