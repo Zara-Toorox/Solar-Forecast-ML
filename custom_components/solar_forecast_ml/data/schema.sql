@@ -397,6 +397,19 @@ CREATE TABLE IF NOT EXISTS ai_active_model_pointer (
     FOREIGN KEY(last_known_good_candidate_id) REFERENCES ai_model_candidates(candidate_id)
 );
 
+CREATE TABLE IF NOT EXISTS ai_gate_status (
+    id INTEGER PRIMARY KEY CHECK(id = 1),
+    candidate_id TEXT,
+    eligible_days INTEGER,
+    required_days INTEGER,
+    policy_eligible_days INTEGER,
+    eligible_common_hours INTEGER,
+    wait_reason TEXT,
+    candidate_created_at TIMESTAMP,
+    calendar_day_limit INTEGER,
+    computed_at TIMESTAMP NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS ai_model_evaluations (
     evaluation_id TEXT PRIMARY KEY,
     candidate_id TEXT NOT NULL,
@@ -1344,6 +1357,11 @@ CREATE TABLE IF NOT EXISTS weather_forecast_correction_snapshots (
     coherence_cap_scale REAL NOT NULL DEFAULT 1.0,
     kalman_applied BOOLEAN NOT NULL DEFAULT FALSE,
     kalman_bias REAL NOT NULL DEFAULT 0.0,
+    ghi_coherence_cap_eligible INTEGER
+        CHECK(
+            ghi_coherence_cap_eligible IS NULL
+            OR ghi_coherence_cap_eligible IN (0, 1)
+        ),
     final_used_ghi REAL,
     final_used_dni REAL,
     final_used_dhi REAL,
@@ -1671,7 +1689,11 @@ CREATE TABLE IF NOT EXISTS hourly_predictions (
     has_panel_group_actuals BOOLEAN DEFAULT FALSE,
     panel_group_predictions_backfilled BOOLEAN DEFAULT FALSE,
     adaptive_corrected BOOLEAN DEFAULT FALSE,
-    adaptive_correction_time TIMESTAMP
+    adaptive_correction_time TIMESTAMP,
+    ghi_before_cap REAL,
+    ghi_after_cap REAL,
+    ghi_cap_applied INTEGER
+        CHECK(ghi_cap_applied IS NULL OR ghi_cap_applied IN (0, 1))
 );
 
 CREATE INDEX IF NOT EXISTS idx_hourly_predictions_target ON hourly_predictions(target_date, target_hour);

@@ -162,6 +162,8 @@
         ["Regen", "rain"], ["Quelldaten widersprüchlich", "Source data inconsistent"], ["⚠ Quelldaten widersprüchlich", "⚠ Source data inconsistent"],
         ["STUNDEN", "HOURS"],
         ["Wetterhinweise", "Weather notices"], ["Was du jetzt wissen solltest", "What you should know now"],
+        ["Amtliche Warnung", "Official warning"], ["Modellprognose · nicht amtlich", "Model forecast · unofficial"],
+        ["Amtliche DWD-Warnung", "Official DWD warning"],
         ["Aktuell wurden keine besonderen Wetterhinweise erkannt.", "No notable weather notices are currently detected."],
         ["Die nächsten Tage", "The next few days"], ["Klare Tagesaussage statt Zahlenfriedhof", "Clear daily outlook instead of a wall of numbers"],
         ["Die Wetterlage bleibt überwiegend ruhig", "Weather conditions remain mostly calm"], ["Es wird heiß und belastend", "Hot and strenuous conditions are expected"],

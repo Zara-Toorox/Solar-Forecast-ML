@@ -368,6 +368,15 @@
       "ml_metrics": {
         "name": "AI Status"
       },
+      "ai_gate_status": {
+        "name": "AI Gate Status",
+        "state": {
+          "serving": "AI active",
+          "candidate_evaluating": "Candidate in evaluation",
+          "waiting_regime": "Waiting for weather-regime coverage",
+          "physics_baseline": "AI not yet active – physics baseline"
+        }
+      },
       "ai_rmse": {
         "name": "AI RMSE",
         "state": {

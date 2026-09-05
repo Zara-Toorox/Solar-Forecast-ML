@@ -368,6 +368,15 @@
       "ml_metrics": {
         "name": "Статус ИИ"
       },
+      "ai_gate_status": {
+        "name": "Статус шлюза ИИ",
+        "state": {
+          "serving": "ИИ активен",
+          "candidate_evaluating": "Кандидат на оценке",
+          "waiting_regime": "Ожидание покрытия погодных режимов",
+          "physics_baseline": "ИИ ещё не активен – физический базис"
+        }
+      },
       "ai_rmse": {
         "name": "ИИ RMSE",
         "state": {

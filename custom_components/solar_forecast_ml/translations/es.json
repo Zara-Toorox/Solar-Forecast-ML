@@ -368,6 +368,15 @@
       "ml_metrics": {
         "name": "Estado de IA"
       },
+      "ai_gate_status": {
+        "name": "Estado del umbral de IA",
+        "state": {
+          "serving": "IA activa",
+          "candidate_evaluating": "Candidato en evaluacion",
+          "waiting_regime": "Esperando cobertura de regimenes meteorologicos",
+          "physics_baseline": "IA aun no activa – linea base fisica"
+        }
+      },
       "ai_rmse": {
         "name": "IA RMSE",
         "state": {

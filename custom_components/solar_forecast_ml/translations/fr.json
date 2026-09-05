@@ -368,6 +368,15 @@
       "ml_metrics": {
         "name": "État de l'IA"
       },
+      "ai_gate_status": {
+        "name": "Statut du portail IA",
+        "state": {
+          "serving": "IA active",
+          "candidate_evaluating": "Candidat en evaluation",
+          "waiting_regime": "En attente de couverture des regimes meteo",
+          "physics_baseline": "IA pas encore active – baseline physique"
+        }
+      },
       "ai_rmse": {
         "name": "IA RMSE",
         "state": {

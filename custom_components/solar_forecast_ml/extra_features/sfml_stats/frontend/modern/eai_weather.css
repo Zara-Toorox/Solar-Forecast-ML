@@ -83,6 +83,13 @@
     flex-wrap: wrap;
 }
 
+.eai-weather-chips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    justify-content: flex-end;
+}
+
 .eai-weather-badge,
 .eai-weather-chip {
     display: inline-flex;

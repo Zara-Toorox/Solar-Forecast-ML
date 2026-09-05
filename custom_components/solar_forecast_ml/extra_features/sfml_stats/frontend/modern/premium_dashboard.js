@@ -56,6 +56,7 @@ const PremiumDashboardPage = ((Vue) => {
             conservative: "P10 Tagesprognose",
             deviation: "Stand zur Prognose",
             pvToBattery: "PV lädt Akku",
+            gridCharging: "Netzladung",
             charging: "Lädt",
             discharging: "Entlädt",
             standby: "Standby",
@@ -93,6 +94,7 @@ const PremiumDashboardPage = ((Vue) => {
             conservative: "P10 daily forecast",
             deviation: "Progress to forecast",
             pvToBattery: "PV charges battery",
+            gridCharging: "Grid charging",
             charging: "Charging",
             discharging: "Discharging",
             standby: "Standby",
@@ -130,6 +132,7 @@ const PremiumDashboardPage = ((Vue) => {
             conservative: "Prognoza dzienna P10",
             deviation: "Stan do prognozy",
             pvToBattery: "PV ładuje akumulator",
+            gridCharging: "Ładowanie z sieci",
             charging: "Ładowanie",
             discharging: "Rozładowanie",
             standby: "Gotowość",
@@ -223,23 +226,25 @@ const PremiumDashboardPage = ((Vue) => {
                                     <path class="orbit-flow base battery-path" d="M565 415 C690 430 770 500 890 512"></path>
                                     <path class="orbit-flow energy battery-path"
                                           :class="{
-                                              active: positive(energy.solar_to_battery_w) || positive(energy.battery_to_house_w),
-                                              reverse: !positive(energy.solar_to_battery_w) && positive(energy.battery_to_house_w),
-                                              'source-solar': positive(energy.solar_to_battery_w),
-                                              'source-battery': !positive(energy.solar_to_battery_w) && positive(energy.battery_to_house_w),
+                                              active: batteryChargeW || positive(energy.battery_to_house_w),
+                                              reverse: !batteryChargeW && positive(energy.battery_to_house_w),
+                                              'source-solar': positive(energy.solar_to_battery_w) && !positive(energy.grid_to_battery_w),
+                                              'source-grid': positive(energy.grid_to_battery_w),
+                                              'source-battery': !batteryChargeW && positive(energy.battery_to_house_w),
                                           }"
-                                          :marker-start="!positive(energy.solar_to_battery_w) && positive(energy.battery_to_house_w) ? 'url(#orbit-flow-arrow)' : null"
-                                          :marker-end="positive(energy.solar_to_battery_w) ? 'url(#orbit-flow-arrow)' : null"
-                                          :style="flowStyle(positive(energy.solar_to_battery_w) ? energy.solar_to_battery_w : energy.battery_to_house_w)"
+                                          :marker-start="!batteryChargeW && positive(energy.battery_to_house_w) ? 'url(#orbit-flow-arrow)' : null"
+                                          :marker-end="batteryChargeW ? 'url(#orbit-flow-arrow)' : null"
+                                          :style="flowStyle(batteryChargeW ? batteryChargeW : energy.battery_to_house_w)"
                                           d="M565 415 C690 430 770 500 890 512"></path>
                                     <path class="orbit-flow pulse battery-path"
                                           :class="{
-                                              active: positive(energy.solar_to_battery_w) || positive(energy.battery_to_house_w),
-                                              reverse: !positive(energy.solar_to_battery_w) && positive(energy.battery_to_house_w),
-                                              'source-solar': positive(energy.solar_to_battery_w),
-                                              'source-battery': !positive(energy.solar_to_battery_w) && positive(energy.battery_to_house_w),
+                                              active: batteryChargeW || positive(energy.battery_to_house_w),
+                                              reverse: !batteryChargeW && positive(energy.battery_to_house_w),
+                                              'source-solar': positive(energy.solar_to_battery_w) && !positive(energy.grid_to_battery_w),
+                                              'source-grid': positive(energy.grid_to_battery_w),
+                                              'source-battery': !batteryChargeW && positive(energy.battery_to_house_w),
                                           }"
-                                          :style="flowStyle(positive(energy.solar_to_battery_w) ? energy.solar_to_battery_w : energy.battery_to_house_w)"
+                                          :style="flowStyle(batteryChargeW ? batteryChargeW : energy.battery_to_house_w)"
                                           d="M565 415 C690 430 770 500 890 512"></path>
                                     <path class="orbit-flow base grid-path" d="M435 425 C310 448 230 500 110 512"></path>
                                     <path class="orbit-flow energy grid-path"
@@ -267,9 +272,10 @@ const PremiumDashboardPage = ((Vue) => {
                                 <p class="sr-only">
                                     <span v-if="positive(energy.solar_to_house_w)">{{ isEnglish ? "PV to home:" : "PV zu Haus:" }} {{ power(energy.solar_to_house_w) }}. </span>
                                     <span v-if="positive(energy.solar_to_battery_w)">{{ isEnglish ? "PV to battery:" : "PV zu Akku:" }} {{ power(energy.solar_to_battery_w) }}. </span>
+                                    <span v-if="positive(energy.grid_to_battery_w)">{{ isEnglish ? "Grid to battery:" : "Netz zu Akku:" }} {{ power(energy.grid_to_battery_w) }}. </span>
                                     <span v-else-if="positive(energy.battery_to_house_w)">{{ isEnglish ? "Battery to home:" : "Akku zu Haus:" }} {{ power(energy.battery_to_house_w) }}. </span>
                                     <span v-if="positive(energy.grid_export_w)">{{ isEnglish ? "PV to grid:" : "PV zu Netz:" }} {{ power(energy.grid_export_w) }}. </span>
-                                    <span v-else-if="positive(energy.grid_import_w)">{{ isEnglish ? "Grid to home:" : "Netz zu Haus:" }} {{ power(energy.grid_import_w) }}. </span>
+                                    <span v-else-if="positive(energy.grid_to_house_w)">{{ isEnglish ? "Grid to home:" : "Netz zu Haus:" }} {{ power(energy.grid_to_house_w) }}. </span>
                                 </p>
 
                                 <button type="button" class="orbit-anchor solar" @click="navigate('solar')">
@@ -302,9 +308,10 @@ const PremiumDashboardPage = ((Vue) => {
                                 <div class="orbit-mobile-flows" aria-label="Aktive Energieflüsse">
                                     <span v-if="positive(energy.solar_to_house_w)">PV → Haus {{ power(energy.solar_to_house_w) }}</span>
                                     <span v-if="positive(energy.solar_to_battery_w)">PV → Akku {{ power(energy.solar_to_battery_w) }}</span>
+                                    <span v-if="positive(energy.grid_to_battery_w)">Netz → Akku {{ power(energy.grid_to_battery_w) }}</span>
                                     <span v-else-if="positive(energy.battery_to_house_w)">Akku → Haus {{ power(energy.battery_to_house_w) }}</span>
                                     <span v-if="positive(energy.grid_export_w)">PV → Netz {{ power(energy.grid_export_w) }}</span>
-                                    <span v-else-if="positive(energy.grid_import_w)">Netz → Haus {{ power(energy.grid_import_w) }}</span>
+                                    <span v-else-if="positive(energy.grid_to_house_w)">Netz → Haus {{ power(energy.grid_to_house_w) }}</span>
                                 </div>
                                 </div>
 
@@ -657,7 +664,15 @@ const PremiumDashboardPage = ((Vue) => {
                 stale: "VERALTET",
                 unavailable: "KEINE DATEN",
             }[dataState.value]));
+            const batteryChargeW = computed(() => {
+                const solar = positive(energy.solar_to_battery_w) ? numeric(energy.solar_to_battery_w) : 0;
+                const grid = positive(energy.grid_to_battery_w) ? numeric(energy.grid_to_battery_w) : 0;
+                return (solar || 0) + (grid || 0);
+            });
             const batteryState = computed(() => {
+                if (positive(energy.grid_to_battery_w)) {
+                    return `${copy.gridCharging} · ${power(energy.grid_to_battery_w)}`;
+                }
                 if (positive(energy.solar_to_battery_w)) return `${copy.charging} · ${power(energy.solar_to_battery_w)}`;
                 if (positive(energy.battery_to_house_w)) return `${copy.discharging} · ${power(energy.battery_to_house_w)}`;
                 if (numeric(energy.battery_soc_percent) === null) return copy.unavailable;
@@ -925,7 +940,7 @@ const PremiumDashboardPage = ((Vue) => {
 
             return {
                 copy, isEnglish, loaded, error, dashboard, energy, forecast, price, heatPump, wallbox,
-                weather, warnings, weatherTarget, updatedTime, batteryState, gridState, gridPower,
+                weather, warnings, weatherTarget, updatedTime, batteryChargeW, batteryState, gridState, gridPower,
                 weatherSymbol, weatherText, weatherConditionText, temperatureSourceLabel, heatPumpMode, wallboxState,
                 progressPercent, progressText, dayArc,
                 dataState, dataStateLabel,

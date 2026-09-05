@@ -374,13 +374,13 @@ const ModernEAIWeatherPage = {
                     </article>
 
                     <article class="eai-weather-card">
-                        <header><div><span class="eai-weather-eyebrow">Wetterhinweise</span><h3>Was du jetzt wissen solltest</h3></div><span v-if="hasModelWarnings" class="eai-weather-chip">Modellprognose · nicht amtlich</span></header>
+                        <header><div><span class="eai-weather-eyebrow">Wetterhinweise</span><h3>Was du jetzt wissen solltest</h3></div><span class="eai-weather-chips"><span v-if="hasOfficialWarnings" class="eai-weather-chip">Amtliche Warnung</span><span v-if="hasModelWarnings" class="eai-weather-chip">Modellprognose · nicht amtlich</span></span></header>
                         <ul v-if="warnings.length" class="eai-weather-events">
                             <li v-for="warning in warnings" :key="warning.code + (warning.start || warning.valid_at)">
                                 <i class="eai-weather-warning-icon" aria-hidden="true">{{ warningIcon(warning) }}</i>
                                 <div class="eai-weather-warning-content">
                                     <span :class="['eai-weather-severity', warning.severity]">{{ warningTitle(warning) }} · {{ severityLabel(warning.severity) }}</span>
-                                    <time class="eai-weather-warning-period">{{ warningPeriod(warning) }}</time>
+                                    <time class="eai-weather-warning-period">{{ warningPeriod(warning) }} · {{ warningSourceLabel(warning) }}</time>
                                     <strong>{{ warningEvidence(warning) }}</strong>
                                     <span>{{ warningAction(warning) }}</span>
                                 </div>
@@ -673,13 +673,19 @@ const ModernEAIWeatherPage = {
         const records = computed(() => Array.isArray(history.value.records) ? history.value.records : []);
         const warnings = computed(() => {
             const items = Array.isArray(weather.warnings) ? weather.warnings : (Array.isArray(weather.events) ? weather.events : []);
+            const severityRank = { critical: 0, warning: 1, advisory: 2 };
             return [...items].sort((left, right) => {
+                const official = (right?.official_alert === true) - (left?.official_alert === true);
+                if (official) return official;
+                const severity = (severityRank[left?.severity] ?? 9) - (severityRank[right?.severity] ?? 9);
+                if (severity) return severity;
                 const leftTime = new Date(left.start || left.valid_at || 0).getTime();
                 const rightTime = new Date(right.start || right.valid_at || 0).getTime();
                 return (Number.isFinite(leftTime) ? leftTime : Number.MAX_SAFE_INTEGER)
                     - (Number.isFinite(rightTime) ? rightTime : Number.MAX_SAFE_INTEGER);
             });
         });
+        const hasOfficialWarnings = computed(() => warnings.value.some((warning) => warning?.official_alert === true));
         const hasModelWarnings = computed(() => warnings.value.some((warning) => warning?.official_alert === false));
         const rainfall = computed(() => history.value.precipitation || {});
         const yearComparison = computed(() => history.value.year_comparison || {});
@@ -902,7 +908,8 @@ const ModernEAIWeatherPage = {
             secure_loose_objects: "Lose Gegenstände und empfindliche Pflanzen sichern. Markisen einfahren und exponierte Bereiche frühzeitig kontrollieren.",
             storm_precautions: "Aufenthalt im Freien vermeiden und Sturmschutz prüfen. Fenster schließen, lose Gegenstände sichern und Fahrten wenn möglich verschieben."
         }[code] || "Die Prognose wird regelmäßig aktualisiert.");
-        const warningEvidence = (warning) => { const evidence = warning.evidence || {}; if (Number.isFinite(Number(evidence.temperature_c))) return temperature(evidence.temperature_c); if (Number.isFinite(Number(evidence.wind_speed))) return `${number(evidence.wind_speed)} km/h Wind`; if (Number.isFinite(Number(evidence.visibility))) return `${number(evidence.visibility)} m Sichtweite`; const rain = evidence.precipitation_forecast_mm ?? evidence.precipitation; if (Number.isFinite(Number(rain))) return precipitationOutlook(rain, evidence.precipitation_probability); if (Number.isFinite(Number(evidence.precipitation_probability))) return `${percent(evidence.precipitation_probability)} Regenwahrscheinlichkeit`; return ({ lightning: "Gewitter", "lightning-rainy": "Gewitter mit Regen", hail: "Hagel", fog: "Dichter Nebel", rainy: "Regen", pouring: "Starker Regen", snowy: "Schnee", "snowy-rainy": "Schneeregen", exceptional: "Ungewöhnliche Wetterlage" }[evidence.condition] || "Prognosewert nicht verfügbar"); };
+        const warningEvidence = (warning) => { const evidence = warning.evidence || {}; if (warning?.official_alert === true) return warning.message || evidence.event || "Amtliche DWD-Warnung"; if (Number.isFinite(Number(evidence.temperature_c))) return temperature(evidence.temperature_c); if (Number.isFinite(Number(evidence.wind_speed))) return `${number(evidence.wind_speed)} km/h Wind`; if (Number.isFinite(Number(evidence.visibility))) return `${number(evidence.visibility)} m Sichtweite`; const rain = evidence.precipitation_forecast_mm ?? evidence.precipitation; if (Number.isFinite(Number(rain))) return precipitationOutlook(rain, evidence.precipitation_probability); if (Number.isFinite(Number(evidence.precipitation_probability))) return `${percent(evidence.precipitation_probability)} Regenwahrscheinlichkeit`; return ({ lightning: "Gewitter", "lightning-rainy": "Gewitter mit Regen", hail: "Hagel", fog: "Dichter Nebel", rainy: "Regen", pouring: "Starker Regen", snowy: "Schnee", "snowy-rainy": "Schneeregen", exceptional: "Ungewöhnliche Wetterlage" }[evidence.condition] || "Prognosewert nicht verfügbar"); };
+        const warningSourceLabel = (warning) => warning?.official_alert === true ? "Amtliche Warnung" : "Modellprognose · nicht amtlich";
         const warningAction = (warning) => String(warning?.recommended_action || impactLabel(warning?.impact_code));
         const warningDate = (value, includeWeekday = true) => formatDate(value, {
             weekday: includeWeekday ? "long" : undefined,
@@ -959,11 +966,11 @@ const ModernEAIWeatherPage = {
         return {
             loading, error, status, weather, chartMetric, selectedChartPoint, chartOptions, chartTitle, chartSubtitle, chartModel, chartAriaLabel,
             modeLabel, recorderLabel, historySource, outlook, nextHours, hourly, daily, history, current, currentMetrics, currentSourceEyebrow, hasActualTimeline, actualTimelineLabel,
-            aggregates, monthly, records, warnings, hasModelWarnings, warningSummary, rainfall, rainDays, rainRateDays, rainfallAvailable, rainfallRateAvailable, rainfallTitle, historySince, historyQualityLabel,
+            aggregates, monthly, records, warnings, hasOfficialWarnings, hasModelWarnings, warningSummary, rainfall, rainDays, rainRateDays, rainfallAvailable, rainfallRateAvailable, rainfallTitle, historySince, historyQualityLabel,
             yearComparison, sourceCards, sourceComparisonRows, missingSourceLabels, sourceAvailabilityLabel,
             coverageLabel, forecastRain, narrative, qualityRows, trendLabel, qualityEyebrow, qualityTitle, qualityProvenance, accuracyProvenance, number, integer, percent, temperature,
             precipitation, precipitationRate, irradiance, signedTemperature, precipitationProbability, precipitationOutlook, dateTime, dateOnly, shortDate, time, dayName, daySummary, weatherSymbol, weatherDescription, precipitationInconsistent, dayIcon,
-            warningTitle, warningIcon, severityLabel, impactLabel, warningEvidence, warningAction, warningPeriod, monthLabel, monthStyle,
+            warningTitle, warningIcon, warningSourceLabel, severityLabel, impactLabel, warningEvidence, warningAction, warningPeriod, monthLabel, monthStyle,
             monthAverageStyle, recordLabel, recordValue, rainBar, chartValue, chartPointLabel, chartAxisValue, chartAxisTime,
         };
     },

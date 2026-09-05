@@ -71,6 +71,7 @@ from .sensors.sensor_actual_sot import (
 
 from .sensors.sensor_diagnostic import (
     ActivePredictionModelSensor,
+    AIGateStatusSensor,
     AIRmseSensor,
     CloudinessTrend1hSensor,
     CloudinessTrend3hSensor,
@@ -203,6 +204,7 @@ async def async_setup_entry(
             ExternalSensorsStatusSensor(hass, entry),
             NextProductionStartSensor(coordinator, entry),
             MLMetricsSensor(coordinator, entry),
+            AIGateStatusSensor(coordinator, entry),
             AIRmseSensor(coordinator, entry),
             ActivePredictionModelSensor(coordinator, entry),
             PhysicsSamplesSensor(coordinator, entry),
@@ -276,6 +278,7 @@ async def _cleanup_orphaned_entities(
         "next_production_start",
         "ml_service_status",
         "ml_metrics",
+        "ai_gate_status",
         "ml_training_readiness",
         "active_prediction_model",
         "physics_samples",

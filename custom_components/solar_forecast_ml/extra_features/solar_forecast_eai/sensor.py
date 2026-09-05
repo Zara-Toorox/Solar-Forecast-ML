@@ -62,7 +62,7 @@ WEATHER_EVENT_OPTIONS = [
     "severe_weather",
 ]
 
-WEATHER_WARNING_SEVERITY_RANK = {"warning": 1, "critical": 2}
+WEATHER_WARNING_SEVERITY_RANK = {"advisory": 0, "warning": 1, "critical": 2}
 WEATHER_NON_HAZARD_CODES = {"none", "forecast_stale", "forecast_unavailable"}
 WEATHER_WARNING_ICON_KEYS = {
     "frost",
@@ -77,7 +77,11 @@ WEATHER_WARNING_ICON_KEYS = {
     "fog",
     "severe_weather",
 }
-WEATHER_WARNING_EVIDENCE_KINDS = {"condition_derived", "forecast_value"}
+WEATHER_WARNING_EVIDENCE_KINDS = {
+    "condition_derived",
+    "forecast_value",
+    "official_cap",
+}
 
 
 def _weather_event_code(value: Any) -> str:
