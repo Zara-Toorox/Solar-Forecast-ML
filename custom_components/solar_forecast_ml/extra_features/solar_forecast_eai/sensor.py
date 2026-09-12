@@ -89,6 +89,29 @@ def _weather_event_code(value: Any) -> str:
     return value if isinstance(value, str) and value in WEATHER_EVENT_OPTIONS else "none"
 
 
+def _enum_state(value: Any, options: list[str]) -> str:
+    """Keep enum sensors valid when a snapshot contains an unlisted code."""
+    if isinstance(value, str) and value in options:
+        return value
+    return "none" if "none" in options else options[0]
+
+
+RECOMMENDATION_REASON_OPTIONS = [
+    "none",
+    "pv_surplus",
+    "low_price",
+    "comfort_need",
+    "high_price",
+    "data_unavailable",
+    "hydraulics_setup_incomplete",
+    "dhw_max_reached",
+    "dhw_unanswered",
+    "dhw_limit_unanswered",
+    "dhw_disabled",
+    "dhw_limit_quantity_mismatch",
+]
+
+
 SENSORS = (
     EAISensorDescription(
         key="recommended_action",
@@ -100,14 +123,7 @@ SENSORS = (
         key="recommendation_reason",
         translation_key="recommendation_reason",
         device_class=SensorDeviceClass.ENUM,
-        options=[
-            "none",
-            "pv_surplus",
-            "low_price",
-            "comfort_need",
-            "high_price",
-            "data_unavailable",
-        ],
+        options=RECOMMENDATION_REASON_OPTIONS,
     ),
     EAISensorDescription(
         key="recommendation_explanation",
@@ -428,7 +444,11 @@ class EAISensor(SensorEntity):
 
     @property
     def native_value(self) -> Any:
-        return self.engine.snapshot().values[self.entity_description.key]
+        value = self.engine.snapshot().values[self.entity_description.key]
+        options = self.entity_description.options
+        if options:
+            return _enum_state(value, options)
+        return value
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

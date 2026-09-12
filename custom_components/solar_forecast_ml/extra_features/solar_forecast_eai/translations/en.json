@@ -682,7 +682,8 @@
           "dhw_max_reached": "DHW limit reached",
           "dhw_unanswered": "DHW not confirmed",
           "dhw_limit_unanswered": "DHW limit missing",
-          "dhw_disabled": "DHW disabled"
+          "dhw_disabled": "DHW disabled",
+          "dhw_limit_quantity_mismatch": "DHW limit does not match sensor"
         }
       },
       "recommendation_explanation": {

@@ -1,6 +1,7 @@
 const SFML_API_BRIDGE_PROTOCOL = "sfml-api-bridge-v1";
 const SFML_API_PREFIX = "/api/sfml_stats/";
 const SFML_API_MAX_REQUEST_BYTES = 4096;
+const SFML_API_MAX_POST_REQUEST_BYTES = 65536;
 const SFML_API_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 function bridgeMessageSize(value) {
@@ -78,7 +79,8 @@ class SfmlStatsApiBridge extends HTMLElement {
     if (!this._validEvent(event)) return;
     const message = event.data;
     try {
-      if (bridgeMessageSize(message) > SFML_API_MAX_REQUEST_BYTES) return;
+      const limit = message?.type === "POST" ? SFML_API_MAX_POST_REQUEST_BYTES : SFML_API_MAX_REQUEST_BYTES;
+      if (bridgeMessageSize(message) > limit) return;
     } catch (_error) {
       return;
     }
@@ -93,16 +95,21 @@ class SfmlStatsApiBridge extends HTMLElement {
       return;
     }
 
-    if (message.type !== "GET" || message.nonce !== this._nonce || !this._hass) return;
+    const isGet = message.type === "GET";
+    const isPost = message.type === "POST";
+    if ((!isGet && !isPost) || message.nonce !== this._nonce || !this._hass) return;
     if (!/^[a-f0-9]{32}$/.test(message.requestId || "") || this._seen.has(message.requestId)) return;
     const path = authenticatedApiPath(message.endpoint);
     if (!path) return;
+    if (isPost && (message.payload === null || typeof message.payload !== "object" || Array.isArray(message.payload))) return;
     this._seen.add(message.requestId);
     if (this._seen.size > 256) this._seen.delete(this._seen.values().next().value);
 
     let response;
     try {
-      const data = await this._hass.callApi("GET", path);
+      const data = isPost
+        ? await this._hass.callApi("POST", path, message.payload)
+        : await this._hass.callApi("GET", path);
       response = {
         protocol: SFML_API_BRIDGE_PROTOCOL,
         type: "RESPONSE",

@@ -6,6 +6,8 @@ const SFML_API_BRIDGE_PROTOCOL = "sfml-api-bridge-v1";
 const SFML_API_BRIDGE_PATH = "/sfml-stats-api-bridge";
 const SFML_EXTERNAL_AUTH_CALLBACK = "externalAuthSetToken";
 const SFML_EXTERNAL_AUTH_TIMEOUT_MS = 10000;
+// Authenticated writes may trigger longer server work (log collection, upstream calls).
+const SFML_API_BRIDGE_POST_TIMEOUT_MS = 60000;
 
 const sfmlApiRandomId = () => {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID().replaceAll("-", "");
@@ -70,6 +72,14 @@ class SfmlParentHassApiClient {
         const hass = this._authenticatedHass();
         if (!hass) throw new Error("Home-Assistant-Panel-Anmeldung nicht verfügbar");
         return hass.callApi("GET", path);
+    }
+
+    async post(endpoint, payload) {
+        const path = sfmlHassApiPath(endpoint, this.hostWindow.location.origin);
+        if (!path) throw new Error("Authenticated endpoint rejected");
+        const hass = this._authenticatedHass();
+        if (!hass) throw new Error("Home-Assistant-Panel-Anmeldung nicht verfügbar");
+        return hass.callApi("POST", path, payload);
     }
 }
 
@@ -219,6 +229,14 @@ class SfmlAuthenticatedApiClient {
     }
 
     async get(endpoint) {
+        return this._request("GET", endpoint);
+    }
+
+    async post(endpoint, payload) {
+        return this._request("POST", endpoint, payload, SFML_API_BRIDGE_POST_TIMEOUT_MS);
+    }
+
+    async _request(type, endpoint, payload, timeoutMs = 15000) {
         this._mount();
         await this.ready;
         const requestId = sfmlApiRandomId();
@@ -226,15 +244,17 @@ class SfmlAuthenticatedApiClient {
             const timer = window.setTimeout(() => {
                 this.pending.delete(requestId);
                 reject(new Error("Home-Assistant-Anfrage hat das Zeitlimit überschritten"));
-            }, 15000);
+            }, timeoutMs);
             this.pending.set(requestId, { resolve, reject, timer });
-            this.iframe.contentWindow.postMessage({
+            const message = {
                 protocol: SFML_API_BRIDGE_PROTOCOL,
-                type: "GET",
+                type,
                 nonce: this.nonce,
                 requestId,
                 endpoint,
-            }, this.origin);
+            };
+            if (type === "POST") message.payload = payload ?? {};
+            this.iframe.contentWindow.postMessage(message, this.origin);
         });
     }
 }
@@ -270,6 +290,53 @@ const SFMLApi = {
         }
         this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
         return this.authenticatedClient.get(endpoint);
+    },
+
+    // Authenticated JSON write. Uses the same three transports as _getAuthenticated
+    // and normalises failures to Error objects carrying the backend error code.
+    async postAuthenticated(endpoint, payload = {}) {
+        const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
+        if (!authenticatedEndpoint) {
+            throw new Error("Authenticated endpoint rejected");
+        }
+        try {
+            this.parentHassClient ??= new SfmlParentHassApiClient();
+            if (this.parentHassClient.isAvailable()) {
+                return await this.parentHassClient.post(endpoint, payload);
+            }
+            this.companionAuthClient ??= new SfmlCompanionAuthClient();
+            const accessToken = await this.companionAuthClient.getAccessToken();
+            if (accessToken) {
+                const response = await fetch(authenticatedEndpoint, {
+                    method: "POST",
+                    cache: "no-store",
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload ?? {}),
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const error = new Error(String(data?.error?.message || `HTTP ${response.status}: ${response.statusText}`));
+                    error.code = String(data?.error?.code || "request_failed");
+                    error.field = data?.error?.field;
+                    throw error;
+                }
+                return data;
+            }
+            this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
+            return await this.authenticatedClient.post(endpoint, payload);
+        } catch (error) {
+            const body = error?.body?.error || error?.error;
+            if (body && typeof body === "object" && !error.code) {
+                const normalised = new Error(String(body.message || error.message || "Anfrage fehlgeschlagen"));
+                normalised.code = String(body.code || "request_failed");
+                normalised.field = body.field;
+                throw normalised;
+            }
+            throw error;
+        }
     },
 
     async fetch(endpoint, options = {}) {

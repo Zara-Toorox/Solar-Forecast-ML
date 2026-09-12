@@ -19,6 +19,7 @@ const ICON_PATHS = {
     charge: "M7 7V3M17 7V3M5 7h14v4a7 7 0 0 1-7 7v3M8 21h8",
     settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.38.2.73.32 1.1.4h.5v4h-.09A1.7 1.7 0 0 0 19.4 15Z",
     help: "M9.1 9a3 3 0 1 1 5.8 1.05c-.42 1.08-1.35 1.45-2.05 2.05-.5.43-.85.92-.85 1.9M12 18h.01M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z",
+    bug: "M9 3l1.5 2.2M15 3l-1.5 2.2M12 6.5a4.5 4.5 0 0 1 4.5 4.5v4a4.5 4.5 0 0 1-9 0v-4A4.5 4.5 0 0 1 12 6.5ZM12 8v11M7.5 12H4M20 12h-3.5M7.8 16.5 4.5 18.5M16.2 16.5l3.3 2M8 9 5 7.5M16 9l3-1.5",
     license: "M5 6h14v14H5zM8 6V4h8v2M8 11h8M8 15h5",
     menu: "M4 6h16M4 12h16M4 18h16",
     close: "m6 6 12 12M18 6 6 18",
@@ -77,6 +78,7 @@ const COPY = {
             eai: ["Wärmepumpe", "Verbrauch, Betrieb, Effizienz und Gebäudeverhalten"],
             mobility: ["E-Mobilität & Wallbox", "PV, Preise, Wärmepumpe und Abfahrtsziel gemeinsam planen"],
             eai_weather: ["Weather Intelligence", "Lokale Prognose, Historie, Genauigkeit und Wetterrisiken"],
+            support: ["Fehler melden", "Direkter Kanal zum Entwickler – mit Log-Auszug, ohne persönliche Daten"],
         },
         status: { live: "Aktuell", stale: "Veraltet", offline: "Nicht erreichbar", loading: "Verbinden" },
         theme: { label: "Darstellung", auto: "Automatisch", light: "Hell", dark: "Dunkel" },
@@ -110,6 +112,7 @@ const COPY = {
             eai: ["Heat Pump", "Consumption, operation, efficiency and building response"],
             mobility: ["E-Mobility & Wallbox", "Plan PV, prices, heat-pump demand and departure target together"],
             eai_weather: ["Weather Intelligence", "Local forecast, history, accuracy and weather risks"],
+            support: ["Report a defect", "Direct channel to the developer – with log excerpt, without personal data"],
         },
         status: { live: "Current", stale: "Stale", offline: "Unavailable", loading: "Connecting" },
         theme: { label: "Appearance", auto: "Automatic", light: "Light", dark: "Dark" },
@@ -143,6 +146,7 @@ const COPY = {
             eai: ["Pompa ciepła", "Zużycie, praca, efektywność i reakcja budynku"],
             mobility: ["E-mobilność i wallbox", "Wspólne planowanie PV, cen, pompy ciepła i wyjazdu"],
             eai_weather: ["Weather Intelligence", "Lokalna prognoza, historia, dokładność i ryzyka pogodowe"],
+            support: ["Zgłoś błąd", "Bezpośredni kanał do dewelopera – z fragmentem logu, bez danych osobowych"],
         },
         status: { live: "Aktualne", stale: "Nieaktualne", offline: "Niedostępne", loading: "Łączenie" },
         theme: { label: "Wygląd", auto: "Automatyczny", light: "Jasny", dark: "Ciemny" },
@@ -382,6 +386,13 @@ const ModernApp = {
                         <ui-icon name="help"></ui-icon>
                         <span>{{ copy.help }}</span>
                     </a>
+                    <button type="button" class="nav-item sidebar-help-link"
+                            :class="{ active: currentPage === 'support' }"
+                            :aria-current="currentPage === 'support' ? 'page' : null"
+                            @click="navigate('support')">
+                        <ui-icon name="bug"></ui-icon>
+                        <span>{{ pageCopy('support')[0] }}</span>
+                    </button>
                     <a class="nav-item sidebar-help-link" href="https://ko-fi.com/s/8bc3808d22"
                        target="_blank" rel="noopener noreferrer">
                         <ui-icon name="license"></ui-icon>
@@ -592,6 +603,7 @@ const ModernApp = {
             ems: window.ModernEMSPage,
             corrections: window.ModernCorrectionsPage,
             settings: window.SettingsPage,
+            support: window.ModernSupportPage,
         };
 
         const currentPageComponent = computed(() => pages[currentPage.value] || pages.home);

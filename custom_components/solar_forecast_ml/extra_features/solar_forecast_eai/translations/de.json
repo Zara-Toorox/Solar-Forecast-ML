@@ -682,7 +682,8 @@
           "dhw_max_reached": "Warmwassergrenze erreicht",
           "dhw_unanswered": "Warmwasser nicht bestätigt",
           "dhw_limit_unanswered": "Warmwassergrenze fehlt",
-          "dhw_disabled": "Warmwasser deaktiviert"
+          "dhw_disabled": "Warmwasser deaktiviert",
+          "dhw_limit_quantity_mismatch": "Warmwassergrenze passt nicht zum Fühler"
         }
       },
       "recommendation_explanation": {
