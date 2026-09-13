@@ -212,15 +212,21 @@ def _apply_profile_attributes(
     selected: tuple[Any, ...],
     *,
     existing: dict[str, Any] | None = None,
-) -> None:
-    """Prefill manufacturer and model from the recognised device registry entry."""
+) -> set[str]:
+    """Prefill manufacturer and model from the recognised device registry entry.
+
+    Return the keys that were actually written.
+    """
     baseline = existing if existing is not None else target
+    written: set[str] = set()
     for candidate in selected:
         if not hasattr(candidate, "attributes"):
             continue
         for key, value in profile_attribute_updates(candidate, baseline).items():
             if not target.get(key):
                 target[key] = value
+                written.add(key)
+    return written
 
 
 def _sensor_source_schema(
@@ -295,23 +301,45 @@ def _mapping_suggestions(
     return suggestions, selected_categories
 
 
+def _assigned_entity(
+    target: dict[str, Any],
+    baseline: dict[str, Any],
+    key: str,
+) -> Any:
+    """Return the entity already chosen for ``key`` in the draft or baseline."""
+    value = target.get(key)
+    if value not in (None, ""):
+        return value
+    return baseline.get(key)
+
+
 def _apply_mapping_suggestions(
     target: dict[str, Any],
     suggestions: dict[str, str],
     selected_categories: set[str],
     *,
     existing: dict[str, Any] | None = None,
-) -> None:
+) -> set[str]:
+    """Write the proposed sensor keys into ``target``; return those that changed.
+
+    A confirmed source or device means "take these sensors". Already assigned
+    keys of that selection are replaced in the draft. Keys the selection does
+    not propose stay untouched. Callers use the returned keys to tell the
+    customer when the selection already matched and changed nothing.
+    """
     baseline = existing if existing is not None else target
     heater_disabled = baseline.get(CONF_HAS_HEATING_ELEMENT) is False
+    written: set[str] = set()
     for key, entity_id in suggestions.items():
         if heater_disabled and key in {
             CONF_HEATING_ELEMENT_POWER_ENTITY,
             CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
         }:
             continue
-        if baseline.get(key) in (None, "") and target.get(key) in (None, ""):
-            target[key] = entity_id
+        if _assigned_entity(target, baseline, key) == entity_id:
+            continue
+        target[key] = entity_id
+        written.add(key)
     if "heat_pump" in selected_categories:
         if baseline.get(CONF_ELECTRICAL_MEASUREMENT_TOPOLOGY) in (None, ""):
             target.setdefault(
@@ -319,6 +347,50 @@ def _apply_mapping_suggestions(
                 ELECTRICAL_TOPOLOGY_SEPARATE,
             )
         # Discovery may suggest heater entities. It must not write True.
+    return written
+
+
+def _adopt_confirmed_sources(
+    target: dict[str, Any],
+    candidates: tuple[Any, ...],
+    user_input: dict[str, Any],
+    enabled: dict[str, bool],
+    *,
+    existing: dict[str, Any] | None = None,
+) -> tuple[set[str], str | None]:
+    """Write the proposed sensors of the confirmed sources into ``target``.
+
+    Return the confirmed categories and an error key when nothing was
+    written: ``sensor_source_required`` when reuse is enabled without a
+    source, ``sensor_source_invalid`` when a confirmed source is unusable and
+    ``mapping_already_assigned`` when every proposed sensor already matches.
+    Manufacturer and model may still be prefilled, but they do not count as
+    a sensor import. The selection itself is never stored.
+    """
+    if user_input.get(CONF_USE_DISCOVERED_MAPPINGS) and not any(
+        user_input.get(field)
+        for category, field in SENSOR_SOURCE_FIELDS.items()
+        if enabled.get(category)
+    ):
+        return set(), "sensor_source_required"
+    try:
+        suggestions, selected = _mapping_suggestions(candidates, user_input, enabled)
+    except vol.Invalid:
+        return set(), "sensor_source_invalid"
+    proposal = dict(target)
+    written = _apply_mapping_suggestions(
+        proposal, suggestions, selected, existing=existing
+    )
+    _apply_profile_attributes(
+        proposal,
+        _selected_candidates(candidates, user_input, enabled),
+        existing=existing,
+    )
+    if selected and not written:
+        return selected, "mapping_already_assigned"
+    target.update(proposal)
+    return selected, None
+
 
 HEAT_PUMP_OPTION_KEYS = (
     CONF_WP_TYPE,
@@ -991,10 +1063,16 @@ def _apply_device_candidate(
     candidate: Any,
     *,
     existing: dict[str, Any] | None = None,
-) -> None:
-    """Prefill one device's proposals without overwriting manual assignments."""
-    _apply_mapping_suggestions(
-        target,
+) -> bool:
+    """Write one device's sensor proposals into the draft.
+
+    Return whether any sensor key changed. Matching sensors leave
+    ``target`` untouched so the flow can say the device changed nothing.
+    Manufacturer and model may be prefilled only after a sensor change.
+    """
+    proposal = dict(target)
+    written = _apply_mapping_suggestions(
+        proposal,
         {
             **candidate.values_for("environment"),
             **candidate.values_for("heat_pump"),
@@ -1002,7 +1080,11 @@ def _apply_device_candidate(
         {"environment", "heat_pump"},
         existing=existing,
     )
-    _apply_profile_attributes(target, (candidate,), existing=existing)
+    _apply_profile_attributes(proposal, (candidate,), existing=existing)
+    if not written:
+        return False
+    target.update(proposal)
+    return True
 
 
 def _automation_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
@@ -1321,7 +1403,12 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         errors={"base": "device_mapping_empty"},
                     )
                 self._data = dict(merged)
-                _apply_device_candidate(self._data, candidate)
+                if not _apply_device_candidate(self._data, candidate):
+                    return self.async_show_form(
+                        step_id="reconfigure",
+                        data_schema=self._reconfigure_schema(merged),
+                        errors={"base": "mapping_already_assigned"},
+                    )
                 return self.async_show_form(
                     step_id="reconfigure",
                     data_schema=self._reconfigure_schema(self._data),
@@ -1484,8 +1571,9 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
             if candidate is None:
                 errors["base"] = "device_mapping_empty"
+            elif not _apply_device_candidate(self._data, candidate):
+                errors["base"] = "mapping_already_assigned"
             else:
-                _apply_device_candidate(self._data, candidate)
                 return await self.async_step_heat_pump()
         return self.async_show_form(
             step_id="heat_pump_device",
@@ -1502,19 +1590,12 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         enabled = _source_enabled(self._data)
         errors: dict[str, str] = {}
         if user_input is not None:
-            try:
-                suggestions, selected = _mapping_suggestions(
-                    candidates, user_input, enabled
-                )
-            except vol.Invalid:
-                errors["base"] = "sensor_source_invalid"
-            else:
-                _apply_mapping_suggestions(self._data, suggestions, selected)
-                _apply_profile_attributes(
-                    self._data,
-                    _selected_candidates(candidates, user_input, enabled),
-                )
+            _, error = _adopt_confirmed_sources(
+                self._data, candidates, user_input, enabled
+            )
+            if error is None:
                 return await self._async_step_after_sensor_sources()
+            errors["base"] = error
         return self.async_show_form(
             step_id="sensor_sources",
             data_schema=_sensor_source_schema(candidates, enabled),
@@ -1886,26 +1967,13 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
         enabled = _source_enabled(current)
         errors: dict[str, str] = {}
         if user_input is not None:
-            try:
-                suggestions, selected = _mapping_suggestions(
-                    candidates, user_input, enabled
-                )
-            except vol.Invalid:
-                errors["base"] = "sensor_source_invalid"
-            else:
-                _apply_mapping_suggestions(
-                    self._options,
-                    suggestions,
-                    selected,
-                    existing=current,
-                )
-                _apply_profile_attributes(
-                    self._options,
-                    _selected_candidates(candidates, user_input, enabled),
-                    existing=current,
-                )
+            selected, error = _adopt_confirmed_sources(
+                self._options, candidates, user_input, enabled, existing=current
+            )
+            if error is None:
                 self._queue_mapping_review(selected)
                 return await self._async_finish_feature_sequence()
+            errors["base"] = error
         return self.async_show_form(
             step_id="sensor_sources",
             data_schema=_sensor_source_schema(candidates, enabled),
@@ -1936,10 +2004,11 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
             )
             if candidate is None:
                 errors["base"] = "device_mapping_empty"
+            elif not _apply_device_candidate(
+                self._options, candidate, existing=current
+            ):
+                errors["base"] = "mapping_already_assigned"
             else:
-                _apply_device_candidate(
-                    self._options, candidate, existing=current
-                )
                 self._queue_mapping_review({"environment", "heat_pump"})
                 return await self._async_finish_feature_sequence()
         return self.async_show_form(

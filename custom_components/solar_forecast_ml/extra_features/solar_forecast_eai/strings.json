@@ -27,7 +27,7 @@
       },
       "sensor_sources": {
         "title": "Reuse existing sensor assignments",
-        "description": "EAI found compatible assignments: published locally by installed Toorox integrations, and recognised heat-pump gateways such as EMS-ESP. Nothing is copied unless you enable reuse and confirm a source. Existing manual assignments always take precedence.",
+        "description": "EAI found compatible assignments: published locally by installed Toorox integrations, and recognised heat-pump gateways such as EMS-ESP. Nothing is copied unless you enable reuse and confirm a source. The chosen source writes its sensors into the draft, including sensors that are already assigned. Other sensors stay untouched. You review and can still change them on the following pages. The selection itself is not stored.",
         "data": {
           "use_discovered_sensor_mappings": "Reuse compatible assignments",
           "environment_sensor_source": "Source for outdoor conditions",
@@ -43,12 +43,12 @@
       },
       "heat_pump_device": {
         "title": "Heat pump device",
-        "description": "Pick the device your heat pump is published under. EAI reads that device's entities and prefills the following pages, which you then confirm. Leave the field empty to assign every sensor by hand.",
+        "description": "Pick the device your heat pump is published under. EAI looks up that device's sensors and writes them onto the following pages, including sensors that are already assigned. You can still change them there. Leave the field empty to assign every sensor by hand.",
         "data": {
           "heat_pump_device": "Heat pump device"
         },
         "data_description": {
-          "heat_pump_device": "Expected: the device of your heat-pump integration, for example EMS-ESP, ViCare, Daikin, MELCloud, Nibe or a Modbus bridge. Proposals are only prefilled and never saved unseen."
+          "heat_pump_device": "Expected: the device of your heat-pump integration, for example EMS-ESP, ViCare, Daikin, MELCloud, Nibe or a Modbus bridge. The found sensors are written into the draft and never saved unseen."
         }
       },
       "heat_pump": {
@@ -359,6 +359,8 @@
       "wallbox_demand_required": "Select at least one demand source: vehicle state of charge, requested energy, or planned distance.",
       "sensor_source_invalid": "The selected sensor source changed, is incompatible, or is no longer available. Select it again or continue without reuse.",
       "device_mapping_empty": "No usable heat-pump sensors were found on this device. Pick a different device or assign the sensors by hand.",
+      "sensor_source_required": "Choose at least one source, or disable reuse to continue without it.",
+      "mapping_already_assigned": "This selection already matches the assigned sensors, so nothing was changed. The selection here is not stored.",
       "energy_today_not_daily": "This is a lifetime energy counter. Set the energy counter type to automatic or to lifetime counter so EAI derives the daily value.",
       "invalid_energy_unit": "This entity does not report energy in Wh, kWh or MWh.",
       "invalid_power_unit": "This entity does not report power in W, kW or MW.",
@@ -404,7 +406,7 @@
       },
       "sensor_sources": {
         "title": "Reuse existing sensor assignments",
-        "description": "EAI found compatible assignments: published locally by installed Toorox integrations, and recognised heat-pump gateways such as EMS-ESP. Nothing is copied unless you enable reuse and confirm a source. Existing manual assignments always take precedence.",
+        "description": "EAI found compatible assignments: published locally by installed Toorox integrations, and recognised heat-pump gateways such as EMS-ESP. Nothing is copied unless you enable reuse and confirm a source. The chosen source writes its sensors into the draft, including sensors that are already assigned. You can still change them on the following sensors page. The selection itself is not stored, so the field is blank when you return here.",
         "data": {
           "use_discovered_sensor_mappings": "Reuse compatible assignments",
           "environment_sensor_source": "Source for outdoor conditions",
@@ -420,12 +422,12 @@
       },
       "heat_pump_device": {
         "title": "Heat pump device",
-        "description": "Pick the device your heat pump is published under. EAI reads that device's entities and prefills the following pages, which you then confirm. Leave the field empty to assign every sensor by hand.",
+        "description": "Pick the device your heat pump is published under. EAI looks up that device's sensors and writes them onto the following pages, including sensors that are already assigned. You can still change them there. Leave the field empty to assign every sensor by hand.",
         "data": {
           "heat_pump_device": "Heat pump device"
         },
         "data_description": {
-          "heat_pump_device": "Expected: the device of your heat-pump integration, for example EMS-ESP, ViCare, Daikin, MELCloud, Nibe or a Modbus bridge. Proposals are only prefilled and never saved unseen."
+          "heat_pump_device": "Expected: the device of your heat-pump integration, for example EMS-ESP, ViCare, Daikin, MELCloud, Nibe or a Modbus bridge. The found sensors are written into the draft and never saved unseen."
         }
       },
       "license": {
@@ -651,6 +653,8 @@
       "wallbox_required": "Wallbox analytics require wallbox power and at least one charging-demand source.",
       "sensor_source_invalid": "The selected sensor source changed, is incompatible, or is no longer available. Select it again or continue without reuse.",
       "device_mapping_empty": "No usable heat-pump sensors were found on this device. Pick a different device or assign the sensors by hand.",
+      "sensor_source_required": "Choose at least one source, or disable reuse to continue without it.",
+      "mapping_already_assigned": "This selection already matches the assigned sensors, so nothing was changed. The selection here is not stored.",
       "energy_today_not_daily": "This is a lifetime energy counter. Set the energy counter type to automatic or to lifetime counter so EAI derives the daily value.",
       "invalid_energy_unit": "This entity does not report energy in Wh, kWh or MWh.",
       "invalid_power_unit": "This entity does not report power in W, kW or MW.",

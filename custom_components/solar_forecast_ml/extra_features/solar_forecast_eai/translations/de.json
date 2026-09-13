@@ -27,7 +27,7 @@
       },
       "sensor_sources": {
         "title": "Vorhandene Sensorzuordnungen übernehmen",
-        "description": "EAI hat kompatible Zuordnungen gefunden: lokal veröffentlicht von installierten Toorox-Integrationen sowie erkannte Wärmepumpen-Gateways wie EMS-ESP. Es wird nichts übernommen, solange du die Übernahme nicht aktivierst und eine Quelle bestätigst. Bestehende manuelle Zuordnungen haben immer Vorrang.",
+        "description": "EAI hat kompatible Zuordnungen gefunden: lokal veröffentlicht von installierten Toorox-Integrationen sowie erkannte Wärmepumpen-Gateways wie EMS-ESP. Es wird nichts übernommen, solange du die Übernahme nicht aktivierst und eine Quelle bestätigst. Die gewählte Quelle trägt ihre Sensoren in den Entwurf ein — auch wenn bereits etwas zugeordnet ist. Andere Sensoren bleiben unangetastet. Du prüfst und kannst sie auf den folgenden Seiten noch ändern. Die Auswahl selbst wird nicht gespeichert.",
         "data": {
           "use_discovered_sensor_mappings": "Kompatible Zuordnungen übernehmen",
           "environment_sensor_source": "Quelle für Außenbedingungen",
@@ -43,12 +43,12 @@
       },
       "heat_pump_device": {
         "title": "Wärmepumpen-Gerät",
-        "description": "Wähle das Gerät, unter dem deine Wärmepumpe in Home Assistant veröffentlicht wird. EAI liest die Entitäten dieses Geräts und füllt die folgenden Seiten vor, die du anschließend bestätigst. Leer lassen, um alle Sensoren manuell zuzuordnen.",
+        "description": "Wähle das Gerät, unter dem deine Wärmepumpe in Home Assistant veröffentlicht wird. EAI sucht die passenden Sensoren dieses Geräts und trägt sie in den folgenden Seiten ein — auch wenn bereits etwas zugeordnet ist. Du kannst sie dort noch ändern. Leer lassen, um alle Sensoren manuell zuzuordnen.",
         "data": {
           "heat_pump_device": "Wärmepumpen-Gerät"
         },
         "data_description": {
-          "heat_pump_device": "Erwartet: das Gerät deiner Wärmepumpen-Integration, zum Beispiel EMS-ESP, ViCare, Daikin, MELCloud, Nibe oder eine Modbus-Bridge. Vorschläge werden nur vorbelegt und nie unbesehen gespeichert."
+          "heat_pump_device": "Erwartet: das Gerät deiner Wärmepumpen-Integration, zum Beispiel EMS-ESP, ViCare, Daikin, MELCloud, Nibe oder eine Modbus-Bridge. Die gefundenen Sensoren werden in den Entwurf übernommen und nie unbesehen gespeichert."
         }
       },
       "heat_pump": {
@@ -359,6 +359,8 @@
       "wallbox_demand_required": "Wähle mindestens eine Bedarfsquelle: Fahrzeug-Ladezustand, gewünschte Zusatzenergie oder geplante Strecke.",
       "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort.",
       "device_mapping_empty": "Auf diesem Gerät wurden keine verwendbaren Wärmepumpen-Sensoren gefunden. Wähle ein anderes Gerät oder ordne die Sensoren manuell zu.",
+      "sensor_source_required": "Wähle mindestens eine Quelle aus oder deaktiviere die Übernahme, um ohne sie fortzufahren.",
+      "mapping_already_assigned": "Diese Auswahl liefert dieselben Sensoren, die bereits zugeordnet sind. Es wurde nichts geändert. Die Auswahl wird nicht gespeichert.",
       "energy_today_not_daily": "Das ist ein Lebensdauer-Energiezähler. Stelle die Art der Energiezähler auf automatisch oder auf Lebensdauerzähler, damit EAI den Tageswert ableitet.",
       "invalid_energy_unit": "Diese Entität liefert keine Energie in Wh, kWh oder MWh.",
       "invalid_power_unit": "Diese Entität liefert keine Leistung in W, kW oder MW.",
@@ -404,7 +406,7 @@
       },
       "sensor_sources": {
         "title": "Vorhandene Sensorzuordnungen übernehmen",
-        "description": "EAI hat kompatible Zuordnungen gefunden: lokal veröffentlicht von installierten Toorox-Integrationen sowie erkannte Wärmepumpen-Gateways wie EMS-ESP. Es wird nichts übernommen, solange du die Übernahme nicht aktivierst und eine Quelle bestätigst. Bestehende manuelle Zuordnungen haben immer Vorrang.",
+        "description": "EAI hat kompatible Zuordnungen gefunden: lokal veröffentlicht von installierten Toorox-Integrationen sowie erkannte Wärmepumpen-Gateways wie EMS-ESP. Es wird nichts übernommen, solange du die Übernahme nicht aktivierst und eine Quelle bestätigst. Die gewählte Quelle trägt ihre Sensoren in den Entwurf ein — auch wenn bereits etwas zugeordnet ist — und du kannst sie auf der folgenden Sensorseite noch ändern. Die Auswahl selbst wird nicht gespeichert und ist beim nächsten Aufruf wieder leer.",
         "data": {
           "use_discovered_sensor_mappings": "Kompatible Zuordnungen übernehmen",
           "environment_sensor_source": "Quelle für Außenbedingungen",
@@ -420,12 +422,12 @@
       },
       "heat_pump_device": {
         "title": "Wärmepumpen-Gerät",
-        "description": "Wähle das Gerät, unter dem deine Wärmepumpe in Home Assistant veröffentlicht wird. EAI liest die Entitäten dieses Geräts und füllt die folgenden Seiten vor, die du anschließend bestätigst. Leer lassen, um alle Sensoren manuell zuzuordnen.",
+        "description": "Wähle das Gerät, unter dem deine Wärmepumpe in Home Assistant veröffentlicht wird. EAI sucht die passenden Sensoren dieses Geräts und trägt sie in den folgenden Seiten ein — auch wenn bereits etwas zugeordnet ist. Du kannst sie dort noch ändern. Leer lassen, um alle Sensoren manuell zuzuordnen.",
         "data": {
           "heat_pump_device": "Wärmepumpen-Gerät"
         },
         "data_description": {
-          "heat_pump_device": "Erwartet: das Gerät deiner Wärmepumpen-Integration, zum Beispiel EMS-ESP, ViCare, Daikin, MELCloud, Nibe oder eine Modbus-Bridge. Vorschläge werden nur vorbelegt und nie unbesehen gespeichert."
+          "heat_pump_device": "Erwartet: das Gerät deiner Wärmepumpen-Integration, zum Beispiel EMS-ESP, ViCare, Daikin, MELCloud, Nibe oder eine Modbus-Bridge. Die gefundenen Sensoren werden in den Entwurf übernommen und nie unbesehen gespeichert."
         }
       },
       "license": {
@@ -651,6 +653,8 @@
       "wallbox_required": "Für die Wallbox-Analyse werden Leistung und eine Ladebedarfsquelle benötigt.",
       "sensor_source_invalid": "Die gewählte Sensorquelle hat sich geändert, ist inkompatibel oder nicht mehr verfügbar. Wähle sie erneut oder fahre ohne Übernahme fort.",
       "device_mapping_empty": "Auf diesem Gerät wurden keine verwendbaren Wärmepumpen-Sensoren gefunden. Wähle ein anderes Gerät oder ordne die Sensoren manuell zu.",
+      "sensor_source_required": "Wähle mindestens eine Quelle aus oder deaktiviere die Übernahme, um ohne sie fortzufahren.",
+      "mapping_already_assigned": "Diese Auswahl liefert dieselben Sensoren, die bereits zugeordnet sind. Es wurde nichts geändert. Die Auswahl wird nicht gespeichert.",
       "energy_today_not_daily": "Das ist ein Lebensdauer-Energiezähler. Stelle die Art der Energiezähler auf automatisch oder auf Lebensdauerzähler, damit EAI den Tageswert ableitet.",
       "invalid_energy_unit": "Diese Entität liefert keine Energie in Wh, kWh oder MWh.",
       "invalid_power_unit": "Diese Entität liefert keine Leistung in W, kW oder MW.",

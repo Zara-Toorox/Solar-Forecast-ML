@@ -15,7 +15,7 @@ from typing import Final
 
 DOMAIN: Final = "weather_fusion_ai"
 NAME: Final = "Weather Fusion AI"
-VERSION: Final = "46.0.2"
+VERSION: Final = "46.0.6"
 
 # Internal Home Assistant data registry keys for the public forecast provider.
 DATA_FORECAST_PROVIDERS: Final = "forecast_providers"
@@ -34,6 +34,8 @@ CONF_PRESSURE_SENSOR: Final = "pressure_sensor"
 CONF_WIND_SPEED_SENSOR: Final = "wind_speed_sensor"
 CONF_WIND_DIRECTION_SENSOR: Final = "wind_direction_sensor"
 CONF_RAIN_SENSOR: Final = "rain_sensor"
+CONF_UV_SENSOR: Final = "uv_sensor"
+CONF_VISIBILITY_SENSOR: Final = "visibility_sensor"
 
 SENSOR_CONFIG_KEYS: Final = (
     CONF_TEMP_SENSOR,
@@ -89,11 +91,16 @@ EXPERT_WEIGHT_KEYS: Final = (
     "wttr_in",
     "pirate_weather",
 )
-FILE_EXPERT_WEIGHTS: Final = "expert_weights.json"
 
 # Canonical visibility is metres; the weather entity converts to km.
 VISIBILITY_MIN_M: Final = 0.0
 VISIBILITY_MAX_M: Final = 100000.0
+
+# File names
+FILE_WEATHER_CACHE: Final = "weather_cache.json"
+FILE_EXPERT_WEIGHTS: Final = "expert_weights.json"
+FILE_PRECISION_DATA: Final = "precision_data.json"
+FILE_HOURLY_ACTUAL: Final = "hourly_actual.json"
 
 # Data directory
 DATA_DIR_NAME: Final = "weather_fusion_ai_data"
