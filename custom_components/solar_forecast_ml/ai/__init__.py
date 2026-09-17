@@ -10,13 +10,11 @@
 """AI module exports @zara"""
 
 from .ai_best_hour import BestHourCalculator
-from .ai_dni_tracker import DniTracker
 from .ai_feature_engineering import FeatureEngineer
 from .ai_feature_importance import FeatureImportanceAnalyzer
 from .ai_grid_search import GridSearchOptimizer
 from .ai_helpers import format_time_ago
 from .ai_predictor import AIPredictor, ModelState
-from .ai_seasonal import SeasonalAdjuster
 from .ai_tiny_lstm import TinyLSTM
 from .ai_tiny_ridge import TinyRidge
 from .ai_types import (
@@ -32,8 +30,6 @@ __all__ = [
     "TinyRidge",
     "FeatureEngineer",
     "FeatureImportanceAnalyzer",
-    "SeasonalAdjuster",
-    "DniTracker",
     "AIPredictor",
     "ModelState",
     "BestHourCalculator",

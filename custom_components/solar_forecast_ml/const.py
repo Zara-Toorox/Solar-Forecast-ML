@@ -15,7 +15,7 @@ from homeassistant.const import Platform
 # Warp Core Identity @starfleet-engineering
 DOMAIN = "solar_forecast_ml"
 NAME = "Solar Forecast ML"
-VERSION = "46.0.6"
+VERSION = "46.0.8"
 SOFTWARE_VERSION = VERSION
 AI_VERSION = "12.0 TFS"
 INTEGRATION_MODEL = f"Solar Forecast ML V{VERSION}"
@@ -127,6 +127,19 @@ THROTTLE_REASON_SUSPECTED_BATTERY_CURTAILMENT = "suspected_battery_curtailment"
 THROTTLE_REASON_DEMAND_LIMITED_ZERO_EXPORT = "demand_limited_zero_export"
 THROTTLE_REASON_EXPORT_LIMIT = "full_battery_export_limit"
 THROTTLE_REASON_TRANSITION_CURTAILMENT = "transition_curtailment"
+# Throttle reasons that mean the hour was curtailed rather than mis-forecast;
+# such hours never feed learning (learning filter, EOD quarantine, DB backfills).
+CURTAILMENT_THROTTLE_REASONS = frozenset({
+    THROTTLE_REASON_DEMAND_LIMITED_ZERO_EXPORT,
+    THROTTLE_REASON_EXPORT_LIMIT,
+    THROTTLE_REASON_FULL_BATTERY,
+    THROTTLE_REASON_SUSPECTED_BATTERY_CURTAILMENT,
+    THROTTLE_REASON_TRANSITION_CURTAILMENT,
+    THROTTLE_REASON_ZERO_EXPORT,
+})
+CURTAILMENT_THROTTLE_REASON_SQL = ", ".join(
+    f"'{reason}'" for reason in sorted(CURTAILMENT_THROTTLE_REASONS)
+)
 CURTAILMENT_QUARANTINE_GHI_MIN = 400.0
 CURTAILMENT_QUARANTINE_CLOUDS_MAX = 35.0
 CURTAILMENT_QUARANTINE_RATIO_MAX = 0.75

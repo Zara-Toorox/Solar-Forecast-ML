@@ -1,15 +1,5 @@
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS ai_seasonal_factors (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    month INTEGER NOT NULL CHECK(month >= 1 AND month <= 12),
-    factor REAL NOT NULL,
-    sample_count INTEGER DEFAULT 0,
-    version TEXT DEFAULT '1.0',
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(month)
-);
-
 CREATE TABLE IF NOT EXISTS ai_feature_importance (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     feature_name TEXT NOT NULL,
@@ -36,23 +26,6 @@ CREATE TABLE IF NOT EXISTS ai_grid_search_results (
     hardware_info TEXT,
     timestamp TIMESTAMP NOT NULL,
     model_type TEXT DEFAULT 'lstm'  -- V16.0.0: track model type @zara
-);
-
-CREATE TABLE IF NOT EXISTS ai_dni_tracker (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    hour INTEGER NOT NULL CHECK(hour >= 6 AND hour <= 20),
-    max_dni REAL DEFAULT 0,
-    version TEXT DEFAULT '1.0',
-    last_updated DATE,
-    UNIQUE(hour)
-);
-
-CREATE TABLE IF NOT EXISTS ai_dni_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    hour INTEGER NOT NULL,
-    dni_value REAL NOT NULL,
-    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (hour) REFERENCES ai_dni_tracker(hour) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS ai_learned_weights_meta (
