@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-46.0.6-blue.svg" alt="Version"></a>
+  <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/version-46.0.8-blue.svg" alt="Version"></a>
   <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Hubble-purple.svg" alt="Codename"></a>
   <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Proprietary%20Non--Commercial-green.svg" alt="License"></a>
@@ -183,7 +183,7 @@ This isn't a single model. It's a sophisticated ensemble of specialized AIs work
 **Efficiency Drift Detection** — Most forecasts go wrong because they don't know your panels are dirty or aging. Hubble tracks your real-world efficiency over time and tells you when it's time to clean them.
 
 Additional self-monitoring layers ensure long-term accuracy:
-- **Drift Monitor & Seasonal Adjuster** — Detects biases and learns seasonal patterns from real data, not calendars.
+- **Drift Monitor** — Detects biases and coverage drops in the live forecast and triggers targeted corrections; seasonal behaviour is learned from real data through the physics calibration, not from calendars.
 - **Grid Search "The Professor"** — Fully automated hyperparameter optimization, extracting the maximum from your specific hardware.
 - **Subprocess training (HA-Performance-Fix)** — CPU-intensive model training runs in a separate Python process to prevent Home Assistant UI lags.
 

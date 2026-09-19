@@ -346,6 +346,30 @@ const SFMLApi = {
     pendingRequests: new Map(),
     defaultTTL: 30000, // 30 seconds
 
+    // Navigate the outermost same-origin HA window when STATS is iframed.
+    navigateHa(path) {
+        if (typeof path !== "string" || path.length === 0) {
+            return false;
+        }
+        let topWindow = null;
+        try {
+            topWindow = window.top;
+        } catch (_error) {
+            topWindow = null;
+        }
+        try {
+            if (topWindow && topWindow !== window && topWindow.location.origin === window.location.origin) {
+                topWindow.history.pushState(null, "", path);
+                topWindow.dispatchEvent(new CustomEvent("location-changed"));
+                return true;
+            }
+        } catch (_error) {
+            // Cross-origin top: fall through to assign on this window.
+        }
+        window.location.assign(path);
+        return true;
+    },
+
     async _getAuthenticated(endpoint) {
         const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
         if (!authenticatedEndpoint) {

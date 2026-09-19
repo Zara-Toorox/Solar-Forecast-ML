@@ -71,7 +71,7 @@ const SettingsPage = {
                             </div>
                         </div>
 
-                        <a class="settings-link" :href="haConfigUrl" target="_blank" rel="noopener">
+                        <a class="settings-link" :href="haConfigUrl" @click="openHaLink($event, haConfigUrl)">
                             {{ $t('settings.configureSensors') }} &rarr;
                         </a>
                     </div>
@@ -115,7 +115,7 @@ const SettingsPage = {
                                 <span class="settings-item-value">{{ priceInfo.feed_in_tariff != null ? priceInfo.feed_in_tariff.toFixed(2) + ' ct/kWh' : '--' }}</span>
                             </div>
                         </div>
-                        <a class="settings-link" :href="haConfigUrl" target="_blank" rel="noopener">
+                        <a class="settings-link" :href="haConfigUrl" @click="openHaLink($event, haConfigUrl)">
                             {{ $t('settings.configurePrice') }} &rarr;
                         </a>
                     </div>
@@ -540,16 +540,22 @@ const SettingsPage = {
             return '/config/integrations/integration/sfml_stats';
         });
 
-        function openIntegration() {
-            // Open in a new tab: the SFML dashboard runs unauthenticated,
-            // so navigating top-level to /config/... hits HA's auth flow
-            // and looks like nothing happens. New tab preserves state.
-            const url = (window.location.origin || '') + haConfigUrl.value;
-            const win = window.open(url, '_blank', 'noopener');
-            if (!win) {
-                // Popup blocker kicked in — fall back to top-level navigation
-                window.location.href = url;
+        function openHaLink(event, path) {
+            if (!event || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
             }
+            if (window.SFMLApi && typeof window.SFMLApi.navigateHa === 'function' && window.SFMLApi.navigateHa(path)) {
+                event.preventDefault();
+            }
+        }
+
+        function openIntegration() {
+            const path = haConfigUrl.value;
+            if (window.SFMLApi && typeof window.SFMLApi.navigateHa === 'function') {
+                window.SFMLApi.navigateHa(path);
+                return;
+            }
+            window.location.assign(path);
         }
 
         const sensorStatusClass = computed(() => {
@@ -724,7 +730,7 @@ const SettingsPage = {
             sensors, priceInfo, chargingInfo, panelGroups, systemInfo, aiInfo,
             haConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
-            toggle, exportDataset, formatDate, formatValue, openIntegration,
+            toggle, exportDataset, formatDate, formatValue, openHaLink, openIntegration,
             translateSensorLabel, translateSensorState,
             currentLocale, supportedLocales, localeName, changeLocale, changeTheme,
             configuredConsumers, getConsumerName,

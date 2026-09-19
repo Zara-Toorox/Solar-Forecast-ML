@@ -24,6 +24,7 @@ const _GPMPage = {
                         v-if="licenseBadge.demo"
                         class="gpm-license-badge"
                         :href="status.links.configure"
+                        @click="openHaLink($event, status.links.configure)"
                         :title="status.license.id_masked || $t('gpm.noLicenseId')"
                         style="font-size: 0.8rem; text-decoration: none;"
                     >{{ licenseBadge.label }}</a>
@@ -82,7 +83,7 @@ const _GPMPage = {
                     <span v-if="status.last_correction.month">· {{ status.last_correction.month }}</span>
                     · {{ $t('gpm.revision') }} {{ status.revision }}
                 </p>
-                <a class="button secondary" :href="status.links.configure" style="display: inline-block; margin-top: var(--space-sm);">
+                <a class="button secondary" :href="status.links.configure" @click="openHaLink($event, status.links.configure)" style="display: inline-block; margin-top: var(--space-sm);">
                     {{ $t('gpm.configure') }}
                 </a>
             </div>
@@ -137,7 +138,7 @@ const _GPMPage = {
                 </div>
                 <p v-if="bill.is_demo" style="font-size: 0.85rem; margin-bottom: var(--space-sm);">
                     {{ $t('gpm.billDemoBanner') }}
-                    · <a :href="bill.links.configure || status.links.configure">{{ $t('gpm.configure') }}</a>
+                    · <a :href="bill.links.configure || status.links.configure" @click="openHaLink($event, bill.links.configure || status.links.configure)">{{ $t('gpm.configure') }}</a>
                 </p>
                 <div ref="billEl" style="height: 280px;"></div>
                 <p v-if="bill.projection" style="font-size: 0.9rem; margin-top: var(--space-sm);">
@@ -396,6 +397,14 @@ const _GPMPage = {
         let chart = null;
         let scheduleChart = null;
         let billChart = null;
+        function openHaLink(event, path) {
+            if (!event || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+            if (window.SFMLApi && typeof window.SFMLApi.navigateHa === "function" && window.SFMLApi.navigateHa(path)) {
+                event.preventDefault();
+            }
+        }
         const emptyStatus = () => ({
             success: true,
             state: "not_installed",
@@ -1075,6 +1084,7 @@ const _GPMPage = {
             onCsvFile,
             runCsvPreview,
             runCsvApply,
+            openHaLink,
         };
     },
 };

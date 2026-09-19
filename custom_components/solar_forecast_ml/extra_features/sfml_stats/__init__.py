@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
@@ -246,6 +246,7 @@ class GPMProviderView:
 
         return _remove_listener
 
+    @callback
     def _async_rebind(self) -> None:
         provider = self._provider
         if provider is self._bound_provider:
@@ -260,14 +261,17 @@ class GPMProviderView:
             )
         self._notify_listeners()
 
+    @callback
     def _emit_listeners(self) -> None:
         for listener in tuple(self._listeners):
             listener()
 
+    @callback
     def _notify_listeners(self) -> None:
         self._emit_listeners()
         self._schedule_smart_charging()
 
+    @callback
     def _schedule_smart_charging(self) -> None:
         if self._smc_task_pending or self._smart_charging is None:
             return

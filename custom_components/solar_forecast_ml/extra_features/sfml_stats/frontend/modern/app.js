@@ -384,7 +384,7 @@ const ModernApp = {
                 </nav>
 
                 <div class="sidebar-footer">
-                    <a class="nav-item sidebar-help-link" href="https://www.solarforecastml.com"
+                    <a class="nav-item sidebar-help-link" :href="handbookUrl"
                        target="_blank" rel="noopener noreferrer">
                         <ui-icon name="help"></ui-icon>
                         <span>{{ copy.help }}</span>
@@ -503,6 +503,9 @@ const ModernApp = {
     setup() {
         const locale = window.SFMLI18n?.current || "en";
         const copy = COPY[locale] || COPY.en;
+        const handbookUrl = locale === "de"
+            ? "https://www.solarforecastml.com/de/"
+            : "https://www.solarforecastml.com/en/";
         const currentPage = ref("home");
         const currentDetail = ref("");
         const dashboardMode = ref("loading");
@@ -848,6 +851,7 @@ const ModernApp = {
 
         return {
             copy,
+            handbookUrl,
             currentPage,
             currentDetail,
             dashboardMode,

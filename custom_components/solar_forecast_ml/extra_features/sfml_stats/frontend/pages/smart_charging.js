@@ -13,6 +13,39 @@ const SmartChargingPage = ((Vue) => {
         }
     }
 
+    function statusChipVisibility(live, mode) {
+        const flags = {
+            chargingSince: false,
+            waitingSince: false,
+            soc: false,
+            socTarget: false,
+            reserved: false,
+            nextWindow: false,
+            nextWindowBand: false,
+        };
+        if (!live || typeof live !== 'object') return flags;
+        if (live.charging_since) flags.chargingSince = true;
+        if (live.waiting_since && live.decision === 'wait') flags.waitingSince = true;
+        if (live.current_soc != null && live.current_soc !== '') flags.soc = true;
+        if (
+            flags.soc
+            && (mode === 'price_band_soc' || mode === 'combined')
+            && live.target_soc != null
+            && live.target_soc !== ''
+        ) {
+            flags.socTarget = true;
+        }
+        if (Number(live.reserved_future_grid_charge_kwh) > 0) flags.reserved = true;
+        const hour = live.next_cheap_hour;
+        const hasHour = hour != null && hour !== '';
+        const inWindow = live.is_cheap === true;
+        if (hasHour && (!inWindow || live.decision === 'wait')) {
+            flags.nextWindow = true;
+            flags.nextWindowBand = mode === 'price_band_soc';
+        }
+        return flags;
+    }
+
     const _SmartChargingPage = {
         props: ['liveData', 'config'],
         emits: ['navigate'],
@@ -24,10 +57,19 @@ const SmartChargingPage = ((Vue) => {
                 </div>
 
                 <div class="chart-card sc-status-card" style="margin-bottom: var(--space-lg);">
-                    <p class="sc-status-line">{{ statusPowerLine }}</p>
-                    <p class="sc-status-line">{{ statusBatteryLine }}</p>
-                    <p class="sc-status-reserved" v-if="statusReservedLine">{{ statusReservedLine }}</p>
-                    <button type="button" class="sc-status-month" v-if="monthlyCostsLine" @click="$emit('navigate', 'gpm')">{{ monthlyCostsLine }}</button>
+                    <div class="sc-status-row">
+                        <span class="sc-status-ampel" :class="'sc-status-' + statusAmpel" aria-hidden="true"></span>
+                        <p class="sc-status-line">{{ statusSentenceText }}</p>
+                    </div>
+                    <div class="live-metrics sc-status-chips" v-if="statusChips.length">
+                        <div class="live-metric" v-for="chip in statusChips" :key="chip.id">
+                            <span>{{ chip.label }}</span>
+                            <strong>{{ chip.value }}</strong>
+                            <span v-if="chip.progress != null" class="sc-soc-bar" aria-hidden="true">
+                                <span class="sc-soc-bar-fill" :style="{ width: chip.progress + '%' }"></span>
+                            </span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="chart-card sc-setup-card" style="margin-bottom: var(--space-lg);" v-if="setupCheckItems.length">
@@ -620,7 +662,6 @@ const SmartChargingPage = ((Vue) => {
             });
             const gpmCheapHours = reactive({ today: [], tomorrow: [] });
             const gpmTomorrowAvailable = ref(false);
-            const monthlyCostsLine = ref('');
             const settingsLoaded = ref(false);
             const settingsError = ref('');
             const settingsFieldErrors = reactive({});
@@ -732,35 +773,183 @@ const SmartChargingPage = ((Vue) => {
                 return t('smart_charging.status.unknownReason').replace('{code}', String(code));
             }
 
-            const statusPowerLine = computed(() => {
-                if (gpmMeta.is_demo) return t('smart_charging.status.powerDemo');
+            function statusGpmMeta() {
                 const dashGpm = dashboardData.gpm || {};
-                const gpmOk = Boolean(gpmMeta.available || dashGpm.available);
-                if (!gpmOk) return t('smart_charging.status.powerNoGpm');
-                const live = dashboardData.live || {};
-                if (live.is_cheap === true) {
-                    if (live.is_force_price) {
-                        return t('smart_charging.status.powerCheap') + ' ' + t('smart_charging.status.powerVeryCheap');
-                    }
-                    return t('smart_charging.status.powerCheap');
+                return {
+                    available: Boolean(gpmMeta.available || dashGpm.available),
+                    is_demo: Boolean(gpmMeta.is_demo || dashGpm.is_demo),
+                };
+            }
+
+            function statusPricePart(live, gpm) {
+                if (gpm && gpm.is_demo) return t('smart_charging.status.priceUnknownDemo');
+                if (!gpm || !gpm.available) return t('smart_charging.status.priceUnknownGpm');
+                if (live && live.is_cheap === true) return t('smart_charging.status.priceCheapNow');
+                return t('smart_charging.status.priceNotCheap');
+            }
+
+            function statusSentence(live, gpm) {
+                const gpmObj = gpm || {};
+                const unknown = Boolean(gpmObj.is_demo) || !gpmObj.available;
+                const reason = shortReasonText(live && live.reason);
+                if (!live || !live.enabled) {
+                    return t('smart_charging.status.sentenceOff').replace(
+                        '{price}',
+                        statusPricePart(live || {}, gpmObj)
+                    );
                 }
-                return t('smart_charging.status.powerNotCheap');
+                const cheap = live.is_cheap === true;
+                const decision = live.decision;
+                if (unknown || cheap) {
+                    const price = unknown
+                        ? statusPricePart(live, gpmObj)
+                        : (decision === 'load'
+                            ? t('smart_charging.status.priceCheapNow')
+                            : t('smart_charging.status.priceCheap'));
+                    if (decision === 'load') {
+                        return t('smart_charging.status.sentenceCheapLoad').replace('{price}', price);
+                    }
+                    if (decision === 'wait') {
+                        return t('smart_charging.status.sentenceCheapWait')
+                            .replace('{price}', price)
+                            .replace('{reason}', reason);
+                    }
+                    return t('smart_charging.status.sentenceCheapNotLoad')
+                        .replace('{price}', price)
+                        .replace('{reason}', reason);
+                }
+                const price = t('smart_charging.status.priceNotCheap');
+                if (decision === 'load') {
+                    return t('smart_charging.status.sentenceNotCheapLoad')
+                        .replace('{price}', price)
+                        .replace('{reason}', reason);
+                }
+                return t('smart_charging.status.sentenceNotCheap').replace('{price}', price);
+            }
+
+            const statusSentenceText = computed(() => {
+                return statusSentence(dashboardData.live || {}, statusGpmMeta());
             });
 
-            const statusBatteryLine = computed(() => {
+            const statusAmpel = computed(() => {
+                if (setupCheckItems.value.some((item) => item.level === 'red' || item.level === 'yellow')) {
+                    return 'warn';
+                }
                 const live = dashboardData.live || {};
-                if (!live.enabled) return t('smart_charging.status.batteryDisabled');
-                let battery;
-                if (live.decision === 'load') battery = t('smart_charging.status.batteryLoad');
-                else if (live.decision === 'wait') battery = t('smart_charging.status.batteryWait');
-                else battery = t('smart_charging.status.batteryNotLoad');
-                return battery + t('smart_charging.status.because') + shortReasonText(live.reason);
+                if (!live.enabled) return 'idle';
+                if (live.decision === 'load') return 'load';
+                if (live.decision === 'wait') return 'wait';
+                return 'idle';
             });
 
-            const statusReservedLine = computed(() => {
-                const reserved = Number(dashboardData.live?.reserved_future_grid_charge_kwh || 0);
-                if (!(reserved > 0)) return '';
-                return t('smart_charging.status.reservedLater').replace('{kwh}', reserved.toFixed(1));
+            function formatSinceLabel(iso, kind) {
+                if (!iso) return '';
+                const start = Date.parse(iso);
+                if (!Number.isFinite(start)) return '';
+                const minutes = Math.max(0, Math.floor((Date.now() - start) / 60000));
+                if (minutes < 60) {
+                    const key = kind === 'wait'
+                        ? 'smart_charging.status.chipWaitingSinceMin'
+                        : 'smart_charging.status.chipChargingSinceMin';
+                    return t(key).replace('{min}', String(minutes));
+                }
+                const hours = Math.floor(minutes / 60);
+                const rest = minutes % 60;
+                const key = kind === 'wait'
+                    ? 'smart_charging.status.chipWaitingSinceHours'
+                    : 'smart_charging.status.chipChargingSinceHours';
+                return t(key).replace('{hours}', String(hours)).replace('{min}', String(rest));
+            }
+
+            function formatChipNumber(value, digits) {
+                return Number(value).toLocaleString(localeTag(), {
+                    minimumFractionDigits: digits,
+                    maximumFractionDigits: digits,
+                });
+            }
+
+            function formatHourLabel(hour) {
+                const number = Number(hour);
+                if (!Number.isFinite(number)) return '';
+                return String(Math.trunc(number)).padStart(2, '0') + ':00';
+            }
+
+            const statusChips = computed(() => {
+                const live = dashboardData.live || {};
+                const flags = statusChipVisibility(live, settingsData.mode);
+                const chips = [];
+                if (flags.chargingSince) {
+                    chips.push({
+                        id: 'charging',
+                        label: '⏱',
+                        value: formatSinceLabel(live.charging_since, 'charge'),
+                        progress: null,
+                    });
+                }
+                if (flags.waitingSince) {
+                    chips.push({
+                        id: 'waiting',
+                        label: '⏱',
+                        value: formatSinceLabel(live.waiting_since, 'wait'),
+                        progress: null,
+                    });
+                }
+                if (flags.soc) {
+                    const soc = Math.round(Number(live.current_soc));
+                    if (flags.socTarget) {
+                        const target = Math.round(Number(live.target_soc));
+                        const progress = target > 0
+                            ? Math.min(100, Math.max(0, (Number(live.current_soc) / target) * 100))
+                            : 0;
+                        chips.push({
+                            id: 'soc',
+                            label: '🔋',
+                            value: t('smart_charging.status.chipSocTarget')
+                                .replace('{soc}', String(soc))
+                                .replace('{target}', String(target)),
+                            progress,
+                        });
+                    } else {
+                        chips.push({
+                            id: 'soc',
+                            label: '🔋',
+                            value: t('smart_charging.status.chipSocOnly').replace('{soc}', String(soc)),
+                            progress: null,
+                        });
+                    }
+                }
+                if (flags.reserved) {
+                    chips.push({
+                        id: 'reserved',
+                        label: '⚡',
+                        value: t('smart_charging.status.chipReserved').replace(
+                            '{kwh}',
+                            formatChipNumber(live.reserved_future_grid_charge_kwh, 1)
+                        ),
+                        progress: null,
+                    });
+                }
+                if (flags.nextWindow) {
+                    const time = formatHourLabel(live.next_cheap_hour);
+                    let value = t(
+                        flags.nextWindowBand
+                            ? 'smart_charging.status.chipNextWindowBand'
+                            : 'smart_charging.status.chipNextWindow'
+                    ).replace('{time}', time);
+                    if (live.next_cheap_price_ct != null && live.next_cheap_price_ct !== '') {
+                        value += t('smart_charging.status.chipNextPrice').replace(
+                            '{price}',
+                            formatChipNumber(live.next_cheap_price_ct, 1)
+                        );
+                    }
+                    chips.push({
+                        id: 'next',
+                        label: '🕙',
+                        value,
+                        progress: null,
+                    });
+                }
+                return chips.filter((chip) => chip.value);
             });
 
             const setupCheckItems = computed(() => {
@@ -1293,51 +1482,6 @@ const SmartChargingPage = ((Vue) => {
                 }
             }
 
-            function formatMonthEuro(value) {
-                const number = Number(value);
-                if (!Number.isFinite(number)) return '';
-                return number.toLocaleString(localeTag(), {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                });
-            }
-
-            function monthlyCostsText(payload) {
-                if (!payload || payload.success === false) return '';
-                const months = Array.isArray(payload.months) ? payload.months : [];
-                const current = months.find((row) => row && row.is_current);
-                if (!current || current.total_eur == null || current.total_eur === '') return '';
-                const total = Number(current.total_eur);
-                if (!Number.isFinite(total)) return '';
-                let line = t('smart_charging.status.monthCost').replace('{eur}', formatMonthEuro(total));
-                const expected = payload.projection && payload.projection.expected_eur;
-                if (expected != null && expected !== '') {
-                    const projected = Number(expected);
-                    if (Number.isFinite(projected)) {
-                        line += ' · ' + t('smart_charging.status.monthCostProjection').replace(
-                            '{eur}',
-                            formatMonthEuro(projected)
-                        );
-                    }
-                }
-                if (payload.is_demo) {
-                    line += ' ' + t('smart_charging.status.monthCostDemo');
-                }
-                return line;
-            }
-
-            async function loadMonthlyCosts() {
-                try {
-                    const payload = await SFMLApi.fetch('/api/sfml_stats/gpm/monthly_costs', {
-                        forceRefresh: true,
-                        ttl: 0,
-                    });
-                    monthlyCostsLine.value = monthlyCostsText(payload);
-                } catch (_err) {
-                    monthlyCostsLine.value = '';
-                }
-            }
-
             async function loadGpmStatus() {
                 try {
                     const payload = await SFMLApi.fetch('/api/sfml_stats/gpm/status', {
@@ -1361,7 +1505,6 @@ const SmartChargingPage = ((Vue) => {
                     applyServerPayload(data);
                     clearSettingsErrors();
                     await loadGpmStatus();
-                    await loadMonthlyCosts();
                     await loadData();
                 } catch (err) {
                     applyCaughtSettingsError(err);
@@ -1405,7 +1548,6 @@ const SmartChargingPage = ((Vue) => {
                 loadData();
                 loadSettings();
                 loadGpmStatus();
-                loadMonthlyCosts();
                 pollInterval = setInterval(loadData, 5000);
                 window.addEventListener('resize', handleResize);
             });
@@ -1468,10 +1610,9 @@ const SmartChargingPage = ((Vue) => {
                 cheapHoursTodayLabel,
                 cheapHoursTomorrowLabel,
                 chartThresholdsUnavailable,
-                statusPowerLine,
-                statusBatteryLine,
-                statusReservedLine,
-                monthlyCostsLine,
+                statusSentenceText,
+                statusAmpel,
+                statusChips,
                 setupCheckItems,
                 settingsLoaded,
             };
@@ -1505,32 +1646,45 @@ const SmartChargingPage = ((Vue) => {
             padding: 4px 10px;
         }
         .sc-status-card .sc-status-line {
-            margin: 0 0 6px;
+            margin: 0;
             font-size: 1rem;
             line-height: 1.4;
             color: var(--text-primary);
         }
-        .sc-status-card .sc-status-line:last-child {
-            margin-bottom: 0;
+        .sc-status-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
         }
-        .sc-status-reserved {
-            margin: 8px 0 0;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
+        .sc-status-ampel {
+            width: 10px;
+            height: 10px;
+            margin-top: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--sc-ampel, var(--text-muted, #9ca3af));
         }
-        .sc-status-month {
+        .sc-status-load { --sc-ampel: var(--success, #5bd8a6); }
+        .sc-status-wait { --sc-ampel: var(--info, #60c5ff); }
+        .sc-status-idle { --sc-ampel: var(--text-muted, #9ca3af); }
+        .sc-status-warn { --sc-ampel: var(--warning, #e9a94b); }
+        .sc-status-chips {
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+        .sc-soc-bar {
             display: block;
-            margin: 8px 0 0;
-            padding: 0;
-            border: 0;
-            background: none;
-            font: inherit;
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            text-align: left;
-            cursor: pointer;
-            text-decoration: underline;
-            text-underline-offset: 2px;
+            width: 100%;
+            height: 3px;
+            margin-top: 4px;
+            border-radius: 99px;
+            background: var(--border-default, #334155);
+            overflow: hidden;
+        }
+        .sc-soc-bar-fill {
+            display: block;
+            height: 100%;
+            background: var(--info, #60c5ff);
         }
         .sc-setup-ok {
             margin: 0 0 var(--space-lg);

@@ -770,10 +770,10 @@ const _HomePage = {
                     <span class="battery-mode" :class="batteryStateClass">{{ batteryStateTextLocal }}</span>
                 </div>
                 <button type="button" class="sc-home-status" v-if="smartChargingLine" @click="$emit('navigate', 'smart_charging')">
+                    <span class="sc-status-ampel" :class="'sc-status-' + smartChargingAmpel" aria-hidden="true"></span>
                     <span>{{ smartChargingLine }}</span>
                     <span v-if="setupIncomplete" class="sc-home-setup-badge">{{ $t('smart_charging.setup.incompleteBadge') }}</span>
                 </button>
-                <button type="button" class="sc-home-month" v-if="monthlyCostsLine" @click="$emit('navigate', 'gpm')">{{ monthlyCostsLine }}</button>
             </div>
             <div ref="batteryChartEl" class="chart-container battery-chart-container"></div>
         </div>
@@ -846,8 +846,6 @@ const _HomePage = {
             gpmMissing: false,
             gpmDemo: false,
         });
-        const monthlyCostsLine = ref('');
-
 
         const localText = (key) => {
             const lang = locale.value;
@@ -2374,6 +2372,52 @@ const _HomePage = {
             return t('smart_charging.status.unknownReason').replace('{code}', String(code));
         }
 
+        function statusPricePart(live, gpm) {
+            if (gpm && gpm.is_demo) return t('smart_charging.status.priceUnknownDemo');
+            if (!gpm || !gpm.available) return t('smart_charging.status.priceUnknownGpm');
+            if (live && live.is_cheap === true) return t('smart_charging.status.priceCheapNow');
+            return t('smart_charging.status.priceNotCheap');
+        }
+
+        function statusSentence(live, gpm) {
+            const gpmObj = gpm || {};
+            const unknown = Boolean(gpmObj.is_demo) || !gpmObj.available;
+            const reason = shortReasonText(live && live.reason);
+            if (!live || !live.enabled) {
+                return t('smart_charging.status.sentenceOff').replace(
+                    '{price}',
+                    statusPricePart(live || {}, gpmObj)
+                );
+            }
+            const cheap = live.is_cheap === true;
+            const decision = live.decision;
+            if (unknown || cheap) {
+                const price = unknown
+                    ? statusPricePart(live, gpmObj)
+                    : (decision === 'load'
+                        ? t('smart_charging.status.priceCheapNow')
+                        : t('smart_charging.status.priceCheap'));
+                if (decision === 'load') {
+                    return t('smart_charging.status.sentenceCheapLoad').replace('{price}', price);
+                }
+                if (decision === 'wait') {
+                    return t('smart_charging.status.sentenceCheapWait')
+                        .replace('{price}', price)
+                        .replace('{reason}', reason);
+                }
+                return t('smart_charging.status.sentenceCheapNotLoad')
+                    .replace('{price}', price)
+                    .replace('{reason}', reason);
+            }
+            const price = t('smart_charging.status.priceNotCheap');
+            if (decision === 'load') {
+                return t('smart_charging.status.sentenceNotCheapLoad')
+                    .replace('{price}', price)
+                    .replace('{reason}', reason);
+            }
+            return t('smart_charging.status.sentenceNotCheap').replace('{price}', price);
+        }
+
         async function loadSmartChargingStatus() {
             try {
                 const [dash, settings] = await Promise.all([
@@ -2412,23 +2456,10 @@ const _HomePage = {
         }
 
         const smartChargingLine = computed(() => {
-            let power;
-            if (smartChargingStatus.is_demo) power = t('smart_charging.status.homePowerDemo');
-            else if (!smartChargingStatus.gpm_available) power = t('smart_charging.status.homePowerNone');
-            else if (smartChargingStatus.is_cheap) {
-                power = smartChargingStatus.is_force_price
-                    ? t('smart_charging.status.homePowerVeryCheap')
-                    : t('smart_charging.status.homePowerCheap');
-            } else power = t('smart_charging.status.homePowerNotCheap');
-            let battery;
-            if (!smartChargingStatus.enabled) battery = t('smart_charging.status.homeBatteryOff');
-            else if (smartChargingStatus.decision === 'load') battery = t('smart_charging.status.homeBatteryLoad');
-            else if (smartChargingStatus.decision === 'wait') battery = t('smart_charging.status.homeBatteryWait');
-            else battery = t('smart_charging.status.homeBatteryNotLoad');
-            const reason = smartChargingStatus.enabled
-                ? ' (' + shortReasonText(smartChargingStatus.reason) + ')'
-                : '';
-            return power + ' · ' + battery + reason;
+            return statusSentence(smartChargingStatus, {
+                available: smartChargingStatus.gpm_available,
+                is_demo: smartChargingStatus.is_demo,
+            });
         });
 
         const setupIncomplete = computed(() => {
@@ -2438,55 +2469,13 @@ const _HomePage = {
                 || smartChargingSetup.gpmDemo;
         });
 
-        function formatMonthEuro(value) {
-            const number = Number(value);
-            if (!Number.isFinite(number)) return '';
-            return number.toLocaleString(bcp(locale.value), {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-            });
-        }
-
-        async function loadMonthlyCosts() {
-            try {
-                const payload = await SFMLApi.fetch('/api/sfml_stats/gpm/monthly_costs', {
-                    forceRefresh: true,
-                    ttl: 0,
-                });
-                if (!payload || payload.success === false) {
-                    monthlyCostsLine.value = '';
-                    return;
-                }
-                const months = Array.isArray(payload.months) ? payload.months : [];
-                const current = months.find((row) => row && row.is_current);
-                if (!current || current.total_eur == null || current.total_eur === '') {
-                    monthlyCostsLine.value = '';
-                    return;
-                }
-                const total = Number(current.total_eur);
-                if (!Number.isFinite(total)) {
-                    monthlyCostsLine.value = '';
-                    return;
-                }
-                let line = t('smart_charging.status.monthCost').replace('{eur}', formatMonthEuro(total));
-                const expected = payload.projection && payload.projection.expected_eur;
-                if (expected != null && expected !== '') {
-                    const projected = Number(expected);
-                    if (Number.isFinite(projected)) {
-                        line += ' · ' + t('smart_charging.status.monthCostProjection').replace(
-                            '{eur}',
-                            formatMonthEuro(projected)
-                        );
-                    }
-                }
-                if (payload.is_demo) {
-                    line += ' ' + t('smart_charging.status.monthCostDemo');
-                }
-                monthlyCostsLine.value = line;
-            } catch (_err) {
-                monthlyCostsLine.value = '';
-            }
-        }
+        const smartChargingAmpel = computed(() => {
+            if (setupIncomplete.value) return 'warn';
+            if (!smartChargingStatus.enabled) return 'idle';
+            if (smartChargingStatus.decision === 'load') return 'load';
+            if (smartChargingStatus.decision === 'wait') return 'wait';
+            return 'idle';
+        });
 
         async function loadEnergyFlow() {
             try {
@@ -3558,7 +3547,6 @@ const _HomePage = {
                 loadInfoPanel(),
                 loadPanelGroups(),
                 loadSmartChargingStatus(),
-                loadMonthlyCosts(),
             ]);
 
             // Refresh intervals
@@ -3605,8 +3593,8 @@ const _HomePage = {
 
         const handbookUrl = computed(() => (
             locale.value === 'de'
-                ? 'https://www.solarforecastml.com/de/docs'
-                : 'https://www.solarforecastml.com/en/docs'
+                ? 'https://www.solarforecastml.com/de/'
+                : 'https://www.solarforecastml.com/en/'
         ));
 
         return {
@@ -3638,7 +3626,7 @@ const _HomePage = {
             gridStateColorClass, localText,
             hasBatteryChart, batteryChartStats,
             getConsumerName,
-            smartChargingLine, setupIncomplete, monthlyCostsLine,
+            smartChargingLine, setupIncomplete, smartChargingAmpel,
             handbookUrl,
         };
     }
@@ -3678,23 +3666,17 @@ const _HomePage = {
         .sc-home-status:hover {
             color: var(--accent, #38bdf8);
         }
-        .sc-home-month {
-            display: block;
-            width: 100%;
-            margin-top: 4px;
-            padding: 0;
-            border: 0;
-            background: transparent;
-            color: var(--text-secondary);
-            font: 0.8rem var(--font-sans);
-            text-align: left;
-            cursor: pointer;
-            text-decoration: underline;
-            text-underline-offset: 2px;
+        .sc-status-ampel {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: var(--sc-ampel, var(--text-muted, #9ca3af));
         }
-        .sc-home-month:hover {
-            color: var(--accent, #38bdf8);
-        }
+        .sc-status-load { --sc-ampel: var(--success, #5bd8a6); }
+        .sc-status-wait { --sc-ampel: var(--info, #60c5ff); }
+        .sc-status-idle { --sc-ampel: var(--text-muted, #9ca3af); }
+        .sc-status-warn { --sc-ampel: var(--warning, #e9a94b); }
         .sc-home-setup-badge {
             font-size: 0.7rem;
             font-weight: 700;

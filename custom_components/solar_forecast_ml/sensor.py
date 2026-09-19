@@ -135,11 +135,10 @@ async def async_setup_entry(
     coordinator.system_status_sensor = system_status_sensor
 
     actual_live_manager = getattr(coordinator, "actual_live_state_manager", None)
-    if actual_live_manager is None:
+    start_live_manager = actual_live_manager is None
+    if start_live_manager:
         actual_live_manager = ActualLiveStateManager(hass, coordinator, entry)
         coordinator.actual_live_state_manager = actual_live_manager
-        await actual_live_manager.async_start()
-        entry.async_on_unload(actual_live_manager.async_stop)
 
     panel_group_sot_entities = []
     for idx, group in enumerate(getattr(coordinator, "panel_groups", []) or []):
@@ -250,6 +249,25 @@ async def async_setup_entry(
     async_add_entities(entities_to_add, True)
     coordinator.sensor_entity_count = len(entities_to_add)
     _LOGGER.info(f"Successfully added {len(entities_to_add)} total sensors.")
+
+    if start_live_manager:
+        live_start_cancelled = False
+
+        async def _start_actual_live() -> None:
+            if live_start_cancelled:
+                return
+            await actual_live_manager.async_start()
+
+        async def _stop_actual_live() -> None:
+            nonlocal live_start_cancelled
+            live_start_cancelled = True
+            await actual_live_manager.async_stop()
+
+        entry.async_on_unload(_stop_actual_live)
+        hass.async_create_task(
+            _start_actual_live(),
+            name=f"{DOMAIN}_actual_live_start",
+        )
 
     return True
 
