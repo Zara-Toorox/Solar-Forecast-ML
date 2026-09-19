@@ -1,0 +1,116 @@
+# Services for Solar Forecast GPM.
+import_price_csv:
+  name: Import price CSV
+  description: Import historical prices from a CSV file under /config.
+  fields:
+    path:
+      required: true
+      example: /config/gpm/prices.csv
+      selector:
+        text:
+    profile:
+      example: auto
+      selector:
+        select:
+          options:
+            - auto
+            - price_list
+            - community_share
+    price_unit:
+      example: auto
+      selector:
+        select:
+          options:
+            - auto
+            - ct_kwh
+            - eur_kwh
+            - eur_mwh
+    timezone:
+      example: local
+      selector:
+        select:
+          options:
+            - local
+            - utc
+    column_map:
+      selector:
+        object:
+correct_month:
+  name: Correct month
+  description: Scale historical GPM prices of a completed month to a billed total.
+  fields:
+    year:
+      required: true
+      example: 2026
+      selector:
+        number:
+          min: 2000
+          max: 2100
+          mode: box
+    month:
+      required: true
+      example: 1
+      selector:
+        number:
+          min: 1
+          max: 12
+          mode: box
+    billed_kwh:
+      required: true
+      example: 250.0
+      selector:
+        number:
+          min: 0.001
+          step: 0.001
+          unit_of_measurement: kWh
+          mode: box
+    billed_eur:
+      required: true
+      example: 75.0
+      selector:
+        number:
+          min: 0.001
+          step: 0.001
+          unit_of_measurement: EUR
+          mode: box
+    base_fee_eur:
+      example: 12.5
+      selector:
+        number:
+          min: 0
+          step: 0.01
+          unit_of_measurement: EUR
+          mode: box
+    method:
+      example: additive
+      selector:
+        select:
+          options:
+            - additive
+            - multiplicative
+    weighting:
+      example: consumption
+      selector:
+        select:
+          options:
+            - consumption
+            - uniform
+    force:
+      example: false
+      selector:
+        boolean:
+    preview:
+      example: false
+      selector:
+        boolean:
+revert_correction:
+  name: Revert correction
+  description: Restore raw prices for an applied CSV or monthly correction.
+  fields:
+    correction_id:
+      required: true
+      example: 4
+      selector:
+        number:
+          min: 1
+          mode: box

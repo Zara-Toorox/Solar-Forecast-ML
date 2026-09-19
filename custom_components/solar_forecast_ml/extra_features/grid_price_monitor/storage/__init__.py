@@ -10,6 +10,7 @@
 from .db_connector import GPMDatabaseConnector
 from .data_validator import DataValidator
 from .price_cache import PriceCache
+from .price_writer import PriceWriter
 from .history_manager import HistoryManager
 from .statistics_store import StatisticsStore
 
@@ -17,6 +18,7 @@ __all__ = [
     "GPMDatabaseConnector",
     "DataValidator",
     "PriceCache",
+    "PriceWriter",
     "HistoryManager",
     "StatisticsStore",
 ]

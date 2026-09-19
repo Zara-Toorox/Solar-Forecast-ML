@@ -489,8 +489,9 @@ const _HomePage = {
                     {{ action.label }}
                 </button>
                 <a
-                    href="static/docs.html"
-                    target="_self"
+                    :href="handbookUrl"
+                    target="_blank"
+                    rel="noopener"
                     class="hubble-action docs-link"
                     style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;"
                 >
@@ -768,6 +769,11 @@ const _HomePage = {
                     <span>Entladen <strong class="discharge">{{ batteryChartStats.dischargeKwh }}</strong></span>
                     <span class="battery-mode" :class="batteryStateClass">{{ batteryStateTextLocal }}</span>
                 </div>
+                <button type="button" class="sc-home-status" v-if="smartChargingLine" @click="$emit('navigate', 'smart_charging')">
+                    <span>{{ smartChargingLine }}</span>
+                    <span v-if="setupIncomplete" class="sc-home-setup-badge">{{ $t('smart_charging.setup.incompleteBadge') }}</span>
+                </button>
+                <button type="button" class="sc-home-month" v-if="monthlyCostsLine" @click="$emit('navigate', 'gpm')">{{ monthlyCostsLine }}</button>
             </div>
             <div ref="batteryChartEl" class="chart-container battery-chart-container"></div>
         </div>
@@ -824,6 +830,23 @@ const _HomePage = {
         const batterySocSensorConfigured = ref(false);
         const dailyForecasts = ref([]);
         const hubble = ref(null);
+        const smartChargingStatus = reactive({
+            is_cheap: null,
+            is_force_price: false,
+            decision: 'not_load',
+            reason: '',
+            enabled: false,
+            reserved_future_grid_charge_kwh: 0,
+            gpm_available: false,
+            is_demo: false,
+        });
+        const smartChargingSetup = reactive({
+            capacityMissing: false,
+            switchMissing: false,
+            gpmMissing: false,
+            gpmDemo: false,
+        });
+        const monthlyCostsLine = ref('');
 
 
         const localText = (key) => {
@@ -2343,6 +2366,128 @@ const _HomePage = {
 
         // ========== DATA LOADING ==========
 
+        function shortReasonText(code) {
+            if (!code) return t('smart_charging.status.reason.unknown');
+            const key = `smart_charging.status.reason.${code}`;
+            const text = t(key);
+            if (text !== key) return text;
+            return t('smart_charging.status.unknownReason').replace('{code}', String(code));
+        }
+
+        async function loadSmartChargingStatus() {
+            try {
+                const [dash, settings] = await Promise.all([
+                    SFMLApi.fetch('/api/sfml_stats/smart_charging/dashboard'),
+                    SFMLApi.fetch('/api/sfml_stats/smart_charging/settings'),
+                ]);
+                const status = (dash && dash.smart_charging_status) || {};
+                const live = (dash && dash.live) || {};
+                const gpm = (dash && dash.gpm) || (settings && settings.gpm) || {};
+                Object.assign(smartChargingStatus, {
+                    is_cheap: status.is_cheap != null ? status.is_cheap : live.is_cheap,
+                    is_force_price: Boolean(status.is_force_price || live.is_force_price),
+                    decision: status.decision || live.decision || 'not_load',
+                    reason: status.reason || live.reason || '',
+                    enabled: status.enabled != null ? Boolean(status.enabled) : Boolean(live.enabled),
+                    reserved_future_grid_charge_kwh: Number(
+                        status.reserved_future_grid_charge_kwh
+                        || live.reserved_future_grid_charge_kwh
+                        || 0
+                    ),
+                    gpm_available: Boolean(
+                        status.gpm_available != null ? status.gpm_available : gpm.available
+                    ),
+                    is_demo: Boolean(status.is_demo != null ? status.is_demo : gpm.is_demo),
+                });
+                const plant = (settings && settings.plant) || {};
+                const settingsGpm = (settings && settings.gpm) || gpm;
+                const capacity = plant.battery_capacity_kwh;
+                smartChargingSetup.capacityMissing = capacity == null || Number(capacity) <= 0;
+                smartChargingSetup.switchMissing = !plant.charge_switch_configured;
+                smartChargingSetup.gpmDemo = Boolean(settingsGpm.is_demo);
+                smartChargingSetup.gpmMissing = !settingsGpm.available && !settingsGpm.is_demo;
+            } catch (err) {
+                /* keep last known status */
+            }
+        }
+
+        const smartChargingLine = computed(() => {
+            let power;
+            if (smartChargingStatus.is_demo) power = t('smart_charging.status.homePowerDemo');
+            else if (!smartChargingStatus.gpm_available) power = t('smart_charging.status.homePowerNone');
+            else if (smartChargingStatus.is_cheap) {
+                power = smartChargingStatus.is_force_price
+                    ? t('smart_charging.status.homePowerVeryCheap')
+                    : t('smart_charging.status.homePowerCheap');
+            } else power = t('smart_charging.status.homePowerNotCheap');
+            let battery;
+            if (!smartChargingStatus.enabled) battery = t('smart_charging.status.homeBatteryOff');
+            else if (smartChargingStatus.decision === 'load') battery = t('smart_charging.status.homeBatteryLoad');
+            else if (smartChargingStatus.decision === 'wait') battery = t('smart_charging.status.homeBatteryWait');
+            else battery = t('smart_charging.status.homeBatteryNotLoad');
+            const reason = smartChargingStatus.enabled
+                ? ' (' + shortReasonText(smartChargingStatus.reason) + ')'
+                : '';
+            return power + ' · ' + battery + reason;
+        });
+
+        const setupIncomplete = computed(() => {
+            return smartChargingSetup.capacityMissing
+                || smartChargingSetup.switchMissing
+                || smartChargingSetup.gpmMissing
+                || smartChargingSetup.gpmDemo;
+        });
+
+        function formatMonthEuro(value) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return '';
+            return number.toLocaleString(bcp(locale.value), {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            });
+        }
+
+        async function loadMonthlyCosts() {
+            try {
+                const payload = await SFMLApi.fetch('/api/sfml_stats/gpm/monthly_costs', {
+                    forceRefresh: true,
+                    ttl: 0,
+                });
+                if (!payload || payload.success === false) {
+                    monthlyCostsLine.value = '';
+                    return;
+                }
+                const months = Array.isArray(payload.months) ? payload.months : [];
+                const current = months.find((row) => row && row.is_current);
+                if (!current || current.total_eur == null || current.total_eur === '') {
+                    monthlyCostsLine.value = '';
+                    return;
+                }
+                const total = Number(current.total_eur);
+                if (!Number.isFinite(total)) {
+                    monthlyCostsLine.value = '';
+                    return;
+                }
+                let line = t('smart_charging.status.monthCost').replace('{eur}', formatMonthEuro(total));
+                const expected = payload.projection && payload.projection.expected_eur;
+                if (expected != null && expected !== '') {
+                    const projected = Number(expected);
+                    if (Number.isFinite(projected)) {
+                        line += ' · ' + t('smart_charging.status.monthCostProjection').replace(
+                            '{eur}',
+                            formatMonthEuro(projected)
+                        );
+                    }
+                }
+                if (payload.is_demo) {
+                    line += ' ' + t('smart_charging.status.monthCostDemo');
+                }
+                monthlyCostsLine.value = line;
+            } catch (_err) {
+                monthlyCostsLine.value = '';
+            }
+        }
+
         async function loadEnergyFlow() {
             try {
                 const data = await SFMLApi.fetch('/api/sfml_stats/energy_flow');
@@ -3368,6 +3513,7 @@ const _HomePage = {
         let powerTimer = null;
         let forecastTimer = null;
         let infoTimer = null;
+        let smartChargingTimer = null;
 
         onMounted(async () => {
             updateClock();
@@ -3411,6 +3557,8 @@ const _HomePage = {
                 loadPowerHistory(),
                 loadInfoPanel(),
                 loadPanelGroups(),
+                loadSmartChargingStatus(),
+                loadMonthlyCosts(),
             ]);
 
             // Refresh intervals
@@ -3418,6 +3566,7 @@ const _HomePage = {
             powerTimer = setInterval(loadPowerHistory, 60000);
             forecastTimer = setInterval(loadForecastData, 60000);
             infoTimer = setInterval(loadInfoPanel, 60000);
+            smartChargingTimer = setInterval(loadSmartChargingStatus, 15000);
         });
 
         const getConsumerName = (key) => {
@@ -3435,6 +3584,7 @@ const _HomePage = {
             if (powerTimer) clearInterval(powerTimer);
             if (forecastTimer) clearInterval(forecastTimer);
             if (infoTimer) clearInterval(infoTimer);
+            if (smartChargingTimer) clearInterval(smartChargingTimer);
             if (forecastChartInstance) { forecastChartInstance.dispose(); forecastChartInstance = null; }
             if (powerChartInstance) { powerChartInstance.dispose(); powerChartInstance = null; }
             if (batteryChartInstance) { batteryChartInstance.dispose(); batteryChartInstance = null; }
@@ -3452,6 +3602,12 @@ const _HomePage = {
                 ? (cloudCover >= 80 ? '☁' : cloudCover >= 35 ? '⛅' : '☀')
                 : '☀️');
         };
+
+        const handbookUrl = computed(() => (
+            locale.value === 'de'
+                ? 'https://www.solarforecastml.com/de/docs'
+                : 'https://www.solarforecastml.com/en/docs'
+        ));
 
         return {
             forecastChartEl, powerChartEl, batteryChartEl, sparklineRefs,
@@ -3482,6 +3638,8 @@ const _HomePage = {
             gridStateColorClass, localText,
             hasBatteryChart, batteryChartStats,
             getConsumerName,
+            smartChargingLine, setupIncomplete, monthlyCostsLine,
+            handbookUrl,
         };
     }
 };
@@ -3501,6 +3659,49 @@ const _HomePage = {
             backdrop-filter: var(--glass-blur);
             -webkit-backdrop-filter: var(--glass-blur);
             transition: border-color var(--transition-normal);
+        }
+        .sc-home-status {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            margin-top: 8px;
+            padding: 6px 0 0;
+            border: 0;
+            background: transparent;
+            color: var(--text-primary);
+            font: 600 0.85rem var(--font-sans);
+            text-align: left;
+            cursor: pointer;
+        }
+        .sc-home-status:hover {
+            color: var(--accent, #38bdf8);
+        }
+        .sc-home-month {
+            display: block;
+            width: 100%;
+            margin-top: 4px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: var(--text-secondary);
+            font: 0.8rem var(--font-sans);
+            text-align: left;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .sc-home-month:hover {
+            color: var(--accent, #38bdf8);
+        }
+        .sc-home-setup-badge {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #92400e;
+            background: #fde68a;
+            border-radius: 999px;
+            padding: 2px 8px;
         }
         .hubble-card:hover {
             border-color: var(--border-hover);

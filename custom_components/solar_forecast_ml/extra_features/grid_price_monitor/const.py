@@ -16,12 +16,12 @@ from homeassistant.const import Platform
 # ============================================================================
 DOMAIN = "grid_price_monitor"
 NAME = "Solar Forecast GPM"
-VERSION = "46.0.6"
+VERSION = "46.0.8"
 
 # ============================================================================
 # PLATFORMS
 # ============================================================================
-PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SELECT]
 
 # ============================================================================
 # API CONFIGURATION
@@ -40,18 +40,106 @@ CONF_GRID_FEE = "grid_fee"
 CONF_TAXES_FEES = "taxes_fees"
 CONF_PROVIDER_MARKUP = "provider_markup"
 CONF_MAX_PRICE = "max_price"
+CONF_FORCE_CHARGE_PRICE = "force_charge_price"
+CONF_THRESHOLD_MODE = "threshold_mode"
+CONF_BELOW_AVERAGE_PCT = "below_average_pct"
+CONF_CHEAPEST_HOURS = "cheapest_hours"
+THRESHOLD_MODE_ABSOLUTE = "absolute"
+THRESHOLD_MODE_BELOW_AVERAGE = "below_average"
+THRESHOLD_MODE_CHEAPEST_HOURS = "cheapest_hours"
+THRESHOLD_MODES = [
+    THRESHOLD_MODE_ABSOLUTE,
+    THRESHOLD_MODE_BELOW_AVERAGE,
+    THRESHOLD_MODE_CHEAPEST_HOURS,
+]
+THRESHOLD_LIMITS = {
+    "max_price": {"min": 0, "max": 100, "step": 0.5},
+    "force_charge_price": {"min": 0, "max": 100, "step": 0.5},
+    "below_average_pct": {"min": 0, "max": 50, "step": 1},
+    "cheapest_hours": {"min": 1, "max": 12, "step": 1},
+}
 
 # Calibration option
 CONF_USE_CALIBRATION = "use_calibration"
 CONF_CALIBRATION_PRICE = "calibration_price"
 CONF_BATTERY_POWER_SENSOR = "battery_power_sensor"
 
-# Smart charging options
-CONF_SMART_CHARGING_ENABLED = "smart_charging_enabled"
-CONF_BATTERY_CAPACITY = "battery_capacity"
-CONF_BATTERY_SOC_SENSOR = "battery_soc_sensor"
-CONF_MAX_SOC = "max_soc"
-CONF_MIN_SOC = "min_soc"
+CONF_LICENSE_KEY = "license_key"
+CONF_LICENSE_STATUS = "license_status"
+CONF_LICENSE_ID = "license_id"
+CONF_LICENSE_SOURCE = "license_source"
+CONF_LEGACY_ENTITLED = "legacy_entitled"
+CONF_TARIFF_MODE = "tariff_mode"
+LICENSE_STATUS_GRANDFATHERED = "grandfathered"
+EAI_DOMAIN = "solar_forecast_eai"
+CONF_FEED_IN_TARIFF_CT = "feed_in_tariff_ct"
+CONF_BASE_FEE_EUR_MONTH = "base_fee_eur_month"
+
+TARIFF_MODE_DYNAMIC = "dynamic"
+TARIFF_MODE_FIXED = "fixed"
+TARIFF_MODE_TIME_OF_USE = "time_of_use"
+TARIFF_MODE_TIME_WINDOWS = "time_windows"
+TARIFF_MODE_CSV_COMMUNITY = "csv_community"
+TARIFF_MODE_DEMO = "demo"
+
+TARIFF_MODE_OPTIONS = [
+    TARIFF_MODE_DYNAMIC,
+    TARIFF_MODE_FIXED,
+    TARIFF_MODE_TIME_OF_USE,
+    TARIFF_MODE_TIME_WINDOWS,
+    TARIFF_MODE_CSV_COMMUNITY,
+]
+
+DEFAULT_FEED_IN_TARIFF_CT = 8.1
+DEFAULT_BASE_FEE_EUR_MONTH = 0.0
+
+CONF_FIXED = "fixed"
+CONF_FIXED_TOTAL_PRICE = "fixed_total_price"
+CONF_TIME_OF_USE = "time_of_use"
+CONF_TOU_HIGH_PRICE = "tou_high_price"
+CONF_TOU_LOW_PRICE = "tou_low_price"
+CONF_TOU_HIGH_START = "tou_high_start"
+CONF_TOU_HIGH_END = "tou_high_end"
+CONF_TOU_WEEKEND_LOW = "tou_weekend_low"
+CONF_TOU_HOLIDAY_LOW = "tou_holiday_low"
+CONF_TIME_WINDOWS = "time_windows"
+CONF_WINDOWS_DEFAULT_PRICE = "default_price"
+CONF_WINDOW_NAME = "window_name"
+CONF_WINDOW_START = "window_start"
+CONF_WINDOW_END = "window_end"
+CONF_WINDOW_PRICE = "window_price"
+CONF_WINDOW_WEEKDAYS = "window_weekdays"
+CONF_CSV_COMMUNITY = "csv_community"
+CONF_CSV_BASE_MODE = "csv_base_mode"
+CONF_EEG_PRICE = "eeg_price"
+CONF_CSV_PRICE_UNIT = "csv_price_unit"
+CONF_CSV_TIMEZONE = "csv_timezone"
+
+PRICE_SOURCE_AWATTAR = "awattar"
+PRICE_SOURCE_FIXED = "fixed"
+PRICE_SOURCE_TIME_OF_USE = "time_of_use"
+PRICE_SOURCE_TIME_WINDOWS = "time_windows"
+PRICE_SOURCE_CSV = "csv"
+PRICE_SOURCE_DEMO = "demo"
+PRICE_SOURCE_GAP_FILL = "gap_fill"
+PRICE_SOURCE_MONTHLY = "monthly_correction"
+
+CSV_BASE_MODE_OPTIONS = [
+    TARIFF_MODE_DYNAMIC,
+    TARIFF_MODE_FIXED,
+    TARIFF_MODE_TIME_OF_USE,
+    TARIFF_MODE_TIME_WINDOWS,
+]
+CSV_PRICE_UNIT_OPTIONS = ["auto", "ct_kwh", "eur_kwh", "eur_mwh"]
+CSV_TIMEZONE_OPTIONS = ["local", "utc"]
+WEEKDAY_OPTIONS = ["0", "1", "2", "3", "4", "5", "6"]
+MAX_TARIFF_WINDOWS = 12
+
+SIGNAL_PRICES_REVISED = f"{DOMAIN}_prices_revised"
+BACKFILL_DAYS = 35
+
+LICENSE_RECHECK_INTERVAL_SECONDS = 300
+LICENSE_RECHECK_WINDOW_SECONDS = 3600
 
 # ============================================================================
 # DEFAULT VALUES
@@ -61,8 +149,10 @@ DEFAULT_GRID_FEE = 8.0  # ct/kWh typical German grid fee (brutto)
 DEFAULT_TAXES_FEES = 5.0  # ct/kWh taxes and fees (brutto)
 DEFAULT_PROVIDER_MARKUP = 1.0  # ct/kWh provider margin (brutto)
 DEFAULT_MAX_PRICE = 30.0  # ct/kWh threshold for "cheap" electricity
-DEFAULT_MAX_SOC = 100  # % maximum battery SoC
-DEFAULT_MIN_SOC = 10  # % minimum battery SoC
+DEFAULT_FORCE_CHARGE_PRICE = 15.0
+DEFAULT_THRESHOLD_MODE = THRESHOLD_MODE_ABSOLUTE
+DEFAULT_BELOW_AVERAGE_PCT = 10
+DEFAULT_CHEAPEST_HOURS = 4
 
 # ============================================================================
 # VAT RATES
@@ -107,12 +197,19 @@ SENSOR_PRICES_TODAY = "prices_today"
 SENSOR_PRICES_TOMORROW = "prices_tomorrow"
 
 BINARY_SENSOR_CHEAP_ENERGY = "cheap_energy"
-BINARY_SENSOR_SMART_CHARGING = "smart_charging"
-
-# Smart charging sensors
-SENSOR_SMART_CHARGING_TARGET_SOC = "smart_charging_target_soc"
-SENSOR_SOLAR_FORECAST_TODAY = "solar_forecast_today"
-SENSOR_SOLAR_FORECAST_TOMORROW = "solar_forecast_tomorrow"
+REMOVED_UNIQUE_ID_SUFFIXES = (
+    "smart_charging",
+    "smart_charging_target_soc",
+    "solar_forecast_today",
+    "solar_forecast_tomorrow",
+)
+SMC_REMOVED_ENTRY_KEYS = (
+    "smart_charging_enabled",
+    "battery_capacity",
+    "battery_soc_sensor",
+    "max_soc",
+    "min_soc",
+)
 
 # Battery sensors
 SENSOR_BATTERY_POWER = "battery_power"
@@ -132,9 +229,6 @@ ICON_BATTERY = "mdi:battery-charging"
 ICON_BATTERY_ENERGY = "mdi:battery-plus"
 ICON_CALENDAR_TODAY = "mdi:calendar-today"
 ICON_CALENDAR_TOMORROW = "mdi:calendar-arrow-right"
-ICON_SMART_CHARGING = "mdi:battery-charging-wireless"
-ICON_SOLAR_FORECAST = "mdi:solar-power-variant"
-ICON_TARGET_SOC = "mdi:battery-sync"
 
 # ============================================================================
 # UNITS

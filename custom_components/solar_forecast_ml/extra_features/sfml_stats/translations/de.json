@@ -47,14 +47,12 @@
         "data": {
           "sensor_battery_soc": "🔋 Akkustand (%)",
           "sensor_battery_power": "🔋 Akkuleistung (W)",
-          "sensor_grid_import_extra": "⚡ Zusätzliche Netzenergie heute (kWh)",
-          "sensor_price_total": "💶 Aktueller Gesamtstrompreis (ct/kWh)"
+          "sensor_grid_import_extra": "⚡ Zusätzliche Netzenergie heute (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Einheit: %. Aktueller Ladezustand des Akkus von 0 bis 100. (Optional)",
           "sensor_battery_power": "Einheit: W. Positiv = Laden, negativ = Entladen. (Optional)",
-          "sensor_grid_import_extra": "Nur als Sonderfall: zusätzliche Netzenergie, die von den Leistungssensoren nicht erfasst wird. Muss den Wert seit Mitternacht in kWh liefern. (Optional)",
-          "sensor_price_total": "Aktueller Gesamtstrompreis einschließlich Steuern und Entgelten. Nur nötig, wenn eine andere Integration diesen Wert bereitstellt. (Optional)"
+          "sensor_grid_import_extra": "Nur als Sonderfall: zusätzliche Netzenergie, die von den Leistungssensoren nicht erfasst wird. Muss den Wert seit Mitternacht in kWh liefern. (Optional)"
         }
       },
       "consumers": {
@@ -153,14 +151,12 @@
         "data": {
           "sensor_battery_soc": "🔋 Akkustand (%)",
           "sensor_battery_power": "🔋 Akkuleistung (W)",
-          "sensor_grid_import_extra": "⚡ Zusätzliche Netzenergie heute (kWh)",
-          "sensor_price_total": "💶 Aktueller Gesamtstrompreis (ct/kWh)"
+          "sensor_grid_import_extra": "⚡ Zusätzliche Netzenergie heute (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Einheit: %. Aktueller Ladezustand des Akkus von 0 bis 100. (Optional)",
           "sensor_battery_power": "Einheit: W. Positiv = Laden, negativ = Entladen. (Optional)",
-          "sensor_grid_import_extra": "Nur als Sonderfall: zusätzliche Netzenergie, die von den Leistungssensoren nicht erfasst wird. Muss den Wert seit Mitternacht in kWh liefern. (Optional)",
-          "sensor_price_total": "Aktueller Gesamtstrompreis einschließlich Steuern und Entgelten. Leer lassen, um die bisherige Auswahl zu entfernen. (Optional)"
+          "sensor_grid_import_extra": "Nur als Sonderfall: zusätzliche Netzenergie, die von den Leistungssensoren nicht erfasst wird. Muss den Wert seit Mitternacht in kWh liefern. (Optional)"
         }
       },
       "reconfigure_consumers": {
@@ -212,52 +208,6 @@
           "sensor_wb_charge_mode": "Auswahl-Entität mit dem aktuellen Lademodus. (Optional)",
           "sensor_wb_energy_session": "Geladene Energie der aktuellen Ladesitzung. (Optional)"
         }
-      },
-      "pricing": {
-        "title": "Tarifmodus",
-        "description": "Wähle deinen Strom-Tarifmodus.",
-        "data": {
-          "billing_price_mode": "Tarifmodus"
-        },
-        "data_description": {
-          "billing_price_mode": "Dynamisch: Stundenpreise aus GPM. Fest: ein Preis. Keiner: deaktiviert Kosten-Anzeigen."
-        }
-      },
-      "pricing_fixed": {
-        "title": "Fester Tarif",
-        "description": "Arbeitspreis und Netzentgelte separat eingeben — die Summe ergibt den Gesamtpreis pro kWh.",
-        "data": {
-          "billing_work_price": "Arbeitspreis (ct/kWh)",
-          "billing_grid_fees": "Netzentgelte (ct/kWh)",
-          "billing_base_fee": "Grundgebühr (EUR/Monat)",
-          "feed_in_tariff": "Einspeisevergütung (ct/kWh)"
-        },
-        "data_description": {
-          "billing_work_price": "Reiner Energie-Arbeitspreis pro kWh (ohne Netzentgelte).",
-          "billing_grid_fees": "Netzentgelte, Messung, Konzession und Steuern pro kWh.",
-          "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
-          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
-        }
-      },
-      "pricing_dynamic": {
-        "title": "Dynamischer Tarif",
-        "description": "GPM (Grid Price Monitor) liefert die Marktpreise stündlich. Bitte gib deine Grundgebühr, Steuern, Abgaben und Aufschläge ein.",
-        "data": {
-          "billing_base_fee": "Grundgebühr (EUR/Monat)",
-          "feed_in_tariff": "Einspeisevergütung (ct/kWh)",
-          "vat_rate": "Mehrwertsteuersatz (%)",
-          "gpm_grid_fee": "Netzentgelte (ct/kWh)",
-          "taxes_fees": "Steuern & Abgaben (ct/kWh)",
-          "provider_markup": "Anbieter-Aufschlag (ct/kWh)"
-        },
-        "data_description": {
-          "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
-          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh.",
-          "vat_rate": "Mehrwertsteuersatz in Prozent (z.B. 19 für DE, 20 für AT).",
-          "gpm_grid_fee": "Netzentgelte und Messentgelte pro kWh (brutto).",
-          "taxes_fees": "Konzessionsabgabe, Stromsteuer und sonstige Umlagen pro kWh (brutto).",
-          "provider_markup": "Anbieter-Aufschlag pro kWh (brutto)."
-        }
       }
     },
     "abort": {
@@ -307,7 +257,6 @@
           "sensor_smartmeter_import": "Smartmeter Bezug (W)",
           "sensor_smartmeter_export": "Smartmeter Einspeisung (W)",
           "sensor_grid_import_extra": "Zusätzlicher Netzbezug (kWh/Tag)",
-          "sensor_price_total": "Strompreis Gesamt (ct/kWh)",
           "sensor_heatpump_power": "Wärmepumpe Leistung (W)",
           "sensor_heatingrod_power": "Heizstab Leistung (W)",
           "sensor_wallbox_power": "Wallbox Leistung (W)",
@@ -329,7 +278,6 @@
           "sensor_smartmeter_import": "Aktueller Bezug am Smartmeter in Watt. (Optional)",
           "sensor_smartmeter_export": "Aktuelle Einspeisung am Smartmeter in Watt. (Optional)",
           "sensor_grid_import_extra": "Zusätzlicher Netzbezug außerhalb des Smartmeters in kWh. (Optional)",
-          "sensor_price_total": "Sensor mit aktuellem Gesamtstrompreis inkl. Steuern/Entgelten (z.B. von Tibber). (Optional)",
           "sensor_heatpump_power": "Aktuelle elektrische Leistungsaufnahme der Wärmepumpe in Watt. (Optional)",
           "sensor_heatingrod_power": "Aktuelle elektrische Leistungsaufnahme des Heizstabs in Watt. (Optional)",
           "sensor_wallbox_power": "Aktuelle Ladeleistung der Wallbox in Watt. (Optional)",
@@ -371,46 +319,32 @@
         }
       },
       "smart_charging": {
-        "title": "Smart Charging",
-        "description": "Automatisches Laden der Batterie aus dem Netz in günstigen Stunden unter Berücksichtigung des Solar-Forecasts und des durchschnittlichen Hausverbrauchs. Der Ziel-SOC wird dynamisch berechnet, um Platz für den morgigen Solar-Überschuss zu lassen, begrenzt auf Min/Max.",
+        "title": "Batterie",
+        "description": "Anlagenkonstanten der Batterie. 0 kW Ladeleistung bedeutet unbegrenzt. Die Wechselrichter-Nennleistung kommt aus Solar Forecast ML (0 = unbegrenzt).",
         "data": {
-          "smart_charging_enabled": "Smart Charging aktivieren",
           "battery_capacity": "Batterie-Kapazitaet (kWh)",
-          "min_soc": "Minimum SOC (%)",
-          "max_soc": "Maximum SOC (%)",
-          "max_price": "Preis-Schwelle guenstig (ct/kWh)",
-          "force_charge_price": "Preis-Schwelle extrem guenstig (ct/kWh)",
+          "max_charge_power_kw": "Maximale Ladeleistung (kW, 0 = unbegrenzt)",
           "battery_soc_sensor": "Batterie-SOC Sensor",
           "smart_charging_switch": "Ladeschalter / Ladesteuerung",
           "ems_surplus_switch": "S-Plus Verbraucher-Freigabe",
           "ems_wallbox_switch": "EMS Wallbox-Ladefreigabe",
-          "ems_heat_pump_boost_switch": "EMS Wärmepumpen-PV-Boost",
-          "sensor_price_total": "Strompreis-Sensor"
+          "ems_heat_pump_boost_switch": "EMS Wärmepumpen-PV-Boost"
         },
         "data_description": {
-          "smart_charging_enabled": "Master-Schalter. Deaktiviert laeuft keine Ladelogik.",
-          "battery_capacity": "Nutzbare Batteriekapazitaet. Wird benoetigt, um Solar-kWh in SOC-Prozent umzurechnen.",
-          "min_soc": "Ziel-SOC faellt nie unter diesen Wert.",
-          "max_soc": "Ziel-SOC uebersteigt nie diesen Wert. Typisch 95-100.",
-          "max_price": "Aktueller Preis unterhalb dieser Schwelle gilt als guenstig. Nur dann wird Netzladen zugelassen.",
-          "force_charge_price": "Preis unterhalb dieser Schwelle loest tagsüber bei solarem Defizit oder nachts Zwangsnetzladung bis max_soc aus.",
+          "battery_capacity": "Pflichtangabe, 0 bedeutet: nicht eingerichtet. Nutzbare Batteriekapazitaet. Wird benoetigt, um Solar-kWh in SOC-Prozent umzurechnen.",
+          "max_charge_power_kw": "Netz-Ladeleistung in kW. 0 = unbegrenzt (keine Fensterbegrenzung).",
           "battery_soc_sensor": "Batterie-Ladezustand-Sensor (0-100%). Ohne Sensor arbeitet die Logik im Preis-Fallback.",
           "smart_charging_switch": "Schalter-Entität in Home Assistant zur Steuerung der Netzladung.",
           "ems_surplus_switch": "Optionaler Schalter für einen flexiblen Verbraucher. EMS schaltet ihn nur bei stabiler S-Plus-Freigabe.",
           "ems_wallbox_switch": "Optionaler, sicher abschaltbarer Freigabeschalter der Wallbox. Nicht den Hauptschalter verwenden.",
-          "ems_heat_pump_boost_switch": "Optionaler, sicher abschaltbarer PV-Boost-/SG-Ready-Schalter. Niemals die Stromversorgung der Wärmepumpe wählen.",
-          "sensor_price_total": "Sensor für den aktuellen dynamischen Gesamtstrompreis (z.B. von Tibber)."
+          "ems_heat_pump_boost_switch": "Optionaler, sicher abschaltbarer PV-Boost-/SG-Ready-Schalter. Niemals die Stromversorgung der Wärmepumpe wählen."
         }
       },
       "pricing": {
-        "title": "Tarifmodus",
-        "description": "Wähle deinen Strom-Tarifmodus.",
-        "data": {
-          "billing_price_mode": "Tarifmodus"
-        },
-        "data_description": {
-          "billing_price_mode": "Dynamisch: Stundenpreise aus GPM. Fest: ein Preis. Keiner: deaktiviert Kosten-Anzeigen."
-        }
+        "title": "Strompreise",
+        "description": "Preise werden in Solar Forecast GPM konfiguriert.\n\nAktueller Modus: **{price_mode}**\nTarif: **{tariff_label}**\nAktueller Preis: **{current_price}**",
+        "data": {},
+        "data_description": {}
       },
       "amortization": {
         "title": "Amortisation",
@@ -430,42 +364,6 @@
           "amortization_annual_running_costs_eur": "Wartung, Versicherung, Zählerkosten oder ähnliche jährliche Kosten.",
           "amortization_price_increase_percent": "Annahme für steigende Strompreise in der Projektion.",
           "amortization_degradation_percent": "Jährlicher Leistungsverlust der PV-Anlage in der Projektion."
-        }
-      },
-      "pricing_fixed": {
-        "title": "Fester Tarif",
-        "description": "Arbeitspreis und Netzentgelte separat eingeben — die Summe ergibt den Gesamtpreis pro kWh.",
-        "data": {
-          "billing_work_price": "Arbeitspreis (ct/kWh)",
-          "billing_grid_fees": "Netzentgelte (ct/kWh)",
-          "billing_base_fee": "Grundgebühr (EUR/Monat)",
-          "feed_in_tariff": "Einspeisevergütung (ct/kWh)"
-        },
-        "data_description": {
-          "billing_work_price": "Reiner Energie-Arbeitspreis pro kWh (ohne Netzentgelte).",
-          "billing_grid_fees": "Netzentgelte, Messung, Konzession und Steuern pro kWh.",
-          "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
-          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh."
-        }
-      },
-      "pricing_dynamic": {
-        "title": "Dynamischer Tarif",
-        "description": "GPM (Grid Price Monitor) liefert die Marktpreise stündlich. Bitte gib deine Grundgebühr, Steuern, Abgaben und Aufschläge ein.",
-        "data": {
-          "billing_base_fee": "Grundgebühr (EUR/Monat)",
-          "feed_in_tariff": "Einspeisevergütung (ct/kWh)",
-          "vat_rate": "Mehrwertsteuersatz (%)",
-          "gpm_grid_fee": "Netzentgelte (ct/kWh)",
-          "taxes_fees": "Steuern & Abgaben (ct/kWh)",
-          "provider_markup": "Anbieter-Aufschlag (ct/kWh)"
-        },
-        "data_description": {
-          "billing_base_fee": "Monatliche Grundgebühr in EUR (optional, 0 = keine).",
-          "feed_in_tariff": "Einspeisevergütung in Cent pro kWh.",
-          "vat_rate": "Mehrwertsteuersatz in Prozent (z.B. 19 für DE, 20 für AT).",
-          "gpm_grid_fee": "Netzentgelte und Messentgelte pro kWh (brutto).",
-          "taxes_fees": "Konzessionsabgabe, Stromsteuer und sonstige Umlagen pro kWh (brutto).",
-          "provider_markup": "Anbieter-Aufschlag pro kWh (brutto)."
         }
       },
       "appearance": {
@@ -489,7 +387,8 @@
           "forecast_entity_1": "Vergleichs-Prognose 1",
           "forecast_entity_1_name": "Name Prognose 1",
           "forecast_entity_2": "Vergleichs-Prognose 2",
-          "forecast_entity_2_name": "Name Prognose 2"
+          "forecast_entity_2_name": "Name Prognose 2",
+          "cost_tracking_enabled": "Stromkosten erfassen"
         },
         "data_description": {
           "billing_start_month": "Monat, in dem dein Abrechnungsjahr beginnt.",
@@ -499,8 +398,66 @@
           "forecast_entity_1": "Sensor mit täglicher Solarprognose in kWh (z.B. sensor.solcast_forecast_today). (Optional)",
           "forecast_entity_1_name": "Anzeigename im Vergleichsdiagramm (z.B. 'Solcast'). (Optional)",
           "forecast_entity_2": "Sensor mit täglicher Solarprognose in kWh. (Optional)",
-          "forecast_entity_2_name": "Anzeigename im Vergleichsdiagramm. (Optional)"
+          "forecast_entity_2_name": "Anzeigename im Vergleichsdiagramm. (Optional)",
+          "cost_tracking_enabled": "Wenn aus, zeigt STATS nur Energiemengen und berechnet keine Kosten."
         }
+      }
+    }
+  },
+  "issues": {
+    "price_config_moved_to_gpm": {
+      "title": "Strompreise nach GPM verschoben",
+      "description": "Ihr bisheriger STATS-Festpreis ({legacy_price} ct/kWh) bleibt aktiv, bis Sie den GPM-Tarif bestätigen.",
+      "fix_flow": {
+        "step": {
+          "menu": {
+            "title": "Wie soll STATS künftig abrechnen?",
+            "description": "Bisheriger STATS-Festpreis: **{legacy_price} ct/kWh**.",
+            "menu_options": {
+              "use_gpm_fixed": "GPM verwendet meinen Fixpreis",
+              "use_gpm_dynamic": "Dynamische GPM-Preise übernehmen"
+            }
+          },
+          "use_gpm_fixed": {
+            "title": "GPM-Fixpreis verwenden",
+            "description": "Tragen Sie {legacy_price} ct/kWh als GPM-Fixpreis ein und bestätigen Sie hier."
+          },
+          "use_gpm_dynamic": {
+            "title": "Dynamische GPM-Preise",
+            "description": "STATS verwirft den Rest-Festpreis {legacy_price} ct/kWh und folgt GPM."
+          }
+        }
+      },
+      "error": {
+        "gpm_not_fixed": "GPM ist noch nicht auf einen Fixpreis gestellt."
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "smart_charging_enabled": {
+        "name": "Smart Charging"
+      }
+    },
+    "select": {
+      "smart_charging_mode": {
+        "name": "Smart-Charging-Modus",
+        "state": {
+          "forecast": "Nur die Lücke füllen",
+          "price_band_soc": "Bei günstigem Strom bis zum Ziel laden",
+          "combined": "Beides – der höhere Bedarf gilt"
+        }
+      }
+    },
+    "number": {
+      "smart_charging_target_soc": {
+        "name": "Ziel-SoC"
+      },
+      "smart_charging_min_soc": {
+        "name": "Mindest-SoC"
+      },
+      "smart_charging_max_soc": {
+        "name": "Maximal-SoC"
       }
     }
   }

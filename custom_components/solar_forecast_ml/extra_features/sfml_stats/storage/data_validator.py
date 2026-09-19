@@ -22,9 +22,7 @@ from ..const import (
     SOLAR_FORECAST_ML_BASE,
     SOLAR_FORECAST_DB,
     GRID_PRICE_MONITOR_BASE,
-    CONF_BILLING_PRICE_MODE,
-    DEFAULT_BILLING_PRICE_MODE,
-    PRICE_MODE_DYNAMIC,
+    CONF_COST_TRACKING_ENABLED,
 )
 
 if TYPE_CHECKING:
@@ -110,10 +108,11 @@ class DataValidator:
                 )
 
         grid_available = False
-        dynamic_pricing = entry_config.get(
-            CONF_BILLING_PRICE_MODE, DEFAULT_BILLING_PRICE_MODE
-        ) == PRICE_MODE_DYNAMIC
-        if solar_db_exists and dynamic_pricing:
+        from ..core.price_mode import MODE_NONE, effective_price_mode, gpm_provider_present
+
+        price_mode = effective_price_mode(self._hass, entry_config)
+        tracking = entry_config.get(CONF_COST_TRACKING_ENABLED, True) is not False
+        if solar_db_exists:
             try:
                 # Direct connection intentional: runs before DatabaseConnectionManager is created
                 import aiosqlite
@@ -130,8 +129,13 @@ class DataValidator:
 
         self._source_status["grid_price_monitor"] = grid_available
 
-        if not dynamic_pricing:
-            _LOGGER.debug("GPM source check skipped for non-dynamic tariff")
+        if tracking and price_mode != MODE_NONE and not gpm_provider_present(self._hass) and not grid_available:
+            _LOGGER.warning(
+                "Cost tracking is enabled but GPM is not available"
+            )
+
+        if not tracking or price_mode == MODE_NONE:
+            _LOGGER.debug("GPM source check skipped (cost tracking off)")
             return
 
         if grid_available:

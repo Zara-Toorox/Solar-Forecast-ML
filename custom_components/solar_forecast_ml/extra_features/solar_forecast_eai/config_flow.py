@@ -81,6 +81,7 @@ from .const import (
     CONF_WEATHER_FUSION_ENTRY_ID,
     CONF_WEATHER_HISTORY_DAYS,
     CONF_WEATHER_INTELLIGENCE_ENABLED,
+    CONF_GRID_PRICE_ENABLED,
     DEFAULT_EV_BATTERY_CAPACITY_KWH,
     DEFAULT_EV_CHARGING_EFFICIENCY_PERCENT,
     DEFAULT_EV_CONSUMPTION_KWH_PER_100KM,
@@ -832,6 +833,12 @@ def _features_schema(defaults: dict[str, Any]) -> vol.Schema:
                     defaults.get(CONF_WEATHER_INTELLIGENCE_ENABLED), False
                 ),
             ): bool,
+            vol.Required(
+                CONF_GRID_PRICE_ENABLED,
+                default=_safe_bool_default(
+                    defaults.get(CONF_GRID_PRICE_ENABLED), True
+                ),
+            ): selector.BooleanSelector(),
         }
     )
 

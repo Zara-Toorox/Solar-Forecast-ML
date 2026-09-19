@@ -3,13 +3,14 @@
 from datetime import timedelta
 
 DOMAIN = "solar_forecast_eai"
-VERSION = "46.0.6"
+VERSION = "46.0.8"
 CONFIG_ENTRY_VERSION = 4
 CONF_LICENSE_KEY = "license_key"
 CONF_LICENSE_STATUS = "license_status"
 CONF_LICENSE_ID = "license_id"
 CONF_HEAT_PUMP_ENABLED = "heat_pump_enabled"
 CONF_WEATHER_INTELLIGENCE_ENABLED = "weather_intelligence_enabled"
+CONF_GRID_PRICE_ENABLED = "grid_price_enabled"
 CONF_WEATHER_FUSION_ENTRY_ID = "weather_fusion_entry_id"
 CONF_SFML_ENTRY_ID = "sfml_entry_id"
 CONF_WEATHER_HISTORY_DAYS = "weather_history_days"

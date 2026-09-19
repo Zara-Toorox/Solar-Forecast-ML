@@ -17,12 +17,14 @@
         "data": {
           "heat_pump_enabled": "Use heat-pump intelligence",
           "wallbox_enabled": "Use e-mobility intelligence",
-          "weather_intelligence_enabled": "Use Weather Fusion intelligence"
+          "weather_intelligence_enabled": "Use Weather Fusion intelligence",
+          "grid_price_enabled": "Use electricity-price intelligence (GPM)"
         },
         "data_description": {
           "heat_pump_enabled": "Configure heat-pump, building and thermal analysis.",
           "wallbox_enabled": "Configure passive charging recommendations for a wallbox or vehicle.",
-          "weather_intelligence_enabled": "Evaluate an installed Weather Fusion AI forecast, local observations and weather risks."
+          "weather_intelligence_enabled": "Evaluate an installed Weather Fusion AI forecast, local observations and weather risks.",
+          "grid_price_enabled": "Keeps the dynamic tariff running. Disable only the premium tariff models, CSV import and monthly corrections."
         }
       },
       "sensor_sources": {
@@ -396,12 +398,14 @@
         "data": {
           "heat_pump_enabled": "Use heat-pump intelligence",
           "wallbox_enabled": "Use e-mobility intelligence",
-          "weather_intelligence_enabled": "Use Weather Fusion intelligence"
+          "weather_intelligence_enabled": "Use Weather Fusion intelligence",
+          "grid_price_enabled": "Use electricity-price intelligence (GPM)"
         },
         "data_description": {
           "heat_pump_enabled": "Enable heat-pump and building analysis.",
           "wallbox_enabled": "Enable wallbox and vehicle recommendations.",
-          "weather_intelligence_enabled": "Enable WFAI forecast evaluation and weather risks."
+          "weather_intelligence_enabled": "Enable WFAI forecast evaluation and weather risks.",
+          "grid_price_enabled": "Keeps the dynamic tariff running. Disable only the premium tariff models, CSV import and monthly corrections."
         }
       },
       "sensor_sources": {

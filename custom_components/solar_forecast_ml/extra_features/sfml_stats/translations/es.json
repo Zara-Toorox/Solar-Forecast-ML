@@ -47,14 +47,12 @@
         "data": {
           "sensor_battery_soc": "📊 Estado de carga de batería (%)",
           "sensor_battery_power": "🔋 Potencia total de batería (W)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
-          "sensor_price_total": "💰 Precio actual (ct/kWh)"
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Unidad: Porcentaje (0–100). Estado de carga (SOC) actual de la batería. El valor debe estar entre 0 y 100, ¡no valores decimales como 0.0–1.0! (Opcional)",
           "sensor_battery_power": "Unidad: Vatios. Potencia total de batería en un solo sensor. Positivo = carga, Negativo = descarga. ¡Usar solo si no hay sensores separados de carga/descarga! (Opcional)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
-          "sensor_price_total": "Unidad: ct/kWh (bruto). Sensor dinámico, p. ej. de Tibber, Octopus Energy o EPEX Spot. No necesario con tarifa fija. (Opcional)"
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
         }
       },
       "consumers": {
@@ -153,14 +151,12 @@
         "data": {
           "sensor_battery_soc": "📊 Estado de carga de batería (%)",
           "sensor_battery_power": "🔋 Potencia total de batería (W)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
-          "sensor_price_total": "💰 Precio actual (ct/kWh)"
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Unidad: Porcentaje (0–100). Estado de carga (SOC) actual de la batería. El valor debe estar entre 0 y 100, ¡no valores decimales como 0.0–1.0! (Opcional)",
           "sensor_battery_power": "Unidad: Vatios. Potencia total de batería en un solo sensor. Positivo = carga, Negativo = descarga. ¡Usar solo si no hay sensores separados de carga/descarga! (Opcional)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
-          "sensor_price_total": "Unidad: ct/kWh (bruto). Sensor dinámico, p. ej. de Tibber, Octopus Energy o EPEX Spot. No necesario con tarifa fija. (Opcional)"
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
         }
       },
       "reconfigure_consumers": {
@@ -212,52 +208,6 @@
           "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
           "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
         }
-      },
-      "pricing": {
-        "title": "Tarifa eléctrica",
-        "description": "Select your electricity tariff mode.",
-        "data": {
-          "billing_price_mode": "Modo de tarifa"
-        },
-        "data_description": {
-          "billing_price_mode": "Dinámico: precios por hora de Grid Price Monitor. Fijo: precio único. Sin tarifa: desactiva indicadores financieros."
-        }
-      },
-      "pricing_fixed": {
-        "title": "Tarifa fija",
-        "description": "Enter work price and grid fees separately — the total cost is their sum.",
-        "data": {
-          "billing_work_price": "Work Price (ct/kWh)",
-          "billing_grid_fees": "Grid Fees (ct/kWh)",
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Tarifa de inyección (ct/kWh)"
-        },
-        "data_description": {
-          "billing_work_price": "Pure energy work price per kWh (without grid fees).",
-          "billing_grid_fees": "Grid fees, metering, concession and taxes per kWh.",
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Tarifa de inyección a red en céntimos por kWh"
-        }
-      },
-      "pricing_dynamic": {
-        "title": "Tarifa dinámica",
-        "description": "GPM (Grid Price Monitor) provides hourly market prices. Please enter your base fee, taxes, fees and markups.",
-        "data": {
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Tarifa de inyección (ct/kWh)",
-          "vat_rate": "VAT Rate (%)",
-          "gpm_grid_fee": "Grid Fees (ct/kWh)",
-          "taxes_fees": "Taxes & Levies (ct/kWh)",
-          "provider_markup": "Provider Markup (ct/kWh)"
-        },
-        "data_description": {
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Tarifa de inyección a red en céntimos por kWh",
-          "vat_rate": "Value Added Tax rate in percent (e.g. 19 for DE, 20 for AT).",
-          "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
-          "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
-          "provider_markup": "Provider markup per kWh (gross)."
-        }
       }
     },
     "abort": {
@@ -301,7 +251,6 @@
           "sensor_smartmeter_import": "📥 Importación de red (W)",
           "sensor_smartmeter_export": "📤 Exportación a red (W)",
           "sensor_grid_import_extra": "Additional Grid Import (kWh)",
-          "sensor_price_total": "💰 Precio actual (ct/kWh)",
           "sensor_heatpump_power": "🌡️ Bomba de calor potencia (W)",
           "sensor_heatingrod_power": "🔥 Resistencia eléctrica potencia (W)",
           "sensor_wallbox_power": "🚗 Wallbox potencia (W)",
@@ -323,7 +272,6 @@
           "sensor_smartmeter_import": "Unidad: Vatios. Importación total de red en el punto de medición. ¡Incluye TODA la potencia de red — incluyendo carga de batería desde red! (Opcional)",
           "sensor_smartmeter_export": "Unidad: Vatios. Exportación total en el punto de medición. ¡Incluye TODA la inyección — incluyendo inyección de batería a red! (Opcional)",
           "sensor_grid_import_extra": "Additional grid import not measured by smartmeter in kWh. (Optional)",
-          "sensor_price_total": "Unidad: ct/kWh (bruto). Sensor dinámico, p. ej. de Tibber, Octopus Energy o EPEX Spot. No necesario con tarifa fija. (Opcional)",
           "sensor_heatpump_power": "Unidad: Vatios. Consumo eléctrico actual de la bomba de calor. ¡Solo consumo del compresor, no la salida de calor! (Opcional)",
           "sensor_heatingrod_power": "Unidad: Vatios. Consumo eléctrico actual de la resistencia. Se muestra como consumidor separado en el flujo energético. (Opcional)",
           "sensor_wallbox_power": "Unidad: Vatios. Potencia de carga actual del wallbox/estación de carga. ¡Solo potencia de carga real, no consumo en espera! (Opcional)",
@@ -365,46 +313,32 @@
         }
       },
       "smart_charging": {
-        "title": "Carga inteligente",
-        "description": "Carga automática de la batería desde la red durante las horas baratas, respetando la previsión solar y el consumo diario medio. El SOC objetivo se calcula dinámicamente para dejar suficiente espacio para el excedente solar del día siguiente, limitado al min/max.",
+        "title": "Batería",
+        "description": "Constantes de la instalación. 0 kW de potencia de carga significa ilimitado (0 = unbegrenzt). La potencia nominal del inversor proviene de Solar Forecast ML (0 = unbegrenzt).",
         "data": {
-          "smart_charging_enabled": "Activar carga inteligente",
           "battery_capacity": "Capacidad de la batería (kWh)",
-          "min_soc": "SOC mínimo (%)",
-          "max_soc": "SOC máximo (%)",
-          "max_price": "Umbral de precio barato (ct/kWh)",
-          "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
+          "max_charge_power_kw": "Potencia máxima de carga (kW, 0 = ilimitado)",
           "battery_soc_sensor": "Sensor de SOC de la batería",
           "smart_charging_switch": "Interruptor de control de carga",
           "ems_surplus_switch": "Habilitación de carga flexible S-Plus",
           "ems_wallbox_switch": "Habilitación de carga EMS para wallbox",
-          "ems_heat_pump_boost_switch": "Impulso fotovoltaico EMS para bomba de calor",
-          "sensor_price_total": "Sensor de precio de la electricidad"
+          "ems_heat_pump_boost_switch": "Impulso fotovoltaico EMS para bomba de calor"
         },
         "data_description": {
-          "smart_charging_enabled": "Interruptor principal. Cuando está apagado, no se ejecuta la lógica de carga.",
-          "battery_capacity": "Capacidad útil de la batería. Se utiliza para convertir la previsión solar en kWh a porcentaje de SOC.",
-          "min_soc": "El SOC objetivo nunca bajará de este valor.",
-          "max_soc": "El SOC objetivo nunca superará este valor. Típico: 95-100.",
-          "max_price": "El precio actual por debajo de este umbral se considera barato. Solo entonces se permite la carga desde la red.",
-          "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
+          "battery_capacity": "Dato obligatorio, 0 significa: no configurado. Capacidad útil de la batería. Se utiliza para convertir la previsión solar en kWh a porcentaje de SOC.",
+          "max_charge_power_kw": "Potencia de carga de red en kW. 0 = ilimitado (0 = unbegrenzt).",
           "battery_soc_sensor": "Sensor del estado de carga de la batería (0-100%). Sin él, la lógica vuelve al modo de solo precio.",
           "smart_charging_switch": "Entidad de interruptor para activar/desactivar la carga desde la red en Home Assistant.",
           "ems_surplus_switch": "Interruptor opcional para una carga flexible, habilitado solo tras la señal estable S-Plus.",
           "ems_wallbox_switch": "Interruptor opcional y seguro de habilitación de carga. No selecciones el interruptor principal.",
-          "ems_heat_pump_boost_switch": "Interruptor opcional de impulso FV o SG-Ready. Nunca selecciones la alimentación principal.",
-          "sensor_price_total": "Sensor monetario que proporciona el precio dinámico actual (por ejemplo, de Tibber)."
+          "ems_heat_pump_boost_switch": "Interruptor opcional de impulso FV o SG-Ready. Nunca selecciones la alimentación principal."
         }
       },
       "pricing": {
-        "title": "Tarifa eléctrica",
-        "description": "Select your electricity tariff mode.",
-        "data": {
-          "billing_price_mode": "Modo de tarifa"
-        },
-        "data_description": {
-          "billing_price_mode": "Dinámico: precios por hora de Grid Price Monitor. Fijo: precio único. Sin tarifa: desactiva indicadores financieros."
-        }
+        "title": "Precios de electricidad",
+        "description": "Los precios se configuran en Solar Forecast GPM.\n\nModo actual: **{price_mode}**\nTarifa: **{tariff_label}**\nPrecio actual: **{current_price}**",
+        "data": {},
+        "data_description": {}
       },
       "amortization": {
         "title": "Amortización",
@@ -424,42 +358,6 @@
           "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
           "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
           "amortization_degradation_percent": "Annual PV output degradation in the projection."
-        }
-      },
-      "pricing_fixed": {
-        "title": "Tarifa fija",
-        "description": "Enter work price and grid fees separately — the total cost is their sum.",
-        "data": {
-          "billing_work_price": "Work Price (ct/kWh)",
-          "billing_grid_fees": "Grid Fees (ct/kWh)",
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Tarifa de inyección (ct/kWh)"
-        },
-        "data_description": {
-          "billing_work_price": "Pure energy work price per kWh (without grid fees).",
-          "billing_grid_fees": "Grid fees, metering, concession and taxes per kWh.",
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Tarifa de inyección a red en céntimos por kWh"
-        }
-      },
-      "pricing_dynamic": {
-        "title": "Tarifa dinámica",
-        "description": "GPM (Grid Price Monitor) provides hourly market prices. Please enter your base fee, taxes, fees and markups.",
-        "data": {
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Tarifa de inyección (ct/kWh)",
-          "vat_rate": "VAT Rate (%)",
-          "gpm_grid_fee": "Grid Fees (ct/kWh)",
-          "taxes_fees": "Taxes & Levies (ct/kWh)",
-          "provider_markup": "Provider Markup (ct/kWh)"
-        },
-        "data_description": {
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Tarifa de inyección a red en céntimos por kWh",
-          "vat_rate": "Value Added Tax rate in percent (e.g. 19 for DE, 20 for AT).",
-          "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
-          "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
-          "provider_markup": "Provider markup per kWh (gross)."
         }
       },
       "appearance": {
@@ -483,7 +381,8 @@
           "forecast_entity_1": "📈 Pronóstico 1 (Entity ID)",
           "forecast_entity_1_name": "Nombre del pronóstico 1",
           "forecast_entity_2": "📈 Pronóstico 2 (Entity ID)",
-          "forecast_entity_2_name": "Nombre del pronóstico 2"
+          "forecast_entity_2_name": "Nombre del pronóstico 2",
+          "cost_tracking_enabled": "Registrar costes de electricidad"
         },
         "data_description": {
           "billing_start_month": "Mes en que comienza tu año de facturación",
@@ -493,12 +392,70 @@
           "forecast_entity_1": "Formato: sensor.xxx. Sensor con pronóstico diario de generación en kWh (p. ej. sensor.solcast_forecast_today). Debe contener la generación diaria esperada como número. (Opcional)",
           "forecast_entity_1_name": "Nombre en el gráfico comparativo (p. ej. 'Solcast'). Se muestra en la leyenda de la comparación de 7 días. (Opcional)",
           "forecast_entity_2": "Formato: sensor.xxx. Sensor con pronóstico diario de generación en kWh (p. ej. sensor.forecast_solar_energy_today). Debe contener la generación diaria esperada como número. (Opcional)",
-          "forecast_entity_2_name": "Nombre en el gráfico comparativo (p. ej. 'Forecast.Solar'). Se muestra en la leyenda de la comparación de 7 días. (Opcional)"
+          "forecast_entity_2_name": "Nombre en el gráfico comparativo (p. ej. 'Forecast.Solar'). Se muestra en la leyenda de la comparación de 7 días. (Opcional)",
+          "cost_tracking_enabled": "Si está desactivado, STATS muestra solo energía y no calcula costes."
         }
       }
     },
     "error": {
       "invalid_code": "¡Código de acceso inválido!"
+    }
+  },
+  "issues": {
+    "price_config_moved_to_gpm": {
+      "title": "Precios de electricidad trasladados a GPM",
+      "description": "El precio fijo anterior de STATS ({legacy_price} ct/kWh) se mantiene hasta que confirme la tarifa GPM.",
+      "fix_flow": {
+        "step": {
+          "menu": {
+            "title": "¿Cómo debe facturar STATS a partir de ahora?",
+            "description": "Precio fijo anterior de STATS: **{legacy_price} ct/kWh**.",
+            "menu_options": {
+              "use_gpm_fixed": "GPM usa mi precio fijo",
+              "use_gpm_dynamic": "Cambiar a precios dinámicos de GPM"
+            }
+          },
+          "use_gpm_fixed": {
+            "title": "Usar tarifa fija de GPM",
+            "description": "Introduzca {legacy_price} ct/kWh como tarifa fija de GPM y confirme aquí."
+          },
+          "use_gpm_dynamic": {
+            "title": "Usar precios dinámicos de GPM",
+            "description": "STATS eliminará el precio fijo residual {legacy_price} ct/kWh y seguirá a GPM."
+          }
+        }
+      },
+      "error": {
+        "gpm_not_fixed": "GPM aún no está en tarifa fija."
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "smart_charging_enabled": {
+        "name": "Carga inteligente"
+      }
+    },
+    "select": {
+      "smart_charging_mode": {
+        "name": "Modo de carga inteligente",
+        "state": {
+          "forecast": "Rellenar solo el hueco",
+          "price_band_soc": "Cargar al objetivo cuando la electricidad es barata",
+          "combined": "Ambos: vale la necesidad mayor"
+        }
+      }
+    },
+    "number": {
+      "smart_charging_target_soc": {
+        "name": "SoC objetivo"
+      },
+      "smart_charging_min_soc": {
+        "name": "SoC mínimo"
+      },
+      "smart_charging_max_soc": {
+        "name": "SoC máximo"
+      }
     }
   }
 }

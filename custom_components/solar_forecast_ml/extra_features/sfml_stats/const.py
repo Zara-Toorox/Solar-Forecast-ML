@@ -10,7 +10,6 @@
 """Constants for SFML Stats integration. @zara"""
 from __future__ import annotations
 
-from datetime import timedelta
 from pathlib import Path
 from typing import Final
 
@@ -18,11 +17,17 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "46.0.6"
+VERSION: Final = "46.0.8"
 RUNTIME_READY_KEY: Final = "_runtime_ready"
 RUNTIME_READY_TIMEOUT_SECONDS: Final = 15.0
 
-PLATFORMS: Final = [Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS: Final = [
+    Platform.SENSOR,
+    Platform.BINARY_SENSOR,
+    Platform.SWITCH,
+    Platform.SELECT,
+    Platform.NUMBER,
+]
 
 SOLAR_FORECAST_ML_BASE: Final = Path("solar_forecast_ml")
 SOLAR_FORECAST_ML_STATS: Final = SOLAR_FORECAST_ML_BASE / "stats"
@@ -41,11 +46,6 @@ SOLAR_SEASONAL: Final = "seasonal.json"
 SOLAR_DNI_TRACKER: Final = "dni_tracker.json"
 
 GRID_PRICE_MONITOR_BASE: Final = Path("grid_price_monitor")
-GRID_PRICE_MONITOR_DATA: Final = GRID_PRICE_MONITOR_BASE / "data"
-
-GRID_PRICE_HISTORY: Final = "price_history.json"
-GRID_STATISTICS: Final = "statistics.json"
-GRID_PRICE_CACHE: Final = "price_cache.json"
 
 SFML_STATS_BASE: Final = Path("sfml_stats")
 SFML_STATS_WEEKLY: Final = SFML_STATS_BASE / "weekly"
@@ -136,7 +136,6 @@ CONF_SENSOR_BATTERY_CHARGE_GRID_DAILY: Final = "sensor_battery_charge_grid_daily
 CONF_SENSOR_BATTERY_DISCHARGE_DAILY: Final = "sensor_battery_discharge_daily"
 CONF_SENSOR_GRID_EXPORT_DAILY: Final = "sensor_grid_export_daily"
 CONF_SENSOR_HOME_CONSUMPTION_DAILY: Final = "sensor_home_consumption_daily"
-CONF_SENSOR_PRICE_TOTAL: Final = "sensor_price_total"
 
 CONF_SENSOR_SMARTMETER_IMPORT_KWH: Final = "sensor_smartmeter_import_kwh"
 CONF_SENSOR_SMARTMETER_EXPORT_KWH: Final = "sensor_smartmeter_export_kwh"
@@ -171,6 +170,8 @@ CONF_BILLING_WORK_PRICE: Final = "billing_work_price"
 CONF_BILLING_GRID_FEES: Final = "billing_grid_fees"
 CONF_BILLING_BASE_FEE: Final = "billing_base_fee"
 CONF_FEED_IN_TARIFF: Final = "feed_in_tariff"
+CONF_COST_TRACKING_ENABLED: Final = "cost_tracking_enabled"
+CONF_LEGACY_FIXED_PRICE_CT: Final = "legacy_fixed_price_ct"
 
 CONF_AMORTIZATION_INVESTMENT_EUR: Final = "amortization_investment_eur"
 CONF_AMORTIZATION_SUBSIDY_EUR: Final = "amortization_subsidy_eur"
@@ -249,7 +250,6 @@ ENERGY_FLOW_SENSORS: Final = [
     CONF_SENSOR_BATTERY_SOC,
     CONF_SENSOR_BATTERY_POWER,
     CONF_SENSOR_HOME_CONSUMPTION,
-    CONF_SENSOR_PRICE_TOTAL,
 ]
 
 PANEL_SENSORS: Final = [
@@ -328,10 +328,6 @@ MAX_HISTORY_HOURS: Final = 168
 WEATHER_HISTORY_DAYS: Final = 365
 SUN_HOURS_RADIATION_THRESHOLD: Final = 100
 
-AWATTAR_API_URL_DE: Final = "https://api.awattar.de/v1/marketdata"
-AWATTAR_API_URL_AT: Final = "https://api.awattar.at/v1/marketdata"
-API_TIMEOUT: Final = 30  # seconds
-
 FILE_RETRY_COUNT: Final = 3
 FILE_RETRY_DELAY_SECONDS: Final = 0.1
 
@@ -382,15 +378,10 @@ FORECAST_CHART_HOUR: Final = 0
 FORECAST_CHART_MINUTE: Final = 5
 
 # ---------------------------------------------------------------------------
-# GPM (Grid Price Monitor) — integrated into SFML Stats V17+
+# GPM (Grid Price Monitor) — STATS consumes GPM prices; no STATS price input
 # ---------------------------------------------------------------------------
 
-# aWATTar API
-AWATTAR_API_URL_DE: Final = "https://api.awattar.de/v1/marketdata"
-AWATTAR_API_URL_AT: Final = "https://api.awattar.at/v1/marketdata"
-API_TIMEOUT: Final = 30
-
-# GPM Configuration Keys
+# GPM Configuration Keys (migration v10 / residual config keys)
 CONF_COUNTRY: Final = "country"
 CONF_VAT_RATE: Final = "vat_rate"
 CONF_GPM_GRID_FEE: Final = "gpm_grid_fee"
@@ -398,16 +389,35 @@ CONF_TAXES_FEES: Final = "taxes_fees"
 CONF_PROVIDER_MARKUP: Final = "provider_markup"
 CONF_MAX_PRICE: Final = "max_price"
 CONF_SMART_CHARGING_ENABLED: Final = "smart_charging_enabled"
+CONF_SMART_CHARGING_MODE: Final = "smart_charging_mode"
 CONF_BATTERY_CAPACITY: Final = "battery_capacity"
 CONF_BATTERY_SOC_SENSOR: Final = "battery_soc_sensor"
 CONF_GPM_BATTERY_POWER_SENSOR: Final = "gpm_battery_power_sensor"
 CONF_MAX_SOC: Final = "max_soc"
 CONF_MIN_SOC: Final = "min_soc"
+CONF_TARGET_SOC: Final = "target_soc"
 CONF_SMART_CHARGING_SWITCH: Final = "smart_charging_switch"
+CONF_MAX_CHARGE_POWER_KW: Final = "max_charge_power_kw"
 CONF_FORCE_CHARGE_PRICE: Final = "force_charge_price"
 CONF_EMS_SURPLUS_SWITCH: Final = "ems_surplus_switch"
 CONF_EMS_WALLBOX_SWITCH: Final = "ems_wallbox_switch"
 CONF_EMS_HEAT_PUMP_BOOST_SWITCH: Final = "ems_heat_pump_boost_switch"
+
+SMC_MODE_FORECAST: Final = "forecast"
+SMC_MODE_PRICE_BAND_SOC: Final = "price_band_soc"
+SMC_MODE_COMBINED: Final = "combined"
+SMC_MODES: Final = (
+    SMC_MODE_FORECAST,
+    SMC_MODE_PRICE_BAND_SOC,
+    SMC_MODE_COMBINED,
+)
+DEFAULT_SMART_CHARGING_MODE: Final = SMC_MODE_FORECAST
+SMC_LIMITS: Final = {
+    "target_soc": {"min": 10, "max": 100, "step": 1},
+    "min_soc": {"min": 0, "max": 80, "step": 1},
+    "max_soc": {"min": 20, "max": 100, "step": 1},
+    "max_charge_power_kw": {"min": 0, "max": 50, "step": 0.1},
+}
 
 # GPM Defaults
 DEFAULT_COUNTRY: Final = "DE"
@@ -417,17 +427,19 @@ DEFAULT_VAT_RATE_REDUCED_DE: Final = 7
 DEFAULT_GPM_GRID_FEE: Final = 8.0
 DEFAULT_TAXES_FEES: Final = 5.0
 DEFAULT_PROVIDER_MARKUP: Final = 1.0
-DEFAULT_MAX_PRICE: Final = 30.0
 DEFAULT_MAX_SOC: Final = 100
 DEFAULT_MIN_SOC: Final = 10
-DEFAULT_BATTERY_CAPACITY: Final = 10.0
-DEFAULT_FORCE_CHARGE_PRICE: Final = 15.0
+DEFAULT_BATTERY_CAPACITY: Final = 0.0
 
-# GPM Update Intervals
-GPM_UPDATE_INTERVAL: Final = timedelta(minutes=5)
-GPM_PRICE_FETCH_INTERVAL: Final = timedelta(hours=1)
 
-# GPM Price Cache
-GPM_CACHE_VALIDITY_HOURS: Final = 48
-GPM_HISTORY_RETENTION_DAYS: Final = 730
-GPM_MAX_HISTORY_ENTRIES: Final = 18000
+def configured_battery_capacity_kwh(value: object) -> float | None:
+    """Return a positive configured capacity, or None when missing or zero."""
+    try:
+        if value is None or value == "":
+            return None
+        capacity = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if capacity <= 0.0:
+        return None
+    return capacity

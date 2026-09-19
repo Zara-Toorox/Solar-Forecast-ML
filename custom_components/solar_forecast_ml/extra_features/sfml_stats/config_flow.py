@@ -32,12 +32,7 @@ from .const import (
     CONF_SENSOR_BATTERY_SOC,
     CONF_SENSOR_BATTERY_POWER,
     CONF_SENSOR_GRID_IMPORT_EXTRA,
-    CONF_BILLING_PRICE_MODE,
-    CONF_BILLING_FIXED_PRICE,
-    CONF_BILLING_WORK_PRICE,
-    CONF_BILLING_GRID_FEES,
-    CONF_BILLING_BASE_FEE,
-    CONF_FEED_IN_TARIFF,
+    CONF_COST_TRACKING_ENABLED,
     CONF_AMORTIZATION_INVESTMENT_EUR,
     CONF_AMORTIZATION_SUBSIDY_EUR,
     CONF_AMORTIZATION_COMMISSIONING_DATE,
@@ -51,32 +46,19 @@ from .const import (
     UI_MODE_CLASSIC,
     UI_MODE_MODERN,
     normalize_ui_mode,
-    CONF_SMART_CHARGING_ENABLED,
     CONF_SMART_CHARGING_SWITCH,
     CONF_EMS_SURPLUS_SWITCH,
     CONF_EMS_WALLBOX_SWITCH,
     CONF_EMS_HEAT_PUMP_BOOST_SWITCH,
     CONF_BATTERY_CAPACITY,
-    CONF_MIN_SOC,
-    CONF_MAX_SOC,
     CONF_BATTERY_SOC_SENSOR,
-    CONF_MAX_PRICE,
-    CONF_FORCE_CHARGE_PRICE,
+    CONF_MAX_CHARGE_POWER_KW,
     DEFAULT_BATTERY_CAPACITY,
-    DEFAULT_MIN_SOC,
-    DEFAULT_MAX_SOC,
-    DEFAULT_MAX_PRICE,
-    DEFAULT_FORCE_CHARGE_PRICE,
     CONF_FORECAST_ENTITY_1,
     CONF_FORECAST_ENTITY_2,
     CONF_FORECAST_ENTITY_1_NAME,
     CONF_FORECAST_ENTITY_2_NAME,
     DEFAULT_COUNTRY,
-    DEFAULT_BILLING_PRICE_MODE,
-    DEFAULT_BILLING_WORK_PRICE,
-    DEFAULT_BILLING_GRID_FEES,
-    DEFAULT_BILLING_BASE_FEE,
-    DEFAULT_FEED_IN_TARIFF,
     DEFAULT_AMORTIZATION_INVESTMENT_EUR,
     DEFAULT_AMORTIZATION_SUBSIDY_EUR,
     DEFAULT_AMORTIZATION_ANNUAL_RUNNING_COSTS_EUR,
@@ -84,9 +66,6 @@ from .const import (
     DEFAULT_AMORTIZATION_DEGRADATION_PERCENT,
     DEFAULT_FORECAST_ENTITY_1_NAME,
     DEFAULT_FORECAST_ENTITY_2_NAME,
-    PRICE_MODE_DYNAMIC,
-    PRICE_MODE_FIXED,
-    PRICE_MODE_NONE,
     CONF_BILLING_START_DAY,
     CONF_BILLING_START_MONTH,
     DEFAULT_BILLING_START_DAY,
@@ -96,7 +75,6 @@ from .const import (
     CONF_SENSOR_GRID_TO_HOUSE,
     CONF_SENSOR_GRID_TO_BATTERY,
     CONF_SENSOR_HOUSE_TO_GRID,
-    CONF_SENSOR_PRICE_TOTAL,
     CONF_SENSOR_SMARTMETER_IMPORT,
     CONF_SENSOR_SMARTMETER_EXPORT,
     CONF_SENSOR_HEATPUMP_POWER,
@@ -118,13 +96,6 @@ from .const import (
     CONF_SENSOR_WB_ENERGY_SESSION,
     HP_DETAIL_SENSORS,
     WB_DETAIL_SENSORS,
-    CONF_VAT_RATE,
-    CONF_GPM_GRID_FEE,
-    CONF_TAXES_FEES,
-    CONF_PROVIDER_MARKUP,
-    DEFAULT_GPM_GRID_FEE,
-    DEFAULT_TAXES_FEES,
-    DEFAULT_PROVIDER_MARKUP,
     LEGACY_POWER_ENERGY_SENSOR_KEYS,
 )
 
@@ -230,7 +201,6 @@ def _battery_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
         _optional_entity_key(CONF_SENSOR_BATTERY_SOC, current): _entity(device_class="battery"),
         _optional_entity_key(CONF_SENSOR_BATTERY_POWER, current): _entity(device_class="power"),
         _optional_entity_key(CONF_SENSOR_GRID_IMPORT_EXTRA, current): _entity(device_class="energy"),
-        _optional_entity_key(CONF_SENSOR_PRICE_TOTAL, current): _entity(device_class="monetary"),
     })
 
 
@@ -285,7 +255,6 @@ BATTERY_KEYS = [
     CONF_SENSOR_BATTERY_SOC,
     CONF_SENSOR_BATTERY_POWER,
     CONF_SENSOR_GRID_IMPORT_EXTRA,
-    CONF_SENSOR_PRICE_TOTAL,
 ]
 CONSUMER_KEYS = [
     CONF_SENSOR_HEATPUMP_POWER,
@@ -303,7 +272,7 @@ CONSUMER_DETAIL_KEYS = HP_DETAIL_SENSORS + WB_DETAIL_SENSORS
 class SFMLStatsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle setup and reconfiguration for SFML Stats. @zara"""
 
-    VERSION = 9
+    VERSION = 11
 
     def __init__(self) -> None:
         """Initialize the config flow. @zara"""
@@ -374,145 +343,17 @@ class SFMLStatsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Configure optional heat-pump and wallbox details. @zara"""
         if user_input is not None:
             _store(self._data, user_input, CONSUMER_DETAIL_KEYS)
-            return await self.async_step_pricing()
+            return self._finish_flow()
         return self.async_show_form(
             step_id="consumer_details",
             data_schema=_consumer_detail_schema(),
         )
 
-    # ----- Step 3a: Pricing mode -----
-
-    async def async_step_pricing(
-        self, user_input: dict[str, Any] | None = None,
-    ) -> FlowResult:
-        """Step 3a — Select price mode, then route to mode-specific step. @zara"""
-        if user_input is not None:
-            self._data[CONF_BILLING_PRICE_MODE] = user_input[CONF_BILLING_PRICE_MODE]
-            mode = user_input[CONF_BILLING_PRICE_MODE]
-            if mode == PRICE_MODE_FIXED:
-                return await self.async_step_pricing_fixed()
-            if mode == PRICE_MODE_DYNAMIC:
-                return await self.async_step_pricing_dynamic()
-            # PRICE_MODE_NONE — finish directly
-            return self._finish_flow()
-
-        return self.async_show_form(
-            step_id="pricing",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_BILLING_PRICE_MODE,
-                    default=self._data.get(
-                        CONF_BILLING_PRICE_MODE, DEFAULT_BILLING_PRICE_MODE
-                    ),
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            selector.SelectOptionDict(value=PRICE_MODE_DYNAMIC, label="Dynamic (GPM hourly prices from DB)"),
-                            selector.SelectOptionDict(value=PRICE_MODE_FIXED, label="Fixed price"),
-                            selector.SelectOptionDict(value=PRICE_MODE_NONE, label="No tariff"),
-                        ],
-                        mode=selector.SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-            }),
-        )
-
-    # ----- Step 3b-fixed: Fixed pricing details -----
-
-    async def async_step_pricing_fixed(
-        self, user_input: dict[str, Any] | None = None,
-    ) -> FlowResult:
-        """Step 3b — Fixed: work price + grid fees + base fee + feed-in. @zara"""
-        if user_input is not None:
-            self._data.update(user_input)
-            return self._finish_flow()
-
-        return self.async_show_form(
-            step_id="pricing_fixed",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_BILLING_WORK_PRICE,
-                    default=self._data.get(
-                        CONF_BILLING_WORK_PRICE,
-                        self._data.get(
-                            CONF_BILLING_FIXED_PRICE, DEFAULT_BILLING_WORK_PRICE
-                        ),
-                    ),
-                ): _number(0, 80, 0.01),
-                vol.Required(
-                    CONF_BILLING_GRID_FEES,
-                    default=self._data.get(
-                        CONF_BILLING_GRID_FEES, DEFAULT_BILLING_GRID_FEES
-                    ),
-                ): _number(0, 30, 0.01),
-                vol.Required(
-                    CONF_BILLING_BASE_FEE,
-                    default=self._data.get(
-                        CONF_BILLING_BASE_FEE, DEFAULT_BILLING_BASE_FEE
-                    ),
-                ): _number(0, 100, 0.01, unit="EUR/Monat"),
-                vol.Required(
-                    CONF_FEED_IN_TARIFF,
-                    default=self._data.get(
-                        CONF_FEED_IN_TARIFF, DEFAULT_FEED_IN_TARIFF
-                    ),
-                ): _number(0, 50, 0.01),
-            }),
-        )
-
-    # ----- Step 3b-dynamic: Dynamic pricing details -----
-
-    async def async_step_pricing_dynamic(
-        self, user_input: dict[str, Any] | None = None,
-    ) -> FlowResult:
-        """Step 3b — Dynamic: base fee + feed-in only (GPM delivers hourly rate) + VAT/fees. @zara"""
-        if user_input is not None:
-            self._data.update(user_input)
-            return self._finish_flow()
-
-        country = self._data.get(CONF_COUNTRY, DEFAULT_COUNTRY)
-        default_vat = 20 if country == "AT" else 19
-
-        return self.async_show_form(
-            step_id="pricing_dynamic",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_BILLING_BASE_FEE,
-                    default=self._data.get(
-                        CONF_BILLING_BASE_FEE, DEFAULT_BILLING_BASE_FEE
-                    ),
-                ): _number(0, 100, 0.01, unit="EUR/Monat"),
-                vol.Required(
-                    CONF_FEED_IN_TARIFF,
-                    default=self._data.get(
-                        CONF_FEED_IN_TARIFF, DEFAULT_FEED_IN_TARIFF
-                    ),
-                ): _number(0, 50, 0.01),
-                vol.Required(
-                    CONF_VAT_RATE,
-                    default=self._data.get(CONF_VAT_RATE, default_vat),
-                ): _number(0, 50, 1, unit="%"),
-                vol.Required(
-                    CONF_GPM_GRID_FEE,
-                    default=self._data.get(CONF_GPM_GRID_FEE, DEFAULT_GPM_GRID_FEE),
-                ): _number(0, 30, 0.01),
-                vol.Required(
-                    CONF_TAXES_FEES,
-                    default=self._data.get(CONF_TAXES_FEES, DEFAULT_TAXES_FEES),
-                ): _number(0, 30, 0.01),
-                vol.Required(
-                    CONF_PROVIDER_MARKUP,
-                    default=self._data.get(
-                        CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP
-                    ),
-                ): _number(0, 20, 0.01),
-            }),
-        )
-
     def _finish_flow(self) -> FlowResult:
         """Create or update the config entry after the shared setup steps."""
         self._data.setdefault(CONF_PANEL_GROUP_NAMES, {})
-        for key in LEGACY_POWER_ENERGY_SENSOR_KEYS:
+        self._data.setdefault(CONF_COST_TRACKING_ENABLED, True)
+        for key in (*LEGACY_POWER_ENERGY_SENSOR_KEYS, "sensor_price_total"):
             self._data.pop(key, None)
         if self._reconfigure_entry is not None:
             return self.async_update_reload_and_abort(
@@ -587,7 +428,7 @@ class SFMLStatsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Update optional heat-pump and wallbox detail sensors. @zara"""
         if user_input is not None:
             _store(self._data, user_input, CONSUMER_DETAIL_KEYS)
-            return await self.async_step_pricing()
+            return self._finish_flow()
         return self.async_show_form(
             step_id="reconfigure_consumer_details",
             data_schema=_consumer_detail_schema(self._data),
@@ -619,7 +460,7 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
 
     def _save(self, new_data: dict[str, Any]) -> FlowResult:
         """Persist updated data and close. @zara"""
-        for key in LEGACY_POWER_ENERGY_SENSOR_KEYS:
+        for key in (*LEGACY_POWER_ENERGY_SENSOR_KEYS, "sensor_price_total"):
             new_data.pop(key, None)
         self.hass.config_entries.async_update_entry(
             self._config_entry, data=new_data,
@@ -657,7 +498,7 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     "consumers": "Consumer Details (WP/Wallbox)",
                     "pricing": "Pricing",
                     "amortization": "Amortisation",
-                    "smart_charging": "Smart Charging",
+                    "smart_charging": "Batterie",
                     "appearance": "Interface",
                     "advanced": "Advanced",
                 }),
@@ -681,7 +522,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             CONF_SENSOR_HOUSE_TO_GRID,
             CONF_SENSOR_SMARTMETER_IMPORT, CONF_SENSOR_SMARTMETER_EXPORT,
             CONF_SENSOR_GRID_IMPORT_EXTRA,
-            CONF_SENSOR_PRICE_TOTAL,
             CONF_SENSOR_HEATPUMP_POWER,
             CONF_SENSOR_HEATINGROD_POWER,
             CONF_SENSOR_WALLBOX_POWER,
@@ -728,7 +568,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_SENSOR_SMARTMETER_IMPORT, description=_sv(CONF_SENSOR_SMARTMETER_IMPORT)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_SMARTMETER_EXPORT, description=_sv(CONF_SENSOR_SMARTMETER_EXPORT)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_GRID_IMPORT_EXTRA, description=_sv(CONF_SENSOR_GRID_IMPORT_EXTRA)): _entity(device_class="energy"),
-                vol.Optional(CONF_SENSOR_PRICE_TOTAL, description=_sv(CONF_SENSOR_PRICE_TOTAL)): _entity(device_class="monetary"),
                 vol.Optional(CONF_SENSOR_HEATPUMP_POWER, description=_sv(CONF_SENSOR_HEATPUMP_POWER)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_HEATINGROD_POWER, description=_sv(CONF_SENSOR_HEATINGROD_POWER)): _entity(device_class="power"),
                 vol.Optional(CONF_SENSOR_WALLBOX_POWER, description=_sv(CONF_SENSOR_WALLBOX_POWER)): _entity(device_class="power"),
@@ -784,12 +623,11 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_smart_charging(
         self, user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
-        """Configure smart battery charging (enable, capacity, SOC, price threshold). @zara"""
+        """Configure battery plant constants and EMS actuators. @zara"""
         if user_input is not None:
             new_data = {**self._config_entry.data}
-            new_data[CONF_SMART_CHARGING_ENABLED] = bool(user_input.get(CONF_SMART_CHARGING_ENABLED, False))
 
-            for key in (CONF_BATTERY_CAPACITY, CONF_MIN_SOC, CONF_MAX_SOC, CONF_MAX_PRICE, CONF_FORCE_CHARGE_PRICE):
+            for key in (CONF_BATTERY_CAPACITY, CONF_MAX_CHARGE_POWER_KW):
                 if key in user_input and user_input[key] is not None:
                     new_data[key] = user_input[key]
 
@@ -814,13 +652,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 elif key in new_data:
                     del new_data[key]
 
-            # Price sensor
-            price_sensor = user_input.get(CONF_SENSOR_PRICE_TOTAL)
-            if price_sensor:
-                new_data[CONF_SENSOR_PRICE_TOTAL] = price_sensor
-            elif CONF_SENSOR_PRICE_TOTAL in new_data:
-                del new_data[CONF_SENSOR_PRICE_TOTAL]
-
             return self._save(new_data)
 
         def _sv(key: str) -> dict:
@@ -831,29 +662,13 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             step_id="smart_charging",
             data_schema=vol.Schema({
                 vol.Required(
-                    CONF_SMART_CHARGING_ENABLED,
-                    default=self._current(CONF_SMART_CHARGING_ENABLED, False),
-                ): selector.BooleanSelector(),
-                vol.Required(
                     CONF_BATTERY_CAPACITY,
                     default=self._current(CONF_BATTERY_CAPACITY, DEFAULT_BATTERY_CAPACITY),
-                ): _number(1, 200, 0.1, unit="kWh"),
+                ): _number(0, 200, 0.1, unit="kWh"),
                 vol.Required(
-                    CONF_MIN_SOC,
-                    default=self._current(CONF_MIN_SOC, DEFAULT_MIN_SOC),
-                ): _number(0, 100, 1, unit="%"),
-                vol.Required(
-                    CONF_MAX_SOC,
-                    default=self._current(CONF_MAX_SOC, DEFAULT_MAX_SOC),
-                ): _number(0, 100, 1, unit="%"),
-                vol.Required(
-                    CONF_MAX_PRICE,
-                    default=self._current(CONF_MAX_PRICE, DEFAULT_MAX_PRICE),
-                ): _number(0, 100, 0.1, unit="ct/kWh"),
-                vol.Required(
-                    CONF_FORCE_CHARGE_PRICE,
-                    default=self._current(CONF_FORCE_CHARGE_PRICE, DEFAULT_FORCE_CHARGE_PRICE),
-                ): _number(0, 100, 0.1, unit="ct/kWh"),
+                    CONF_MAX_CHARGE_POWER_KW,
+                    default=self._current(CONF_MAX_CHARGE_POWER_KW, 0.0),
+                ): _number(0, 50, 0.1, unit="kW"),
                 vol.Optional(
                     CONF_BATTERY_SOC_SENSOR,
                     description=_sv(CONF_BATTERY_SOC_SENSOR),
@@ -874,49 +689,40 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                     CONF_EMS_HEAT_PUMP_BOOST_SWITCH,
                     description=_sv(CONF_EMS_HEAT_PUMP_BOOST_SWITCH),
                 ): _entity(domain="switch"),
-                vol.Optional(
-                    CONF_SENSOR_PRICE_TOTAL,
-                    description=_sv(CONF_SENSOR_PRICE_TOTAL),
-                ): _entity(device_class="monetary"),
             }),
         )
 
-    # ----- Pricing (2-step: mode selection + mode-specific fields) -----
+    # ----- Pricing (read-only GPM info) -----
 
     async def async_step_pricing(
         self, user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
-        """Pricing Step 1 — select mode, route to mode-specific form. @zara"""
+        """Show where prices are configured. No STATS price input. @zara"""
         if user_input is not None:
-            new_data = {**self._config_entry.data}
-            new_data[CONF_BILLING_PRICE_MODE] = user_input[CONF_BILLING_PRICE_MODE]
-            mode = user_input[CONF_BILLING_PRICE_MODE]
-            if mode == PRICE_MODE_FIXED:
-                self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
-                return await self.async_step_pricing_fixed()
-            if mode == PRICE_MODE_DYNAMIC:
-                self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
-                return await self.async_step_pricing_dynamic()
-            # PRICE_MODE_NONE — save and exit
-            return self._save(new_data)
+            return self._save({**self._config_entry.data})
 
+        from .core.price_mode import effective_price_mode, gpm_snapshot
+
+        merged = {**self._config_entry.data, **self._config_entry.options}
+        snapshot = gpm_snapshot(self.hass) or {}
+        mode = effective_price_mode(self.hass, merged)
+        current_price = snapshot.get("tariff_label") or "—"
+        coordinator = None
+        for entry_data in self.hass.data.get(DOMAIN, {}).values():
+            if isinstance(entry_data, dict) and entry_data.get("gpm_coordinator") is not None:
+                coordinator = entry_data["gpm_coordinator"]
+                break
+        live = getattr(coordinator, "data", None) or {}
+        if live.get("total_price") is not None:
+            current_price = f"{live.get('total_price')} ct/kWh"
         return self.async_show_form(
             step_id="pricing",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_BILLING_PRICE_MODE,
-                    default=self._current(CONF_BILLING_PRICE_MODE, DEFAULT_BILLING_PRICE_MODE),
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=[
-                            selector.SelectOptionDict(value=PRICE_MODE_DYNAMIC, label="Dynamic (GPM hourly prices from DB)"),
-                            selector.SelectOptionDict(value=PRICE_MODE_FIXED, label="Fixed price"),
-                            selector.SelectOptionDict(value=PRICE_MODE_NONE, label="No tariff"),
-                        ],
-                        mode=selector.SelectSelectorMode.DROPDOWN,
-                    )
-                ),
-            }),
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "price_mode": mode,
+                "tariff_label": str(snapshot.get("tariff_label") or "—"),
+                "current_price": str(current_price),
+            },
         )
 
     async def async_step_amortization(
@@ -980,78 +786,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             }),
         )
 
-    async def async_step_pricing_fixed(
-        self, user_input: dict[str, Any] | None = None,
-    ) -> FlowResult:
-        """Pricing Step 2 — Fixed: work + grid fees + base + feed-in. @zara"""
-        if user_input is not None:
-            new_data = {**self._config_entry.data, **user_input}
-            return self._save(new_data)
-
-        return self.async_show_form(
-            step_id="pricing_fixed",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_BILLING_WORK_PRICE,
-                    default=self._current(CONF_BILLING_WORK_PRICE,
-                                          self._current(CONF_BILLING_FIXED_PRICE, DEFAULT_BILLING_WORK_PRICE)),
-                ): _number(0, 80, 0.01),
-                vol.Required(
-                    CONF_BILLING_GRID_FEES,
-                    default=self._current(CONF_BILLING_GRID_FEES, DEFAULT_BILLING_GRID_FEES),
-                ): _number(0, 30, 0.01),
-                vol.Required(
-                    CONF_BILLING_BASE_FEE,
-                    default=self._current(CONF_BILLING_BASE_FEE, DEFAULT_BILLING_BASE_FEE),
-                ): _number(0, 100, 0.01, unit="EUR/Monat"),
-                vol.Required(
-                    CONF_FEED_IN_TARIFF,
-                    default=self._current(CONF_FEED_IN_TARIFF, DEFAULT_FEED_IN_TARIFF),
-                ): _number(0, 50, 0.01),
-            }),
-        )
-
-    async def async_step_pricing_dynamic(
-        self, user_input: dict[str, Any] | None = None,
-    ) -> FlowResult:
-        """Pricing Step 2 — Dynamic: base fee + feed-in (GPM delivers kWh rate) + VAT/fees. @zara"""
-        if user_input is not None:
-            new_data = {**self._config_entry.data, **user_input}
-            return self._save(new_data)
-
-        country = self._current(CONF_COUNTRY, DEFAULT_COUNTRY)
-        default_vat = 20 if country == "AT" else 19
-
-        return self.async_show_form(
-            step_id="pricing_dynamic",
-            data_schema=vol.Schema({
-                vol.Required(
-                    CONF_BILLING_BASE_FEE,
-                    default=self._current(CONF_BILLING_BASE_FEE, DEFAULT_BILLING_BASE_FEE),
-                ): _number(0, 100, 0.01, unit="EUR/Monat"),
-                vol.Required(
-                    CONF_FEED_IN_TARIFF,
-                    default=self._current(CONF_FEED_IN_TARIFF, DEFAULT_FEED_IN_TARIFF),
-                ): _number(0, 50, 0.01),
-                vol.Required(
-                    CONF_VAT_RATE,
-                    default=self._current(CONF_VAT_RATE, default_vat),
-                ): _number(0, 50, 1, unit="%"),
-                vol.Required(
-                    CONF_GPM_GRID_FEE,
-                    default=self._current(CONF_GPM_GRID_FEE, DEFAULT_GPM_GRID_FEE),
-                ): _number(0, 30, 0.01),
-                vol.Required(
-                    CONF_TAXES_FEES,
-                    default=self._current(CONF_TAXES_FEES, DEFAULT_TAXES_FEES),
-                ): _number(0, 30, 0.01),
-                vol.Required(
-                    CONF_PROVIDER_MARKUP,
-                    default=self._current(CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP),
-                ): _number(0, 20, 0.01),
-            }),
-        )
-
     # ----- Appearance -----
 
     async def async_step_appearance(
@@ -1101,6 +835,10 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             # Settings
             if CONF_SHOW_PANEL_GROUPS in user_input:
                 new_data[CONF_SHOW_PANEL_GROUPS] = user_input[CONF_SHOW_PANEL_GROUPS]
+            if CONF_COST_TRACKING_ENABLED in user_input:
+                new_data[CONF_COST_TRACKING_ENABLED] = bool(
+                    user_input[CONF_COST_TRACKING_ENABLED]
+                )
             # Billing start (convert string dropdown values back to int)
             for key in [CONF_BILLING_START_MONTH, CONF_BILLING_START_DAY]:
                 if key in user_input:
@@ -1159,6 +897,10 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(
                     CONF_SHOW_PANEL_GROUPS,
                     default=self._current(CONF_SHOW_PANEL_GROUPS, False),
+                ): selector.BooleanSelector(),
+                vol.Optional(
+                    CONF_COST_TRACKING_ENABLED,
+                    default=self._current(CONF_COST_TRACKING_ENABLED, True),
                 ): selector.BooleanSelector(),
 
                 # --- Panel Groups ---

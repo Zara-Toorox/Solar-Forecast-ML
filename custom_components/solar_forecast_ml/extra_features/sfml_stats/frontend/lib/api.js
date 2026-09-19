@@ -42,6 +42,32 @@ const sfmlHassApiPath = (value, origin = window.location.origin) => {
     return endpoint ? endpoint.slice("/api/".length) : null;
 };
 
+const sfmlApiErrorFromBody = (data, response) => {
+    const errors = data && data.errors && typeof data.errors === "object" ? data.errors : null;
+    const raw = data?.error;
+    let code = typeof raw === "string"
+        ? raw
+        : String((raw && raw.code) || "");
+    if (!code && errors) {
+        const values = Object.values(errors);
+        code = values.length ? String(values[0]) : "";
+    }
+    if (!code) code = "request_failed";
+    const message = typeof raw === "string"
+        ? raw
+        : String((raw && raw.message) || (response ? `HTTP ${response.status}: ${response.statusText}` : "Anfrage fehlgeschlagen"));
+    const error = new Error(message);
+    error.code = code;
+    error.body = data || {};
+    error.errors = errors;
+    if (errors) {
+        error.field = Object.keys(errors)[0];
+    } else if (raw && typeof raw === "object") {
+        error.field = raw.field;
+    }
+    return error;
+};
+
 class SfmlParentHassApiClient {
     constructor(hostWindow = window) {
         this.hostWindow = hostWindow;
@@ -79,7 +105,34 @@ class SfmlParentHassApiClient {
         if (!path) throw new Error("Authenticated endpoint rejected");
         const hass = this._authenticatedHass();
         if (!hass) throw new Error("Home-Assistant-Panel-Anmeldung nicht verfügbar");
-        return hass.callApi("POST", path, payload);
+        try {
+            return await hass.callApi("POST", path, payload);
+        } catch (error) {
+            const body = error && (error.body || error.data);
+            if (body && typeof body === "object") {
+                throw sfmlApiErrorFromBody(body, { status: error.status, statusText: error.message });
+            }
+            throw error;
+        }
+    }
+
+    async postForm(endpoint, formData) {
+        const path = sfmlHassApiPath(endpoint, this.hostWindow.location.origin);
+        if (!path) throw new Error("Authenticated endpoint rejected");
+        const hass = this._authenticatedHass();
+        if (!hass) throw new Error("Home-Assistant-Panel-Anmeldung nicht verfügbar");
+        if (typeof hass.fetchWithAuth !== "function") {
+            throw new Error("form_upload_unavailable");
+        }
+        const response = await hass.fetchWithAuth(`/api/${path}`, {
+            method: "POST",
+            body: formData,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw sfmlApiErrorFromBody(data, response);
+        }
+        return data;
     }
 }
 
@@ -236,6 +289,28 @@ class SfmlAuthenticatedApiClient {
         return this._request("POST", endpoint, payload, SFML_API_BRIDGE_POST_TIMEOUT_MS);
     }
 
+    async postForm(endpoint, formData) {
+        const fields = {};
+        let fileBuffer = null;
+        let fileName = "upload.csv";
+        let fileType = "text/csv";
+        for (const [key, value] of formData.entries()) {
+            if (value instanceof File) {
+                fileBuffer = await value.arrayBuffer();
+                fileName = value.name || fileName;
+                fileType = value.type || fileType;
+            } else {
+                fields[key] = String(value ?? "");
+            }
+        }
+        return this._request("POST_FORM", endpoint, {
+            fields,
+            file: fileBuffer,
+            fileName,
+            fileType,
+        }, SFML_API_BRIDGE_POST_TIMEOUT_MS);
+    }
+
     async _request(type, endpoint, payload, timeoutMs = 15000) {
         this._mount();
         await this.ready;
@@ -254,6 +329,12 @@ class SfmlAuthenticatedApiClient {
                 endpoint,
             };
             if (type === "POST") message.payload = payload ?? {};
+            if (type === "POST_FORM") {
+                message.fields = payload?.fields ?? {};
+                message.file = payload?.file ?? null;
+                message.fileName = payload?.fileName || "upload.csv";
+                message.fileType = payload?.fileType || "text/csv";
+            }
             this.iframe.contentWindow.postMessage(message, this.origin);
         });
     }
@@ -318,15 +399,53 @@ const SFMLApi = {
                 });
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    const error = new Error(String(data?.error?.message || `HTTP ${response.status}: ${response.statusText}`));
-                    error.code = String(data?.error?.code || "request_failed");
-                    error.field = data?.error?.field;
-                    throw error;
+                    throw sfmlApiErrorFromBody(data, response);
                 }
                 return data;
             }
             this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
             return await this.authenticatedClient.post(endpoint, payload);
+        } catch (error) {
+            const body = error?.body?.error || error?.error;
+            if (body && typeof body === "object" && !error.code) {
+                const normalised = new Error(String(body.message || error.message || "Anfrage fehlgeschlagen"));
+                normalised.code = String(body.code || "request_failed");
+                normalised.field = body.field;
+                throw normalised;
+            }
+            throw error;
+        }
+    },
+
+    async postAuthenticatedForm(endpoint, formData) {
+        const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
+        if (!authenticatedEndpoint) {
+            throw new Error("Authenticated endpoint rejected");
+        }
+        try {
+            this.parentHassClient ??= new SfmlParentHassApiClient();
+            if (this.parentHassClient.isAvailable()) {
+                return await this.parentHassClient.postForm(endpoint, formData);
+            }
+            this.companionAuthClient ??= new SfmlCompanionAuthClient();
+            const accessToken = await this.companionAuthClient.getAccessToken();
+            if (accessToken) {
+                const response = await fetch(authenticatedEndpoint, {
+                    method: "POST",
+                    cache: "no-store",
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                    body: formData,
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw sfmlApiErrorFromBody(data, response);
+                }
+                return data;
+            }
+            this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
+            return await this.authenticatedClient.postForm(endpoint, formData);
         } catch (error) {
             const body = error?.body?.error || error?.error;
             if (body && typeof body === "object" && !error.code) {

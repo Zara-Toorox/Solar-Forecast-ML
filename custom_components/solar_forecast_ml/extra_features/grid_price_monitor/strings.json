@@ -1,13 +1,29 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "Solar Forecast GPM Setup",
-        "description": "Configure your electricity market region.",
+      "license": {
+        "title": "License",
+        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection. Leave the field empty to start the GPM demo with sample electricity prices.",
         "data": {
+          "license_key": "EAI license key"
+        },
+        "data_description": {
+          "license_key": "The license key starts with EAI1. and is issued by your EAI provider. Leave it empty for the GPM demo with sample prices."
+        }
+      },
+      "license_detected": {
+        "title": "License",
+        "description": "License recognized via Solar Forecast Energy AI (ID {license_id})."
+      },
+      "tariff": {
+        "title": "Tariff model",
+        "description": "Select the tariff model and electricity market. Additional models require a license with tariff-model entitlement.",
+        "data": {
+          "tariff_mode": "Tariff model",
           "country": "Country"
         },
         "data_description": {
+          "tariff_mode": "Dynamic uses aWATTar day-ahead prices. Other models need tariff-model entitlement.",
           "country": "Select your electricity market (Germany or Austria)"
         }
       },
@@ -21,13 +37,7 @@
           "grid_fee": "Grid fee",
           "taxes_fees": "Taxes and fees",
           "provider_markup": "Provider markup",
-          "max_price": "Maximum price threshold",
-          "battery_power_sensor": "Battery power sensor",
-          "smart_charging_enabled": "Enable smart charging",
-          "battery_capacity": "Battery capacity",
-          "battery_soc_sensor": "Battery SoC sensor",
-          "max_soc": "Maximum charge level",
-          "min_soc": "Minimum charge level"
+          "battery_power_sensor": "Battery power sensor"
         },
         "data_description": {
           "vat_rate": "VAT rate applied to spot price (19% DE, 20% AT, 7% reduced)",
@@ -36,70 +46,382 @@
           "grid_fee": "Network charges from your grid operator (gross, incl. VAT)",
           "taxes_fees": "Electricity tax, EEG surcharge, etc. (gross, incl. VAT)",
           "provider_markup": "Your provider's margin/profit (gross, incl. VAT)",
-          "max_price": "Binary sensor turns ON when total price is below this threshold",
-          "battery_power_sensor": "Power sensor for battery charging from grid (optional)",
-          "smart_charging_enabled": "Use solar forecast to optimize grid charging (requires Solar Forecast ML)",
-          "battery_capacity": "Usable battery capacity in kWh (e.g. 10.0)",
-          "battery_soc_sensor": "Sensor showing current battery state of charge in %",
-          "max_soc": "Maximum battery level for grid charging (default: 100%)",
-          "min_soc": "Minimum battery level - grid charges at least to this level (default: 10%)"
+          "battery_power_sensor": "Power sensor for battery charging from grid (optional)"
         }
       },
-      "reconfigure": {
-        "title": "Reconfigure Solar Forecast GPM",
-        "description": "Change your electricity market region. After this step, you can adjust all pricing settings.",
+      "reauth_confirm": {
+        "title": "Offline license",
+        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection.",
         "data": {
-          "country": "Country"
+          "license_key": "EAI license key"
         },
         "data_description": {
-          "country": "Select your electricity market (Germany or Austria)"
+          "license_key": "The license key starts with EAI1. and is issued by your EAI provider."
+        }
+      },
+      "tariff_fixed": {
+        "title": "Fixed tariff",
+        "description": "Enter the constant gross price in ct/kWh.",
+        "data": {
+          "fixed_total_price": "Total price"
+        },
+        "data_description": {
+          "fixed_total_price": "Gross customer price for every hour"
+        }
+      },
+      "tariff_time_of_use": {
+        "title": "Time-of-use tariff",
+        "description": "High tariff applies between the start and end times. If the end is earlier than the start, the window wraps midnight.",
+        "data": {
+          "tou_high_price": "High tariff (HT)",
+          "tou_low_price": "Low tariff (NT)",
+          "tou_high_start": "High tariff start",
+          "tou_high_end": "High tariff end",
+          "tou_weekend_low": "Weekend uses low tariff",
+          "tou_holiday_low": "Public holidays use low tariff"
+        },
+        "data_description": {
+          "tou_high_price": "Gross price during the high-tariff window",
+          "tou_low_price": "Gross price outside the high-tariff window",
+          "tou_high_start": "Local time when the high tariff begins",
+          "tou_high_end": "Local time when the high tariff ends",
+          "tou_weekend_low": "Saturday and Sunday always use the low tariff",
+          "tou_holiday_low": "Nationwide public holidays use the low tariff"
+        }
+      },
+      "tariff_time_windows": {
+        "title": "Time windows",
+        "description": "Defined windows:\n{windows}\n\nAdd up to 12 windows. The first matching window wins.",
+        "menu_options": {
+          "window_add": "Add window",
+          "window_remove": "Remove window",
+          "windows_done": "Continue"
+        }
+      },
+      "window_edit": {
+        "title": "Edit time window",
+        "description": "Name the window and choose days and times. Overlapping windows on the same weekday are rejected.",
+        "data": {
+          "window_name": "Name",
+          "window_start": "Start",
+          "window_end": "End",
+          "window_price": "Price",
+          "window_weekdays": "Weekdays"
+        },
+        "data_description": {
+          "window_name": "Shown in the tariff label",
+          "window_start": "Local start time",
+          "window_end": "Local end time; earlier than start wraps midnight",
+          "window_price": "Gross price while this window is active",
+          "window_weekdays": "At least one weekday is required"
+        }
+      },
+      "window_remove": {
+        "title": "Remove time window",
+        "description": "Select the window to remove.",
+        "data": {
+          "window_name": "Window"
+        },
+        "data_description": {
+          "window_name": "Existing named window"
+        }
+      },
+      "windows_done": {
+        "title": "Default window price",
+        "description": "Hours that match no window use this default gross price.",
+        "data": {
+          "default_price": "Default price"
+        },
+        "data_description": {
+          "default_price": "Used when no named window matches"
+        }
+      },
+      "tariff_csv_community": {
+        "title": "Community CSV tariff",
+        "description": "Choose the live base tariff. CSV files are imported later from Options.",
+        "data": {
+          "csv_base_mode": "Base tariff",
+          "eeg_price": "EEG / community price",
+          "csv_price_unit": "Price unit",
+          "csv_timezone": "Timestamps"
+        },
+        "data_description": {
+          "csv_base_mode": "Used for live hours until a CSV import is applied",
+          "eeg_price": "Community share price in ct/kWh",
+          "csv_price_unit": "How imported prices are interpreted",
+          "csv_timezone": "How offset-less CSV timestamps are read"
+        }
+      },
+      "common": {
+        "title": "Threshold, battery and fees",
+        "description": "These settings apply to every tariff model. Feed-in and the monthly base fee default to 8.1 ct/kWh and 0 EUR for new setups.",
+        "data": {
+          "battery_power_sensor": "Battery power sensor",
+          "feed_in_tariff_ct": "Feed-in tariff",
+          "base_fee_eur_month": "Monthly base fee"
+        },
+        "data_description": {
+          "battery_power_sensor": "Power sensor for battery charging from grid (optional)",
+          "feed_in_tariff_ct": "Feed-in remuneration in ct/kWh",
+          "base_fee_eur_month": "Monthly standing charge in EUR"
         }
       }
     },
     "error": {
       "calibration_failed": "Calibration failed. Please enter values manually.",
       "cannot_connect": "Unable to connect to aWATTar API",
-      "unknown": "An unknown error occurred"
+      "unknown": "An unknown error occurred",
+      "tariff_model_requires_license": "This tariff model requires a license with tariff-model entitlement.",
+      "license_not_provided": "Enter an EAI license key.",
+      "license_valid": "License is valid.",
+      "license_invalid_format": "The license format is invalid.",
+      "license_invalid_signature": "The signature is invalid.",
+      "license_wrong_product": "The license belongs to another product.",
+      "license_unsupported_version": "The license version is not supported.",
+      "license_unknown_key_id": "The signing key is not recognized.",
+      "license_not_yet_valid": "The license is not valid yet.",
+      "license_expired": "The license has expired.",
+      "license_missing_entitlement": "The EAI entitlement is missing.",
+      "license_validation_error": "The license could not be validated safely.",
+      "windows_overlap": "Time windows overlap on the same weekday.",
+      "invalid_time_range": "Start and end must differ and prices must be greater than 0.",
+      "csv_too_large": "The CSV file is larger than 5 MB.",
+      "csv_too_many_rows": "The CSV file has more than 100000 rows.",
+      "csv_missing_header": "The CSV file needs a header row.",
+      "csv_future_rejected": "The CSV contains hours more than two days in the future.",
+      "csv_no_hours": "No usable hourly values were found.",
+      "csv_invalid_mapping": "The column mapping is incomplete for this profile.",
+      "csv_decode_failed": "The CSV file could not be read.",
+      "csv_license_required": "CSV import requires a license with CSV entitlement.",
+      "csv_not_ready": "Solar Forecast GPM is not ready for CSV import yet.",
+      "csv_path_not_allowed": "The file path is not allowed. Use a path under /config.",
+      "correction_license_required": "Monthly correction requires a license with correction entitlement.",
+      "correction_not_ready": "Solar Forecast GPM is not ready for monthly correction yet.",
+      "correction_month_current": "The current month cannot be corrected.",
+      "correction_month_too_old": "Only completed months of the last 24 months can be corrected.",
+      "correction_invalid_billed": "Billed energy and amount must be greater than 0.",
+      "correction_no_hours": "No GPM history hours were found for this month.",
+      "correction_low_coverage": "Coverage is {coverage}%. Enable force to apply below 50%.",
+      "correction_verify_failed": "Corrected prices missed the billed target by {deviation} ct/kWh.",
+      "correction_not_found": "This correction was not found.",
+      "correction_not_applied": "Only applied corrections can be reverted."
     },
     "abort": {
-      "already_configured": "Solar Forecast GPM is already configured"
+      "already_configured": "Solar Forecast GPM is already configured",
+      "reauth_successful": "License updated.",
+      "reauth_started": "License update started.",
+      "license_required": "This function requires a license.",
+      "not_available_yet": "This function is not available yet.",
+      "monthly_correction_applied": "Corrected {rows} hours for {month}. Price revision is {revision}. Remaining deviation {deviation} ct/kWh.",
+      "correction_reverted": "Correction {id} reverted. Price revision is {revision}."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Solar Forecast GPM Options",
+        "description": "Choose what to configure.",
+        "menu_options": {
+          "tariff": "Tariff and prices",
+          "common": "Threshold, battery and fees",
+          "license": "License",
+          "csv_import": "CSV import",
+          "monthly_correction": "Monthly correction",
+          "corrections_manage": "Manage corrections"
+        }
+      },
+      "tariff": {
+        "title": "Tariff and prices",
         "description": "Current market: **{country}**\n\nAdjust your pricing configuration. To change the country, use 'Reconfigure' instead.",
         "data": {
           "vat_rate": "VAT rate",
           "grid_fee": "Grid fee",
           "taxes_fees": "Taxes and fees",
           "provider_markup": "Provider markup",
-          "max_price": "Maximum price threshold",
-          "battery_power_sensor": "Battery power sensor",
-          "smart_charging_enabled": "Enable smart charging",
-          "battery_capacity": "Battery capacity",
-          "battery_soc_sensor": "Battery SoC sensor",
-          "max_soc": "Maximum charge level",
-          "min_soc": "Minimum charge level"
+          "battery_power_sensor": "Battery power sensor"
         },
         "data_description": {
           "vat_rate": "VAT rate applied to spot price",
           "grid_fee": "Network charges from your grid operator (ct/kWh, gross)",
           "taxes_fees": "Electricity tax, EEG surcharge, etc. (ct/kWh, gross)",
           "provider_markup": "Your provider's margin/profit (ct/kWh, gross)",
-          "max_price": "Binary sensor turns ON when total price is below this value",
+          "battery_power_sensor": "Power sensor for battery charging from grid (optional)"
+        }
+      },
+      "license": {
+        "title": "License",
+        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection.",
+        "data": {
+          "license_key": "EAI license key"
+        },
+        "data_description": {
+          "license_key": "The license key starts with EAI1. and is issued by your EAI provider. Existing setups keep running if you cancel."
+        }
+      },
+      "license_detected": {
+        "title": "License",
+        "description": "License recognized via Solar Forecast Energy AI (ID {license_id})."
+      },
+      "common": {
+        "title": "Threshold, battery and fees",
+        "description": "These settings apply to every tariff model. Feed-in and the monthly base fee default to 8.1 ct/kWh and 0 EUR for new setups.",
+        "data": {
+          "battery_power_sensor": "Battery power sensor",
+          "feed_in_tariff_ct": "Feed-in tariff",
+          "base_fee_eur_month": "Monthly base fee"
+        },
+        "data_description": {
           "battery_power_sensor": "Power sensor for battery charging from grid (optional)",
-          "smart_charging_enabled": "Use solar forecast to optimize grid charging (requires Solar Forecast ML)",
-          "battery_capacity": "Usable battery capacity in kWh (e.g. 10.0)",
-          "battery_soc_sensor": "Sensor showing current battery state of charge in %",
-          "max_soc": "Maximum battery level for grid charging (default: 100%)",
-          "min_soc": "Minimum battery level - grid charges at least to this level (default: 10%)"
+          "feed_in_tariff_ct": "Feed-in remuneration in ct/kWh",
+          "base_fee_eur_month": "Monthly standing charge in EUR"
+        }
+      },
+      "csv_import": {
+        "title": "CSV import",
+        "description": "Upload a price list or community-share CSV. Processing stays on this Home Assistant. The same upload is available on the GPM page in STATS.",
+        "data": {
+          "csv_file": "CSV file"
+        },
+        "data_description": {
+          "csv_file": "CSV or text file, max. 5 MB"
+        }
+      },
+      "csv_map": {
+        "title": "Column mapping",
+        "description": "Confirm the detected profile, unit and timezone, then map the CSV columns.",
+        "data": {
+          "profile": "Import profile",
+          "price_unit": "Price unit",
+          "timezone": "Timezone for naive timestamps",
+          "timestamp_column": "Timestamp column",
+          "price_column": "Price column",
+          "total_kwh_column": "Total kWh column",
+          "community_kwh_column": "Community kWh column"
+        },
+        "data_description": {
+          "profile": "Price list (P1) or community share (P2). Auto uses the header.",
+          "price_unit": "Shown in the preview; auto uses a median heuristic",
+          "timezone": "Used only when timestamps have no offset",
+          "timestamp_column": "Required for every profile",
+          "price_column": "Required for price-list imports",
+          "total_kwh_column": "Required for community-share imports",
+          "community_kwh_column": "Required for community-share imports"
+        }
+      },
+      "csv_preview": {
+        "title": "CSV preview",
+        "description": "Range {range_from} – {range_to}, {row_count} rows, unit {detected_unit}. Hours with history: {hours_matched}, new hours: {hours_new}. Monthly corrections that become stale: {stale_months}. Apply writes past hours only.",
+        "data": {
+          "confirm": "Apply import"
+        },
+        "data_description": {
+          "confirm": "Overwrites matching history hours and stores raw prices for undo"
+        }
+      },
+      "monthly_correction": {
+        "title": "Monthly correction",
+        "description": "Adjust a completed month so hourly GPM prices match the billed energy and amount. Only the last 24 completed months are available.",
+        "data": {
+          "month": "Month",
+          "billed_kwh": "Billed energy",
+          "billed_eur": "Billed amount",
+          "base_fee_eur": "Standing charge to subtract",
+          "method": "Method",
+          "weighting": "Weighting",
+          "force": "Apply below 50% coverage"
+        },
+        "data_description": {
+          "month": "Completed months only; the current month cannot be selected",
+          "billed_kwh": "Energy from the supplier bill in kWh",
+          "billed_eur": "Amount from the supplier bill in EUR",
+          "base_fee_eur": "Optional standing charge subtracted before the target price",
+          "method": "Additive shift is the default; multiplicative scales every hour",
+          "weighting": "Consumption uses STATS hourly grid import; otherwise equal hours",
+          "force": "Required when fewer than half of the month hours exist in GPM history"
+        }
+      },
+      "monthly_correction_preview": {
+        "title": "Monthly correction preview",
+        "description": "Month {month}: mean {mean_price} ct/kWh, target {target_price} ct/kWh, delta {delta}, factor {factor}. Coverage {coverage_percent}%, energy deviation {energy_deviation_percent}%, hours {hours}. Fallback {fallback_reason}. Energy warning {energy_warning}.",
+        "data": {
+          "confirm": "Apply correction"
+        },
+        "data_description": {
+          "confirm": "Writes past hours only, stores raw prices for undo, and raises the price revision"
+        }
+      },
+      "corrections_manage": {
+        "title": "Manage corrections",
+        "description": "Revert an applied CSV or monthly correction. Raw prices and the original source are restored.",
+        "data": {
+          "correction_id": "Correction",
+          "confirm_revert": "Revert selected correction"
+        },
+        "data_description": {
+          "correction_id": "Only applied corrections can be reverted",
+          "confirm_revert": "Restores total_price from total_price_raw and clears the correction id"
         }
       }
     },
     "error": {
-      "invalid_max_price": "Maximum price must be greater than 0"
+      "invalid_max_price": "Maximum price must be greater than 0",
+      "tariff_model_requires_license": "This tariff model requires a license with tariff-model entitlement.",
+      "license_not_provided": "Enter an EAI license key.",
+      "license_valid": "License is valid.",
+      "license_invalid_format": "The license format is invalid.",
+      "license_invalid_signature": "The signature is invalid.",
+      "license_wrong_product": "The license belongs to another product.",
+      "license_unsupported_version": "The license version is not supported.",
+      "license_unknown_key_id": "The signing key is not recognized.",
+      "license_not_yet_valid": "The license is not valid yet.",
+      "license_expired": "The license has expired.",
+      "license_missing_entitlement": "The EAI entitlement is missing.",
+      "license_validation_error": "The license could not be validated safely.",
+      "windows_overlap": "Time windows overlap on the same weekday.",
+      "invalid_time_range": "Start and end must differ and prices must be greater than 0.",
+      "csv_too_large": "The CSV file is larger than 5 MB.",
+      "csv_too_many_rows": "The CSV file has more than 100000 rows.",
+      "csv_missing_header": "The CSV file needs a header row.",
+      "csv_future_rejected": "The CSV contains hours more than two days in the future.",
+      "csv_no_hours": "No usable hourly values were found.",
+      "csv_invalid_mapping": "The column mapping is incomplete for this profile.",
+      "csv_decode_failed": "The CSV file could not be read.",
+      "csv_license_required": "CSV import requires a license with CSV entitlement.",
+      "csv_not_ready": "Solar Forecast GPM is not ready for CSV import yet.",
+      "csv_path_not_allowed": "The file path is not allowed. Use a path under /config.",
+      "correction_license_required": "Monthly correction requires a license with correction entitlement.",
+      "correction_not_ready": "Solar Forecast GPM is not ready for monthly correction yet.",
+      "correction_month_current": "The current month cannot be corrected.",
+      "correction_month_too_old": "Only completed months of the last 24 months can be corrected.",
+      "correction_invalid_billed": "Billed energy and amount must be greater than 0.",
+      "correction_no_hours": "No GPM history hours were found for this month.",
+      "correction_low_coverage": "Coverage is {coverage}%. Enable force to apply below 50%.",
+      "correction_verify_failed": "Corrected prices missed the billed target by {deviation} ct/kWh.",
+      "correction_not_found": "This correction was not found.",
+      "correction_not_applied": "Only applied corrections can be reverted."
+    },
+    "abort": {
+      "license_required": "This function requires a license.",
+      "reauth_successful": "License updated.",
+      "reauth_started": "License update started.",
+      "not_available_yet": "This function is not available yet.",
+      "csv_import_applied": "Imported {rows} hours. Price revision is {revision}. Stale monthly corrections: {stale_months}.",
+      "monthly_correction_applied": "Corrected {rows} hours for {month}. Price revision is {revision}. Remaining deviation {deviation} ct/kWh.",
+      "correction_reverted": "Correction {id} reverted. Price revision is {revision}."
+    }
+  },
+  "issues": {
+    "license_recommended": {
+      "title": "License recommended",
+      "description": "Your Solar Forecast license unlocks GPM completely. Without a license the existing scope continues to run.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Add a license key",
+            "description": "This opens the license form. You can ignore this recommendation."
+          }
+        }
+      }
     }
   },
   "entity": {
@@ -136,15 +458,6 @@
       },
       "battery_charged_month": {
         "name": "Battery Charged Month"
-      },
-      "smart_charging_target_soc": {
-        "name": "Smart Charging Target SoC"
-      },
-      "solar_forecast_today": {
-        "name": "Solar Forecast Today"
-      },
-      "solar_forecast_tomorrow": {
-        "name": "Solar Forecast Tomorrow"
       }
     },
     "binary_sensor": {
@@ -154,14 +467,149 @@
           "on": "Cheap",
           "off": "Expensive"
         }
+      }
+    },
+    "number": {
+      "cheap_price": {
+        "name": "Cheap price threshold"
       },
-      "smart_charging": {
-        "name": "Smart Charging",
+      "force_charge_price": {
+        "name": "Force-charge price"
+      },
+      "below_average_pct": {
+        "name": "Below-average percent"
+      },
+      "cheapest_hours": {
+        "name": "Cheapest hours"
+      }
+    },
+    "select": {
+      "threshold_mode": {
+        "name": "Threshold mode",
         "state": {
-          "on": "Charging",
-          "off": "Stopped"
+          "absolute": "Absolute",
+          "below_average": "Below average",
+          "cheapest_hours": "Cheapest hours"
         }
       }
+    }
+  },
+  "selector": {
+    "tariff_mode": {
+      "options": {
+        "dynamic": "Dynamic (aWATTar)",
+        "fixed": "Fixed price",
+        "time_of_use": "Time of use (HT/NT)",
+        "time_windows": "Time windows",
+        "csv_community": "Community CSV + base tariff"
+      }
+    },
+    "csv_base_mode": {
+      "options": {
+        "dynamic": "Dynamic (aWATTar)",
+        "fixed": "Fixed price",
+        "time_of_use": "Time of use (HT/NT)",
+        "time_windows": "Time windows"
+      }
+    },
+    "csv_price_unit": {
+      "options": {
+        "auto": "Detect automatically",
+        "ct_kwh": "ct/kWh",
+        "eur_kwh": "EUR/kWh",
+        "eur_mwh": "EUR/MWh"
+      }
+    },
+    "csv_timezone": {
+      "options": {
+        "local": "Local time",
+        "utc": "UTC"
+      }
+    },
+    "weekday": {
+      "options": {
+        "0": "Monday",
+        "1": "Tuesday",
+        "2": "Wednesday",
+        "3": "Thursday",
+        "4": "Friday",
+        "5": "Saturday",
+        "6": "Sunday"
+      }
+    },
+    "correction_method": {
+      "options": {
+        "additive": "Additive",
+        "multiplicative": "Multiplicative"
+      }
+    },
+    "correction_weighting": {
+      "options": {
+        "consumption": "Consumption",
+        "uniform": "Uniform"
+      }
+    }
+  },
+  "exceptions": {
+    "csv_too_large": {
+      "message": "The CSV file is larger than 5 MB."
+    },
+    "csv_too_many_rows": {
+      "message": "The CSV file has more than 100000 rows."
+    },
+    "csv_missing_header": {
+      "message": "The CSV file needs a header row."
+    },
+    "csv_future_rejected": {
+      "message": "The CSV contains hours more than two days in the future."
+    },
+    "csv_no_hours": {
+      "message": "No usable hourly values were found."
+    },
+    "csv_invalid_mapping": {
+      "message": "The column mapping is incomplete for this profile."
+    },
+    "csv_decode_failed": {
+      "message": "The CSV file could not be read."
+    },
+    "csv_license_required": {
+      "message": "CSV import requires a license with CSV entitlement."
+    },
+    "csv_not_ready": {
+      "message": "Solar Forecast GPM is not ready for CSV import yet."
+    },
+    "csv_path_not_allowed": {
+      "message": "The file path is not allowed. Use a path under /config."
+    },
+    "correction_license_required": {
+      "message": "Monthly correction requires a license with correction entitlement."
+    },
+    "correction_not_ready": {
+      "message": "Solar Forecast GPM is not ready for monthly correction yet."
+    },
+    "correction_month_current": {
+      "message": "The current month cannot be corrected."
+    },
+    "correction_month_too_old": {
+      "message": "Only completed months of the last 24 months can be corrected."
+    },
+    "correction_invalid_billed": {
+      "message": "Billed energy and amount must be greater than 0."
+    },
+    "correction_no_hours": {
+      "message": "No GPM history hours were found for this month."
+    },
+    "correction_low_coverage": {
+      "message": "Coverage is {coverage}%. Enable force to apply below 50%."
+    },
+    "correction_verify_failed": {
+      "message": "Corrected prices missed the billed target by {deviation} ct/kWh."
+    },
+    "correction_not_found": {
+      "message": "This correction was not found."
+    },
+    "correction_not_applied": {
+      "message": "Only applied corrections can be reverted."
     }
   }
 }

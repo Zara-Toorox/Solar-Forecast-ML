@@ -47,14 +47,12 @@
         "data": {
           "sensor_battery_soc": "Battery State of Charge (%)",
           "sensor_battery_power": "Battery Power (W)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
-          "sensor_price_total": "Current Total Electricity Price (ct/kWh)"
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Unit: Percent (0-100). Current state of charge. (Optional)",
           "sensor_battery_power": "Unit: Watt. Positive = charging, Negative = discharging. (Optional)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
-          "sensor_price_total": "Current total electricity price including fees and taxes. Required only when provided by another integration. (Optional)"
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
         }
       },
       "consumers": {
@@ -153,14 +151,12 @@
         "data": {
           "sensor_battery_soc": "Battery State of Charge (%)",
           "sensor_battery_power": "Battery Power (W)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
-          "sensor_price_total": "Current Total Electricity Price (ct/kWh)"
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Unit: Percent (0-100). Current state of charge. (Optional)",
           "sensor_battery_power": "Unit: Watt. Positive = charging, Negative = discharging. (Optional)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
-          "sensor_price_total": "Current total electricity price including fees and taxes. Leave empty to remove the current selection. (Optional)"
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
         }
       },
       "reconfigure_consumers": {
@@ -211,52 +207,6 @@
           "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
           "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
           "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
-        }
-      },
-      "pricing": {
-        "title": "Tariff Mode",
-        "description": "Select your electricity tariff mode.",
-        "data": {
-          "billing_price_mode": "Tariff Mode"
-        },
-        "data_description": {
-          "billing_price_mode": "Dynamic: hourly prices from GPM. Fixed: single price. None: disables financial displays."
-        }
-      },
-      "pricing_fixed": {
-        "title": "Fixed Tariff",
-        "description": "Enter work price and grid fees separately — the total cost is their sum.",
-        "data": {
-          "billing_work_price": "Work Price (ct/kWh)",
-          "billing_grid_fees": "Grid Fees (ct/kWh)",
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Feed-in Tariff (ct/kWh)"
-        },
-        "data_description": {
-          "billing_work_price": "Pure energy work price per kWh (without grid fees).",
-          "billing_grid_fees": "Grid fees, metering, concession and taxes per kWh.",
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Feed-in tariff in cents per kWh."
-        }
-      },
-      "pricing_dynamic": {
-        "title": "Dynamic Tariff",
-        "description": "GPM (Grid Price Monitor) provides hourly market prices. Please enter your base fee, taxes, fees and markups.",
-        "data": {
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Feed-in Tariff (ct/kWh)",
-          "vat_rate": "VAT Rate (%)",
-          "gpm_grid_fee": "Grid Fees (ct/kWh)",
-          "taxes_fees": "Taxes & Levies (ct/kWh)",
-          "provider_markup": "Provider Markup (ct/kWh)"
-        },
-        "data_description": {
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Feed-in tariff in cents per kWh.",
-          "vat_rate": "Value Added Tax rate in percent (e.g. 19 for DE, 20 for AT).",
-          "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
-          "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
-          "provider_markup": "Provider markup per kWh (gross)."
         }
       }
     },
@@ -310,7 +260,6 @@
           "sensor_smartmeter_import": "Smartmeter Import (W)",
           "sensor_smartmeter_export": "Smartmeter Export (W)",
           "sensor_grid_import_extra": "Additional Grid Import (kWh)",
-          "sensor_price_total": "Current Price (ct/kWh)",
           "sensor_heatpump_power": "Heat Pump Power (W)",
           "sensor_heatingrod_power": "Heating Rod Power (W)",
           "sensor_wallbox_power": "Wallbox Power (W)",
@@ -332,7 +281,6 @@
           "sensor_smartmeter_import": "Smartmeter current import power in Watt. (Optional)",
           "sensor_smartmeter_export": "Smartmeter current export power in Watt. (Optional)",
           "sensor_grid_import_extra": "Additional grid import not measured by smartmeter in kWh. (Optional)",
-          "sensor_price_total": "Sensor providing current total electricity price in ct/kWh (e.g. from Tibber). (Optional)",
           "sensor_heatpump_power": "Current heat pump electrical power input in Watt. (Optional)",
           "sensor_heatingrod_power": "Current heating rod electrical power input in Watt. (Optional)",
           "sensor_wallbox_power": "Current wallbox charging power in Watt. (Optional)",
@@ -374,46 +322,32 @@
         }
       },
       "smart_charging": {
-        "title": "Smart Charging",
-        "description": "Automatic battery charging from grid during cheap hours, respecting solar forecast and average daily consumption. Target SOC is calculated dynamically to leave enough room for tomorrow's solar surplus, clamped to min/max.",
+        "title": "Batterie",
+        "description": "Anlagenkonstanten der Batterie. 0 kW Ladeleistung bedeutet unbegrenzt. Die Wechselrichter-Nennleistung kommt aus Solar Forecast ML (0 = unbegrenzt).",
         "data": {
-          "smart_charging_enabled": "Enable Smart Charging",
-          "battery_capacity": "Battery Capacity (kWh)",
-          "min_soc": "Minimum SOC (%)",
-          "max_soc": "Maximum SOC (%)",
-          "max_price": "Cheap Price Threshold (ct/kWh)",
-          "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
+          "battery_capacity": "Batterie Capacity (kWh)",
+          "max_charge_power_kw": "Max charge power (kW, 0 = unbegrenzt)",
           "battery_soc_sensor": "Battery SOC Sensor",
           "smart_charging_switch": "Charging Control Switch",
           "ems_surplus_switch": "S-Plus Flexible Load Enable",
           "ems_wallbox_switch": "EMS Wallbox Charge Enable",
-          "ems_heat_pump_boost_switch": "EMS Heat Pump PV Boost",
-          "sensor_price_total": "Electricity Price Sensor"
+          "ems_heat_pump_boost_switch": "EMS Heat Pump PV Boost"
         },
         "data_description": {
-          "smart_charging_enabled": "Master toggle. When off, no charging logic runs.",
-          "battery_capacity": "Usable battery capacity. Used to translate solar kWh forecast into SOC percent.",
-          "min_soc": "Target SOC will never fall below this value.",
-          "max_soc": "Target SOC will never exceed this value. Typical: 95-100.",
-          "max_price": "Current price below this threshold is considered cheap. Only then grid charging is allowed.",
-          "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
+          "battery_capacity": "Required. 0 means not configured. Usable battery capacity. Used to translate solar kWh forecast into SOC percent. Pflichtangabe, 0 bedeutet: nicht eingerichtet.",
+          "max_charge_power_kw": "Grid charge power in kW. 0 = unbegrenzt (no window cap).",
           "battery_soc_sensor": "Battery State-of-Charge sensor (0-100%). Without it, logic falls back to price-only mode.",
           "smart_charging_switch": "Switch entity to turn grid charging on/off in Home Assistant.",
           "ems_surplus_switch": "Optional switch for a flexible load. EMS only enables it after the stable S-Plus surplus gate.",
           "ems_wallbox_switch": "Optional fail-safe charge-enable switch for the wallbox. Do not select its main power switch.",
-          "ems_heat_pump_boost_switch": "Optional fail-safe PV boost or SG-Ready switch. Never select the heat pump power supply.",
-          "sensor_price_total": "Monetary sensor providing current dynamic price (e.g. from Tibber)."
+          "ems_heat_pump_boost_switch": "Optional fail-safe PV boost or SG-Ready switch. Never select the heat pump power supply."
         }
       },
       "pricing": {
-        "title": "Tariff Mode",
-        "description": "Select your electricity tariff mode.",
-        "data": {
-          "billing_price_mode": "Tariff Mode"
-        },
-        "data_description": {
-          "billing_price_mode": "Dynamic: hourly prices from GPM. Fixed: single price. None: disables financial displays."
-        }
+        "title": "Electricity prices",
+        "description": "Prices are configured in Solar Forecast GPM.\n\nCurrent mode: **{price_mode}**\nTariff: **{tariff_label}**\nCurrent price: **{current_price}**",
+        "data": {},
+        "data_description": {}
       },
       "amortization": {
         "title": "Amortization",
@@ -433,42 +367,6 @@
           "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
           "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
           "amortization_degradation_percent": "Annual PV output degradation in the projection."
-        }
-      },
-      "pricing_fixed": {
-        "title": "Fixed Tariff",
-        "description": "Enter work price and grid fees separately — the total cost is their sum.",
-        "data": {
-          "billing_work_price": "Work Price (ct/kWh)",
-          "billing_grid_fees": "Grid Fees (ct/kWh)",
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Feed-in Tariff (ct/kWh)"
-        },
-        "data_description": {
-          "billing_work_price": "Pure energy work price per kWh (without grid fees).",
-          "billing_grid_fees": "Grid fees, metering, concession and taxes per kWh.",
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Feed-in tariff in cents per kWh."
-        }
-      },
-      "pricing_dynamic": {
-        "title": "Dynamic Tariff",
-        "description": "GPM (Grid Price Monitor) provides hourly market prices. Please enter your base fee, taxes, fees and markups.",
-        "data": {
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Feed-in Tariff (ct/kWh)",
-          "vat_rate": "VAT Rate (%)",
-          "gpm_grid_fee": "Grid Fees (ct/kWh)",
-          "taxes_fees": "Taxes & Levies (ct/kWh)",
-          "provider_markup": "Provider Markup (ct/kWh)"
-        },
-        "data_description": {
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Feed-in tariff in cents per kWh.",
-          "vat_rate": "Value Added Tax rate in percent (e.g. 19 for DE, 20 for AT).",
-          "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
-          "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
-          "provider_markup": "Provider markup per kWh (gross)."
         }
       },
       "appearance": {
@@ -492,7 +390,8 @@
           "forecast_entity_1": "Forecast 1 (Entity ID)",
           "forecast_entity_1_name": "Name for Forecast 1",
           "forecast_entity_2": "Forecast 2 (Entity ID)",
-          "forecast_entity_2_name": "Name for Forecast 2"
+          "forecast_entity_2_name": "Name for Forecast 2",
+          "cost_tracking_enabled": "Track electricity costs"
         },
         "data_description": {
           "billing_start_month": "Month when your billing year starts.",
@@ -502,12 +401,70 @@
           "forecast_entity_1": "Sensor with daily yield forecast in kWh (e.g. sensor.solcast_forecast_today). (Optional)",
           "forecast_entity_1_name": "Display name in comparison chart (e.g. 'Solcast'). (Optional)",
           "forecast_entity_2": "Sensor with daily yield forecast in kWh. (Optional)",
-          "forecast_entity_2_name": "Display name in comparison chart. (Optional)"
+          "forecast_entity_2_name": "Display name in comparison chart. (Optional)",
+          "cost_tracking_enabled": "When off, STATS shows energy only and does not calculate costs."
         }
       }
     },
     "error": {
       "invalid_code": "Invalid access code!"
+    }
+  },
+  "issues": {
+    "price_config_moved_to_gpm": {
+      "title": "Electricity prices moved to GPM",
+      "description": "Your previous fixed STATS price ({legacy_price} ct/kWh) is kept until you confirm the GPM tariff.",
+      "fix_flow": {
+        "step": {
+          "menu": {
+            "title": "How should STATS bill from now on?",
+            "description": "Previous STATS fixed price: **{legacy_price} ct/kWh**.",
+            "menu_options": {
+              "use_gpm_fixed": "GPM uses my fixed price",
+              "use_gpm_dynamic": "Switch to GPM dynamic prices"
+            }
+          },
+          "use_gpm_fixed": {
+            "title": "Use GPM fixed tariff",
+            "description": "Enter {legacy_price} ct/kWh as the GPM fixed tariff, then confirm here."
+          },
+          "use_gpm_dynamic": {
+            "title": "Use GPM dynamic prices",
+            "description": "STATS will drop the leftover fixed price {legacy_price} ct/kWh and follow GPM."
+          }
+        }
+      },
+      "error": {
+        "gpm_not_fixed": "GPM is not yet set to a fixed tariff."
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "smart_charging_enabled": {
+        "name": "Smart charging"
+      }
+    },
+    "select": {
+      "smart_charging_mode": {
+        "name": "Smart charging mode",
+        "state": {
+          "forecast": "Fill the gap only",
+          "price_band_soc": "Charge to target when power is cheap",
+          "combined": "Both – the higher need wins"
+        }
+      }
+    },
+    "number": {
+      "smart_charging_target_soc": {
+        "name": "Target SoC"
+      },
+      "smart_charging_min_soc": {
+        "name": "Minimum SoC"
+      },
+      "smart_charging_max_soc": {
+        "name": "Maximum SoC"
+      }
     }
   }
 }

@@ -47,14 +47,12 @@
         "data": {
           "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
           "sensor_battery_power": "🔋 Общая мощность батареи (Вт)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
-          "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)"
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
           "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
-          "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)"
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
         }
       },
       "consumers": {
@@ -153,14 +151,12 @@
         "data": {
           "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
           "sensor_battery_power": "🔋 Общая мощность батареи (Вт)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)",
-          "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)"
+          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
           "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)",
-          "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)"
+          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
         }
       },
       "reconfigure_consumers": {
@@ -212,52 +208,6 @@
           "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
           "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
         }
-      },
-      "pricing": {
-        "title": "Тариф на электроэнергию",
-        "description": "Select your electricity tariff mode.",
-        "data": {
-          "billing_price_mode": "Режим тарифа"
-        },
-        "data_description": {
-          "billing_price_mode": "Динамический: почасовые цены от Grid Price Monitor. Фиксированный: единая цена. Без тарифа: отключает финансовые показатели."
-        }
-      },
-      "pricing_fixed": {
-        "title": "Фиксированный тариф",
-        "description": "Enter work price and grid fees separately — the total cost is their sum.",
-        "data": {
-          "billing_work_price": "Work Price (ct/kWh)",
-          "billing_grid_fees": "Grid Fees (ct/kWh)",
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Тариф на отдачу (цент/кВт·ч)"
-        },
-        "data_description": {
-          "billing_work_price": "Pure energy work price per kWh (without grid fees).",
-          "billing_grid_fees": "Grid fees, metering, concession and taxes per kWh.",
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Тариф на отдачу в сеть в центах за кВт·ч"
-        }
-      },
-      "pricing_dynamic": {
-        "title": "Динамический тариф",
-        "description": "GPM (Grid Price Monitor) provides hourly market prices. Please enter your base fee, taxes, fees and markups.",
-        "data": {
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Тариф на отдачу (цент/кВт·ч)",
-          "vat_rate": "VAT Rate (%)",
-          "gpm_grid_fee": "Grid Fees (ct/kWh)",
-          "taxes_fees": "Taxes & Levies (ct/kWh)",
-          "provider_markup": "Provider Markup (ct/kWh)"
-        },
-        "data_description": {
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Тариф на отдачу в сеть в центах за кВт·ч",
-          "vat_rate": "Value Added Tax rate in percent (e.g. 19 for DE, 20 for AT).",
-          "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
-          "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
-          "provider_markup": "Provider markup per kWh (gross)."
-        }
       }
     },
     "abort": {
@@ -301,7 +251,6 @@
           "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
           "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)",
           "sensor_grid_import_extra": "Additional Grid Import (kWh)",
-          "sensor_price_total": "💰 Текущая цена (цент/кВт·ч)",
           "sensor_heatpump_power": "🌡️ Тепловой насос мощность (Вт)",
           "sensor_heatingrod_power": "🔥 ТЭН мощность (Вт)",
           "sensor_wallbox_power": "🚗 Wallbox мощность (Вт)",
@@ -323,7 +272,6 @@
           "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
           "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)",
           "sensor_grid_import_extra": "Additional grid import not measured by smartmeter in kWh. (Optional)",
-          "sensor_price_total": "Единица: цент/кВт·ч (брутто). Динамический сенсор, например от Tibber, Octopus Energy или EPEX Spot. Не нужен при фиксированном тарифе. (Опционально)",
           "sensor_heatpump_power": "Единица: Ватт. Текущее электрическое потребление теплового насоса. Только потребление компрессора, не выделяемое тепло! (Опционально)",
           "sensor_heatingrod_power": "Единица: Ватт. Текущее электрическое потребление ТЭН. Отображается как отдельный потребитель в диаграмме энергопотоков. (Опционально)",
           "sensor_wallbox_power": "Единица: Ватт. Текущая мощность зарядки Wallbox/зарядной станции. Только фактическая мощность зарядки, не потребление в режиме ожидания! (Опционально)",
@@ -365,46 +313,32 @@
         }
       },
       "smart_charging": {
-        "title": "Умная зарядка",
-        "description": "Автоматическая зарядка батареи из сети в дешёвые часы с учётом прогноза выработки и среднего потребления дома. Целевой SOC рассчитывается динамически для резервирования места под завтрашний избыток солнечной генерации, в пределах заданного диапазона.",
+        "title": "Батарея",
+        "description": "Константы установки. 0 кВт мощности заряда означает без ограничения (0 = unbegrenzt). Номинал инвертора берётся из Solar Forecast ML (0 = unbegrenzt).",
         "data": {
-          "smart_charging_enabled": "Включить умную зарядку",
           "battery_capacity": "Ёмкость батареи (кВт·ч)",
-          "min_soc": "Минимальный SOC (%)",
-          "max_soc": "Максимальный SOC (%)",
-          "max_price": "Порог дешёвой цены (цент/кВт·ч)",
-          "force_charge_price": "Extreme Cheap Price Threshold (ct/kWh)",
-          "battery_soc_sensor": "Сенсор SOC батареи",
-          "smart_charging_switch": "Выключатель управления зарядкой",
+          "max_charge_power_kw": "Макс. мощность заряда (кВт, 0 = без ограничения)",
+          "battery_soc_sensor": "Датчик SOC батареи",
+          "smart_charging_switch": "Выключатель зарядки",
           "ems_surplus_switch": "Разрешение гибкой нагрузки S-Plus",
-          "ems_wallbox_switch": "Разрешение зарядки wallbox через EMS",
-          "ems_heat_pump_boost_switch": "Фотоэлектрический режим теплового насоса EMS",
-          "sensor_price_total": "Сенсор цены электричества"
+          "ems_wallbox_switch": "Разрешение зарядки EMS wallbox",
+          "ems_heat_pump_boost_switch": "PV-буст EMS теплового насоса"
         },
         "data_description": {
-          "smart_charging_enabled": "Главный переключатель. Если выключен, логика зарядки не выполняется.",
-          "battery_capacity": "Полезная ёмкость батареи. Используется для перевода прогноза солнечной выработки из кВт·ч в проценты SOC.",
-          "min_soc": "Целевой SOC никогда не опустится ниже этого значения.",
-          "max_soc": "Целевой SOC никогда не поднимется выше этого значения. Обычно: 95-100.",
-          "max_price": "Текущая цена ниже этого порога считается дешёвой. Только в этом случае разрешена зарядка из сети.",
-          "force_charge_price": "Current price below this threshold triggers forced grid charging to max_soc during solar deficits (daytime) or at night.",
-          "battery_soc_sensor": "Сенсор уровня заряда батареи (0-100%). Без него логика переходит в режим работы только по цене.",
-          "smart_charging_switch": "Выключатель в Home Assistant для включения/выключения зарядки из сети.",
-          "ems_surplus_switch": "Дополнительный выключатель гибкой нагрузки, активируемый только стабильным сигналом S-Plus.",
-          "ems_wallbox_switch": "Дополнительный безопасный выключатель разрешения зарядки. Не выбирайте главный выключатель.",
-          "ems_heat_pump_boost_switch": "Дополнительный PV/SG-Ready выключатель. Никогда не выбирайте основное питание теплового насоса.",
-          "sensor_price_total": "Сенсор стоимости, передающий текущую динамическую цену (например, от Tibber)."
+          "battery_capacity": "Обязательное поле, 0 означает: не настроено. Полезная ёмкость. Нужна, чтобы перевести прогноз кВт·ч в процент SOC.",
+          "max_charge_power_kw": "Мощность сетевой зарядки в кВт. 0 = unbegrenzt.",
+          "battery_soc_sensor": "Датчик заряда (0-100%). Без него логика работает только по цене.",
+          "smart_charging_switch": "Сущность выключателя сетевой зарядки в Home Assistant.",
+          "ems_surplus_switch": "Опциональный выключатель гибкой нагрузки после сигнала S-Plus.",
+          "ems_wallbox_switch": "Опциональный безопасный выключатель wallbox. Не главный выключатель.",
+          "ems_heat_pump_boost_switch": "Опциональный PV-boost / SG-Ready. Никогда питание теплового насоса."
         }
       },
       "pricing": {
-        "title": "Тариф на электроэнергию",
-        "description": "Select your electricity tariff mode.",
-        "data": {
-          "billing_price_mode": "Режим тарифа"
-        },
-        "data_description": {
-          "billing_price_mode": "Динамический: почасовые цены от Grid Price Monitor. Фиксированный: единая цена. Без тарифа: отключает финансовые показатели."
-        }
+        "title": "Цены на электроэнергию",
+        "description": "Цены настраиваются в Solar Forecast GPM.\n\nТекущий режим: **{price_mode}**\nТариф: **{tariff_label}**\nТекущая цена: **{current_price}**",
+        "data": {},
+        "data_description": {}
       },
       "amortization": {
         "title": "Окупаемость",
@@ -424,42 +358,6 @@
           "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
           "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
           "amortization_degradation_percent": "Annual PV output degradation in the projection."
-        }
-      },
-      "pricing_fixed": {
-        "title": "Фиксированный тариф",
-        "description": "Enter work price and grid fees separately — the total cost is their sum.",
-        "data": {
-          "billing_work_price": "Work Price (ct/kWh)",
-          "billing_grid_fees": "Grid Fees (ct/kWh)",
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Тариф на отдачу (цент/кВт·ч)"
-        },
-        "data_description": {
-          "billing_work_price": "Pure energy work price per kWh (without grid fees).",
-          "billing_grid_fees": "Grid fees, metering, concession and taxes per kWh.",
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Тариф на отдачу в сеть в центах за кВт·ч"
-        }
-      },
-      "pricing_dynamic": {
-        "title": "Динамический тариф",
-        "description": "GPM (Grid Price Monitor) provides hourly market prices. Please enter your base fee, taxes, fees and markups.",
-        "data": {
-          "billing_base_fee": "Monthly Base Fee (EUR/Month)",
-          "feed_in_tariff": "Тариф на отдачу (цент/кВт·ч)",
-          "vat_rate": "VAT Rate (%)",
-          "gpm_grid_fee": "Grid Fees (ct/kWh)",
-          "taxes_fees": "Taxes & Levies (ct/kWh)",
-          "provider_markup": "Provider Markup (ct/kWh)"
-        },
-        "data_description": {
-          "billing_base_fee": "Monthly base fee in EUR (optional, 0 = none).",
-          "feed_in_tariff": "Тариф на отдачу в сеть в центах за кВт·ч",
-          "vat_rate": "Value Added Tax rate in percent (e.g. 19 for DE, 20 for AT).",
-          "gpm_grid_fee": "Grid fees and metering fees per kWh (gross).",
-          "taxes_fees": "Concession fees, electricity tax and other levies per kWh (gross).",
-          "provider_markup": "Provider markup per kWh (gross)."
         }
       },
       "appearance": {
@@ -483,7 +381,8 @@
           "forecast_entity_1": "📈 Прогноз 1 (Entity ID)",
           "forecast_entity_1_name": "Название прогноза 1",
           "forecast_entity_2": "📈 Прогноз 2 (Entity ID)",
-          "forecast_entity_2_name": "Название прогноза 2"
+          "forecast_entity_2_name": "Название прогноза 2",
+          "cost_tracking_enabled": "Учитывать стоимость электроэнергии"
         },
         "data_description": {
           "billing_start_month": "Месяц начала расчётного года",
@@ -493,12 +392,70 @@
           "forecast_entity_1": "Формат: sensor.xxx. Сенсор с дневным прогнозом генерации в кВт·ч (напр. sensor.solcast_forecast_today). Должен содержать ожидаемую дневную генерацию числом. (Опционально)",
           "forecast_entity_1_name": "Отображаемое имя в сравнительном графике (напр. 'Solcast'). Показывается в легенде 7-дневного сравнения. (Опционально)",
           "forecast_entity_2": "Формат: sensor.xxx. Сенсор с дневным прогнозом генерации в кВт·ч (напр. sensor.forecast_solar_energy_today). Должен содержать ожидаемую дневную генерацию числом. (Опционально)",
-          "forecast_entity_2_name": "Отображаемое имя в сравнительном графике (напр. 'Forecast.Solar'). Показывается в легенде 7-дневного сравнения. (Опционально)"
+          "forecast_entity_2_name": "Отображаемое имя в сравнительном графике (напр. 'Forecast.Solar'). Показывается в легенде 7-дневного сравнения. (Опционально)",
+          "cost_tracking_enabled": "Если выключено, STATS показывает только энергию и не считает стоимость."
         }
       }
     },
     "error": {
       "invalid_code": "Неверный код доступа!"
+    }
+  },
+  "issues": {
+    "price_config_moved_to_gpm": {
+      "title": "Цены перенесены в GPM",
+      "description": "Прежняя фиксированная цена STATS ({legacy_price} ct/kWh) сохраняется, пока вы не подтвердите тариф GPM.",
+      "fix_flow": {
+        "step": {
+          "menu": {
+            "title": "Как STATS должен считать дальше?",
+            "description": "Прежняя фиксированная цена STATS: **{legacy_price} ct/kWh**.",
+            "menu_options": {
+              "use_gpm_fixed": "GPM использует мою фиксированную цену",
+              "use_gpm_dynamic": "Перейти на динамические цены GPM"
+            }
+          },
+          "use_gpm_fixed": {
+            "title": "Использовать фиксированный тариф GPM",
+            "description": "Введите {legacy_price} ct/kWh как фиксированный тариф GPM и подтвердите здесь."
+          },
+          "use_gpm_dynamic": {
+            "title": "Использовать динамические цены GPM",
+            "description": "STATS удалит оставшуюся фиксированную цену {legacy_price} ct/kWh и будет следовать GPM."
+          }
+        }
+      },
+      "error": {
+        "gpm_not_fixed": "GPM ещё не переведён на фиксированный тариф."
+      }
+    }
+  },
+  "entity": {
+    "switch": {
+      "smart_charging_enabled": {
+        "name": "Умная зарядка"
+      }
+    },
+    "select": {
+      "smart_charging_mode": {
+        "name": "Режим умной зарядки",
+        "state": {
+          "forecast": "Только закрыть пробел",
+          "price_band_soc": "При дешёвом токе заряжать до цели",
+          "combined": "Оба – действует большая потребность"
+        }
+      }
+    },
+    "number": {
+      "smart_charging_target_soc": {
+        "name": "Целевой SoC"
+      },
+      "smart_charging_min_soc": {
+        "name": "Минимальный SoC"
+      },
+      "smart_charging_max_soc": {
+        "name": "Максимальный SoC"
+      }
     }
   }
 }

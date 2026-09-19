@@ -2,6 +2,7 @@ const SFML_API_BRIDGE_PROTOCOL = "sfml-api-bridge-v1";
 const SFML_API_PREFIX = "/api/sfml_stats/";
 const SFML_API_MAX_REQUEST_BYTES = 4096;
 const SFML_API_MAX_POST_REQUEST_BYTES = 65536;
+const SFML_API_MAX_FORM_FILE_BYTES = 5 * 1024 * 1024;
 const SFML_API_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 function bridgeMessageSize(value) {
@@ -79,8 +80,13 @@ class SfmlStatsApiBridge extends HTMLElement {
     if (!this._validEvent(event)) return;
     const message = event.data;
     try {
-      const limit = message?.type === "POST" ? SFML_API_MAX_POST_REQUEST_BYTES : SFML_API_MAX_REQUEST_BYTES;
-      if (bridgeMessageSize(message) > limit) return;
+      if (message?.type === "POST_FORM") {
+        const fileSize = message.file?.byteLength || 0;
+        if (fileSize > SFML_API_MAX_FORM_FILE_BYTES) return;
+      } else {
+        const limit = message?.type === "POST" ? SFML_API_MAX_POST_REQUEST_BYTES : SFML_API_MAX_REQUEST_BYTES;
+        if (bridgeMessageSize(message) > limit) return;
+      }
     } catch (_error) {
       return;
     }
@@ -97,19 +103,53 @@ class SfmlStatsApiBridge extends HTMLElement {
 
     const isGet = message.type === "GET";
     const isPost = message.type === "POST";
-    if ((!isGet && !isPost) || message.nonce !== this._nonce || !this._hass) return;
+    const isForm = message.type === "POST_FORM";
+    if ((!isGet && !isPost && !isForm) || message.nonce !== this._nonce || !this._hass) return;
     if (!/^[a-f0-9]{32}$/.test(message.requestId || "") || this._seen.has(message.requestId)) return;
     const path = authenticatedApiPath(message.endpoint);
     if (!path) return;
     if (isPost && (message.payload === null || typeof message.payload !== "object" || Array.isArray(message.payload))) return;
+    if (isForm && (message.fields === null || typeof message.fields !== "object" || Array.isArray(message.fields))) return;
     this._seen.add(message.requestId);
     if (this._seen.size > 256) this._seen.delete(this._seen.values().next().value);
 
     let response;
     try {
-      const data = isPost
-        ? await this._hass.callApi("POST", path, message.payload)
-        : await this._hass.callApi("GET", path);
+      let data;
+      if (isForm) {
+        if (typeof this._hass.fetchWithAuth !== "function") {
+          throw new Error("form_upload_unavailable");
+        }
+        const form = new FormData();
+        for (const [key, value] of Object.entries(message.fields || {})) {
+          form.append(key, String(value ?? ""));
+        }
+        if (message.file) {
+          form.append(
+            "file",
+            new Blob([message.file], { type: message.fileType || "text/csv" }),
+            message.fileName || "upload.csv",
+          );
+        }
+        const fetched = await this._hass.fetchWithAuth(`/api/${path}`, {
+          method: "POST",
+          body: form,
+        });
+        data = await fetched.json();
+        if (!fetched.ok) {
+          const err = new Error(String(
+            (typeof data?.error === "string" && data.error)
+            || data?.error?.message
+            || `HTTP ${fetched.status}`,
+          ));
+          err.body = data;
+          throw err;
+        }
+      } else if (isPost) {
+        data = await this._hass.callApi("POST", path, message.payload);
+      } else {
+        data = await this._hass.callApi("GET", path);
+      }
       response = {
         protocol: SFML_API_BRIDGE_PROTOCOL,
         type: "RESPONSE",

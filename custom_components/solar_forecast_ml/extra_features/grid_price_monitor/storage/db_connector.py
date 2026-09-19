@@ -144,6 +144,12 @@ class GPMDatabaseConnector:
             return
         await self._db.commit()
 
+    async def rollback(self) -> None:
+        """Roll back the current transaction."""
+        if self._db is None:
+            return
+        await self._db.rollback()
+
     async def _ensure_tables(self) -> None:
         """Create all GPM tables if they don't exist @zara"""
         await self._db.executescript("""
@@ -153,6 +159,8 @@ class GPMDatabaseConnector:
                 last_fetch TEXT,
                 valid_until TEXT,
                 country TEXT,
+                tariff_mode TEXT,
+                price_revision INTEGER NOT NULL DEFAULT 0,
                 CHECK (id = 1)
             );
 
@@ -162,7 +170,8 @@ class GPMDatabaseConnector:
                 timestamp TEXT NOT NULL UNIQUE,
                 price REAL NOT NULL,
                 total_price REAL,
-                hour INTEGER NOT NULL
+                hour INTEGER NOT NULL,
+                price_source TEXT
             );
 
             -- Price history (2 years retention)
@@ -171,7 +180,10 @@ class GPMDatabaseConnector:
                 timestamp TEXT NOT NULL UNIQUE,
                 price_net REAL NOT NULL,
                 total_price REAL,
-                hour INTEGER NOT NULL
+                hour INTEGER NOT NULL,
+                price_source TEXT,
+                total_price_raw REAL,
+                correction_id INTEGER
             );
             CREATE INDEX IF NOT EXISTS idx_gpm_price_history_ts
                 ON GPM_price_history(timestamp);
@@ -238,7 +250,29 @@ class GPMDatabaseConnector:
                 most_expensive_today REAL,
                 country TEXT,
                 last_updated TEXT NOT NULL,
+                tariff_mode TEXT,
+                price_revision INTEGER,
+                feed_in_tariff_ct REAL,
+                base_fee_eur_month REAL,
+                is_demo INTEGER NOT NULL DEFAULT 0,
                 CHECK (id = 1)
+            );
+
+            -- Applied CSV / monthly price corrections
+            CREATE TABLE IF NOT EXISTS GPM_price_corrections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL CHECK(kind IN ('csv','monthly')),
+                status TEXT NOT NULL CHECK(status IN ('applied','reverted','stale')),
+                created_at TEXT NOT NULL,
+                applied_at TEXT,
+                reverted_at TEXT,
+                range_from TEXT NOT NULL,
+                range_to TEXT NOT NULL,
+                month TEXT,
+                params_json TEXT NOT NULL,
+                summary_json TEXT,
+                rows_affected INTEGER NOT NULL DEFAULT 0,
+                source_hash TEXT
             );
 
             -- Configuration backup (single row)
@@ -256,20 +290,124 @@ class GPMDatabaseConnector:
 
         _LOGGER.debug("GPM database tables verified")
 
+    async def _table_columns(self, table: str) -> list[str]:
+        """Return column names for an existing table."""
+        async with self._db.execute(f"PRAGMA table_info({table})") as cursor:
+            return [row[1] for row in await cursor.fetchall()]
+
+    async def _add_column_if_missing(
+        self, table: str, column: str, ddl: str
+    ) -> None:
+        """Add a column when an older GPM schema is missing it."""
+        columns = await self._table_columns(table)
+        if column in columns:
+            return
+        await self._db.execute(
+            f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"
+        )
+        _LOGGER.info("Migrated %s: added %s column", table, column)
+
     async def _migrate_tables(self) -> None:
         """Run schema migrations for existing tables @zara"""
         try:
-            # Check if total_price column exists in GPM_price_history
-            async with self._db.execute(
-                "PRAGMA table_info(GPM_price_history)"
-            ) as cursor:
-                columns = [row[1] for row in await cursor.fetchall()]
-
-            if "total_price" not in columns:
-                await self._db.execute(
-                    "ALTER TABLE GPM_price_history ADD COLUMN total_price REAL"
-                )
-                await self._db.commit()
-                _LOGGER.info("Migrated GPM_price_history: added total_price column")
+            await self._add_column_if_missing(
+                "GPM_price_history", "total_price", "REAL"
+            )
+            await self._add_column_if_missing(
+                "GPM_price_history", "price_source", "TEXT"
+            )
+            await self._add_column_if_missing(
+                "GPM_price_history", "total_price_raw", "REAL"
+            )
+            await self._add_column_if_missing(
+                "GPM_price_history", "correction_id", "INTEGER"
+            )
+            await self._add_column_if_missing(
+                "GPM_price_cache", "price_source", "TEXT"
+            )
+            await self._add_column_if_missing(
+                "GPM_price_cache_meta", "tariff_mode", "TEXT"
+            )
+            await self._add_column_if_missing(
+                "GPM_price_cache_meta",
+                "price_revision",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+            await self._add_column_if_missing(
+                "GPM_current_price", "tariff_mode", "TEXT"
+            )
+            await self._add_column_if_missing(
+                "GPM_current_price", "price_revision", "INTEGER"
+            )
+            await self._add_column_if_missing(
+                "GPM_current_price", "feed_in_tariff_ct", "REAL"
+            )
+            await self._add_column_if_missing(
+                "GPM_current_price", "base_fee_eur_month", "REAL"
+            )
+            await self._add_column_if_missing(
+                "GPM_current_price",
+                "is_demo",
+                "INTEGER NOT NULL DEFAULT 0",
+            )
+            await self._db.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS GPM_price_corrections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kind TEXT NOT NULL CHECK(kind IN ('csv','monthly')),
+                    status TEXT NOT NULL CHECK(status IN ('applied','reverted','stale')),
+                    created_at TEXT NOT NULL,
+                    applied_at TEXT,
+                    reverted_at TEXT,
+                    range_from TEXT NOT NULL,
+                    range_to TEXT NOT NULL,
+                    month TEXT,
+                    params_json TEXT NOT NULL,
+                    summary_json TEXT,
+                    rows_affected INTEGER NOT NULL DEFAULT 0,
+                    source_hash TEXT
+                );
+                """
+            )
+            await self._db.commit()
         except Exception as err:
             _LOGGER.warning("Table migration check failed: %s", err)
+
+    async def require_price_write_schema(self) -> None:
+        """Fail closed when required write columns are missing."""
+        required = {
+            "GPM_price_history": (
+                "timestamp",
+                "price_net",
+                "total_price",
+                "hour",
+                "price_source",
+                "correction_id",
+                "total_price_raw",
+            ),
+            "GPM_price_cache": (
+                "timestamp",
+                "price",
+                "total_price",
+                "hour",
+                "price_source",
+            ),
+            "GPM_price_cache_meta": ("tariff_mode", "price_revision"),
+            "GPM_current_price": (
+                "tariff_mode",
+                "price_revision",
+                "is_demo",
+                "feed_in_tariff_ct",
+                "base_fee_eur_month",
+            ),
+        }
+        missing: list[str] = []
+        for table, columns in required.items():
+            existing = set(await self._table_columns(table))
+            for column in columns:
+                if column not in existing:
+                    missing.append(f"{table}.{column}")
+        if missing:
+            raise RuntimeError(
+                "GPM price write schema incomplete: " + ", ".join(missing)
+            )

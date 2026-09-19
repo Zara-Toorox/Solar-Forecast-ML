@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -60,6 +61,16 @@ class SFMLStatsBaseSensor(CoordinatorEntity, SensorEntity):
         )
 
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        data = self.coordinator.data or {}
+        return {
+            "demo": bool(data.get("is_demo")),
+            "tariff_mode": data.get("tariff_mode"),
+            "has_spot_component": data.get("has_spot_component"),
+        }
+
+
 class SpotPriceSensor(SFMLStatsBaseSensor):
     """Current spot price sensor. @zara"""
 
@@ -68,6 +79,13 @@ class SpotPriceSensor(SFMLStatsBaseSensor):
         super().__init__(coordinator, entry, "spot_price", "Spot Price", "mdi:currency-eur")
         self._attr_native_unit_of_measurement = "ct/kWh"
         self._attr_device_class = SensorDeviceClass.MONETARY
+
+    @property
+    def available(self) -> bool:
+        data = self.coordinator.data or {}
+        if not data.get("has_spot_component", True):
+            return False
+        return super().available
 
     @property
     def native_value(self) -> float | None:
@@ -104,6 +122,13 @@ class SpotPriceNextHourSensor(SFMLStatsBaseSensor):
         )
         self._attr_native_unit_of_measurement = "ct/kWh"
         self._attr_device_class = SensorDeviceClass.MONETARY
+
+    @property
+    def available(self) -> bool:
+        data = self.coordinator.data or {}
+        if not data.get("has_spot_component", True):
+            return False
+        return super().available
 
     @property
     def native_value(self) -> float | None:

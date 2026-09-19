@@ -219,7 +219,7 @@ async def async_setup_entry(
             EodDurationSensor(coordinator, entry),
         ]
         entities_to_add.extend(diagnostic_entities)
-        _LOGGER.info(
+        _LOGGER.debug(
             f"Diagnostic mode enabled - Adding {len(diagnostic_entities)} advanced diagnostic sensors."
         )
 
@@ -227,14 +227,14 @@ async def async_setup_entry(
     if enable_evcc:
         evcc_entities = [EvccForecastSensor(coordinator, entry)]
         entities_to_add.extend(evcc_entities)
-        _LOGGER.info("evcc Forecast sensor enabled - Adding evcc integration sensor")
+        _LOGGER.debug("evcc Forecast sensor enabled - Adding evcc integration sensor")
 
     # Shadow detection sensors (always created) @zara
     shadow_detection_entities = [
         sensor_class(coordinator, entry) for sensor_class in SHADOW_DETECTION_SENSORS
     ]
     entities_to_add.extend(shadow_detection_entities)
-    _LOGGER.info(
+    _LOGGER.debug(
         f"Shadow Detection enabled - Adding {len(shadow_detection_entities)} shadow detection sensors"
     )
 
@@ -243,11 +243,12 @@ async def async_setup_entry(
         sensor_class(coordinator, entry) for sensor_class in DRIFT_DETECTION_SENSORS
     ]
     entities_to_add.extend(drift_detection_entities)
-    _LOGGER.info(
+    _LOGGER.debug(
         f"Drift Detection enabled - Adding {len(drift_detection_entities)} drift detection sensors"
     )
 
     async_add_entities(entities_to_add, True)
+    coordinator.sensor_entity_count = len(entities_to_add)
     _LOGGER.info(f"Successfully added {len(entities_to_add)} total sensors.")
 
     return True

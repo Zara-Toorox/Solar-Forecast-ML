@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -20,6 +20,18 @@ from ..const import DOMAIN, NAME, VERSION
 
 if TYPE_CHECKING:
     from ..coordinator import GridPriceMonitorCoordinator
+
+
+def attach_demo_flag(
+    coordinator: "GridPriceMonitorCoordinator",
+    attrs: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Attach demo and tariff attributes required on every GPM entity."""
+    result: dict[str, Any] = {} if not attrs else dict(attrs)
+    result["demo"] = bool(getattr(coordinator, "is_demo", False))
+    data = getattr(coordinator, "data", None) or {}
+    result["tariff_mode"] = data.get("tariff_mode") or getattr(coordinator, "tariff_mode", None)
+    return result
 
 
 class GridPriceBaseSensor(CoordinatorEntity["GridPriceMonitorCoordinator"], SensorEntity):
@@ -50,6 +62,22 @@ class GridPriceBaseSensor(CoordinatorEntity["GridPriceMonitorCoordinator"], Sens
         self._attr_name = name
         self._attr_icon = icon
         self._entry = entry
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        raw = cls.__dict__.get("extra_state_attributes")
+        if not isinstance(raw, property) or raw.fget is None:
+            return
+        original = raw.fget
+
+        def wrapped(self: GridPriceBaseSensor) -> dict[str, Any]:
+            return attach_demo_flag(self.coordinator, original(self))
+
+        cls.extra_state_attributes = property(wrapped)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return attach_demo_flag(self.coordinator, None)
 
     @property
     def available(self) -> bool:

@@ -1188,6 +1188,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
+def _startup_banner(mode_str: str) -> list[str]:
+    """Greeting box logged first thing at every start; width follows the longest line."""
+    lines = [
+        "  SOLAR FORECAST ML — the first local AI-Attention Transformer for HA, built by zara-toorox",
+        f"  Version {VERSION} · Mode: {mode_str}",
+        '  "Logic is the beginning of wisdom, not the end." — Spock',
+    ]
+    width = max(len(line) for line in lines) + 2
+    return [
+        "╔" + "═" * width + "╗",
+        *("║" + line.ljust(width) + "║" for line in lines),
+        "╚" + "═" * width + "╝",
+    ]
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Solar Forecast ML from a config entry. @zara"""
     from .coordinator import SolarForecastMLCoordinator
@@ -1203,6 +1218,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if not dependencies_ok:
         _LOGGER.warning("Some ML dependencies are missing. ML features will be disabled.")
+
+    mode_str = "Hybrid-KI (Full Features)" if dependencies_ok else "Fallback Mode (Rule-Based)"
+    _LOGGER.info("\n" + "\n".join(_startup_banner(mode_str)))
 
     hass.data.setdefault(DOMAIN, {})
 
@@ -1284,7 +1302,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             data_manager = _active_data_manager()
             if data_manager is None or data_manager._db_manager is None:
                 return
-            _LOGGER.info("Starting JSON migration in background...")
+            _LOGGER.debug("Starting JSON migration in background...")
 
             from .data.json_migration import run_json_migration
             migration_stats = await run_json_migration(hass, data_manager._db_manager)
@@ -1389,10 +1407,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     notification_marker = Path(hass.config.path(".storage/solar_forecast_ml_v16_notified"))
 
     if not flag_file.exists():
-        _LOGGER.info("╔══════════════════════════════════════════════════════════════════╗")
-        _LOGGER.info("║  Solar Forecast ML — Sarpeidion AI & DB-Version               ║")
-        _LOGGER.info("║  Fresh Installation — Database storage initialized             ║")
-        _LOGGER.info("╚══════════════════════════════════════════════════════════════════╝")
+        fresh_w = 66
+        _LOGGER.info("╔" + "═" * fresh_w + "╗")
+        _LOGGER.info("║" + f"  Solar Forecast ML V{VERSION}".ljust(fresh_w) + "║")
+        _LOGGER.info("║" + "  Fresh installation — database storage initialized".ljust(fresh_w) + "║")
+        _LOGGER.info("╚" + "═" * fresh_w + "╝")
 
         try:
             flag_content = (
@@ -1411,7 +1430,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 "persistent_notification",
                 "create",
                 {
-                    "title": "☀️ Solar Forecast ML — Sarpeidion AI & DB-Version",
+                    "title": f"☀️ Solar Forecast ML V{VERSION} installed",
                     "message": (
                         "Installation successful!\n\n"
                         "**Next Steps:**\n"
@@ -1460,8 +1479,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as e:
             _LOGGER.warning(f"Failed to show startup notification: {e}", exc_info=True)
 
-    mode_str = "Hybrid-KI (Full Features)" if dependencies_ok else "Fallback Mode (Rule-Based)"
-
     # Auto-sync extra features on update @zara
     try:
         from .services.service_extra_features import ExtraFeaturesInstaller
@@ -1492,16 +1509,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
     except Exception as e:
         _LOGGER.warning(f"Extra features sync failed: {e}")
-
-    w = 61
-    banner = [
-        "╔" + "═" * w + "╗",
-        "║" + "  Solar Forecast ML — Sarpeidion AI & DB-Version".ljust(w) + "║",
-        "║" + f"  Mode: {mode_str}".ljust(w) + "║",
-        "║" + '  "Logic is the beginning of wisdom, not the end." — Spock'.ljust(w) + "║",
-        "╚" + "═" * w + "╝",
-    ]
-    _LOGGER.info("\n" + "\n".join(banner))
 
     return True
 

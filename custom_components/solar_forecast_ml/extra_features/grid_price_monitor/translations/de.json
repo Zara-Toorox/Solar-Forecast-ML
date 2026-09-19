@@ -1,105 +1,427 @@
 {
   "config": {
     "step": {
-      "user": {
-        "title": "Solar Forecast GPM Einrichtung",
-        "description": "Konfigurieren Sie Ihre Strommarkt-Region.",
+      "license": {
+        "title": "Lizenz",
+        "description": "Gib den signierten EAI-Lizenzschlüssel ein. Die Prüfung erfolgt lokal und benötigt keine Internetverbindung. Lasse das Feld leer, um die GPM-Demo mit Beispielpreisen zu starten.",
         "data": {
+          "license_key": "EAI-Lizenzschlüssel"
+        },
+        "data_description": {
+          "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt. Für die GPM-Demo mit Beispielpreisen leer lassen."
+        }
+      },
+      "tariff": {
+        "title": "Tarifmodell",
+        "description": "Wähle das Tarifmodell und den Strommarkt. Weitere Modelle erfordern eine Lizenz mit Tarifmodell-Berechtigung.",
+        "data": {
+          "tariff_mode": "Tarifmodell",
           "country": "Land"
         },
         "data_description": {
-          "country": "Wählen Sie Ihren Strommarkt (Deutschland oder Österreich)"
+          "tariff_mode": "Dynamisch nutzt aWATTar-Day-Ahead-Preise. Weitere Modelle brauchen die Tarifmodell-Berechtigung.",
+          "country": "Wähle deinen Strommarkt (Deutschland oder Österreich)"
         }
       },
       "pricing": {
         "title": "Preiskonfiguration",
-        "description": "Aktueller Börsenpreis (brutto): **{spot_price} ct/kWh**\n\nSie können entweder automatisch kalibrieren, indem Sie Ihren aktuellen Gesamtpreis eingeben, oder die einzelnen Komponenten manuell eingeben.",
+        "description": "Aktueller Börsenpreis (brutto): **{spot_price} ct/kWh**\n\nDu kannst entweder automatisch kalibrieren, indem du deinen aktuellen Gesamtpreis eingibst, oder die einzelnen Komponenten manuell eingibst.",
         "data": {
           "vat_rate": "MwSt-Satz",
           "use_calibration": "Automatische Kalibrierung verwenden",
-          "calibration_price": "Ihr aktueller Gesamtpreis (aus der Anbieter-App)",
+          "calibration_price": "Dein aktueller Gesamtpreis (aus der Anbieter-App)",
           "grid_fee": "Netzentgelt",
           "taxes_fees": "Steuern und Abgaben",
           "provider_markup": "Anbieter-Aufschlag",
-          "max_price": "Maximaler Preisschwellwert",
-          "battery_power_sensor": "Batterie-Leistungssensor",
-          "smart_charging_enabled": "Intelligentes Laden aktivieren",
-          "battery_capacity": "Akkukapazität",
-          "battery_soc_sensor": "Akku-Ladestand Sensor",
-          "max_soc": "Maximaler Ladezustand",
-          "min_soc": "Minimaler Ladezustand"
+          "battery_power_sensor": "Batterie-Leistungssensor"
         },
         "data_description": {
           "vat_rate": "MwSt-Satz auf den Börsenpreis (19% DE, 20% AT, 7% ermäßigt)",
-          "use_calibration": "Aufschlag automatisch aus Ihrem aktuellen Preis berechnen",
-          "calibration_price": "Geben Sie den Preis ein, der jetzt in Ihrer Anbieter-App angezeigt wird",
-          "grid_fee": "Netznutzungsentgelte Ihres Netzbetreibers (brutto, inkl. MwSt)",
+          "use_calibration": "Aufschlag automatisch aus deinem aktuellen Preis berechnen",
+          "calibration_price": "Gib den Preis ein, der jetzt in deiner Anbieter-App angezeigt wird",
+          "grid_fee": "Netznutzungsentgelte deines Netzbetreibers (brutto, inkl. MwSt)",
           "taxes_fees": "Stromsteuer, EEG-Umlage, etc. (brutto, inkl. MwSt)",
-          "provider_markup": "Marge/Gewinn Ihres Stromanbieters (brutto, inkl. MwSt)",
-          "max_price": "Binärsensor schaltet EIN, wenn der Gesamtpreis unter diesem Schwellwert liegt",
-          "battery_power_sensor": "Leistungssensor für Batterieladung aus dem Netz (optional)",
-          "smart_charging_enabled": "Solar-Prognose nutzen um Netzladen zu optimieren (erfordert Solar Forecast ML)",
-          "battery_capacity": "Nutzbare Akkukapazität in kWh (z.B. 10.0)",
-          "battery_soc_sensor": "Sensor der den aktuellen Akku-Ladestand in % anzeigt",
-          "max_soc": "Maximaler Akku-Ladestand für Netzladen (Standard: 100%)",
-          "min_soc": "Minimaler Akku-Ladestand - Netz lädt mindestens bis hierhin (Standard: 10%)"
+          "provider_markup": "Marge/Gewinn deines Stromanbieters (brutto, inkl. MwSt)",
+          "battery_power_sensor": "Leistungssensor für Batterieladung aus dem Netz (optional)"
         }
       },
-      "reconfigure": {
-        "title": "Solar Forecast GPM neu konfigurieren",
-        "description": "Ändern Sie Ihre Strommarkt-Region. Danach können Sie alle Preiseinstellungen anpassen.",
+      "reauth_confirm": {
+        "title": "Offline-Lizenz",
+        "description": "Gib den signierten EAI-Lizenzschlüssel ein. Die Prüfung erfolgt lokal und benötigt keine Internetverbindung.",
         "data": {
-          "country": "Land"
+          "license_key": "EAI-Lizenzschlüssel"
         },
         "data_description": {
-          "country": "Wählen Sie Ihren Strommarkt (Deutschland oder Österreich)"
+          "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt."
+        }
+      },
+      "license_detected": {
+        "title": "Lizenz",
+        "description": "Lizenz über Solar Forecast Energy AI erkannt (ID {license_id})."
+      },
+      "tariff_fixed": {
+        "title": "Fixpreis",
+        "description": "Gib den konstanten Bruttopreis in ct/kWh ein.",
+        "data": {
+          "fixed_total_price": "Gesamtpreis"
+        },
+        "data_description": {
+          "fixed_total_price": "Bruttopreis für jede Stunde"
+        }
+      },
+      "tariff_time_of_use": {
+        "title": "HT/NT-Tarif",
+        "description": "Der Hochtarif gilt zwischen Start- und Endzeit. Liegt das Ende vor dem Start, läuft das Fenster über Mitternacht.",
+        "data": {
+          "tou_high_price": "Hochtarif (HT)",
+          "tou_low_price": "Niedrigtarif (NT)",
+          "tou_high_start": "Beginn Hochtarif",
+          "tou_high_end": "Ende Hochtarif",
+          "tou_weekend_low": "Wochenende im Niedrigtarif",
+          "tou_holiday_low": "Feiertage im Niedrigtarif"
+        },
+        "data_description": {
+          "tou_high_price": "Bruttopreis im Hochtarif-Fenster",
+          "tou_low_price": "Bruttopreis außerhalb des Hochtarif-Fensters",
+          "tou_high_start": "Lokale Uhrzeit, ab der der Hochtarif gilt",
+          "tou_high_end": "Lokale Uhrzeit, ab der der Hochtarif endet",
+          "tou_weekend_low": "Samstag und Sonntag immer im Niedrigtarif",
+          "tou_holiday_low": "Bundesweite Feiertage im Niedrigtarif"
+        }
+      },
+      "tariff_time_windows": {
+        "title": "Zeitfenster",
+        "description": "Vorhandene Fenster:\n{windows}\n\nBis zu 12 Fenster. Das erste treffende Fenster gilt.",
+        "menu_options": {
+          "window_add": "Fenster hinzufügen",
+          "window_remove": "Fenster entfernen",
+          "windows_done": "Weiter"
+        }
+      },
+      "window_edit": {
+        "title": "Zeitfenster bearbeiten",
+        "description": "Name, Tage und Zeiten festlegen. Überlappungen am selben Wochentag werden abgelehnt.",
+        "data": {
+          "window_name": "Name",
+          "window_start": "Beginn",
+          "window_end": "Ende",
+          "window_price": "Preis",
+          "window_weekdays": "Wochentage"
+        },
+        "data_description": {
+          "window_name": "Erscheint im Tariflabel",
+          "window_start": "Lokale Startzeit",
+          "window_end": "Lokale Endzeit; früher als der Start überläuft Mitternacht",
+          "window_price": "Bruttopreis, solange dieses Fenster aktiv ist",
+          "window_weekdays": "Mindestens ein Wochentag ist erforderlich"
+        }
+      },
+      "window_remove": {
+        "title": "Zeitfenster entfernen",
+        "description": "Wähle das zu entfernende Fenster.",
+        "data": {
+          "window_name": "Fenster"
+        },
+        "data_description": {
+          "window_name": "Vorhandenes benanntes Fenster"
+        }
+      },
+      "windows_done": {
+        "title": "Standardpreis",
+        "description": "Stunden ohne treffendes Fenster nutzen diesen Bruttopreis.",
+        "data": {
+          "default_price": "Standardpreis"
+        },
+        "data_description": {
+          "default_price": "Gilt, wenn kein benanntes Fenster passt"
+        }
+      },
+      "tariff_csv_community": {
+        "title": "CSV-Gemeinschaftstarif",
+        "description": "Wähle den Live-Basistarif. CSV-Dateien werden später in den Optionen importiert.",
+        "data": {
+          "csv_base_mode": "Basistarif",
+          "eeg_price": "EEG-/Gemeinschaftspreis",
+          "csv_price_unit": "Preiseinheit",
+          "csv_timezone": "Zeitstempel"
+        },
+        "data_description": {
+          "csv_base_mode": "Gilt für Live-Stunden, bis ein CSV-Import angewendet wird",
+          "eeg_price": "Gemeinschaftspreis in ct/kWh",
+          "csv_price_unit": "Wie importierte Preise gelesen werden",
+          "csv_timezone": "Wie CSV-Zeitstempel ohne Offset gelesen werden"
+        }
+      },
+      "common": {
+        "title": "Schwelle, Batterie und Gebühren",
+        "description": "Diese Einstellungen gelten für jedes Tarifmodell. Einspeisevergütung und monatliche Grundgebühr starten bei neuen Anlagen mit 8,1 ct/kWh und 0 EUR.",
+        "data": {
+          "battery_power_sensor": "Batterie-Leistungssensor",
+          "feed_in_tariff_ct": "Einspeisevergütung",
+          "base_fee_eur_month": "Monatliche Grundgebühr"
+        },
+        "data_description": {
+          "battery_power_sensor": "Leistungssensor für Batterieladung aus dem Netz (optional)",
+          "feed_in_tariff_ct": "Einspeisevergütung in ct/kWh",
+          "base_fee_eur_month": "Monatlicher Grundpreis in EUR"
         }
       }
     },
     "error": {
-      "calibration_failed": "Kalibrierung fehlgeschlagen. Bitte geben Sie die Werte manuell ein.",
+      "calibration_failed": "Kalibrierung fehlgeschlagen. Bitte gib die Werte manuell ein.",
       "cannot_connect": "Verbindung zur aWATTar API nicht möglich",
-      "unknown": "Ein unbekannter Fehler ist aufgetreten"
+      "unknown": "Ein unbekannter Fehler ist aufgetreten",
+      "tariff_model_requires_license": "Dieses Tarifmodell erfordert eine Lizenz mit Tarifmodell-Berechtigung.",
+      "license_not_provided": "Gib einen EAI-Lizenzschlüssel ein.",
+      "license_valid": "Die Lizenz ist gültig.",
+      "license_invalid_format": "Das Lizenzformat ist ungültig.",
+      "license_invalid_signature": "Die Signatur ist ungültig.",
+      "license_wrong_product": "Die Lizenz gehört zu einem anderen Produkt.",
+      "license_unsupported_version": "Diese Lizenzversion wird nicht unterstützt.",
+      "license_unknown_key_id": "Der Signierschlüssel wird nicht erkannt.",
+      "license_not_yet_valid": "Die Lizenz ist noch nicht gültig.",
+      "license_expired": "Die Lizenz ist abgelaufen.",
+      "license_missing_entitlement": "Die EAI-Berechtigung fehlt.",
+      "license_validation_error": "Die Lizenz konnte nicht sicher geprüft werden.",
+      "windows_overlap": "Zeitfenster überlappen sich am selben Wochentag.",
+      "invalid_time_range": "Beginn und Ende müssen verschieden sein und Preise größer als 0.",
+      "csv_too_large": "Die CSV-Datei ist größer als 5 MB.",
+      "csv_too_many_rows": "Die CSV-Datei hat mehr als 100000 Zeilen.",
+      "csv_missing_header": "Die CSV-Datei braucht eine Kopfzeile.",
+      "csv_future_rejected": "Die CSV enthält Stunden mehr als zwei Tage in der Zukunft.",
+      "csv_no_hours": "Es wurden keine nutzbaren Stundenwerte gefunden.",
+      "csv_invalid_mapping": "Die Spaltenzuordnung ist für dieses Profil unvollständig.",
+      "csv_decode_failed": "Die CSV-Datei konnte nicht gelesen werden.",
+      "csv_license_required": "CSV-Import erfordert eine Lizenz mit CSV-Berechtigung.",
+      "csv_not_ready": "Solar Forecast GPM ist für den CSV-Import noch nicht bereit.",
+      "csv_path_not_allowed": "Der Dateipfad ist nicht erlaubt. Verwende einen Pfad unter /config.",
+      "correction_license_required": "Die Monatskorrektur braucht eine Lizenz mit Korrektur-Berechtigung.",
+      "correction_not_ready": "Solar Forecast GPM ist für die Monatskorrektur noch nicht bereit.",
+      "correction_month_current": "Der laufende Monat kann nicht korrigiert werden.",
+      "correction_month_too_old": "Nur abgeschlossene Monate der letzten 24 Monate können korrigiert werden.",
+      "correction_invalid_billed": "Abgerechnete Energie und Betrag müssen größer als 0 sein.",
+      "correction_no_hours": "Für diesen Monat wurden keine GPM-History-Stunden gefunden.",
+      "correction_low_coverage": "Die Abdeckung beträgt {coverage} %. Aktiviere Force unter 50 %.",
+      "correction_verify_failed": "Die korrigierten Preise verfehlten das Rechnungsziel um {deviation} ct/kWh.",
+      "correction_not_found": "Diese Korrektur wurde nicht gefunden.",
+      "correction_not_applied": "Nur angewendete Korrekturen können rückgängig gemacht werden."
     },
     "abort": {
-      "already_configured": "Solar Forecast GPM ist bereits konfiguriert"
+      "already_configured": "Solar Forecast GPM ist bereits konfiguriert",
+      "reauth_successful": "Lizenz aktualisiert.",
+      "reauth_started": "Lizenzaktualisierung gestartet.",
+      "license_required": "Diese Funktion erfordert eine Lizenz.",
+      "not_available_yet": "Diese Funktion ist noch nicht verfügbar.",
+      "monthly_correction_applied": "{rows} Stunden für {month} korrigiert. Preisrevision ist {revision}. Restabweichung {deviation} ct/kWh.",
+      "correction_reverted": "Korrektur {id} rückgängig gemacht. Preisrevision ist {revision}."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Solar Forecast GPM Optionen",
-        "description": "Aktueller Markt: **{country}**\n\nPassen Sie Ihre Preiskonfiguration an. Um das Land zu ändern, verwenden Sie 'Neu konfigurieren'.",
+        "description": "Wähle, was du konfigurieren möchtest.",
+        "menu_options": {
+          "tariff": "Tarif und Preise",
+          "common": "Schwelle, Batterie und Gebühren",
+          "license": "Lizenz",
+          "csv_import": "CSV-Import",
+          "monthly_correction": "Monatskorrektur",
+          "corrections_manage": "Korrekturen verwalten"
+        }
+      },
+      "tariff": {
+        "title": "Tarif und Preise",
+        "description": "Aktueller Markt: **{country}**\n\nPasse deine Preiskonfiguration an. Um das Land zu ändern, verwende 'Neu konfigurieren'.",
         "data": {
           "vat_rate": "MwSt-Satz",
           "grid_fee": "Netzentgelt",
           "taxes_fees": "Steuern und Abgaben",
           "provider_markup": "Anbieter-Aufschlag",
-          "max_price": "Maximaler Preisschwellwert",
-          "battery_power_sensor": "Batterie-Leistungssensor",
-          "smart_charging_enabled": "Intelligentes Laden aktivieren",
-          "battery_capacity": "Akkukapazität",
-          "battery_soc_sensor": "Akku-Ladestand Sensor",
-          "max_soc": "Maximaler Ladezustand",
-          "min_soc": "Minimaler Ladezustand"
+          "battery_power_sensor": "Batterie-Leistungssensor"
         },
         "data_description": {
           "vat_rate": "MwSt-Satz auf den Börsenpreis",
-          "grid_fee": "Netznutzungsentgelte Ihres Netzbetreibers (ct/kWh, brutto)",
+          "grid_fee": "Netznutzungsentgelte deines Netzbetreibers (ct/kWh, brutto)",
           "taxes_fees": "Stromsteuer, EEG-Umlage, etc. (ct/kWh, brutto)",
-          "provider_markup": "Marge/Gewinn Ihres Stromanbieters (ct/kWh, brutto)",
-          "max_price": "Binärsensor schaltet EIN, wenn der Gesamtpreis unter diesem Wert liegt",
+          "provider_markup": "Marge/Gewinn deines Stromanbieters (ct/kWh, brutto)",
+          "battery_power_sensor": "Leistungssensor für Batterieladung aus dem Netz (optional)"
+        }
+      },
+      "license": {
+        "title": "Lizenz",
+        "description": "Gib den signierten EAI-Lizenzschlüssel ein. Die Prüfung erfolgt lokal und benötigt keine Internetverbindung.",
+        "data": {
+          "license_key": "EAI-Lizenzschlüssel"
+        },
+        "data_description": {
+          "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt. Bestehende Setups laufen weiter, wenn du abbrichst."
+        }
+      },
+      "license_detected": {
+        "title": "Lizenz",
+        "description": "Lizenz über Solar Forecast Energy AI erkannt (ID {license_id})."
+      },
+      "common": {
+        "title": "Schwelle, Batterie und Gebühren",
+        "description": "Diese Einstellungen gelten für jedes Tarifmodell. Einspeisevergütung und monatliche Grundgebühr starten bei neuen Anlagen mit 8,1 ct/kWh und 0 EUR.",
+        "data": {
+          "battery_power_sensor": "Batterie-Leistungssensor",
+          "feed_in_tariff_ct": "Einspeisevergütung",
+          "base_fee_eur_month": "Monatliche Grundgebühr"
+        },
+        "data_description": {
           "battery_power_sensor": "Leistungssensor für Batterieladung aus dem Netz (optional)",
-          "smart_charging_enabled": "Solar-Prognose nutzen um Netzladen zu optimieren (erfordert Solar Forecast ML)",
-          "battery_capacity": "Nutzbare Akkukapazität in kWh (z.B. 10.0)",
-          "battery_soc_sensor": "Sensor der den aktuellen Akku-Ladestand in % anzeigt",
-          "max_soc": "Maximaler Akku-Ladestand für Netzladen (Standard: 100%)",
-          "min_soc": "Minimaler Akku-Ladestand - Netz lädt mindestens bis hierhin (Standard: 10%)"
+          "feed_in_tariff_ct": "Einspeisevergütung in ct/kWh",
+          "base_fee_eur_month": "Monatlicher Grundpreis in EUR"
+        }
+      },
+      "csv_import": {
+        "title": "CSV-Import",
+        "description": "Lade eine Preisliste oder eine Gemeinschafts-CSV hoch. Die Verarbeitung bleibt auf diesem Home Assistant. Denselben Import findest du auf der GPM-Seite in STATS.",
+        "data": {
+          "csv_file": "CSV-Datei"
+        },
+        "data_description": {
+          "csv_file": "CSV- oder Textdatei, max. 5 MB"
+        }
+      },
+      "csv_map": {
+        "title": "Spaltenzuordnung",
+        "description": "Bestätige Profil, Einheit und Zeitzone und ordne die CSV-Spalten zu.",
+        "data": {
+          "profile": "Importprofil",
+          "price_unit": "Preiseinheit",
+          "timezone": "Zeitzone für Zeitstempel ohne Offset",
+          "timestamp_column": "Zeitstempel-Spalte",
+          "price_column": "Preis-Spalte",
+          "total_kwh_column": "Gesamt-kWh-Spalte",
+          "community_kwh_column": "Gemeinschafts-kWh-Spalte"
+        },
+        "data_description": {
+          "profile": "Preisliste (P1) oder Gemeinschaftsanteil (P2). Auto nutzt die Kopfzeile.",
+          "price_unit": "Wird in der Vorschau angezeigt; Auto nutzt eine Median-Heuristik",
+          "timezone": "Nur für Zeitstempel ohne Offset",
+          "timestamp_column": "Für jedes Profil erforderlich",
+          "price_column": "Für Preislisten-Importe erforderlich",
+          "total_kwh_column": "Für Gemeinschafts-Importe erforderlich",
+          "community_kwh_column": "Für Gemeinschafts-Importe erforderlich"
+        }
+      },
+      "csv_preview": {
+        "title": "CSV-Vorschau",
+        "description": "Zeitraum {range_from} – {range_to}, {row_count} Zeilen, Einheit {detected_unit}. Stunden mit Historie: {hours_matched}, neue Stunden: {hours_new}. Monatskorrekturen, die veraltet werden: {stale_months}. Anwenden schreibt nur Vergangenheit.",
+        "data": {
+          "confirm": "Import anwenden"
+        },
+        "data_description": {
+          "confirm": "Überschreibt passende Historie-Stunden und sichert Rohpreise für Undo"
+        }
+      },
+      "monthly_correction": {
+        "title": "Monatskorrektur",
+        "description": "Passe einen abgeschlossenen Monat so an, dass die GPM-Stundenpreise zur abgerechneten Energie und zum Betrag passen. Nur die letzten 24 abgeschlossenen Monate sind wählbar.",
+        "data": {
+          "month": "Monat",
+          "billed_kwh": "Abgerechnete Energie",
+          "billed_eur": "Abgerechneter Betrag",
+          "base_fee_eur": "Abzuziehende Grundgebühr",
+          "method": "Methode",
+          "weighting": "Gewichtung",
+          "force": "Unter 50 % Abdeckung trotzdem anwenden"
+        },
+        "data_description": {
+          "month": "Nur abgeschlossene Monate; der laufende Monat ist nicht wählbar",
+          "billed_kwh": "Energie aus der Lieferantenrechnung in kWh",
+          "billed_eur": "Betrag aus der Lieferantenrechnung in EUR",
+          "base_fee_eur": "Optionale Grundgebühr, die vor dem Zielpreis abgezogen wird",
+          "method": "Additiv ist der Standard; multiplikativ skaliert jede Stunde",
+          "weighting": "Verbrauch nutzt den STATS-Netzbezug je Stunde; sonst gleiche Stunden",
+          "force": "Nötig, wenn weniger als die Hälfte der Monatsstunden in der GPM-History liegt"
+        }
+      },
+      "monthly_correction_preview": {
+        "title": "Vorschau Monatskorrektur",
+        "description": "Monat {month}: Mittel {mean_price} ct/kWh, Ziel {target_price} ct/kWh, Delta {delta}, Faktor {factor}. Abdeckung {coverage_percent} %, Energieabweichung {energy_deviation_percent} %, Stunden {hours}. Rückfall {fallback_reason}. Energiewarnung {energy_warning}.",
+        "data": {
+          "confirm": "Korrektur anwenden"
+        },
+        "data_description": {
+          "confirm": "Schreibt nur Vergangenheit, sichert Rohpreise für Undo und erhöht die Preisrevision"
+        }
+      },
+      "corrections_manage": {
+        "title": "Korrekturen verwalten",
+        "description": "Setze eine angewendete CSV- oder Monatskorrektur zurück. Rohpreise und die Ursprungsquelle werden wiederhergestellt.",
+        "data": {
+          "correction_id": "Korrektur",
+          "confirm_revert": "Ausgewählte Korrektur rückgängig machen"
+        },
+        "data_description": {
+          "correction_id": "Nur angewendete Korrekturen können rückgängig gemacht werden",
+          "confirm_revert": "Setzt total_price aus total_price_raw zurück und löscht die Korrektur-ID"
         }
       }
     },
     "error": {
-      "invalid_max_price": "Maximaler Preis muss größer als 0 sein"
+      "invalid_max_price": "Maximaler Preis muss größer als 0 sein",
+      "tariff_model_requires_license": "Dieses Tarifmodell erfordert eine Lizenz mit Tarifmodell-Berechtigung.",
+      "license_not_provided": "Gib einen EAI-Lizenzschlüssel ein.",
+      "license_valid": "Die Lizenz ist gültig.",
+      "license_invalid_format": "Das Lizenzformat ist ungültig.",
+      "license_invalid_signature": "Die Signatur ist ungültig.",
+      "license_wrong_product": "Die Lizenz gehört zu einem anderen Produkt.",
+      "license_unsupported_version": "Diese Lizenzversion wird nicht unterstützt.",
+      "license_unknown_key_id": "Der Signierschlüssel wird nicht erkannt.",
+      "license_not_yet_valid": "Die Lizenz ist noch nicht gültig.",
+      "license_expired": "Die Lizenz ist abgelaufen.",
+      "license_missing_entitlement": "Die EAI-Berechtigung fehlt.",
+      "license_validation_error": "Die Lizenz konnte nicht sicher geprüft werden.",
+      "windows_overlap": "Zeitfenster überlappen sich am selben Wochentag.",
+      "invalid_time_range": "Beginn und Ende müssen verschieden sein und Preise größer als 0.",
+      "csv_too_large": "Die CSV-Datei ist größer als 5 MB.",
+      "csv_too_many_rows": "Die CSV-Datei hat mehr als 100000 Zeilen.",
+      "csv_missing_header": "Die CSV-Datei braucht eine Kopfzeile.",
+      "csv_future_rejected": "Die CSV enthält Stunden mehr als zwei Tage in der Zukunft.",
+      "csv_no_hours": "Es wurden keine nutzbaren Stundenwerte gefunden.",
+      "csv_invalid_mapping": "Die Spaltenzuordnung ist für dieses Profil unvollständig.",
+      "csv_decode_failed": "Die CSV-Datei konnte nicht gelesen werden.",
+      "csv_license_required": "CSV-Import erfordert eine Lizenz mit CSV-Berechtigung.",
+      "csv_not_ready": "Solar Forecast GPM ist für den CSV-Import noch nicht bereit.",
+      "csv_path_not_allowed": "Der Dateipfad ist nicht erlaubt. Verwende einen Pfad unter /config.",
+      "correction_license_required": "Die Monatskorrektur braucht eine Lizenz mit Korrektur-Berechtigung.",
+      "correction_not_ready": "Solar Forecast GPM ist für die Monatskorrektur noch nicht bereit.",
+      "correction_month_current": "Der laufende Monat kann nicht korrigiert werden.",
+      "correction_month_too_old": "Nur abgeschlossene Monate der letzten 24 Monate können korrigiert werden.",
+      "correction_invalid_billed": "Abgerechnete Energie und Betrag müssen größer als 0 sein.",
+      "correction_no_hours": "Für diesen Monat wurden keine GPM-History-Stunden gefunden.",
+      "correction_low_coverage": "Die Abdeckung beträgt {coverage} %. Aktiviere Force unter 50 %.",
+      "correction_verify_failed": "Die korrigierten Preise verfehlten das Rechnungsziel um {deviation} ct/kWh.",
+      "correction_not_found": "Diese Korrektur wurde nicht gefunden.",
+      "correction_not_applied": "Nur angewendete Korrekturen können rückgängig gemacht werden."
+    },
+    "abort": {
+      "license_required": "Diese Funktion erfordert eine Lizenz.",
+      "reauth_successful": "Lizenz aktualisiert.",
+      "reauth_started": "Lizenzaktualisierung gestartet.",
+      "not_available_yet": "Diese Funktion ist noch nicht verfügbar.",
+      "csv_import_applied": "Importiert: {rows} Stunden. Preisrevision ist {revision}. Veraltete Monatskorrekturen: {stale_months}.",
+      "monthly_correction_applied": "{rows} Stunden für {month} korrigiert. Preisrevision ist {revision}. Restabweichung {deviation} ct/kWh.",
+      "correction_reverted": "Korrektur {id} rückgängig gemacht. Preisrevision ist {revision}."
+    }
+  },
+  "issues": {
+    "license_recommended": {
+      "title": "Lizenz empfohlen",
+      "description": "Deine Solar-Forecast-Lizenz schaltet GPM vollständig frei. Ohne Lizenz läuft der bisherige Umfang weiter.",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Lizenzschlüssel hinterlegen",
+            "description": "Damit öffnet sich das Lizenzformular. Diese Empfehlung kannst du ignorieren."
+          }
+        }
+      }
     }
   },
   "entity": {
@@ -136,15 +458,6 @@
       },
       "battery_charged_month": {
         "name": "Batterie geladen Monat"
-      },
-      "smart_charging_target_soc": {
-        "name": "Intelligentes Laden Ziel-SoC"
-      },
-      "solar_forecast_today": {
-        "name": "Solar-Prognose heute"
-      },
-      "solar_forecast_tomorrow": {
-        "name": "Solar-Prognose morgen"
       }
     },
     "binary_sensor": {
@@ -154,14 +467,149 @@
           "on": "Günstig",
           "off": "Teuer"
         }
+      }
+    },
+    "number": {
+      "cheap_price": {
+        "name": "Günstig-Schwelle"
       },
-      "smart_charging": {
-        "name": "Intelligentes Laden",
+      "force_charge_price": {
+        "name": "Force-Ladepreis"
+      },
+      "below_average_pct": {
+        "name": "Prozent unter Durchschnitt"
+      },
+      "cheapest_hours": {
+        "name": "Günstigste Stunden"
+      }
+    },
+    "select": {
+      "threshold_mode": {
+        "name": "Schwellenmodus",
         "state": {
-          "on": "Laden aktiv",
-          "off": "Laden gestoppt"
+          "absolute": "Absolut",
+          "below_average": "Unter Durchschnitt",
+          "cheapest_hours": "Günstigste Stunden"
         }
       }
+    }
+  },
+  "selector": {
+    "tariff_mode": {
+      "options": {
+        "dynamic": "Dynamisch (aWATTar)",
+        "fixed": "Fixpreis",
+        "time_of_use": "HT/NT",
+        "time_windows": "Zeitfenster",
+        "csv_community": "Gemeinschafts-CSV + Basistarif"
+      }
+    },
+    "csv_base_mode": {
+      "options": {
+        "dynamic": "Dynamisch (aWATTar)",
+        "fixed": "Fixpreis",
+        "time_of_use": "HT/NT",
+        "time_windows": "Zeitfenster"
+      }
+    },
+    "csv_price_unit": {
+      "options": {
+        "auto": "Automatisch erkennen",
+        "ct_kwh": "ct/kWh",
+        "eur_kwh": "EUR/kWh",
+        "eur_mwh": "EUR/MWh"
+      }
+    },
+    "csv_timezone": {
+      "options": {
+        "local": "Ortszeit",
+        "utc": "UTC"
+      }
+    },
+    "weekday": {
+      "options": {
+        "0": "Montag",
+        "1": "Dienstag",
+        "2": "Mittwoch",
+        "3": "Donnerstag",
+        "4": "Freitag",
+        "5": "Samstag",
+        "6": "Sonntag"
+      }
+    },
+    "correction_method": {
+      "options": {
+        "additive": "Additiv",
+        "multiplicative": "Multiplikativ"
+      }
+    },
+    "correction_weighting": {
+      "options": {
+        "consumption": "Verbrauch",
+        "uniform": "Gleichmäßig"
+      }
+    }
+  },
+  "exceptions": {
+    "csv_too_large": {
+      "message": "Die CSV-Datei ist größer als 5 MB."
+    },
+    "csv_too_many_rows": {
+      "message": "Die CSV-Datei hat mehr als 100000 Zeilen."
+    },
+    "csv_missing_header": {
+      "message": "Die CSV-Datei braucht eine Kopfzeile."
+    },
+    "csv_future_rejected": {
+      "message": "Die CSV enthält Stunden mehr als zwei Tage in der Zukunft."
+    },
+    "csv_no_hours": {
+      "message": "Es wurden keine nutzbaren Stundenwerte gefunden."
+    },
+    "csv_invalid_mapping": {
+      "message": "Die Spaltenzuordnung ist für dieses Profil unvollständig."
+    },
+    "csv_decode_failed": {
+      "message": "Die CSV-Datei konnte nicht gelesen werden."
+    },
+    "csv_license_required": {
+      "message": "CSV-Import erfordert eine Lizenz mit CSV-Berechtigung."
+    },
+    "csv_not_ready": {
+      "message": "Solar Forecast GPM ist für den CSV-Import noch nicht bereit."
+    },
+    "csv_path_not_allowed": {
+      "message": "Der Dateipfad ist nicht erlaubt. Verwende einen Pfad unter /config."
+    },
+    "correction_license_required": {
+      "message": "Die Monatskorrektur braucht eine Lizenz mit Korrektur-Berechtigung."
+    },
+    "correction_not_ready": {
+      "message": "Solar Forecast GPM ist für die Monatskorrektur noch nicht bereit."
+    },
+    "correction_month_current": {
+      "message": "Der laufende Monat kann nicht korrigiert werden."
+    },
+    "correction_month_too_old": {
+      "message": "Nur abgeschlossene Monate der letzten 24 Monate können korrigiert werden."
+    },
+    "correction_invalid_billed": {
+      "message": "Abgerechnete Energie und Betrag müssen größer als 0 sein."
+    },
+    "correction_no_hours": {
+      "message": "Für diesen Monat wurden keine GPM-History-Stunden gefunden."
+    },
+    "correction_low_coverage": {
+      "message": "Die Abdeckung beträgt {coverage} %. Aktiviere Force unter 50 %."
+    },
+    "correction_verify_failed": {
+      "message": "Die korrigierten Preise verfehlten das Rechnungsziel um {deviation} ct/kWh."
+    },
+    "correction_not_found": {
+      "message": "Diese Korrektur wurde nicht gefunden."
+    },
+    "correction_not_applied": {
+      "message": "Nur angewendete Korrekturen können rückgängig gemacht werden."
     }
   }
 }

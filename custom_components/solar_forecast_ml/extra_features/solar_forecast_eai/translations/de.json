@@ -17,12 +17,14 @@
         "data": {
           "heat_pump_enabled": "Wärmepumpen-Intelligenz verwenden",
           "wallbox_enabled": "E-Mobilitäts-Intelligenz verwenden",
-          "weather_intelligence_enabled": "Weather-Fusion-Intelligenz verwenden"
+          "weather_intelligence_enabled": "Weather-Fusion-Intelligenz verwenden",
+          "grid_price_enabled": "Strompreis-Intelligenz (GPM) verwenden"
         },
         "data_description": {
           "heat_pump_enabled": "Richtet Wärmepumpen-, Gebäude- und Thermikanalysen ein.",
           "wallbox_enabled": "Richtet passive Ladeempfehlungen für Wallbox oder Fahrzeug ein.",
-          "weather_intelligence_enabled": "Wertet eine installierte Weather-Fusion-AI-Prognose, lokale Messungen und Wetterrisiken aus."
+          "weather_intelligence_enabled": "Wertet eine installierte Weather-Fusion-AI-Prognose, lokale Messungen und Wetterrisiken aus.",
+          "grid_price_enabled": "Der dynamische Tarif läuft weiter. Aus schaltet nur die Premium-Gates: Tarifmodelle, CSV-Import und Monatskorrekturen."
         }
       },
       "sensor_sources": {
@@ -396,12 +398,14 @@
         "data": {
           "heat_pump_enabled": "Wärmepumpen-Intelligenz verwenden",
           "wallbox_enabled": "E-Mobilitäts-Intelligenz verwenden",
-          "weather_intelligence_enabled": "Weather-Fusion-Intelligenz verwenden"
+          "weather_intelligence_enabled": "Weather-Fusion-Intelligenz verwenden",
+          "grid_price_enabled": "Strompreis-Intelligenz (GPM) verwenden"
         },
         "data_description": {
           "heat_pump_enabled": "Aktiviert Wärmepumpen- und Gebäudeanalysen.",
           "wallbox_enabled": "Aktiviert Wallbox- und Fahrzeugempfehlungen.",
-          "weather_intelligence_enabled": "Aktiviert WFAI-Prognoseauswertung und Wetterrisiken."
+          "weather_intelligence_enabled": "Aktiviert WFAI-Prognoseauswertung und Wetterrisiken.",
+          "grid_price_enabled": "Der dynamische Tarif läuft weiter. Aus schaltet nur die Premium-Gates: Tarifmodelle, CSV-Import und Monatskorrekturen."
         }
       },
       "sensor_sources": {

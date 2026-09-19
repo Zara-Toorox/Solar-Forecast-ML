@@ -15,10 +15,255 @@ const SmartChargingPage = ((Vue) => {
 
     const _SmartChargingPage = {
         props: ['liveData', 'config'],
+        emits: ['navigate'],
         template: `
             <div class="page page-smart-charging">
                 <div class="section-header">
                     <h2 class="section-title">{{ $t('nav.smartCharging') }}</h2>
+                    <span v-if="gpmMeta.is_demo" class="sc-demo-badge">{{ $t('smart_charging.status.demoBadge') }}</span>
+                </div>
+
+                <div class="chart-card sc-status-card" style="margin-bottom: var(--space-lg);">
+                    <p class="sc-status-line">{{ statusPowerLine }}</p>
+                    <p class="sc-status-line">{{ statusBatteryLine }}</p>
+                    <p class="sc-status-reserved" v-if="statusReservedLine">{{ statusReservedLine }}</p>
+                    <button type="button" class="sc-status-month" v-if="monthlyCostsLine" @click="$emit('navigate', 'gpm')">{{ monthlyCostsLine }}</button>
+                </div>
+
+                <div class="chart-card sc-setup-card" style="margin-bottom: var(--space-lg);" v-if="setupCheckItems.length">
+                    <div class="chart-header">
+                        <span class="chart-title">{{ $t('smart_charging.setup.title') }}</span>
+                    </div>
+                    <div class="sc-setup-item" v-for="item in setupCheckItems" :key="item.id" :class="'sc-setup-' + item.level">
+                        {{ item.text }}
+                    </div>
+                </div>
+                <p class="sc-setup-ok" v-else-if="settingsLoaded">{{ $t('smart_charging.setup.allOk') }}</p>
+
+                <div class="chart-card sc-settings-card" style="margin-bottom: var(--space-lg);" v-show="gpmCardVisible">
+                    <div class="chart-header">
+                        <span class="chart-title">{{ $t('smart_charging.thresholdsTitle') }}</span>
+                    </div>
+                    <p v-if="settingsError" class="sc-settings-error">{{ settingsError }}</p>
+                    <p class="sc-intro">{{ $t('smart_charging.help.thresholdsIntro') }}</p>
+                    <p v-if="isFixedTariff" class="sc-help">{{ $t('smart_charging.help.fixedTariff') }}</p>
+                    <div class="sc-control">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.modeLabel') }}</label>
+                        </div>
+                        <select :value="thresholdMode" @change="onThresholdModeChange($event.target.value)">
+                            <option value="absolute">{{ $t('smart_charging.thresholdModeAbsolute') }}</option>
+                            <option value="below_average">{{ $t('smart_charging.thresholdModeBelowAverage') }}</option>
+                            <option value="cheapest_hours">{{ $t('smart_charging.thresholdModeCheapestHours') }}</option>
+                        </select>
+                        <p class="sc-help">{{ thresholdModeHelp }}</p>
+                        <p v-if="fieldError('threshold_mode')" class="sc-settings-error">{{ fieldError('threshold_mode') }}</p>
+                    </div>
+                    <div class="sc-control">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.cheapThreshold') }}</label>
+                            <span class="sc-number-wrap">
+                                <input class="sc-number" type="number"
+                                    :min="limitValue('max_price', 'min', 0)"
+                                    :max="limitValue('max_price', 'max', 100)"
+                                    :step="limitValue('max_price', 'step', 0.5)"
+                                    v-model.number="settingsData.thresholds.max_price"
+                                    @blur="commitThreshold('max_price')"
+                                    @keyup.enter="commitThreshold('max_price')" />
+                                <span class="sc-number-unit">ct/kWh</span>
+                            </span>
+                        </div>
+                        <input class="sc-slider" type="range"
+                            :min="limitValue('max_price', 'min', 0)"
+                            :max="limitValue('max_price', 'max', 100)"
+                            :step="limitValue('max_price', 'step', 0.5)"
+                            v-model.number="settingsData.thresholds.max_price"
+                            @input="onThresholdInput('max_price')" />
+                        <p class="sc-help">{{ $t('smart_charging.help.cheapThreshold') }}</p>
+                        <p v-if="fieldError('max_price')" class="sc-settings-error">{{ fieldError('max_price') }}</p>
+                    </div>
+                    <div class="sc-control">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.forceThreshold') }}</label>
+                            <span class="sc-number-wrap">
+                                <input class="sc-number" type="number"
+                                    :min="limitValue('force_charge_price', 'min', 0)"
+                                    :max="limitValue('force_charge_price', 'max', 100)"
+                                    :step="limitValue('force_charge_price', 'step', 0.5)"
+                                    v-model.number="settingsData.thresholds.force_charge_price"
+                                    @blur="commitThreshold('force_charge_price')"
+                                    @keyup.enter="commitThreshold('force_charge_price')" />
+                                <span class="sc-number-unit">ct/kWh</span>
+                            </span>
+                        </div>
+                        <input class="sc-slider" type="range"
+                            :min="limitValue('force_charge_price', 'min', 0)"
+                            :max="limitValue('force_charge_price', 'max', 100)"
+                            :step="limitValue('force_charge_price', 'step', 0.5)"
+                            v-model.number="settingsData.thresholds.force_charge_price"
+                            @input="onThresholdInput('force_charge_price')" />
+                        <p class="sc-help">{{ $t('smart_charging.help.forceThreshold') }}</p>
+                        <p v-if="fieldError('force_charge_price')" class="sc-settings-error">{{ fieldError('force_charge_price') }}</p>
+                    </div>
+                    <div class="sc-control" v-show="thresholdMode === 'below_average'">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.belowAveragePct') }}</label>
+                            <span class="sc-number-wrap">
+                                <input class="sc-number" type="number"
+                                    :min="limitValue('below_average_pct', 'min', 0)"
+                                    :max="limitValue('below_average_pct', 'max', 50)"
+                                    :step="limitValue('below_average_pct', 'step', 1)"
+                                    v-model.number="settingsData.thresholds.below_average_pct"
+                                    @blur="commitThreshold('below_average_pct')"
+                                    @keyup.enter="commitThreshold('below_average_pct')" />
+                                <span class="sc-number-unit">%</span>
+                            </span>
+                        </div>
+                        <input class="sc-slider" type="range"
+                            :min="limitValue('below_average_pct', 'min', 0)"
+                            :max="limitValue('below_average_pct', 'max', 50)"
+                            :step="limitValue('below_average_pct', 'step', 1)"
+                            v-model.number="settingsData.thresholds.below_average_pct"
+                            @input="onThresholdInput('below_average_pct')" />
+                        <p class="sc-help">{{ $t('smart_charging.help.belowAveragePct') }}</p>
+                        <p v-if="fieldError('below_average_pct')" class="sc-settings-error">{{ fieldError('below_average_pct') }}</p>
+                    </div>
+                    <div class="sc-control" v-show="thresholdMode === 'cheapest_hours'">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.cheapestHours') }}</label>
+                            <span class="sc-number-wrap">
+                                <input class="sc-number" type="number"
+                                    :min="limitValue('cheapest_hours', 'min', 1)"
+                                    :max="limitValue('cheapest_hours', 'max', 12)"
+                                    :step="limitValue('cheapest_hours', 'step', 1)"
+                                    v-model.number="settingsData.thresholds.cheapest_hours"
+                                    @blur="commitThreshold('cheapest_hours')"
+                                    @keyup.enter="commitThreshold('cheapest_hours')" />
+                                <span class="sc-number-unit">h</span>
+                            </span>
+                        </div>
+                        <input class="sc-slider" type="range"
+                            :min="limitValue('cheapest_hours', 'min', 1)"
+                            :max="limitValue('cheapest_hours', 'max', 12)"
+                            :step="limitValue('cheapest_hours', 'step', 1)"
+                            v-model.number="settingsData.thresholds.cheapest_hours"
+                            @input="onThresholdInput('cheapest_hours')" />
+                        <p class="sc-help">{{ $t('smart_charging.help.cheapestHours') }}</p>
+                        <p v-if="fieldError('cheapest_hours')" class="sc-settings-error">{{ fieldError('cheapest_hours') }}</p>
+                    </div>
+                    <div class="sc-cheap-hours">
+                        <div class="sc-cheap-hours-row">
+                            <span>{{ $t('smart_charging.cheapHoursToday') }}</span>
+                            <span>{{ cheapHoursTodayLabel }}</span>
+                        </div>
+                        <div class="sc-cheap-hours-row">
+                            <span>{{ $t('smart_charging.cheapHoursTomorrow') }}</span>
+                            <span>{{ cheapHoursTomorrowLabel }}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="chart-card sc-settings-card" style="margin-bottom: var(--space-lg);" v-show="!gpmCardVisible">
+                    <div class="chart-header">
+                        <span class="chart-title">{{ $t('smart_charging.thresholdsTitle') }}</span>
+                    </div>
+                    <p class="sc-help">{{ $t('smart_charging.help.gpmHidden') }}</p>
+                </div>
+                <div class="chart-card sc-settings-card" style="margin-bottom: var(--space-lg);">
+                    <div class="chart-header">
+                        <span class="chart-title">{{ $t('smart_charging.batteryTitle') }}</span>
+                    </div>
+                    <p class="sc-intro">{{ $t('smart_charging.help.batteryIntro') }}</p>
+                    <label class="sc-control sc-switch">
+                        <input type="checkbox" :checked="!!settingsData.enabled" @change="onEnabledChange($event.target.checked)" />
+                        {{ $t('smart_charging.enabled') }}
+                    </label>
+                    <p class="sc-help">{{ $t('smart_charging.help.enabled') }}</p>
+                    <p v-if="fieldError('smart_charging_enabled')" class="sc-settings-error">{{ fieldError('smart_charging_enabled') }}</p>
+                    <div class="sc-control">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.modeLabel') }}</label>
+                        </div>
+                        <select :value="settingsData.mode" @change="onModeChange($event.target.value)">
+                            <option value="forecast">{{ $t('smart_charging.modeForecast') }}</option>
+                            <option value="price_band_soc">{{ $t('smart_charging.modeBand') }}</option>
+                            <option value="combined">{{ $t('smart_charging.modeCombined') }}</option>
+                        </select>
+                        <p class="sc-help">{{ chargingModeHelp }}</p>
+                        <p v-if="fieldError('smart_charging_mode')" class="sc-settings-error">{{ fieldError('smart_charging_mode') }}</p>
+                    </div>
+                    <div class="sc-control" v-show="showTargetSoc">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.settingsTargetSoc') }}</label>
+                            <span class="sc-number-wrap">
+                                <input class="sc-number" type="number"
+                                    :min="limitValue('target_soc', 'min', 10)"
+                                    :max="limitValue('target_soc', 'max', 100)"
+                                    :step="limitValue('target_soc', 'step', 1)"
+                                    v-model.number="settingsData.target_soc"
+                                    @blur="commitSoc('target_soc')"
+                                    @keyup.enter="commitSoc('target_soc')" />
+                                <span class="sc-number-unit">%</span>
+                            </span>
+                        </div>
+                        <input class="sc-slider" type="range"
+                            :min="limitValue('target_soc', 'min', 10)"
+                            :max="limitValue('target_soc', 'max', 100)"
+                            :step="limitValue('target_soc', 'step', 1)"
+                            v-model.number="settingsData.target_soc"
+                            @input="onSocInput('target_soc')" />
+                        <p class="sc-help">{{ $t('smart_charging.help.targetSoc') }}</p>
+                        <p v-if="fieldError('target_soc')" class="sc-settings-error">{{ fieldError('target_soc') }}</p>
+                    </div>
+                    <div class="sc-control">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.settingsMinSoc') }}</label>
+                            <span class="sc-number-wrap">
+                                <input class="sc-number" type="number"
+                                    :min="limitValue('min_soc', 'min', 0)"
+                                    :max="limitValue('min_soc', 'max', 80)"
+                                    :step="limitValue('min_soc', 'step', 1)"
+                                    v-model.number="settingsData.min_soc"
+                                    @blur="commitSoc('min_soc')"
+                                    @keyup.enter="commitSoc('min_soc')" />
+                                <span class="sc-number-unit">%</span>
+                            </span>
+                        </div>
+                        <input class="sc-slider" type="range"
+                            :min="limitValue('min_soc', 'min', 0)"
+                            :max="limitValue('min_soc', 'max', 80)"
+                            :step="limitValue('min_soc', 'step', 1)"
+                            v-model.number="settingsData.min_soc"
+                            @input="onSocInput('min_soc')" />
+                        <p class="sc-help">{{ $t('smart_charging.help.minSoc') }}</p>
+                        <p v-if="fieldError('min_soc')" class="sc-settings-error">{{ fieldError('min_soc') }}</p>
+                    </div>
+                    <div class="sc-control">
+                        <div class="sc-control-head">
+                            <label>{{ $t('smart_charging.settingsMaxSoc') }}</label>
+                            <span class="sc-number-wrap">
+                                <input class="sc-number" type="number"
+                                    :min="limitValue('max_soc', 'min', 20)"
+                                    :max="limitValue('max_soc', 'max', 100)"
+                                    :step="limitValue('max_soc', 'step', 1)"
+                                    v-model.number="settingsData.max_soc"
+                                    @blur="commitSoc('max_soc')"
+                                    @keyup.enter="commitSoc('max_soc')" />
+                                <span class="sc-number-unit">%</span>
+                            </span>
+                        </div>
+                        <input class="sc-slider" type="range"
+                            :min="limitValue('max_soc', 'min', 20)"
+                            :max="limitValue('max_soc', 'max', 100)"
+                            :step="limitValue('max_soc', 'step', 1)"
+                            v-model.number="settingsData.max_soc"
+                            @input="onSocInput('max_soc')" />
+                        <p class="sc-help">{{ $t('smart_charging.help.maxSoc') }}</p>
+                        <p v-if="fieldError('max_soc')" class="sc-settings-error">{{ fieldError('max_soc') }}</p>
+                    </div>
+                    <p v-if="!plantData.battery_capacity_kwh" class="sc-settings-error">
+                        {{ $t('smart_charging.batteryCapacityMissing') }}
+                    </p>
+                    <p class="sc-plant-line">{{ plantLine }}</p>
                 </div>
 
                 <!-- 1. LIVE STATUS PANEL -->
@@ -199,6 +444,7 @@ const SmartChargingPage = ((Vue) => {
                         <span class="chart-title">📈 {{ $t('smart_charging.chartTitle') }}</span>
                         <span style="font-size: 0.75rem; color: var(--text-muted);">{{ $t('smart_charging.chartSubtitle') }}</span>
                     </div>
+                    <p v-if="chartThresholdsUnavailable" class="sc-help">{{ $t('smart_charging.chartNoThresholds') }}</p>
                     <div class="sc-chart-target" style="height: 350px; width: 100%;"></div>
                 </div>
 
@@ -339,9 +585,46 @@ const SmartChargingPage = ((Vue) => {
                 live: null,
                 kpis: null,
                 history: null,
+                gpm: {},
+                chart_plan: null,
             });
 
             const selectedPeriod = ref('today');
+            const settingsData = reactive({
+                enabled: false,
+                mode: 'forecast',
+                target_soc: 80,
+                min_soc: 10,
+                max_soc: 100,
+                max_charge_power_kw: 0,
+                inverter_nominal_power_kw: 0,
+                thresholds: {
+                    mode: 'absolute',
+                    max_price: 0,
+                    force_charge_price: 0,
+                    below_average_pct: 0,
+                    cheapest_hours: 1,
+                },
+            });
+            const settingsLimits = ref({});
+            const plantData = reactive({
+                battery_capacity_kwh: null,
+                max_charge_power_kw: 0,
+                inverter_nominal_power_kw: 0,
+                charge_switch_configured: false,
+            });
+            const gpmMeta = reactive({
+                available: false,
+                is_demo: false,
+                tariff_mode: null,
+            });
+            const gpmCheapHours = reactive({ today: [], tomorrow: [] });
+            const gpmTomorrowAvailable = ref(false);
+            const monthlyCostsLine = ref('');
+            const settingsLoaded = ref(false);
+            const settingsError = ref('');
+            const settingsFieldErrors = reactive({});
+            let debounceTimer = null;
             const periods = computed(() => [
                 { id: 'today',  label: t('common.today') },
                 { id: 'week',   label: t('common.thisWeek') },
@@ -374,6 +657,61 @@ const SmartChargingPage = ((Vue) => {
                 return dashboardData.live.active ? t('smart_charging.statusActive') : t('smart_charging.statusStandby');
             });
 
+            const thresholdMode = computed(() => {
+                const mode = settingsData.thresholds && settingsData.thresholds.mode;
+                return mode || 'absolute';
+            });
+            const showTargetSoc = computed(() => {
+                return settingsData.mode === 'price_band_soc' || settingsData.mode === 'combined';
+            });
+            const gpmCardVisible = computed(() => {
+                return Boolean(gpmMeta.available) && !gpmMeta.is_demo;
+            });
+            const isFixedTariff = computed(() => gpmMeta.tariff_mode === 'fixed');
+            const chartThresholdsUnavailable = computed(() => {
+                const source = dashboardData.chart_plan && dashboardData.chart_plan.source;
+                return source === 'unavailable';
+            });
+            function formatCheapHourList(hours) {
+                if (!Array.isArray(hours) || !hours.length) return '—';
+                return hours.map((hour) => String(hour).padStart(2, '0') + ':00').join(', ');
+            }
+            const cheapHoursTodayLabel = computed(() => formatCheapHourList(gpmCheapHours.today));
+            const cheapHoursTomorrowLabel = computed(() => {
+                if (!gpmTomorrowAvailable.value) {
+                    return t('smart_charging.cheapHoursTomorrowMissing');
+                }
+                return formatCheapHourList(gpmCheapHours.tomorrow);
+            });
+            const thresholdModeHelp = computed(() => {
+                if (thresholdMode.value === 'below_average') {
+                    return t('smart_charging.modes.thresholdBelowAverage');
+                }
+                if (thresholdMode.value === 'cheapest_hours') {
+                    return t('smart_charging.modes.thresholdCheapestHours');
+                }
+                return t('smart_charging.modes.thresholdAbsolute');
+            });
+            const chargingModeHelp = computed(() => {
+                if (settingsData.mode === 'price_band_soc') {
+                    return t('smart_charging.modes.chargingBand');
+                }
+                if (settingsData.mode === 'combined') {
+                    return t('smart_charging.modes.chargingCombined');
+                }
+                return t('smart_charging.modes.chargingForecast');
+            });
+            const plantLine = computed(() => {
+                const capacity = plantData.battery_capacity_kwh;
+                const capacityText = capacity
+                    ? formatPlantNumber(capacity, 'kWh')
+                    : t('smart_charging.capacityUnset');
+                return t('smart_charging.plantLine')
+                    .replace('{capacity}', capacityText)
+                    .replace('{charge}', formatPower(plantData.max_charge_power_kw))
+                    .replace('{inverter}', formatPower(plantData.inverter_nominal_power_kw));
+            });
+
             const translatedReason = computed(() => {
                 if (!dashboardData.live) return '--';
                 if (!dashboardData.live.enabled) return t('smart_charging.reasonDisabled');
@@ -384,6 +722,65 @@ const SmartChargingPage = ((Vue) => {
                 const reasonKey = `smart_charging.reasons.${reason}`;
                 const translation = t(reasonKey);
                 return translation !== reasonKey ? translation : reason;
+            });
+
+            function shortReasonText(code) {
+                if (!code) return t('smart_charging.status.reason.unknown');
+                const key = `smart_charging.status.reason.${code}`;
+                const text = t(key);
+                if (text !== key) return text;
+                return t('smart_charging.status.unknownReason').replace('{code}', String(code));
+            }
+
+            const statusPowerLine = computed(() => {
+                if (gpmMeta.is_demo) return t('smart_charging.status.powerDemo');
+                const dashGpm = dashboardData.gpm || {};
+                const gpmOk = Boolean(gpmMeta.available || dashGpm.available);
+                if (!gpmOk) return t('smart_charging.status.powerNoGpm');
+                const live = dashboardData.live || {};
+                if (live.is_cheap === true) {
+                    if (live.is_force_price) {
+                        return t('smart_charging.status.powerCheap') + ' ' + t('smart_charging.status.powerVeryCheap');
+                    }
+                    return t('smart_charging.status.powerCheap');
+                }
+                return t('smart_charging.status.powerNotCheap');
+            });
+
+            const statusBatteryLine = computed(() => {
+                const live = dashboardData.live || {};
+                if (!live.enabled) return t('smart_charging.status.batteryDisabled');
+                let battery;
+                if (live.decision === 'load') battery = t('smart_charging.status.batteryLoad');
+                else if (live.decision === 'wait') battery = t('smart_charging.status.batteryWait');
+                else battery = t('smart_charging.status.batteryNotLoad');
+                return battery + t('smart_charging.status.because') + shortReasonText(live.reason);
+            });
+
+            const statusReservedLine = computed(() => {
+                const reserved = Number(dashboardData.live?.reserved_future_grid_charge_kwh || 0);
+                if (!(reserved > 0)) return '';
+                return t('smart_charging.status.reservedLater').replace('{kwh}', reserved.toFixed(1));
+            });
+
+            const setupCheckItems = computed(() => {
+                const items = [];
+                const capacity = plantData.battery_capacity_kwh;
+                if (capacity == null || Number(capacity) <= 0) {
+                    items.push({ id: 'capacity', level: 'red', text: t('smart_charging.setup.capacityMissing') });
+                }
+                if (!plantData.charge_switch_configured) {
+                    items.push({ id: 'switch', level: 'yellow', text: t('smart_charging.setup.switchMissing') });
+                }
+                if (gpmMeta.is_demo) {
+                    items.push({ id: 'gpm_demo', level: 'yellow', text: t('smart_charging.setup.gpmDemo') });
+                } else if (!gpmMeta.available) {
+                    items.push({ id: 'gpm', level: 'yellow', text: t('smart_charging.setup.gpmMissing') });
+                }
+                if (!settingsData.enabled) {
+                    items.push({ id: 'enabled', level: 'gray', text: t('smart_charging.setup.chargingOff') });
+                }
+                return items;
             });
 
             const planDecisionClass = computed(() => {
@@ -457,8 +854,10 @@ const SmartChargingPage = ((Vue) => {
                 const priceLegend = t('smart_charging.chartLegendPrice');
                 const chargingLegend = t('smart_charging.chartLegendCharging');
                 const solarLegend = t('smart_charging.chartLegendSolar');
+                const cheapLegend = t('smart_charging.chartLegendCheapHours');
 
                 const firstFutureIndex = data.findIndex(h => h.is_future);
+                const cheapFill = 'rgba(34, 197, 94, 0.14)';
                 const chartAreas = [];
                 if (firstFutureIndex >= 0) {
                     chartAreas.push([
@@ -474,6 +873,22 @@ const SmartChargingPage = ((Vue) => {
                         },
                         { xAxis: timeKeys[data.length - 1] },
                     ]);
+                    let cheapStart = -1;
+                    for (let index = firstFutureIndex; index <= data.length; index += 1) {
+                        const cheap = index < data.length && data[index].is_future && data[index].is_cheap;
+                        if (cheap && cheapStart < 0) cheapStart = index;
+                        if (!cheap && cheapStart >= 0) {
+                            const endIndex = Math.min(index, data.length - 1);
+                            chartAreas.push([
+                                {
+                                    xAxis: timeKeys[cheapStart],
+                                    itemStyle: { color: cheapFill },
+                                },
+                                { xAxis: timeKeys[endIndex] },
+                            ]);
+                            cheapStart = -1;
+                        }
+                    }
                 }
 
                 const option = {
@@ -497,6 +912,9 @@ const SmartChargingPage = ((Vue) => {
                                     html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + valStr + '</b></span>';
                                     if (p.seriesName === priceLegend && data[p.dataIndex]?.is_future) {
                                         html += '<br/><span style="color: var(--text-muted);">' + t('smart_charging.chartTooltipForecastPrice') + '</span>';
+                                        if (data[p.dataIndex]?.is_cheap) {
+                                            html += '<br/><span style="color: #22c55e;">' + t('smart_charging.chartCheapHour') + '</span>';
+                                        }
                                     }
                                 }
                             });
@@ -508,6 +926,7 @@ const SmartChargingPage = ((Vue) => {
                             { name: priceLegend, icon: 'line', itemStyle: { color: '#00d2ff' } },
                             { name: chargingLegend, icon: 'bar', itemStyle: { color: '#22c55e' } },
                             { name: solarLegend, icon: 'bar', itemStyle: { color: '#f59e0b' } },
+                            { name: cheapLegend, icon: 'roundRect', itemStyle: { color: '#22c55e' } },
                         ],
                         bottom: 0,
                         textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
@@ -591,6 +1010,15 @@ const SmartChargingPage = ((Vue) => {
                                 ]),
                                 borderRadius: [3, 3, 0, 0]
                             }
+                        },
+                        {
+                            name: cheapLegend,
+                            type: 'line',
+                            data: [],
+                            silent: true,
+                            showSymbol: false,
+                            lineStyle: { width: 0, opacity: 0 },
+                            itemStyle: { color: cheapFill },
                         }
                     ]
                 };
@@ -675,6 +1103,7 @@ const SmartChargingPage = ((Vue) => {
                 if (!dashboardData.advisor) return '--';
                 if (!dashboardData.advisor.has_battery) return localText('noBatteryDesc');
                 const { potential_savings_eur, battery_capacity } = dashboardData.advisor;
+                if (battery_capacity == null) return localText('noBatteryDesc');
                 if (potential_savings_eur < 15.0) {
                     return localText('sizingGood')
                         .replace('{cap}', battery_capacity.toFixed(1))
@@ -716,6 +1145,11 @@ const SmartChargingPage = ((Vue) => {
                         dashboardData.kpis = data.kpis;
                         dashboardData.history = data.history;
                         dashboardData.advisor = data.advisor;
+                        dashboardData.gpm = data.gpm || {};
+                        dashboardData.chart_plan = data.chart_plan || null;
+                        if (data.gpm) {
+                            applyCheapHours(data.gpm.cheap_hours, data.gpm.tomorrow_available);
+                        }
                         
                         nextTick(() => {
                             renderChart();
@@ -726,6 +1160,242 @@ const SmartChargingPage = ((Vue) => {
                 }
             }
 
+            async function loadSettings() {
+                try {
+                    const data = await SFMLApi.fetch('/api/sfml_stats/smart_charging/settings');
+                    if (data && data.success) {
+                        applyServerPayload(data);
+                        settingsLoaded.value = true;
+                    } else if (!settingsError.value) {
+                        settingsError.value = t('smart_charging.settingsLoadFailed');
+                    }
+                } catch (err) {
+                    if (!settingsError.value) {
+                        settingsError.value = t('smart_charging.settingsLoadFailed');
+                    }
+                }
+            }
+
+            function translatedErrorCode(code) {
+                if (!code) return '';
+                const key = `smart_charging.errors.${code}`;
+                const text = t(key);
+                return text !== key ? text : String(code);
+            }
+
+            function fieldError(field) {
+                return settingsFieldErrors[field] || '';
+            }
+
+            function applyCaughtSettingsError(err) {
+                Object.keys(settingsFieldErrors).forEach((key) => {
+                    delete settingsFieldErrors[key];
+                });
+                const errors = (err && err.errors) || (err && err.body && err.body.errors);
+                if (errors && typeof errors === 'object') {
+                    Object.entries(errors).forEach(([field, code]) => {
+                        settingsFieldErrors[field] = translatedErrorCode(code);
+                    });
+                    const first = Object.values(settingsFieldErrors)[0];
+                    settingsError.value = first || translatedErrorCode(err && err.code);
+                    return;
+                }
+                const code = (err && err.code) || (err && err.body && err.body.error);
+                settingsError.value = translatedErrorCode(code) || String(err);
+            }
+
+            function clearSettingsErrors() {
+                Object.keys(settingsFieldErrors).forEach((key) => {
+                    delete settingsFieldErrors[key];
+                });
+                settingsError.value = '';
+            }
+
+            function limitValue(field, bound, fallback) {
+                const limits = settingsLimits.value[field];
+                if (!limits || limits[bound] == null) return fallback;
+                return limits[bound];
+            }
+
+            function formatUnlimited(value) {
+                if (value === 0 || value === '0') return t('common.unlimited');
+                return value == null ? '—' : String(value);
+            }
+
+            function localeTag() {
+                const lang = window.SFMLI18n && window.SFMLI18n.current;
+                if (lang === 'de') return 'de-DE';
+                if (lang === 'pl') return 'pl-PL';
+                return 'en-US';
+            }
+
+            function formatPlantNumber(value, unit) {
+                const number = Number(value).toLocaleString(localeTag(), {
+                    maximumFractionDigits: 1,
+                    minimumFractionDigits: 0,
+                });
+                return number + ' ' + unit;
+            }
+
+            function formatPower(value) {
+                if (value === 0 || value === '0' || value == null) {
+                    return t('common.unlimited');
+                }
+                return formatPlantNumber(value, 'kW');
+            }
+
+            function formatThreshold(value) {
+                if (value == null || value === '') return '—';
+                return formatPlantNumber(value, 'ct/kWh');
+            }
+
+            function formatPercent(value) {
+                if (value == null || value === '') return '—';
+                return String(value) + ' %';
+            }
+
+            function formatHours(value) {
+                if (value == null || value === '') return '—';
+                return String(value);
+            }
+
+            function applyServerPayload(data) {
+                if (!data) return;
+                if (data.settings) {
+                    Object.keys(data.settings).forEach((key) => {
+                        if (key === 'thresholds') return;
+                        settingsData[key] = data.settings[key];
+                    });
+                }
+                if (data.thresholds) {
+                    if (!settingsData.thresholds) {
+                        settingsData.thresholds = {
+                            mode: 'absolute',
+                            max_price: 0,
+                            force_charge_price: 0,
+                            below_average_pct: 0,
+                            cheapest_hours: 1,
+                        };
+                    }
+                    Object.assign(settingsData.thresholds, data.thresholds);
+                }
+                if (data.limits) settingsLimits.value = data.limits;
+                if (data.plant) Object.assign(plantData, data.plant);
+                if (data.gpm) Object.assign(gpmMeta, data.gpm);
+            }
+
+            function applyCheapHours(hours, tomorrowAvailable) {
+                const payload = hours && typeof hours === 'object' ? hours : {};
+                gpmCheapHours.today = Array.isArray(payload.today) ? payload.today : [];
+                gpmCheapHours.tomorrow = Array.isArray(payload.tomorrow) ? payload.tomorrow : [];
+                if (tomorrowAvailable != null) {
+                    gpmTomorrowAvailable.value = Boolean(tomorrowAvailable);
+                }
+            }
+
+            function formatMonthEuro(value) {
+                const number = Number(value);
+                if (!Number.isFinite(number)) return '';
+                return number.toLocaleString(localeTag(), {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                });
+            }
+
+            function monthlyCostsText(payload) {
+                if (!payload || payload.success === false) return '';
+                const months = Array.isArray(payload.months) ? payload.months : [];
+                const current = months.find((row) => row && row.is_current);
+                if (!current || current.total_eur == null || current.total_eur === '') return '';
+                const total = Number(current.total_eur);
+                if (!Number.isFinite(total)) return '';
+                let line = t('smart_charging.status.monthCost').replace('{eur}', formatMonthEuro(total));
+                const expected = payload.projection && payload.projection.expected_eur;
+                if (expected != null && expected !== '') {
+                    const projected = Number(expected);
+                    if (Number.isFinite(projected)) {
+                        line += ' · ' + t('smart_charging.status.monthCostProjection').replace(
+                            '{eur}',
+                            formatMonthEuro(projected)
+                        );
+                    }
+                }
+                if (payload.is_demo) {
+                    line += ' ' + t('smart_charging.status.monthCostDemo');
+                }
+                return line;
+            }
+
+            async function loadMonthlyCosts() {
+                try {
+                    const payload = await SFMLApi.fetch('/api/sfml_stats/gpm/monthly_costs', {
+                        forceRefresh: true,
+                        ttl: 0,
+                    });
+                    monthlyCostsLine.value = monthlyCostsText(payload);
+                } catch (_err) {
+                    monthlyCostsLine.value = '';
+                }
+            }
+
+            async function loadGpmStatus() {
+                try {
+                    const payload = await SFMLApi.fetch('/api/sfml_stats/gpm/status', {
+                        forceRefresh: true,
+                        ttl: 0,
+                    });
+                    if (payload && payload.success) {
+                        applyCheapHours(payload.cheap_hours, payload.tomorrow_available);
+                    }
+                } catch (_err) {
+                    /* keep last known hours */
+                }
+            }
+
+            async function postSettings(payload) {
+                try {
+                    const data = await SFMLApi.postAuthenticated(
+                        '/api/sfml_stats/smart_charging/settings',
+                        payload
+                    );
+                    applyServerPayload(data);
+                    clearSettingsErrors();
+                    await loadGpmStatus();
+                    await loadMonthlyCosts();
+                    await loadData();
+                } catch (err) {
+                    applyCaughtSettingsError(err);
+                    await loadSettings();
+                }
+            }
+
+            function debouncePost(payload) {
+                if (debounceTimer) clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => postSettings(payload), 400);
+            }
+
+            function onEnabledChange(checked) {
+                debouncePost({ smart_charging_enabled: !!checked });
+            }
+            function onModeChange(value) {
+                debouncePost({ smart_charging_mode: value });
+            }
+            function onSocInput(field) {
+                debouncePost({ [field]: Number(settingsData[field]) });
+            }
+            function commitSoc(field) {
+                debouncePost({ [field]: Number(settingsData[field]) });
+            }
+            function onThresholdInput(field) {
+                debouncePost({ [field]: Number(settingsData.thresholds[field]) });
+            }
+            function commitThreshold(field) {
+                debouncePost({ [field]: Number(settingsData.thresholds[field]) });
+            }
+            function onThresholdModeChange(value) {
+                debouncePost({ threshold_mode: value });
+            }
+
             let pollInterval = null;
             const handleResize = () => {
                 if (chartInstance) chartInstance.resize();
@@ -733,6 +1403,9 @@ const SmartChargingPage = ((Vue) => {
 
             onMounted(() => {
                 loadData();
+                loadSettings();
+                loadGpmStatus();
+                loadMonthlyCosts();
                 pollInterval = setInterval(loadData, 5000);
                 window.addEventListener('resize', handleResize);
             });
@@ -768,6 +1441,39 @@ const SmartChargingPage = ((Vue) => {
                 formatPotentialSavingsSub,
                 getPvChargePercent,
                 getGridChargePercent,
+                settingsData,
+                plantData,
+                settingsError,
+                fieldError,
+                onEnabledChange,
+                onModeChange,
+                onSocInput,
+                commitSoc,
+                onThresholdInput,
+                commitThreshold,
+                onThresholdModeChange,
+                limitValue,
+                formatUnlimited,
+                formatThreshold,
+                formatPercent,
+                formatHours,
+                thresholdMode,
+                thresholdModeHelp,
+                chargingModeHelp,
+                showTargetSoc,
+                gpmCardVisible,
+                isFixedTariff,
+                plantLine,
+                gpmMeta,
+                cheapHoursTodayLabel,
+                cheapHoursTomorrowLabel,
+                chartThresholdsUnavailable,
+                statusPowerLine,
+                statusBatteryLine,
+                statusReservedLine,
+                monthlyCostsLine,
+                setupCheckItems,
+                settingsLoaded,
             };
         }
     };
@@ -775,6 +1481,166 @@ const SmartChargingPage = ((Vue) => {
     // Inject Stylesheet dynamically for clean layout component-scoping
     const style = document.createElement('style');
     style.textContent = `
+        .page-smart-charging .section-title {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: unset;
+            max-width: none;
+            width: 100%;
+        }
+        .page-smart-charging .section-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+        }
+        .sc-demo-badge {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: #92400e;
+            background: #fde68a;
+            border-radius: 999px;
+            padding: 4px 10px;
+        }
+        .sc-status-card .sc-status-line {
+            margin: 0 0 6px;
+            font-size: 1rem;
+            line-height: 1.4;
+            color: var(--text-primary);
+        }
+        .sc-status-card .sc-status-line:last-child {
+            margin-bottom: 0;
+        }
+        .sc-status-reserved {
+            margin: 8px 0 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .sc-status-month {
+            display: block;
+            margin: 8px 0 0;
+            padding: 0;
+            border: 0;
+            background: none;
+            font: inherit;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-align: left;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .sc-setup-ok {
+            margin: 0 0 var(--space-lg);
+            color: #15803d;
+            font-size: 0.9rem;
+        }
+        .sc-setup-item {
+            margin: 0 0 8px;
+            padding-left: 10px;
+            border-left: 4px solid transparent;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .sc-setup-item:last-child {
+            margin-bottom: 0;
+        }
+        .sc-setup-red { border-left-color: #dc2626; }
+        .sc-setup-yellow { border-left-color: #d97706; }
+        .sc-setup-gray { border-left-color: #9ca3af; color: var(--text-secondary); }
+        .sc-settings-card select {
+            width: 100%;
+            max-width: none;
+        }
+        .sc-control {
+            margin: 0 0 var(--space-md);
+        }
+        .sc-control-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-bottom: 4px;
+        }
+        .sc-control-value {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            white-space: nowrap;
+        }
+        .sc-number-wrap {
+            display: flex;
+            align-items: baseline;
+            gap: 0.35rem;
+            flex-shrink: 0;
+        }
+        .sc-number {
+            width: 5.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            text-align: right;
+        }
+        .sc-number-unit {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .sc-slider {
+            width: 100%;
+            display: block;
+            margin: 0;
+        }
+        .sc-cheap-hours {
+            margin: var(--space-sm) 0 0;
+            padding-top: var(--space-sm);
+            border-top: 1px solid var(--border-default, rgba(255,255,255,0.08));
+        }
+        .sc-cheap-hours-row {
+            display: flex;
+            justify-content: space-between;
+            gap: var(--space-sm);
+            font-size: 0.85rem;
+            line-height: 1.4;
+            margin: 0 0 6px;
+        }
+        .sc-cheap-hours-row:last-child {
+            margin-bottom: 0;
+        }
+        .sc-cheap-hours-row span:last-child {
+            text-align: right;
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+        }
+        .sc-intro {
+            margin: 0 0 var(--space-md);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .sc-help {
+            margin: 4px 0 0;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            line-height: 1.35;
+        }
+        .sc-settings-error {
+            color: var(--warning, #f59e0b);
+            margin: 0 0 var(--space-sm);
+        }
+        .sc-switch {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-bottom: 4px;
+        }
+        .sc-plant-line {
+            margin: var(--space-sm) 0 0;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
         .sc-plan-card {
             margin-bottom: var(--space-lg);
             padding: var(--space-md);

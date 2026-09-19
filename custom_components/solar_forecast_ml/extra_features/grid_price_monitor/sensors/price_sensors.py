@@ -68,6 +68,13 @@ class GridPriceSpotSensor(GridPriceBaseSensor):
         return None
 
     @property
+    def available(self) -> bool:
+        data = self.coordinator.data or {}
+        if not data.get("has_spot_component", True):
+            return False
+        return super().available
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return additional attributes @zara"""
         if not self.coordinator.data:
@@ -147,6 +154,13 @@ class GridPriceSpotNextHourSensor(GridPriceBaseSensor):
             "Spot Price Next Hour",
             ICON_SPOT,
         )
+
+    @property
+    def available(self) -> bool:
+        data = self.coordinator.data or {}
+        if not data.get("has_spot_component", True):
+            return False
+        return super().available
 
     @property
     def native_value(self) -> float | None:

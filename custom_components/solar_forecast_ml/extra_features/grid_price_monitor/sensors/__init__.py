@@ -27,11 +27,6 @@ from .battery_sensors import (
     BatteryChargedWeekSensor,
     BatteryChargedMonthSensor,
 )
-from .smart_charging_sensors import (
-    SmartChargingTargetSoCSensor,
-    SolarForecastTodaySensor,
-    SolarForecastTomorrowSensor,
-)
 
 __all__ = [
     "GridPriceBaseSensor",
@@ -48,7 +43,4 @@ __all__ = [
     "BatteryChargedTodaySensor",
     "BatteryChargedWeekSensor",
     "BatteryChargedMonthSensor",
-    "SmartChargingTargetSoCSensor",
-    "SolarForecastTodaySensor",
-    "SolarForecastTomorrowSensor",
 ]

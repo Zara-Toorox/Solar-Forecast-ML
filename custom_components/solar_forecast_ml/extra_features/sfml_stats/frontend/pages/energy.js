@@ -1193,7 +1193,7 @@ const _EnergyPage = {
                             baseFee: Number(m.base_fee_eur ?? 0),
                             saved: Number(saved ?? 0).toFixed(2),
                             priceMode,
-                            canEditPrice: m.price_mode === 'fixed',
+                            canEditPrice: m.price_mode === 'legacy_fixed',
                             canReset: m.tariff_source === 'manual',
                             isDynamic,
                             isCurrent: m.month === nowKey,
@@ -1524,29 +1524,8 @@ const _EnergyPage = {
         }
 
         async function openPriceModal(monthRow) {
-            priceModal.value = {
-                ...monthRow,
-                currentPrice: monthRow.avgPriceValue,
-            };
-            priceInput.value = formatCt(monthRow.avgPriceValue).replace(',', '.');
-            pricePreview.value = null;
-            priceError.value = null;
-            priceSaving.value = false;
-            try {
-                const response = await fetch(priceEndpoint(monthRow), { cache: 'no-store' });
-                const payload = await response.json();
-                if (!response.ok || payload?.success === false) {
-                    throw new Error(payload?.error?.message || payload?.error || 'Der Preis konnte nicht geladen werden.');
-                }
-                priceModal.value = {
-                    ...priceModal.value,
-                    currentPrice: payload.current_price_ct,
-                    canReset: payload.can_reset,
-                };
-                priceInput.value = formatCt(payload.current_price_ct).replace(',', '.');
-                pricePreview.value = payload;
-            } catch (err) {
-                priceError.value = err?.message || 'Der Preis konnte nicht geladen werden.';
+            if (typeof window !== "undefined") {
+                window.location.hash = "gpm";
             }
         }
 
