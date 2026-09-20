@@ -100,7 +100,7 @@
       },
       "window_add": {
         "title": "Zeitfenster bearbeiten",
-        "description": "Name, Tage und Zeiten festlegen. Überlappungen am selben Wochentag werden abgelehnt.",
+        "description": "Name, Tage und Zeiten festlegen. Überlappungen am selben Wochentag werden abgelehnt. GPM rechnet in vollen Stunden, der Stundenbeginn entscheidet (Beispiel: Fenster bis 14:14 → Stunde 14 zählt noch zum Fenster).",
         "data": {
           "window_name": "Name",
           "window_start": "Beginn",
@@ -289,7 +289,7 @@
       },
       "window_add": {
         "title": "Zeitfenster bearbeiten",
-        "description": "Name, Tage und Zeiten festlegen. Überlappungen am selben Wochentag werden abgelehnt.",
+        "description": "Name, Tage und Zeiten festlegen. Überlappungen am selben Wochentag werden abgelehnt. GPM rechnet in vollen Stunden, der Stundenbeginn entscheidet (Beispiel: Fenster bis 14:14 → Stunde 14 zählt noch zum Fenster).",
         "data": {
           "window_name": "Name",
           "window_start": "Beginn",

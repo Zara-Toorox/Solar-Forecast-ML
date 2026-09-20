@@ -103,8 +103,9 @@ class SfmlStatsApiBridge extends HTMLElement {
 
     const isGet = message.type === "GET";
     const isPost = message.type === "POST";
+    const isDelete = message.type === "DELETE";
     const isForm = message.type === "POST_FORM";
-    if ((!isGet && !isPost && !isForm) || message.nonce !== this._nonce || !this._hass) return;
+    if ((!isGet && !isPost && !isDelete && !isForm) || message.nonce !== this._nonce || !this._hass) return;
     if (!/^[a-f0-9]{32}$/.test(message.requestId || "") || this._seen.has(message.requestId)) return;
     const path = authenticatedApiPath(message.endpoint);
     if (!path) return;
@@ -147,6 +148,8 @@ class SfmlStatsApiBridge extends HTMLElement {
         }
       } else if (isPost) {
         data = await this._hass.callApi("POST", path, message.payload);
+      } else if (isDelete) {
+        data = await this._hass.callApi("DELETE", path);
       } else {
         data = await this._hass.callApi("GET", path);
       }

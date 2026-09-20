@@ -16,7 +16,7 @@ from homeassistant.const import Platform
 # ============================================================================
 DOMAIN = "grid_price_monitor"
 NAME = "Solar Forecast GPM"
-VERSION = "46.2.1"
+VERSION = "46.2.2"
 
 # ============================================================================
 # PLATFORMS
@@ -251,3 +251,5 @@ ATTR_DATA_SOURCE = "data_source"
 # DATABASE
 # ============================================================================
 DB_PATH = "/config/solar_forecast_ml/solar_forecast.db"
+DAILY_AVERAGES_RETENTION_ROWS = 3650
+MONTHLY_SUMMARIES_RETENTION_MONTHS = 120

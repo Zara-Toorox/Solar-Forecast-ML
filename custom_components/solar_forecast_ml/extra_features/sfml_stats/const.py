@@ -17,7 +17,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "46.2.1"
+VERSION: Final = "46.2.2"
 RUNTIME_READY_KEY: Final = "_runtime_ready"
 RUNTIME_READY_TIMEOUT_SECONDS: Final = 15.0
 
@@ -330,6 +330,7 @@ SUN_HOURS_RADIATION_THRESHOLD: Final = 100
 
 FILE_RETRY_COUNT: Final = 3
 FILE_RETRY_DELAY_SECONDS: Final = 0.1
+HOURLY_CATCHUP_HOURS: Final = 48
 
 DAILY_AGGREGATION_HOUR: Final = 23
 DAILY_AGGREGATION_MINUTE: Final = 55

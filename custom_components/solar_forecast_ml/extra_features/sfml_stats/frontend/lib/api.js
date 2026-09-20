@@ -116,6 +116,22 @@ class SfmlParentHassApiClient {
         }
     }
 
+    async delete(endpoint) {
+        const path = sfmlHassApiPath(endpoint, this.hostWindow.location.origin);
+        if (!path) throw new Error("Authenticated endpoint rejected");
+        const hass = this._authenticatedHass();
+        if (!hass) throw new Error("Home-Assistant-Panel-Anmeldung nicht verfügbar");
+        try {
+            return await hass.callApi("DELETE", path);
+        } catch (error) {
+            const body = error && (error.body || error.data);
+            if (body && typeof body === "object") {
+                throw sfmlApiErrorFromBody(body, { status: error.status, statusText: error.message });
+            }
+            throw error;
+        }
+    }
+
     async postForm(endpoint, formData) {
         const path = sfmlHassApiPath(endpoint, this.hostWindow.location.origin);
         if (!path) throw new Error("Authenticated endpoint rejected");
@@ -289,6 +305,10 @@ class SfmlAuthenticatedApiClient {
         return this._request("POST", endpoint, payload, SFML_API_BRIDGE_POST_TIMEOUT_MS);
     }
 
+    async delete(endpoint) {
+        return this._request("DELETE", endpoint);
+    }
+
     async postForm(endpoint, formData) {
         const fields = {};
         let fileBuffer = null;
@@ -429,6 +449,44 @@ const SFMLApi = {
             }
             this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
             return await this.authenticatedClient.post(endpoint, payload);
+        } catch (error) {
+            const body = error?.body?.error || error?.error;
+            if (body && typeof body === "object" && !error.code) {
+                const normalised = new Error(String(body.message || error.message || "Anfrage fehlgeschlagen"));
+                normalised.code = String(body.code || "request_failed");
+                normalised.field = body.field;
+                throw normalised;
+            }
+            throw error;
+        }
+    },
+
+    async deleteAuthenticated(endpoint) {
+        const authenticatedEndpoint = sfmlAuthenticatedEndpoint(endpoint);
+        if (!authenticatedEndpoint) {
+            throw new Error("Authenticated endpoint rejected");
+        }
+        try {
+            this.parentHassClient ??= new SfmlParentHassApiClient();
+            if (this.parentHassClient.isAvailable()) {
+                return await this.parentHassClient.delete(endpoint);
+            }
+            this.companionAuthClient ??= new SfmlCompanionAuthClient();
+            const accessToken = await this.companionAuthClient.getAccessToken();
+            if (accessToken) {
+                const response = await fetch(authenticatedEndpoint, {
+                    method: "DELETE",
+                    cache: "no-store",
+                    headers: { Authorization: `Bearer ${accessToken}` },
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    throw sfmlApiErrorFromBody(data, response);
+                }
+                return data;
+            }
+            this.authenticatedClient ??= new SfmlAuthenticatedApiClient();
+            return await this.authenticatedClient.delete(endpoint);
         } catch (error) {
             const body = error?.body?.error || error?.error;
             if (body && typeof body === "object" && !error.code) {

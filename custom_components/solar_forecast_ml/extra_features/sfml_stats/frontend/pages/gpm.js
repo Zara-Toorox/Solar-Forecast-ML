@@ -67,21 +67,16 @@ const _GPMPage = {
                     </div>
                 </div>
                 <p style="margin-top: var(--space-md); color: var(--text-muted);">
-                    {{ status.tariff.label }} · {{ status.tariff.country }}
-                    · {{ tomorrowStatus }}
+                    {{ tariffLine }}
                 </p>
                 <p style="color: var(--text-muted); font-size: 0.85rem;">
-                    {{ $t('gpm.feedIn') }}: {{ formatPrice(status.effective_fees.feed_in_tariff_ct) }}
-                    ({{ feeSourceLabel }}) ·
-                    {{ $t('gpm.baseFee') }}: {{ formatFee(status.effective_fees.base_fee_eur_month) }}
+                    {{ feesLine }}
                 </p>
                 <p v-if="status.effective_fees.source === 'stats_legacy'" style="font-size: 0.85rem; color: var(--warning, #f59e0b);">
                     {{ $t('gpm.feesLegacyHint') }}
                 </p>
-                <p v-if="status.last_correction" style="font-size: 0.85rem; color: var(--text-muted);">
-                    {{ $t('gpm.correction') }} {{ status.last_correction.kind }}
-                    <span v-if="status.last_correction.month">· {{ status.last_correction.month }}</span>
-                    · {{ $t('gpm.revision') }} {{ status.revision }}
+                <p v-if="correctionLine" style="font-size: 0.85rem; color: var(--text-muted);">
+                    {{ correctionLine }}
                 </p>
                 <a class="button secondary" :href="status.links.configure" @click="openHaLink($event, status.links.configure)" style="display: inline-block; margin-top: var(--space-sm);">
                     {{ $t('gpm.configure') }}
@@ -104,7 +99,7 @@ const _GPMPage = {
                 <p style="font-size: 0.9rem;">
                     {{ $t('gpm.forceThreshold') }}:
                     <strong>{{ formatPrice(status.thresholds.force_charge_price) }}</strong>
-                    · Force: {{ status.is_force_price ? $t('common.yes', 'ja') : $t('common.no', 'nein') }}
+                    · {{ $t('gpm.forceThreshold') }}: {{ status.is_force_price ? $t('common.yes', 'ja') : $t('common.no', 'nein') }}
                 </p>
                 <input type="range" disabled readonly :value="status.thresholds.max_price || 0" min="0" max="100" />
                 <p style="margin-top: var(--space-sm);">
@@ -154,6 +149,106 @@ const _GPMPage = {
                 <p v-else-if="bill.projection_reason === 'too_few_complete_months'" style="font-size: 0.85rem; color: var(--text-muted);">
                     {{ $t('gpm.billTooFew') }}
                 </p>
+            </div>
+
+            <div class="chart-card" style="margin-bottom: var(--space-lg);">
+                <div class="chart-header">
+                    <span class="chart-title">{{ $t('gpm.yearly.title') }}</span>
+                </div>
+                <p v-if="!yearlyRows.length" style="font-size: 0.85rem; color: var(--text-muted);">{{ $t('gpm.yearly.empty') }}</p>
+                <div v-show="yearlyRows.length" ref="yearlyEl" style="height: 300px;"></div>
+                <div class="gpm-yearly-table-wrap" v-if="yearlyRows.length">
+                    <table class="gpm-yearly-table">
+                        <thead>
+                            <tr>
+                                <th>{{ $t('gpm.yearly.year') }}</th>
+                                <th>{{ $t('gpm.yearly.gridKwh') }}</th>
+                                <th>{{ $t('gpm.yearly.totalEur') }}</th>
+                                <th>{{ $t('gpm.yearly.effectiveCt') }}</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(row, index) in yearlyRows" :key="yearlyRowKey(row, index)">
+                                <td>{{ yearlyAxisLabel(row) }}</td>
+                                <td>{{ yearlyNumber(row.grid_kwh, 1) }}</td>
+                                <td>{{ yearlyNumber(row.total_eur, 2) }}</td>
+                                <td>{{ yearlyNumber(row.ct_kwh, 2) }}</td>
+                                <td class="gpm-yearly-info" :title="yearlyNoteText(row)" :aria-label="$t('gpm.yearly.details')">
+                                    <ul>
+                                        <li v-for="(invoice, invoiceIndex) in yearlyRowInvoices(row)" :key="yearlyInvoiceKey(invoice, invoiceIndex)">
+                                            {{ yearlyInvoiceLine(invoice) }}
+                                        </li>
+                                        <li v-if="yearlyCoverageMeasured(row)">{{ yearlyCoverageMeasured(row) }}</li>
+                                        <li v-if="yearlyCoverageHours(row)">{{ yearlyCoverageHours(row) }}</li>
+                                        <li v-if="yearlyCoverageSources(row)">{{ yearlyCoverageSources(row) }}</li>
+                                        <li v-if="yearlyCoverageGap(row)">{{ yearlyCoverageGap(row) }}</li>
+                                    </ul>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <form class="gpm-yearly-form" @submit.prevent="saveYearlyInvoice">
+                    <strong class="gpm-yearly-form-title">{{ yearlyForm.id ? $t('gpm.yearly.formEdit') : $t('gpm.yearly.formTitle') }}</strong>
+                    <label class="gpm-field">
+                        <span class="gpm-field-label">{{ $t('gpm.yearly.periodFrom') }}</span>
+                        <input v-model="yearlyForm.period_from" type="date" required>
+                    </label>
+                    <label class="gpm-field">
+                        <span class="gpm-field-label">{{ $t('gpm.yearly.periodTo') }}</span>
+                        <input v-model="yearlyForm.period_to" type="date" required>
+                    </label>
+                    <label class="gpm-field">
+                        <span class="gpm-field-label">{{ $t('gpm.yearly.gridKwh') }}</span>
+                        <input v-model="yearlyForm.grid_kwh" type="number" min="0.001" step="0.001" required>
+                    </label>
+                    <label class="gpm-field">
+                        <span class="gpm-field-label">{{ $t('gpm.yearly.totalEur') }}</span>
+                        <input v-model="yearlyForm.total_eur" type="number" min="0.001" step="0.01" required>
+                    </label>
+                    <label class="gpm-field">
+                        <span class="gpm-field-label">{{ $t('gpm.yearly.provider') }}</span>
+                        <input v-model="yearlyForm.provider" type="text">
+                    </label>
+                    <label class="gpm-field gpm-yearly-note">
+                        <span class="gpm-field-label">{{ $t('gpm.yearly.note') }}</span>
+                        <input v-model="yearlyForm.note" type="text">
+                    </label>
+                    <div class="gpm-yearly-form-actions">
+                        <button type="submit" class="button" :disabled="yearlyBusy">{{ $t('gpm.yearly.save') }}</button>
+                        <button type="button" class="button secondary" :disabled="yearlyBusy" @click="resetYearlyForm">{{ $t('gpm.yearly.cancel') }}</button>
+                    </div>
+                    <p v-if="yearlyMessage" class="gpm-yearly-message" :style="{ color: yearlyMessageError ? 'var(--danger, #ef4444)' : 'var(--text-muted)' }">{{ yearlyMessage }}</p>
+                </form>
+                <div class="gpm-yearly-invoices" v-if="yearlyInvoices.length">
+                    <strong class="gpm-yearly-invoices-title">{{ $t('gpm.yearly.invoicesTitle') }}</strong>
+                    <table class="gpm-yearly-table">
+                        <thead>
+                            <tr>
+                                <th>{{ $t('gpm.yearly.invoicePeriod') }}</th>
+                                <th>{{ $t('gpm.yearly.gridKwh') }}</th>
+                                <th>{{ $t('gpm.yearly.totalEur') }}</th>
+                                <th>{{ $t('gpm.yearly.effectiveCt') }}</th>
+                                <th>{{ $t('gpm.yearly.provider') }}</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="invoice in yearlyInvoices" :key="invoice.id">
+                                <td>{{ invoice.period_from }}–{{ invoice.period_to }}</td>
+                                <td>{{ yearlyNumber(invoice.grid_kwh, 1) }}</td>
+                                <td>{{ yearlyNumber(invoice.total_eur, 2) }}</td>
+                                <td>{{ yearlyNumber(invoice.effective_ct_kwh, 2) }}</td>
+                                <td>{{ yearlyDash(invoice.provider) }}</td>
+                                <td>
+                                    <button type="button" class="button secondary" :disabled="yearlyBusy" @click="editYearlyInvoice(invoice)">{{ $t('gpm.yearly.edit') }}</button>
+                                    <button type="button" class="button secondary" :disabled="yearlyBusy" @click="deleteYearlyInvoice(invoice)">{{ $t('gpm.yearly.delete') }}</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <div
@@ -208,8 +303,13 @@ const _GPMPage = {
             </div>
 
             <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="status.months && status.months.length">
-                <div class="chart-header">
+                <div class="chart-header" style="display:flex; flex-wrap:wrap; gap: var(--space-sm); align-items:center; justify-content:space-between;">
                     <span class="chart-title">{{ $t('gpm.monthsTitle') }}</span>
+                    <label style="font-size: 0.85rem;">{{ $t('gpm.monthsRange') }}
+                        <select v-model.number="monthSpan" @change="onMonthSpanChange">
+                            <option v-for="span in monthSpanOptions" :key="span" :value="span">{{ span }} {{ $t('gpm.monthsUnit') }}</option>
+                        </select>
+                    </label>
                 </div>
                 <table style="width:100%; font-size: 0.85rem; border-collapse: collapse;">
                     <thead>
@@ -246,11 +346,13 @@ const _GPMPage = {
             <details class="chart-card" style="margin-bottom: var(--space-lg);">
                 <summary class="chart-title">{{ $t('gpm.diagnostics') }}</summary>
                 <p style="font-size: 0.85rem; color: var(--text-muted);">
-                    {{ $t('gpm.lastFetch') }}: {{ status.diagnostics.last_fetch || '—' }} ·
+                    {{ lastFetchLabel }}: {{ status.diagnostics.last_fetch || '—' }} ·
                     {{ $t('gpm.cacheAge') }}: {{ cacheAgeLabel }} ·
                     {{ $t('gpm.revision') }}: {{ status.diagnostics.price_revision }} ·
-                    {{ $t('gpm.lastCorrection') }}: {{ status.diagnostics.last_correction ? status.diagnostics.last_correction.kind : '—' }} ·
-                    {{ $t('gpm.providerVersion') }}: {{ status.diagnostics.provider_version }}
+                    {{ $t('gpm.lastCorrection') }}: {{ diagnosticsCorrectionKind }} ·
+                    {{ $t('gpm.providerVersion') }}: {{ status.diagnostics.provider_version }} ·
+                    <template v-if="status.effective_fees.source === 'stats_legacy'">{{ $t('gpm.feesSourceStats') }}</template>
+                    <template v-else>{{ $t('gpm.feesSourceGpm') }}</template>
                 </p>
             </details>
 
@@ -423,9 +525,11 @@ const _GPMPage = {
         const chartEl = ref(null);
         const scheduleEl = ref(null);
         const billEl = ref(null);
+        const yearlyEl = ref(null);
         let chart = null;
         let scheduleChart = null;
         let billChart = null;
+        let yearlyChart = null;
         function openHaLink(event, path) {
             if (!event || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
                 return;
@@ -511,6 +615,33 @@ const _GPMPage = {
         const bill = ref(emptyBill());
         const billYear = ref(new Date().getFullYear());
         const billMode = ref("calendar");
+        const monthSpanOptions = [12, 24, 60, 120];
+        const monthSpan = ref(12);
+        const emptyYearlyForm = () => ({
+            id: null,
+            period_from: "",
+            period_to: "",
+            grid_kwh: "",
+            total_eur: "",
+            provider: "",
+            note: "",
+        });
+        const yearlyRows = ref([]);
+        const yearlyInvoices = ref([]);
+        const yearlyForm = ref(emptyYearlyForm());
+        const yearlyBusy = ref(false);
+        const yearlyMessage = ref("");
+        const yearlyMessageError = ref(false);
+        const YEARLY_PARTIAL_DECAL = {
+            symbol: "rect",
+            dashArrayX: [1, 0],
+            dashArrayY: [2, 5],
+            rotation: Math.PI / 4,
+        };
+        const YEARLY_SERIES_COLORS = {
+            totalEur: "#0284c7",
+            effectiveCt: "#fbbf24",
+        };
 
         const statusLabel = computed(() => {
             const labels = {
@@ -554,17 +685,160 @@ const _GPMPage = {
             const tomorrow = (status.value.cheap_hours && status.value.cheap_hours.tomorrow) || [];
             return `${hour} · ${today.length + tomorrow.length} ${t("gpm.cheapHoursCount")}`;
         });
-        const tomorrowStatus = computed(() => {
-            if (status.value.tomorrow_available) return t("gpm.tomorrowReady");
-            const hour = new Date().getHours();
-            if (hour < 14) return t("gpm.tomorrowFrom13");
-            return t("gpm.tomorrowReady");
+
+        function i18nLocale() {
+            const current = window.SFMLI18n && window.SFMLI18n.current;
+            return current === "pl" ? "pl" : current === "en" ? "en" : "de";
+        }
+
+        function localeTag() {
+            const loc = i18nLocale();
+            if (loc === "pl") return "pl-PL";
+            if (loc === "en") return "en-GB";
+            return "de-DE";
+        }
+
+        function translatedOrEmpty(key) {
+            const value = t(key);
+            return value === key ? "" : value;
+        }
+
+        function modeLabel(mode) {
+            return translatedOrEmpty(`gpm.tariffMode.${mode}`) || mode || "";
+        }
+
+        function countryName(code) {
+            const normalized = String(code || "").toUpperCase();
+            return translatedOrEmpty(`gpm.country.${normalized}`) || normalized;
+        }
+
+        function formatStatusDate(value) {
+            if (value == null || value === "") return "";
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                const text = String(value);
+                return text.length >= 10 ? text.slice(0, 10) : text;
+            }
+            if (i18nLocale() === "en") {
+                return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+            }
+            return date.toLocaleDateString(localeTag(), { day: "2-digit", month: "2-digit", year: "numeric" });
+        }
+
+        function formatCtPerKwh(value) {
+            const number = Number(value);
+            if (!Number.isFinite(number)) return "";
+            return `${number.toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ct/kWh`;
+        }
+
+        function formatCorrectionMonth(month) {
+            const text = String(month || "");
+            const match = text.match(/^(\d{4})-(\d{2})/);
+            return match ? `${match[2]}/${match[1]}` : text;
+        }
+
+        function csvBaseMode(tariff) {
+            if (tariff && tariff.has_spot_component) return "dynamic";
+            const label = String((tariff && tariff.label) || "");
+            if (/HT\/NT/i.test(label)) return "time_of_use";
+            if (/Fixpreis|fixed price/i.test(label)) return "fixed";
+            if (/ \/ /.test(label)) return "time_windows";
+            return "fixed";
+        }
+
+        function fixedPriceFromLabel(label) {
+            const match = String(label || "").match(/(\d+(?:[.,]\d+)?)\s*ct/i);
+            return match ? Number(match[1].replace(",", ".")) : null;
+        }
+
+        function touWindowFromLabel(label) {
+            const match = String(label || "").match(/(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})/);
+            return match ? `${match[1]}–${match[2]}` : "";
+        }
+
+        function windowNamesFromLabel(label) {
+            return String(label || "").replace(/^CSV\s*\+\s*/i, "").trim();
+        }
+
+        function tomorrowPhrase() {
+            return status.value.tomorrow_available
+                ? t("gpm.tomorrowAvailable")
+                : t("gpm.tomorrowFrom13");
+        }
+
+        function correctionKindLabel(kind) {
+            if (kind === "csv") return t("gpm.kindCsv");
+            if (kind === "monthly") return t("gpm.kindMonthly");
+            return kind || "—";
+        }
+
+        const tariffLine = computed(() => {
+            const tariff = status.value.tariff || {};
+            const mode = tariff.mode || "dynamic";
+            if (mode === "csv_community") {
+                const base = csvBaseMode(tariff);
+                const parts = [modeLabel("csv_community"), t(`gpm.csvOnMode.${base}`)];
+                if (tariff.has_spot_component) parts.push(tomorrowPhrase());
+                return parts.filter(Boolean).join(" · ");
+            }
+            if (mode === "fixed") {
+                const price = fixedPriceFromLabel(tariff.label);
+                const detail = price == null ? "" : ` · ${formatCtPerKwh(price)}`;
+                return `${modeLabel("fixed")}${detail}`;
+            }
+            if (mode === "time_of_use") {
+                const window = touWindowFromLabel(tariff.label);
+                const detail = window ? ` · ${t("gpm.touWindow", { window })}` : "";
+                return `${modeLabel("time_of_use")}${detail}`;
+            }
+            if (mode === "time_windows") {
+                const names = windowNamesFromLabel(tariff.label);
+                return names ? `${modeLabel("time_windows")} · ${names}` : modeLabel("time_windows");
+            }
+            if (mode === "demo") return modeLabel("demo");
+            const parts = [modeLabel(mode) || modeLabel("dynamic")];
+            const country = countryName(tariff.country);
+            if (country) parts.push(country);
+            if (tariff.has_spot_component) parts.push(tomorrowPhrase());
+            return parts.filter(Boolean).join(" · ");
         });
-        const feeSourceLabel = computed(() => (
-            status.value.effective_fees.source === "stats_legacy"
-                ? t("gpm.feesSourceLegacy")
-                : t("gpm.feesSourceGpm")
-        ));
+
+        const feesLine = computed(() => {
+            const fees = status.value.effective_fees || {};
+            const feed = Number(fees.feed_in_tariff_ct);
+            const feedText = !Number.isFinite(feed) || feed === 0
+                ? t("gpm.feedInNone")
+                : formatCtPerKwh(feed);
+            const base = fees.base_fee_eur_month;
+            const amount = base == null
+                ? "—"
+                : Number(base).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const baseText = base == null ? "—" : t("gpm.baseFeePerMonth", { amount });
+            return `${t("gpm.feedIn")}: ${feedText} · ${t("gpm.baseFee")}: ${baseText}`;
+        });
+
+        const correctionLine = computed(() => {
+            const row = status.value.last_correction;
+            if (!row) return "";
+            const applied = formatStatusDate(row.applied_at);
+            if (row.kind === "csv") {
+                const from = formatStatusDate(row.range_from);
+                const to = formatStatusDate(row.range_to);
+                const range = from && to ? ` (${from}–${to})` : "";
+                return t("gpm.correctionCsvApplied", { date: applied }) + range;
+            }
+            const month = formatCorrectionMonth(row.month);
+            return t("gpm.correctionMonthApplied", { month, date: applied });
+        });
+
+        const diagnosticsCorrectionKind = computed(() => {
+            const row = status.value.diagnostics && status.value.diagnostics.last_correction;
+            return correctionKindLabel(row && row.kind);
+        });
+        const lastFetchLabel = computed(() => {
+            const tariff = status.value.tariff || {};
+            return tariff.has_spot_component ? t("gpm.lastFetch") : t("gpm.lastUpdate");
+        });
         const compositionParts = computed(() => {
             const components = status.value.price_components;
             const total = Number(status.value.prices.current_total);
@@ -949,13 +1223,16 @@ const _GPMPage = {
                         if (!point || !months[point.dataIndex]) return "";
                         const row = months[point.dataIndex];
                         const incomplete = row.complete ? "" : ` · ${t("gpm.billIncomplete")}`;
-                        return [
+                        const fallback = billMonthFallbackLine(row);
+                        const lines = [
                             row.month,
                             `${formatEuro(row.total_eur)}${incomplete}`,
                             `${t("gpm.billKwh")}: ${Number(row.kwh || 0).toFixed(1)}`,
                             `${t("gpm.billAvgPrice")}: ${row.avg_price_ct == null ? "—" : Number(row.avg_price_ct).toFixed(1)}`,
                             `${t("gpm.billCoverage")}: ${Number(row.coverage_percent || 0).toFixed(0)}%`,
-                        ].join("<br/>");
+                        ];
+                        if (fallback) lines.push(fallback);
+                        return lines.join("<br/>");
                     },
                 },
                 legend: { data: [t("gpm.billTitle"), t("gpm.billPreviousYear")] },
@@ -994,6 +1271,329 @@ const _GPMPage = {
             renderBill();
         }
 
+        function yearlyDash(value) {
+            return value == null || value === "" ? "—" : value;
+        }
+
+        function yearlyNumber(value, digits) {
+            if (value == null || value === "") return "—";
+            const number = Number(value);
+            return Number.isFinite(number) ? number.toFixed(digits) : "—";
+        }
+
+        function yearlyMonth(iso) {
+            if (typeof iso !== "string" || iso.length < 7) return "";
+            return `${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+        }
+
+        function yearlyTodayIso() {
+            const now = new Date();
+            const month = String(now.getMonth() + 1).padStart(2, "0");
+            const day = String(now.getDate()).padStart(2, "0");
+            return `${now.getFullYear()}-${month}-${day}`;
+        }
+
+        function yearlyAxisLabel(row) {
+            if (!row) return "";
+            const year = Number(row.year);
+            if (!Number.isFinite(year)) return "";
+            const coverage = row.coverage || {};
+            const first = coverage.first_day;
+            const last = coverage.last_day;
+            const bits = [];
+            if (typeof first === "string" && first > `${year}-01-01`) {
+                bits.push(t("gpm.yearly.labelFrom", { month: yearlyMonth(first) }));
+            }
+            if (typeof last === "string" && last < `${year}-12-31`) {
+                if (year === Number(yearlyTodayIso().slice(0, 4))) {
+                    bits.push(t("gpm.yearly.labelToDate"));
+                } else {
+                    bits.push(t("gpm.yearly.labelTo", { month: yearlyMonth(last) }));
+                }
+            }
+            if (!bits.length) return String(year);
+            return `${year} (${bits.join(", ")})`;
+        }
+
+        function yearlyRowInvoices(row) {
+            return Array.isArray(row && row.invoices) ? row.invoices : [];
+        }
+
+        function yearlyInvoiceKey(invoice, index) {
+            return `${(invoice && invoice.invoice_id) || "invoice"}-${index}`;
+        }
+
+        function yearlyInvoiceLine(invoice) {
+            return t("gpm.yearly.invoiceLine", {
+                label: yearlyDash(invoice && invoice.label),
+                days: yearlyDash(invoice && invoice.days_in_year),
+                kwh: yearlyNumber(invoice && invoice.grid_kwh, 1),
+                eur: yearlyNumber(invoice && invoice.total_eur, 2),
+            });
+        }
+
+        function yearlyCoverageMeasured(row) {
+            const days = row && row.coverage && row.coverage.measured_days;
+            if (days == null || Number(days) <= 0) return "";
+            return t("gpm.yearly.measuredDays", { days });
+        }
+
+        function yearlyCoverageHours(row) {
+            const coverage = row && row.coverage;
+            if (!coverage || coverage.measured_hours == null || coverage.measured_hours_expected == null) {
+                return "";
+            }
+            if (Number(coverage.measured_hours_expected) <= 0 && Number(coverage.measured_hours) <= 0) {
+                return "";
+            }
+            return t("gpm.yearly.hourCoverage", {
+                hours: coverage.measured_hours,
+                expected: coverage.measured_hours_expected,
+            });
+        }
+
+        function yearlyCoverageGap(row) {
+            const days = row && row.coverage && row.coverage.gap_days_without_data;
+            if (days == null || Number(days) <= 0) return "";
+            return t("gpm.yearly.gapDays", { days });
+        }
+
+        function yearlyCoverageSources(row) {
+            const coverage = row && row.coverage;
+            if (!coverage) return "";
+            const parts = [];
+            const hourly = Number(coverage.days_hourly) || 0;
+            const dailyAvg = Number(coverage.days_daily_avg) || 0;
+            const kwhOnly = Number(coverage.days_kwh_only) || 0;
+            if (hourly > 0) parts.push(t("gpm.yearly.daysHourly", { days: hourly }));
+            if (dailyAvg > 0) parts.push(t("gpm.yearly.daysDailyAvg", { days: dailyAvg }));
+            if (kwhOnly > 0) parts.push(t("gpm.yearly.daysKwhOnly", { days: kwhOnly }));
+            return parts.join(" · ");
+        }
+
+        function billMonthFallbackLine(row) {
+            const dailyAvg = Number(row && row.days_daily_avg) || 0;
+            const kwhOnly = Number(row && row.days_kwh_only) || 0;
+            const parts = [];
+            if (dailyAvg > 0) parts.push(t("gpm.billFallbackDailyAvg", { days: dailyAvg }));
+            if (kwhOnly > 0) parts.push(t("gpm.billFallbackNoPrice", { days: kwhOnly }));
+            if (!parts.length) return "";
+            return t("gpm.billFallbackNote", { parts: parts.join(" · ") });
+        }
+
+        function yearlyNoteText(row) {
+            const lines = yearlyRowInvoices(row).map(yearlyInvoiceLine);
+            const measured = yearlyCoverageMeasured(row);
+            const hours = yearlyCoverageHours(row);
+            const sources = yearlyCoverageSources(row);
+            const gap = yearlyCoverageGap(row);
+            if (measured) lines.push(measured);
+            if (hours) lines.push(hours);
+            if (sources) lines.push(sources);
+            if (gap) lines.push(gap);
+            return lines.join("\n");
+        }
+
+        function yearlyRowKey(row, index) {
+            return `${row && row.year != null ? row.year : "row"}-${index}`;
+        }
+
+        function yearlyErrorText(error) {
+            const code = error && (error.code || error.body && error.body.error);
+            if (typeof code === "string" && code) {
+                const translated = t(`gpm.yearly.errors.${code}`);
+                if (translated && translated !== `gpm.yearly.errors.${code}`) return translated;
+            }
+            return t("gpm.yearly.saveFailed");
+        }
+
+        function yearlyBarPoint(value, partial) {
+            if (value == null || value === "") return null;
+            const point = { value, itemStyle: { color: YEARLY_SERIES_COLORS.totalEur } };
+            if (partial) point.itemStyle.decal = YEARLY_PARTIAL_DECAL;
+            return point;
+        }
+
+        function renderYearlyHistory() {
+            if (!yearlyEl.value || !window.echarts) return;
+            const rows = yearlyRows.value || [];
+            if (!rows.length) {
+                if (yearlyChart) {
+                    yearlyChart.clear();
+                }
+                return;
+            }
+            if (!yearlyChart) yearlyChart = window.echarts.init(yearlyEl.value);
+            const labels = rows.map(yearlyAxisLabel);
+            const eurBars = rows.map((row) => yearlyBarPoint(row.total_eur, Boolean(row.partial)));
+            const ctLine = rows.map((row) => (row.ct_kwh == null ? null : row.ct_kwh));
+            yearlyChart.setOption({
+                tooltip: {
+                    trigger: "axis",
+                    formatter: (items) => {
+                        const point = (items || [])[0];
+                        if (!point || !rows[point.dataIndex]) return "";
+                        const row = rows[point.dataIndex];
+                        const partial = row.partial ? ` · ${t("gpm.yearly.partial")}` : "";
+                        return [
+                            `${yearlyAxisLabel(row)}${partial}`,
+                            `${t("gpm.yearly.totalEur")}: ${yearlyNumber(row.total_eur, 2)} €`,
+                            `${t("gpm.yearly.effectiveCt")}: ${yearlyNumber(row.ct_kwh, 2)}`,
+                            `${t("gpm.yearly.gridKwh")}: ${yearlyNumber(row.grid_kwh, 1)} kWh`,
+                        ].join("<br/>");
+                    },
+                },
+                legend: {
+                    data: [t("gpm.yearly.totalEur"), t("gpm.yearly.effectiveCt")],
+                },
+                grid: { left: 52, right: 56, top: 36, bottom: 48 },
+                xAxis: { type: "category", data: labels, axisLabel: { rotate: labels.length > 6 ? 30 : 0 } },
+                yAxis: [
+                    { type: "value", name: "€", position: "left" },
+                    { type: "value", name: "ct/kWh", position: "right", splitLine: { show: false } },
+                ],
+                series: [
+                    {
+                        name: t("gpm.yearly.totalEur"),
+                        type: "bar",
+                        yAxisIndex: 0,
+                        color: YEARLY_SERIES_COLORS.totalEur,
+                        itemStyle: { color: YEARLY_SERIES_COLORS.totalEur },
+                        data: eurBars,
+                    },
+                    {
+                        name: t("gpm.yearly.effectiveCt"),
+                        type: "line",
+                        yAxisIndex: 1,
+                        color: YEARLY_SERIES_COLORS.effectiveCt,
+                        data: ctLine,
+                        symbol: "circle",
+                        itemStyle: { color: YEARLY_SERIES_COLORS.effectiveCt },
+                    },
+                ],
+            }, true);
+        }
+
+        async function loadYearly() {
+            let history = null;
+            let invoices = null;
+            try {
+                history = await SFMLApi.fetch("/api/sfml_stats/gpm/yearly_history", {
+                    forceRefresh: true,
+                    ttl: 0,
+                    authenticated: true,
+                });
+            } catch (_error) {
+                history = null;
+            }
+            try {
+                invoices = await SFMLApi.fetch("/api/sfml_stats/gpm/invoices", {
+                    forceRefresh: true,
+                    ttl: 0,
+                    authenticated: true,
+                });
+            } catch (_error) {
+                invoices = null;
+            }
+            yearlyRows.value = Array.isArray(history && history.rows) ? history.rows : [];
+            yearlyInvoices.value = Array.isArray(invoices && invoices.invoices) ? invoices.invoices : [];
+            await nextTick();
+            renderYearlyHistory();
+        }
+
+        function yearlyPayload() {
+            const payload = {
+                period_from: yearlyForm.value.period_from,
+                period_to: yearlyForm.value.period_to,
+                grid_kwh: Number(yearlyForm.value.grid_kwh),
+                total_eur: Number(yearlyForm.value.total_eur),
+            };
+            if (yearlyForm.value.id) payload.id = yearlyForm.value.id;
+            if (yearlyForm.value.provider) payload.provider = yearlyForm.value.provider;
+            if (yearlyForm.value.note) payload.note = yearlyForm.value.note;
+            return payload;
+        }
+
+        function resetYearlyForm() {
+            yearlyForm.value = emptyYearlyForm();
+        }
+
+        function editYearlyInvoice(invoice) {
+            yearlyForm.value = {
+                id: invoice && invoice.id != null ? invoice.id : null,
+                period_from: invoice && invoice.period_from || "",
+                period_to: invoice && invoice.period_to || "",
+                grid_kwh: invoice && invoice.grid_kwh == null ? "" : invoice.grid_kwh,
+                total_eur: invoice && invoice.total_eur == null ? "" : invoice.total_eur,
+                provider: invoice && invoice.provider || "",
+                note: invoice && invoice.note || "",
+            };
+            yearlyMessage.value = "";
+            yearlyMessageError.value = false;
+        }
+
+        async function saveYearlyInvoice() {
+            if (!window.SFMLApi || typeof window.SFMLApi.postAuthenticated !== "function") {
+                yearlyMessage.value = t("gpm.yearly.saveFailed");
+                yearlyMessageError.value = true;
+                return;
+            }
+            yearlyBusy.value = true;
+            yearlyMessage.value = "";
+            try {
+                const result = await window.SFMLApi.postAuthenticated(
+                    "/api/sfml_stats/gpm/invoices",
+                    yearlyPayload(),
+                );
+                if (result && result.success === false) {
+                    throw Object.assign(new Error(String(result.error || "request_failed")), {
+                        code: String(result.error || "request_failed"),
+                    });
+                }
+                yearlyMessage.value = t("gpm.yearly.saved");
+                yearlyMessageError.value = false;
+                resetYearlyForm();
+                await loadYearly();
+            } catch (error) {
+                yearlyMessage.value = yearlyErrorText(error);
+                yearlyMessageError.value = true;
+            } finally {
+                yearlyBusy.value = false;
+            }
+        }
+
+        async function deleteYearlyInvoice(invoice) {
+            const invoiceId = invoice && invoice.id;
+            if (!invoiceId) return;
+            if (!window.confirm(t("gpm.yearly.deleteConfirm"))) return;
+            if (!window.SFMLApi || typeof window.SFMLApi.deleteAuthenticated !== "function") {
+                yearlyMessage.value = t("gpm.yearly.deleteFailed");
+                yearlyMessageError.value = true;
+                return;
+            }
+            yearlyBusy.value = true;
+            yearlyMessage.value = "";
+            try {
+                const result = await window.SFMLApi.deleteAuthenticated(
+                    `/api/sfml_stats/gpm/invoices/${encodeURIComponent(invoiceId)}`,
+                );
+                if (result && result.success === false) {
+                    throw Object.assign(new Error(String(result.error || "invoice_not_found")), {
+                        code: String(result.error || "invoice_not_found"),
+                    });
+                }
+                yearlyMessage.value = t("gpm.yearly.deleted");
+                yearlyMessageError.value = false;
+                if (yearlyForm.value.id === invoiceId) resetYearlyForm();
+                await loadYearly();
+            } catch (error) {
+                yearlyMessage.value = yearlyErrorText(error);
+                yearlyMessageError.value = true;
+            } finally {
+                yearlyBusy.value = false;
+            }
+        }
+
         function renderSchedule() {
             if (!scheduleEl.value || !window.echarts || !status.value.tariff_schedule) {
                 if (scheduleChart) {
@@ -1021,12 +1621,20 @@ const _GPMPage = {
             }, true);
         }
 
-        async function loadStatus() {
+        async function loadStatus(options = {}) {
+            const extras = options.extras !== false;
+            const span = monthSpanOptions.includes(Number(monthSpan.value))
+                ? Number(monthSpan.value)
+                : 12;
+            monthSpan.value = span;
             try {
-                const payload = await SFMLApi.fetch("/api/sfml_stats/gpm/status", {
-                    forceRefresh: true,
-                    ttl: 0,
-                });
+                const payload = await SFMLApi.fetch(
+                    "/api/sfml_stats/gpm/status?months=" + encodeURIComponent(String(span)),
+                    {
+                        forceRefresh: true,
+                        ttl: 0,
+                    }
+                );
                 if (payload && payload.success) {
                     status.value = payload;
                 }
@@ -1036,13 +1644,21 @@ const _GPMPage = {
             await nextTick();
             renderChart();
             renderSchedule();
-            loadBill();
+            if (extras) {
+                loadBill();
+                loadYearly();
+            }
+        }
+
+        function onMonthSpanChange() {
+            loadStatus({ extras: false });
         }
 
         function handleResize() {
             chart?.resize();
             scheduleChart?.resize();
             billChart?.resize();
+            yearlyChart?.resize();
         }
 
         onMounted(() => {
@@ -1063,6 +1679,10 @@ const _GPMPage = {
                 billChart.dispose();
                 billChart = null;
             }
+            if (yearlyChart) {
+                yearlyChart.dispose();
+                yearlyChart = null;
+            }
         });
 
         return {
@@ -1073,12 +1693,38 @@ const _GPMPage = {
             chartEl,
             scheduleEl,
             billEl,
+            yearlyEl,
             bill,
             billYear,
             billMode,
             billYears,
             billMethodLabel,
             loadBill,
+            monthSpan,
+            monthSpanOptions,
+            onMonthSpanChange,
+            yearlyRows,
+            yearlyInvoices,
+            yearlyForm,
+            yearlyBusy,
+            yearlyMessage,
+            yearlyMessageError,
+            yearlyAxisLabel,
+            yearlyDash,
+            yearlyNumber,
+            yearlyRowInvoices,
+            yearlyInvoiceKey,
+            yearlyInvoiceLine,
+            yearlyCoverageMeasured,
+            yearlyCoverageHours,
+            yearlyCoverageSources,
+            yearlyCoverageGap,
+            yearlyNoteText,
+            yearlyRowKey,
+            saveYearlyInvoice,
+            editYearlyInvoice,
+            deleteYearlyInvoice,
+            resetYearlyForm,
             formatPrice,
             formatFee,
             formatEuro,
@@ -1086,8 +1732,11 @@ const _GPMPage = {
             lockedStyle,
             canUndo,
             nextCheapLabel,
-            tomorrowStatus,
-            feeSourceLabel,
+            tariffLine,
+            feesLine,
+            correctionLine,
+            diagnosticsCorrectionKind,
+            lastFetchLabel,
             compositionParts,
             cacheAgeLabel,
             monthOptions,
@@ -1125,11 +1774,57 @@ const _GPMPage = {
     style.id = 'gpm-page-styles';
     style.textContent = `
         .gpm-csv-form,
-        .gpm-correction-form {
+        .gpm-correction-form,
+        .gpm-yearly-form {
             display: flex;
             flex-direction: column;
             gap: var(--space-md);
             margin-top: var(--space-md);
+        }
+        .gpm-yearly-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+            gap: var(--space-sm);
+            align-items: end;
+        }
+        .gpm-yearly-form-title,
+        .gpm-yearly-form-actions,
+        .gpm-yearly-message,
+        .gpm-yearly-note,
+        .gpm-yearly-invoices {
+            grid-column: 1 / -1;
+        }
+        .gpm-yearly-invoices {
+            margin-top: var(--space-md);
+        }
+        .gpm-yearly-invoices-title {
+            display: block;
+            margin-bottom: var(--space-sm);
+        }
+        .gpm-yearly-info {
+            white-space: normal;
+            max-width: 22rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .gpm-yearly-info ul {
+            margin: 0;
+            padding-left: 1.1rem;
+        }
+        .gpm-yearly-table-wrap {
+            overflow-x: auto;
+            margin-top: var(--space-sm);
+        }
+        .gpm-yearly-table {
+            width: 100%;
+            font-size: 0.8rem;
+            border-collapse: collapse;
+        }
+        .gpm-yearly-table th,
+        .gpm-yearly-table td {
+            padding: 0.25rem 0.4rem;
+            text-align: left;
+            white-space: nowrap;
         }
         .gpm-field {
             display: flex;
@@ -1170,7 +1865,8 @@ const _GPMPage = {
             margin: 0;
         }
         .gpm-csv-form > p,
-        .gpm-correction-form > p {
+        .gpm-correction-form > p,
+        .gpm-yearly-form > p {
             margin: 0;
         }
     `;

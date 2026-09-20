@@ -81,6 +81,7 @@ from .const import (
     DAILY_AGGREGATION_HOUR,
     DAILY_AGGREGATION_MINUTE,
     DAILY_AGGREGATION_SECOND,
+    HOURLY_CATCHUP_HOURS,
     FORECAST_EVENING_HOUR,
     FORECAST_EVENING_MINUTE,
     CONF_BILLING_PRICE_MODE,
@@ -925,6 +926,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         forecast_comparison_collector.async_migrate_historical_forecasts()
     )
 
+    async def _hourly_catchup_job() -> None:
+        """Fill missing hour_keys from the recorder after setup. @zara"""
+        try:
+            await hourly_aggregator.async_catchup_missing_hours(HOURLY_CATCHUP_HOURS)
+        except Exception as err:
+            _LOGGER.error("Hourly billing catch-up failed: %s", err)
+
+    hass.async_create_task(_hourly_catchup_job())
+
     async def _forecast_evening_job(now: datetime) -> None:
         """Collect evening actuals. @zara"""
         try:
@@ -944,16 +954,32 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # --- Hourly Billing Job (after SFML hourly actualization) ---
     async def _hourly_billing_job(now: datetime) -> None:
         """Run hourly billing aggregation — calculates cost per hour. @zara"""
-        try:
-            success = await hourly_aggregator.async_aggregate_hourly()
-            if success:
-                _LOGGER.debug("Hourly billing aggregation completed")
-                if energy_context_provider is not None:
-                    await energy_context_provider.async_refresh()
-            else:
-                _LOGGER.debug("Hourly billing aggregation skipped (no data)")
-        except Exception as err:
-            _LOGGER.error("Hourly billing aggregation failed: %s", err)
+        last_err: Exception | None = None
+        for attempt in range(3):
+            try:
+                success = await hourly_aggregator.async_aggregate_hourly()
+                if success:
+                    _LOGGER.debug("Hourly billing aggregation completed")
+                    if energy_context_provider is not None:
+                        await energy_context_provider.async_refresh()
+                else:
+                    _LOGGER.debug("Hourly billing aggregation skipped (no data)")
+                return
+            except Exception as err:
+                last_err = err
+                if DatabaseConnectionManager._is_locked_error(err) and attempt < 2:
+                    wait = DatabaseConnectionManager._retry_wait(attempt)
+                    _LOGGER.warning(
+                        "Hourly billing locked (attempt %d/3), retrying in %.2fs",
+                        attempt + 1,
+                        wait,
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                _LOGGER.error("Hourly billing aggregation failed: %s", err)
+                return
+        if last_err is not None:
+            _LOGGER.error("Hourly billing aggregation failed: %s", last_err)
 
     cancel_hourly_billing = async_track_time_change(
         hass,

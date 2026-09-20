@@ -103,6 +103,12 @@ _STATS_TABLES: dict[str, str] = {
         external_2_kwh REAL, external_2_accuracy_percent REAL, best_source TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+    "stats_invoice_archive": """CREATE TABLE IF NOT EXISTS stats_invoice_archive (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, period_from TEXT NOT NULL, period_to TEXT NOT NULL,
+        grid_kwh REAL NOT NULL, total_eur REAL NOT NULL, base_fee_eur REAL,
+        net_energy_price_ct REAL, solar_kwh REAL, feed_in_eur REAL, savings_eur REAL,
+        provider TEXT, note TEXT, source TEXT NOT NULL DEFAULT 'customer',
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""",
 }
 
 _REQUIRED_COLUMNS: dict[str, dict[str, str]] = {
@@ -118,6 +124,7 @@ _STATS_INDEXES: dict[str, str] = {
     "idx_stats_power_sources_date_timestamp": "CREATE INDEX IF NOT EXISTS idx_stats_power_sources_date_timestamp ON stats_power_sources(date, timestamp)",
     "idx_stats_consumer_atlas_daily_date": "CREATE INDEX IF NOT EXISTS idx_stats_consumer_atlas_daily_date ON stats_consumer_atlas_daily(date)",
     "idx_stats_forecast_comparison_date": "CREATE INDEX IF NOT EXISTS idx_stats_forecast_comparison_date ON stats_forecast_comparison(date)",
+    "idx_stats_invoice_archive_period_from": "CREATE INDEX IF NOT EXISTS idx_stats_invoice_archive_period_from ON stats_invoice_archive(period_from)",
 }
 
 
@@ -156,6 +163,7 @@ _OWNED_TABLE_CONTRACT: dict[str, dict[str, tuple[str, int]]] = {
     "stats_energy_efficiency_meta": {"key": ("TEXT", 1), "value": ("TEXT", 0)},
     "stats_settings": {"key": ("TEXT", 1), "value": ("TEXT", 0)},
     "stats_forecast_comparison": {"date": ("TEXT", 1), "actual_kwh": ("REAL", 0), "sfml_forecast_kwh": ("REAL", 0)},
+    "stats_invoice_archive": {"id": ("INTEGER", 1), "period_from": ("TEXT", 0)},
 }
 
 # Full type contract for owned data. Extra legacy columns are intentionally
@@ -172,6 +180,7 @@ _OWNED_TABLE_CONTRACT.update({
     "stats_energy_efficiency_meta": {"key": ("TEXT", 1), "value": ("TEXT", 0), "updated_at": ("TEXT", 0)},
     "stats_settings": {"key": ("TEXT", 1), "value": ("TEXT", 0), "updated_at": ("TEXT", 0)},
     "stats_forecast_comparison": {"date": ("TEXT", 1), "actual_kwh": ("REAL", 0), "sfml_forecast_kwh": ("REAL", 0), "sfml_accuracy_percent": ("REAL", 0), "external_1_kwh": ("REAL", 0), "external_1_accuracy_percent": ("REAL", 0), "external_2_kwh": ("REAL", 0), "external_2_accuracy_percent": ("REAL", 0), "best_source": ("TEXT", 0), "created_at": ("TEXT", 0), "updated_at": ("TEXT", 0)},
+    "stats_invoice_archive": {"id": ("INTEGER", 1), "period_from": ("TEXT", 0), "period_to": ("TEXT", 0), "grid_kwh": ("REAL", 0), "total_eur": ("REAL", 0), "base_fee_eur": ("REAL", 0), "net_energy_price_ct": ("REAL", 0), "solar_kwh": ("REAL", 0), "feed_in_eur": ("REAL", 0), "savings_eur": ("REAL", 0), "provider": ("TEXT", 0), "note": ("TEXT", 0), "source": ("TEXT", 0), "created_at": ("TEXT", 0), "updated_at": ("TEXT", 0)},
 })
 
 for _table_name, _contract_columns in _OWNED_TABLE_CONTRACT.items():

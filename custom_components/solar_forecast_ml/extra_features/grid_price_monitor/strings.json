@@ -100,7 +100,7 @@
       },
       "window_add": {
         "title": "Edit time window",
-        "description": "Name the window and choose days and times. Overlapping windows on the same weekday are rejected.",
+        "description": "Name the window and choose days and times. Overlapping windows on the same weekday are rejected. GPM uses full hours; the hour start decides (example: a window until 14:14 still includes hour 14).",
         "data": {
           "window_name": "Name",
           "window_start": "Start",
@@ -289,7 +289,7 @@
       },
       "window_add": {
         "title": "Edit time window",
-        "description": "Name the window and choose days and times. Overlapping windows on the same weekday are rejected.",
+        "description": "Name the window and choose days and times. Overlapping windows on the same weekday are rejected. GPM uses full hours; the hour start decides (example: a window until 14:14 still includes hour 14).",
         "data": {
           "window_name": "Name",
           "window_start": "Start",

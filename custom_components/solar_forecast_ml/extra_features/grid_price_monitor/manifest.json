@@ -15,5 +15,5 @@
   "requirements": [
     "aiosqlite>=0.19.0"
   ],
-  "version": "46.2.1"
+  "version": "46.2.2"
 }
