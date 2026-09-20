@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -893,7 +893,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     for sfml_entry in hass.config_entries.async_entries("solar_forecast_ml"):
         entry.async_on_unload(
-            sfml_entry.add_update_listener(_async_sfml_entry_updated)
+            sfml_entry.async_on_state_change(
+                _make_sfml_state_listener(hass, sfml_entry)
+            )
         )
 
     # --- Scheduled Jobs ---
@@ -1168,6 +1170,18 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         frontend.async_remove_panel(hass, API_BRIDGE_PANEL_PATH, warn_if_unknown=False)
         frontend.async_remove_panel(hass, EMS_BRIDGE_PANEL_PATH, warn_if_unknown=False)
     return unload_ok
+
+
+def _make_sfml_state_listener(hass: HomeAssistant, sfml_entry: ConfigEntry):
+    """Reload STATS smart charging only after SFML has finished loading."""
+
+    @callback
+    def _on_state_change() -> None:
+        if sfml_entry.state is not ConfigEntryState.LOADED:
+            return
+        hass.async_create_task(_async_sfml_entry_updated(hass, sfml_entry))
+
+    return _on_state_change
 
 
 async def _async_sfml_entry_updated(hass: HomeAssistant, _entry: ConfigEntry) -> None:

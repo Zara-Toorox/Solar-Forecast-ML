@@ -129,6 +129,12 @@ def _get_country_schema(default_country: str = DEFAULT_COUNTRY) -> vol.Schema:
     })
 
 
+def _optional_entity_field(key: str, current: Any) -> vol.Optional:
+    if current:
+        return vol.Optional(key, description={"suggested_value": current})
+    return vol.Optional(key)
+
+
 def _get_pricing_schema(
     defaults: dict | None = None,
     default_vat: int = VAT_RATE_DE,
@@ -201,9 +207,9 @@ def _get_pricing_schema(
                 mode=selector.NumberSelectorMode.BOX,
             ),
         ),
-        vol.Optional(
+        _optional_entity_field(
             CONF_BATTERY_POWER_SENSOR,
-            default=defaults.get(CONF_BATTERY_POWER_SENSOR, ""),
+            defaults.get(CONF_BATTERY_POWER_SENSOR),
         ): selector.EntitySelector(
             selector.EntitySelectorConfig(
                 domain="sensor",
@@ -254,7 +260,12 @@ _DYNAMIC_PRICE_KEYS = (
     CONF_TAXES_FEES,
     CONF_PROVIDER_MARKUP,
 )
-_RECONFIGURE_STRIP_KEYS = frozenset(_MODE_PAYLOAD_KEYS + _DYNAMIC_PRICE_KEYS)
+_COMMON_KEYS = (
+    CONF_BATTERY_POWER_SENSOR,
+    CONF_FEED_IN_TARIFF_CT,
+    CONF_BASE_FEE_EUR_MONTH,
+)
+_RECONFIGURE_STRIP_KEYS = frozenset(_MODE_PAYLOAD_KEYS + _DYNAMIC_PRICE_KEYS + _COMMON_KEYS)
 
 
 def _csv_community_base_mode(data: dict[str, Any]) -> str:
@@ -352,9 +363,9 @@ def _common_schema(defaults: dict | None = None) -> vol.Schema:
     defaults = defaults or {}
     return vol.Schema(
         {
-            vol.Optional(
+            _optional_entity_field(
                 CONF_BATTERY_POWER_SENSOR,
-                default=defaults.get(CONF_BATTERY_POWER_SENSOR, ""),
+                defaults.get(CONF_BATTERY_POWER_SENSOR),
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(
                     domain="sensor",
@@ -614,9 +625,9 @@ def _options_dynamic_schema(current_data: dict[str, Any]) -> vol.Schema:
                     mode=selector.NumberSelectorMode.BOX,
                 ),
             ),
-            vol.Optional(
+            _optional_entity_field(
                 CONF_BATTERY_POWER_SENSOR,
-                default=current_data.get(CONF_BATTERY_POWER_SENSOR, ""),
+                current_data.get(CONF_BATTERY_POWER_SENSOR),
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(
                     domain="sensor",
@@ -1316,7 +1327,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._windows.append(candidate)
                 return await self.async_step_tariff_time_windows()
         return self.async_show_form(
-            step_id="window_edit",
+            step_id="window_add",
             data_schema=_window_edit_schema(),
             errors=errors,
         )
@@ -1939,7 +1950,7 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
                 self._windows.append(candidate)
                 return await self.async_step_tariff_time_windows()
         return self.async_show_form(
-            step_id="window_edit",
+            step_id="window_add",
             data_schema=_window_edit_schema(),
             errors=errors,
         )

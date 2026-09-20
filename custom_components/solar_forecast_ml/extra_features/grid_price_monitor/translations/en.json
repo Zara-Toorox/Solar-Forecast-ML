@@ -98,7 +98,7 @@
           "windows_done": "Continue"
         }
       },
-      "window_edit": {
+      "window_add": {
         "title": "Edit time window",
         "description": "Name the window and choose days and times. Overlapping windows on the same weekday are rejected.",
         "data": {
@@ -287,7 +287,7 @@
           "windows_done": "Continue"
         }
       },
-      "window_edit": {
+      "window_add": {
         "title": "Edit time window",
         "description": "Name the window and choose days and times. Overlapping windows on the same weekday are rejected.",
         "data": {
