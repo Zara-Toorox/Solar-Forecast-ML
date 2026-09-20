@@ -232,7 +232,7 @@
       },
       "tariff": {
         "title": "Tariff and prices",
-        "description": "Current market: **{country}**\n\nAdjust your pricing configuration. To change the country, use 'Reconfigure' instead.",
+        "description": "Current market: **{country}**\n\nAdjust the fields of the current tariff. To change the tariff model or country, use 'Reconfigure'.",
         "data": {
           "vat_rate": "VAT rate",
           "grid_fee": "Grid fee",
@@ -246,6 +246,99 @@
           "taxes_fees": "Electricity tax, EEG surcharge, etc. (ct/kWh, gross)",
           "provider_markup": "Your provider's margin/profit (ct/kWh, gross)",
           "battery_power_sensor": "Power sensor for battery charging from grid (optional)"
+        }
+      },
+      "tariff_fixed": {
+        "title": "Fixed tariff",
+        "description": "Enter the constant gross price in ct/kWh.",
+        "data": {
+          "fixed_total_price": "Total price"
+        },
+        "data_description": {
+          "fixed_total_price": "Gross customer price for every hour"
+        }
+      },
+      "tariff_time_of_use": {
+        "title": "Time-of-use tariff",
+        "description": "High tariff applies between the start and end times. If the end is earlier than the start, the window wraps midnight.",
+        "data": {
+          "tou_high_price": "High tariff (HT)",
+          "tou_low_price": "Low tariff (NT)",
+          "tou_high_start": "High tariff start",
+          "tou_high_end": "High tariff end",
+          "tou_weekend_low": "Weekend uses low tariff",
+          "tou_holiday_low": "Public holidays use low tariff"
+        },
+        "data_description": {
+          "tou_high_price": "Gross price during the high-tariff window",
+          "tou_low_price": "Gross price outside the high-tariff window",
+          "tou_high_start": "Local time when the high tariff begins",
+          "tou_high_end": "Local time when the high tariff ends",
+          "tou_weekend_low": "Saturday and Sunday always use the low tariff",
+          "tou_holiday_low": "Nationwide public holidays use the low tariff"
+        }
+      },
+      "tariff_time_windows": {
+        "title": "Time windows",
+        "description": "Defined windows:\n{windows}\n\nAdd up to 12 windows. The first matching window wins.",
+        "menu_options": {
+          "window_add": "Add window",
+          "window_remove": "Remove window",
+          "windows_done": "Continue"
+        }
+      },
+      "window_edit": {
+        "title": "Edit time window",
+        "description": "Name the window and choose days and times. Overlapping windows on the same weekday are rejected.",
+        "data": {
+          "window_name": "Name",
+          "window_start": "Start",
+          "window_end": "End",
+          "window_price": "Price",
+          "window_weekdays": "Weekdays"
+        },
+        "data_description": {
+          "window_name": "Shown in the tariff label",
+          "window_start": "Local start time",
+          "window_end": "Local end time; earlier than start wraps midnight",
+          "window_price": "Gross price while this window is active",
+          "window_weekdays": "At least one weekday is required"
+        }
+      },
+      "window_remove": {
+        "title": "Remove time window",
+        "description": "Select the window to remove.",
+        "data": {
+          "window_name": "Window"
+        },
+        "data_description": {
+          "window_name": "Existing named window"
+        }
+      },
+      "windows_done": {
+        "title": "Default window price",
+        "description": "Hours that match no window use this default gross price.",
+        "data": {
+          "default_price": "Default price"
+        },
+        "data_description": {
+          "default_price": "Used when no named window matches"
+        }
+      },
+      "tariff_csv_community": {
+        "title": "Community CSV tariff",
+        "description": "Choose the live base tariff. CSV files are imported later from Options.",
+        "data": {
+          "csv_base_mode": "Base tariff",
+          "eeg_price": "EEG / community price",
+          "csv_price_unit": "Price unit",
+          "csv_timezone": "Timestamps"
+        },
+        "data_description": {
+          "csv_base_mode": "Used for live hours until a CSV import is applied",
+          "eeg_price": "Community share price in ct/kWh",
+          "csv_price_unit": "How imported prices are interpreted",
+          "csv_timezone": "How offset-less CSV timestamps are read"
         }
       },
       "license": {

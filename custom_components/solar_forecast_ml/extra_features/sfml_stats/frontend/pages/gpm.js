@@ -271,48 +271,61 @@ const _GPMPage = {
                         <a class="button secondary" :href="csvTemplateUrl('community_share')" download>{{ $t('gpm.csvTemplateCommunity') }}</a>
                     </div>
                     <form class="gpm-csv-form" @submit.prevent="runCsvPreview">
-                        <label>{{ $t('gpm.csvFile') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.csvFile') }}</span>
                             <input type="file" accept=".csv,.txt,text/csv,text/plain" @change="onCsvFile">
+                            <span class="gpm-help">{{ $t('gpm.csvFileHelp') }}</span>
                         </label>
-                        <label>{{ $t('gpm.csvProfile') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.csvProfile') }}</span>
                             <select v-model="csvForm.profile">
                                 <option value="auto">{{ $t('gpm.csvProfileAuto') }}</option>
                                 <option value="price_list">{{ $t('gpm.csvProfilePrice') }}</option>
                                 <option value="community_share">{{ $t('gpm.csvProfileCommunity') }}</option>
                             </select>
+                            <span class="gpm-help">{{ $t('gpm.csvProfileHelp') }}</span>
                         </label>
-                        <label>{{ $t('gpm.csvUnit') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.csvUnit') }}</span>
                             <select v-model="csvForm.priceUnit">
                                 <option value="auto">{{ $t('gpm.csvUnitAuto') }}</option>
                                 <option value="ct_kwh">{{ $t('gpm.csvUnitCt') }}</option>
                                 <option value="eur_kwh">{{ $t('gpm.csvUnitEurKwh') }}</option>
                                 <option value="eur_mwh">{{ $t('gpm.csvUnitEurMwh') }}</option>
                             </select>
+                            <span class="gpm-help">{{ $t('gpm.csvUnitHelp') }}</span>
                         </label>
-                        <label>{{ $t('gpm.csvTimezone') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.csvTimezone') }}</span>
                             <select v-model="csvForm.timezone">
                                 <option value="local">{{ $t('gpm.csvTzLocal') }}</option>
                                 <option value="utc">{{ $t('gpm.csvTzUtc') }}</option>
                             </select>
+                            <span class="gpm-help">{{ $t('gpm.csvTimezoneHelp') }}</span>
                         </label>
                         <template v-if="csvPreview">
-                            <label>{{ $t('gpm.csvMapTimestamp') }}
+                            <p class="gpm-section-hint">{{ $t('gpm.csvMapHelp') }}</p>
+                            <label class="gpm-field">
+                                <span class="gpm-field-label">{{ $t('gpm.csvMapTimestamp') }}</span>
                                 <select v-model="csvForm.columnMap.timestamp">
                                     <option v-for="header in csvPreview.headers" :key="'ts-'+header" :value="header">{{ header }}</option>
                                 </select>
                             </label>
-                            <label v-if="csvForm.profile !== 'community_share'">{{ $t('gpm.csvMapPrice') }}
+                            <label v-if="csvForm.profile !== 'community_share'" class="gpm-field">
+                                <span class="gpm-field-label">{{ $t('gpm.csvMapPrice') }}</span>
                                 <select v-model="csvForm.columnMap.price">
                                     <option v-for="header in csvPreview.headers" :key="'price-'+header" :value="header">{{ header }}</option>
                                 </select>
                             </label>
                             <template v-else>
-                                <label>{{ $t('gpm.csvMapTotal') }}
+                                <label class="gpm-field">
+                                    <span class="gpm-field-label">{{ $t('gpm.csvMapTotal') }}</span>
                                     <select v-model="csvForm.columnMap.total_kwh">
                                         <option v-for="header in csvPreview.headers" :key="'tot-'+header" :value="header">{{ header }}</option>
                                     </select>
                                 </label>
-                                <label>{{ $t('gpm.csvMapCommunity') }}
+                                <label class="gpm-field">
+                                    <span class="gpm-field-label">{{ $t('gpm.csvMapCommunity') }}</span>
                                     <select v-model="csvForm.columnMap.community_kwh">
                                         <option v-for="header in csvPreview.headers" :key="'com-'+header" :value="header">{{ header }}</option>
                                     </select>
@@ -342,34 +355,50 @@ const _GPMPage = {
                     <strong>{{ $t('gpm.monthlyCorrection') }}</strong>
                     <p v-if="!status.capabilities.corrections" style="color: var(--text-muted);">{{ $t('gpm.needsLicense') }}</p>
                     <form v-else class="gpm-correction-form" @submit.prevent="runPreview">
-                        <label>{{ $t('gpm.month') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.month') }}</span>
                             <select v-model="form.monthKey">
                                 <option v-for="item in monthOptions" :key="item" :value="item">{{ item }}</option>
                             </select>
+                            <span class="gpm-help">{{ $t('gpm.monthHelp') }}</span>
                         </label>
-                        <label>{{ $t('gpm.billedKwh') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.billedKwh') }}</span>
                             <input v-model.number="form.billedKwh" type="number" min="0.001" step="0.001" required>
+                            <span class="gpm-help">{{ $t('gpm.billedKwhHelp') }}</span>
                         </label>
-                        <label>{{ $t('gpm.billedEur') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.billedEur') }}</span>
                             <input v-model.number="form.billedEur" type="number" min="0.001" step="0.001" required>
+                            <span class="gpm-help">{{ $t('gpm.billedEurHelp') }}</span>
                         </label>
-                        <label>{{ $t('gpm.baseFeeInput') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.baseFeeInput') }}</span>
                             <input v-model.number="form.baseFeeEur" type="number" min="0" step="0.01">
+                            <span class="gpm-help">{{ $t('gpm.baseFeeHelp') }}</span>
                         </label>
-                        <label>{{ $t('gpm.method') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.method') }}</span>
                             <select v-model="form.method">
                                 <option value="additive">{{ $t('gpm.methodAdditive') }}</option>
                                 <option value="multiplicative">{{ $t('gpm.methodMultiplicative') }}</option>
                             </select>
+                            <span class="gpm-help">{{ $t('gpm.methodHelp') }}</span>
                         </label>
-                        <label>{{ $t('gpm.weighting') }}
+                        <label class="gpm-field">
+                            <span class="gpm-field-label">{{ $t('gpm.weighting') }}</span>
                             <select v-model="form.weighting">
                                 <option value="consumption">{{ $t('gpm.weightConsumption') }}</option>
                                 <option value="uniform">{{ $t('gpm.weightUniform') }}</option>
                             </select>
+                            <span class="gpm-help">{{ $t('gpm.weightingHelp') }}</span>
                         </label>
-                        <label class="gpm-force">
-                            <input v-model="form.force" type="checkbox"> {{ $t('gpm.force') }}
+                        <label class="gpm-field gpm-force">
+                            <span class="gpm-check-row">
+                                <input v-model="form.force" type="checkbox">
+                                <span class="gpm-field-label">{{ $t('gpm.force') }}</span>
+                            </span>
+                            <span class="gpm-help">{{ $t('gpm.forceHelp') }}</span>
                         </label>
                         <div style="display:flex; gap: var(--space-sm); margin-top: var(--space-sm);">
                             <button type="submit" class="button secondary" :disabled="busy">{{ $t('gpm.preview') }}</button>
@@ -1088,6 +1117,65 @@ const _GPMPage = {
         };
     },
 };
+
+// Style injection: CSV import and monthly correction forms
+(function injectGpmStyles() {
+    if (document.getElementById('gpm-page-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'gpm-page-styles';
+    style.textContent = `
+        .gpm-csv-form,
+        .gpm-correction-form {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-md);
+            margin-top: var(--space-md);
+        }
+        .gpm-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+        .gpm-field-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .gpm-field > input,
+        .gpm-field > select {
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+        }
+        .gpm-help,
+        .gpm-section-hint {
+            font-size: 0.8rem;
+            line-height: 1.35;
+            color: var(--text-muted);
+        }
+        .gpm-section-hint {
+            margin: 0;
+            padding-top: var(--space-sm);
+            border-top: 1px solid var(--border, rgba(255,255,255,0.08));
+        }
+        .gpm-check-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+        .gpm-check-row > input {
+            width: auto;
+            margin: 0;
+        }
+        .gpm-csv-form > p,
+        .gpm-correction-form > p {
+            margin: 0;
+        }
+    `;
+    document.head.appendChild(style);
+})();
 
 window.GPMPage = _GPMPage;
 return _GPMPage;

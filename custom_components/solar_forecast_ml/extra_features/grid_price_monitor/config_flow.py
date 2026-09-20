@@ -242,6 +242,76 @@ def _preserve_legacy_entitled(new_data: dict[str, Any], old_data: dict[str, Any]
     return new_data
 
 
+_MODE_PAYLOAD_KEYS = (
+    CONF_FIXED,
+    CONF_TIME_OF_USE,
+    CONF_TIME_WINDOWS,
+    CONF_CSV_COMMUNITY,
+)
+_DYNAMIC_PRICE_KEYS = (
+    CONF_VAT_RATE,
+    CONF_GRID_FEE,
+    CONF_TAXES_FEES,
+    CONF_PROVIDER_MARKUP,
+)
+_RECONFIGURE_STRIP_KEYS = frozenset(_MODE_PAYLOAD_KEYS + _DYNAMIC_PRICE_KEYS)
+
+
+def _csv_community_base_mode(data: dict[str, Any]) -> str:
+    payload = data.get(CONF_CSV_COMMUNITY) or {}
+    if isinstance(payload, dict):
+        return str(payload.get("base_mode") or TARIFF_MODE_DYNAMIC)
+    return TARIFF_MODE_DYNAMIC
+
+
+def _allowed_mode_payload_keys(tariff_mode: str, data: dict[str, Any]) -> set[str]:
+    if tariff_mode == TARIFF_MODE_FIXED:
+        return {CONF_FIXED}
+    if tariff_mode == TARIFF_MODE_TIME_OF_USE:
+        return {CONF_TIME_OF_USE}
+    if tariff_mode == TARIFF_MODE_TIME_WINDOWS:
+        return {CONF_TIME_WINDOWS}
+    if tariff_mode == TARIFF_MODE_CSV_COMMUNITY:
+        allowed = {CONF_CSV_COMMUNITY}
+        base = _csv_community_base_mode(data)
+        if base == TARIFF_MODE_FIXED:
+            allowed.add(CONF_FIXED)
+        elif base == TARIFF_MODE_TIME_OF_USE:
+            allowed.add(CONF_TIME_OF_USE)
+        elif base == TARIFF_MODE_TIME_WINDOWS:
+            allowed.add(CONF_TIME_WINDOWS)
+        return allowed
+    return set()
+
+
+def _strip_inactive_mode_payloads(data: dict[str, Any]) -> dict[str, Any]:
+    cleaned = dict(data)
+    allowed = _allowed_mode_payload_keys(
+        str(cleaned.get(CONF_TARIFF_MODE, TARIFF_MODE_DYNAMIC) or TARIFF_MODE_DYNAMIC),
+        cleaned,
+    )
+    for key in _MODE_PAYLOAD_KEYS:
+        if key not in allowed:
+            cleaned.pop(key, None)
+    return cleaned
+
+
+def _reconfigure_data(existing: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
+    incoming = _strip_inactive_mode_payloads(data)
+    kept = {
+        key: value for key, value in existing.items() if key not in _RECONFIGURE_STRIP_KEYS
+    }
+    return _preserve_legacy_entitled({**kept, **incoming}, existing)
+
+
+def _reconfigure_options(options: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in options.items()
+        if key not in _RECONFIGURE_STRIP_KEYS
+    }
+
+
 def _tariff_schema(default_mode: str, default_country: str) -> vol.Schema:
     return vol.Schema(
         {
@@ -404,6 +474,155 @@ def _window_edit_schema(defaults: dict | None = None) -> vol.Schema:
                     mode=selector.SelectSelectorMode.DROPDOWN,
                     translation_key="weekday",
                 )
+            ),
+        }
+    )
+
+
+def _parse_fixed_input(user_input: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    total = float(user_input.get(CONF_FIXED_TOTAL_PRICE) or 0)
+    if total <= 0:
+        return None, "invalid_time_range"
+    return {"total_price": total}, None
+
+
+def _parse_tou_input(user_input: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    start = _clock_text(user_input.get(CONF_TOU_HIGH_START), "06:00:00")
+    end = _clock_text(user_input.get(CONF_TOU_HIGH_END), "22:00:00")
+    high = float(user_input.get(CONF_TOU_HIGH_PRICE) or 0)
+    low = float(user_input.get(CONF_TOU_LOW_PRICE) or 0)
+    if start == end or high <= 0 or low <= 0:
+        return None, "invalid_time_range"
+    return {
+        "high_price": high,
+        "low_price": low,
+        "high_start": start,
+        "high_end": end,
+        "weekend_low": bool(user_input.get(CONF_TOU_WEEKEND_LOW, True)),
+        "holiday_low": bool(user_input.get(CONF_TOU_HOLIDAY_LOW, False)),
+    }, None
+
+
+def _parse_window_candidate(
+    user_input: dict[str, Any], windows: list[dict[str, Any]]
+) -> tuple[dict[str, Any] | None, str | None]:
+    weekdays = [int(day) for day in user_input.get(CONF_WINDOW_WEEKDAYS) or []]
+    if not weekdays:
+        return None, "invalid_time_range"
+    if len(windows) >= MAX_TARIFF_WINDOWS:
+        return None, "windows_overlap"
+    candidate = {
+        "name": str(user_input.get(CONF_WINDOW_NAME) or "Window"),
+        "start": _clock_text(user_input.get(CONF_WINDOW_START), "17:00:00"),
+        "end": _clock_text(user_input.get(CONF_WINDOW_END), "20:00:00"),
+        "price": float(user_input.get(CONF_WINDOW_PRICE) or 0),
+        "weekdays": weekdays,
+    }
+    from .tariffs.time_windows import windows_overlap
+
+    if windows_overlap([*windows, candidate]):
+        return None, "windows_overlap"
+    return candidate, None
+
+
+def _parse_csv_community_input(user_input: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "base_mode": user_input.get(CONF_CSV_BASE_MODE, TARIFF_MODE_DYNAMIC),
+        "eeg_price": float(user_input.get(CONF_EEG_PRICE) or 12.0),
+        "price_unit": user_input.get(CONF_CSV_PRICE_UNIT, "auto"),
+        "timezone": user_input.get(CONF_CSV_TIMEZONE, "local"),
+    }
+
+
+def _windows_description(windows: list[dict[str, Any]]) -> str:
+    return "\n".join(
+        f"- {window.get('name')}: {window.get('start')}–{window.get('end')} @ {window.get('price')} ct"
+        for window in windows
+    ) or "No windows yet."
+
+
+def _window_remove_schema(windows: list[dict[str, Any]]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_WINDOW_NAME): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(
+                            value=str(window.get("name")),
+                            label=str(window.get("name")),
+                        )
+                        for window in windows
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                )
+            )
+        }
+    )
+
+
+def _options_dynamic_schema(current_data: dict[str, Any]) -> vol.Schema:
+    current_vat = current_data.get(
+        CONF_VAT_RATE, _get_default_vat_for_country(current_data.get(CONF_COUNTRY, DEFAULT_COUNTRY))
+    )
+    return vol.Schema(
+        {
+            vol.Required(
+                CONF_VAT_RATE,
+                default=str(current_vat),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value=str(opt["value"]), label=opt["label"])
+                        for opt in VAT_OPTIONS
+                    ],
+                    mode=selector.SelectSelectorMode.DROPDOWN,
+                ),
+            ),
+            vol.Required(
+                CONF_GRID_FEE,
+                default=current_data.get(CONF_GRID_FEE, DEFAULT_GRID_FEE),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=50,
+                    step=0.01,
+                    unit_of_measurement="ct/kWh",
+                    mode=selector.NumberSelectorMode.BOX,
+                ),
+            ),
+            vol.Required(
+                CONF_TAXES_FEES,
+                default=current_data.get(CONF_TAXES_FEES, DEFAULT_TAXES_FEES),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=50,
+                    step=0.01,
+                    unit_of_measurement="ct/kWh",
+                    mode=selector.NumberSelectorMode.BOX,
+                ),
+            ),
+            vol.Required(
+                CONF_PROVIDER_MARKUP,
+                default=current_data.get(CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=0,
+                    max=20,
+                    step=0.01,
+                    unit_of_measurement="ct/kWh",
+                    mode=selector.NumberSelectorMode.BOX,
+                ),
+            ),
+            vol.Optional(
+                CONF_BATTERY_POWER_SENSOR,
+                default=current_data.get(CONF_BATTERY_POWER_SENSOR, ""),
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    domain="sensor",
+                    device_class="power",
+                    multiple=False,
+                ),
             ),
         }
     )
@@ -802,7 +1021,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             FULL_PACKAGE if self._license_status == "valid" else frozenset()
         )
         if user_input is not None:
-            if self._reauth_entry is None:
+            if self._reauth_entry is None and self.source != SOURCE_RECONFIGURE:
                 await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
             self._tariff_mode = user_input.get(CONF_TARIFF_MODE, TARIFF_MODE_DYNAMIC)
@@ -889,10 +1108,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         data[CONF_BASE_FEE_EUR_MONTH] = existing[CONF_BASE_FEE_EUR_MONTH]
 
                 if is_reconfigure:
-                    return self.async_update_reload_and_abort(
-                        self._get_reconfigure_entry(),
-                        data_updates=_preserve_legacy_entitled(data, self._existing_data),
-                    )
+                    return self._finish_reconfigure(data)
 
                 if self._reauth_entry is not None:
                     merged = _preserve_legacy_entitled(
@@ -954,13 +1170,14 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         from .license import is_demo_entitlements, resolve_entitlements
 
         entry = self._get_reconfigure_entry()
-        self._existing_data = dict(entry.data)
+        self._existing_data = {**entry.data, **entry.options}
         resolved = resolve_entitlements(self.hass, entry)
         if (
             self._existing_data.get(CONF_TARIFF_MODE) == TARIFF_MODE_DEMO
             or is_demo_entitlements(resolved.entitlements)
         ):
             return self.async_abort(reason="license_required")
+        self._entitlements = resolved.entitlements
         self._license_key = str(self._existing_data.get(CONF_LICENSE_KEY, "") or "")
         self._license_status = str(self._existing_data.get(CONF_LICENSE_STATUS, "") or "")
         self._license_id = self._existing_data.get(CONF_LICENSE_ID)
@@ -1005,7 +1222,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_LICENSE_ID: self._license_id,
         }
         data.update(self._mode_payload)
-        if self._csv_community:
+        if self._tariff_mode == TARIFF_MODE_CSV_COMMUNITY and self._csv_community:
             data[CONF_CSV_COMMUNITY] = dict(self._csv_community)
         return data
 
@@ -1019,13 +1236,18 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
         return data
 
+    def _finish_reconfigure(self, data: dict[str, Any]) -> FlowResult:
+        entry = self._get_reconfigure_entry()
+        return self.async_update_reload_and_abort(
+            entry,
+            data=_reconfigure_data(dict(entry.data), data),
+            options=_reconfigure_options(dict(entry.options)),
+        )
+
     def _finish_entry(self, data: dict[str, Any]) -> FlowResult:
         is_reconfigure = self.source == SOURCE_RECONFIGURE
         if is_reconfigure:
-            return self.async_update_reload_and_abort(
-                self._get_reconfigure_entry(),
-                data_updates=_preserve_legacy_entitled(data, self._existing_data),
-            )
+            return self._finish_reconfigure(data)
         if self._reauth_entry is not None:
             merged = _preserve_legacy_entitled(
                 {**self._reauth_entry.data, **data},
@@ -1043,11 +1265,11 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            total = float(user_input.get(CONF_FIXED_TOTAL_PRICE) or 0)
-            if total <= 0:
-                errors["base"] = "invalid_time_range"
+            payload, error = _parse_fixed_input(user_input)
+            if error:
+                errors["base"] = error
             else:
-                self._mode_payload[CONF_FIXED] = {"total_price": total}
+                self._mode_payload[CONF_FIXED] = payload
                 return await self.async_step_common()
         return self.async_show_form(
             step_id="tariff_fixed",
@@ -1060,21 +1282,11 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            start = _clock_text(user_input.get(CONF_TOU_HIGH_START), "06:00:00")
-            end = _clock_text(user_input.get(CONF_TOU_HIGH_END), "22:00:00")
-            high = float(user_input.get(CONF_TOU_HIGH_PRICE) or 0)
-            low = float(user_input.get(CONF_TOU_LOW_PRICE) or 0)
-            if start == end or high <= 0 or low <= 0:
-                errors["base"] = "invalid_time_range"
+            payload, error = _parse_tou_input(user_input)
+            if error:
+                errors["base"] = error
             else:
-                self._mode_payload[CONF_TIME_OF_USE] = {
-                    "high_price": high,
-                    "low_price": low,
-                    "high_start": start,
-                    "high_end": end,
-                    "weekend_low": bool(user_input.get(CONF_TOU_WEEKEND_LOW, True)),
-                    "holiday_low": bool(user_input.get(CONF_TOU_HOLIDAY_LOW, False)),
-                }
+                self._mode_payload[CONF_TIME_OF_USE] = payload
                 return await self.async_step_common()
         return self.async_show_form(
             step_id="tariff_time_of_use",
@@ -1085,10 +1297,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_tariff_time_windows(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        description = "\n".join(
-            f"- {window.get('name')}: {window.get('start')}–{window.get('end')} @ {window.get('price')} ct"
-            for window in self._windows
-        ) or "No windows yet."
+        description = _windows_description(self._windows)
         return self.async_show_menu(
             step_id="tariff_time_windows",
             menu_options=["window_add", "window_remove", "windows_done"],
@@ -1100,26 +1309,12 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            weekdays = [int(day) for day in user_input.get(CONF_WINDOW_WEEKDAYS) or []]
-            if not weekdays:
-                errors["base"] = "invalid_time_range"
-            elif len(self._windows) >= MAX_TARIFF_WINDOWS:
-                errors["base"] = "windows_overlap"
+            candidate, error = _parse_window_candidate(user_input, self._windows)
+            if error:
+                errors["base"] = error
             else:
-                candidate = {
-                    "name": str(user_input.get(CONF_WINDOW_NAME) or "Window"),
-                    "start": _clock_text(user_input.get(CONF_WINDOW_START), "17:00:00"),
-                    "end": _clock_text(user_input.get(CONF_WINDOW_END), "20:00:00"),
-                    "price": float(user_input.get(CONF_WINDOW_PRICE) or 0),
-                    "weekdays": weekdays,
-                }
-                from .tariffs.time_windows import windows_overlap
-
-                if windows_overlap([*self._windows, candidate]):
-                    errors["base"] = "windows_overlap"
-                else:
-                    self._windows.append(candidate)
-                    return await self.async_step_tariff_time_windows()
+                self._windows.append(candidate)
+                return await self.async_step_tariff_time_windows()
         return self.async_show_form(
             step_id="window_edit",
             data_schema=_window_edit_schema(),
@@ -1137,22 +1332,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_tariff_time_windows()
         return self.async_show_form(
             step_id="window_remove",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_WINDOW_NAME): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                selector.SelectOptionDict(
-                                    value=str(window.get("name")),
-                                    label=str(window.get("name")),
-                                )
-                                for window in self._windows
-                            ],
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                        )
-                    )
-                }
-            ),
+            data_schema=_window_remove_schema(self._windows),
         )
 
     async def async_step_windows_done(
@@ -1174,12 +1354,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         if user_input is not None:
-            self._csv_community = {
-                "base_mode": user_input.get(CONF_CSV_BASE_MODE, TARIFF_MODE_DYNAMIC),
-                "eeg_price": float(user_input.get(CONF_EEG_PRICE) or 12.0),
-                "price_unit": user_input.get(CONF_CSV_PRICE_UNIT, "auto"),
-                "timezone": user_input.get(CONF_CSV_TIMEZONE, "local"),
-            }
+            self._csv_community = _parse_csv_community_input(user_input)
             self._mode_payload[CONF_CSV_COMMUNITY] = dict(self._csv_community)
             base = self._csv_community["base_mode"]
             if base == TARIFF_MODE_FIXED:
@@ -1332,6 +1507,60 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
     def _coordinator(self):
         stored = self.hass.data.get(DOMAIN) or {}
         return stored.get(self.config_entry.entry_id)
+
+    def _ensure_window_state(self) -> None:
+        if getattr(self, "_windows_ready", False):
+            return
+        payload = self._merged().get(CONF_TIME_WINDOWS) or {}
+        self._windows = list(payload.get("windows") or [])
+        self._window_default_price = float(payload.get("default_price") or 30.0)
+        self._windows_ready = True
+
+    def _write_tariff_options(self, **payloads: Any) -> FlowResult:
+        new_options = {**self.config_entry.options, **payloads}
+        pending = getattr(self, "_pending_csv_community", None)
+        if pending:
+            new_options[CONF_CSV_COMMUNITY] = dict(pending)
+        return self.async_create_entry(title="", data=new_options)
+
+    async def _continue_csv_base(self, base: str) -> FlowResult:
+        if base == TARIFF_MODE_FIXED:
+            return await self.async_step_tariff_fixed()
+        if base == TARIFF_MODE_TIME_OF_USE:
+            return await self.async_step_tariff_time_of_use()
+        if base == TARIFF_MODE_TIME_WINDOWS:
+            return await self.async_step_tariff_time_windows()
+        return self._show_dynamic_tariff(self._merged())
+
+    def _store_dynamic_tariff(
+        self, user_input: dict[str, Any], current_data: dict[str, Any]
+    ) -> FlowResult:
+        vat_rate = int(
+            user_input.get(
+                CONF_VAT_RATE,
+                str(current_data.get(CONF_VAT_RATE, VAT_RATE_DE)),
+            )
+        )
+        return self._write_tariff_options(
+            **{
+                CONF_VAT_RATE: vat_rate,
+                CONF_GRID_FEE: user_input.get(CONF_GRID_FEE),
+                CONF_TAXES_FEES: user_input.get(CONF_TAXES_FEES),
+                CONF_PROVIDER_MARKUP: user_input.get(CONF_PROVIDER_MARKUP),
+                CONF_BATTERY_POWER_SENSOR: user_input.get(CONF_BATTERY_POWER_SENSOR, ""),
+            }
+        )
+
+    def _show_dynamic_tariff(self, current_data: dict[str, Any]) -> FlowResult:
+        current_country = current_data.get(CONF_COUNTRY, DEFAULT_COUNTRY)
+        return self.async_show_form(
+            step_id="tariff",
+            data_schema=_options_dynamic_schema(current_data),
+            errors={},
+            description_placeholders={
+                "country": COUNTRY_OPTIONS.get(current_country, current_country),
+            },
+        )
 
     async def async_step_csv_import(
         self, user_input: dict[str, Any] | None = None
@@ -1634,102 +1863,131 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
     async def async_step_tariff(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Keep the previous options pricing form for dynamic tariffs."""
-        errors: dict[str, str] = {}
-        current_data = {**self.config_entry.data, **self.config_entry.options}
-        if current_data.get(CONF_TARIFF_MODE) == TARIFF_MODE_DEMO:
+        current_data = self._merged()
+        mode = current_data.get(CONF_TARIFF_MODE, TARIFF_MODE_DYNAMIC)
+        if mode == TARIFF_MODE_DEMO:
             return self.async_abort(reason="license_required")
+        if mode != TARIFF_MODE_DYNAMIC:
+            from .license import has_tariff_models
 
+            if not has_tariff_models(self._entitlements()):
+                return self.async_abort(reason="license_required")
+        if user_input is not None and CONF_VAT_RATE in user_input:
+            return self._store_dynamic_tariff(user_input, current_data)
+        if mode == TARIFF_MODE_FIXED:
+            return await self.async_step_tariff_fixed()
+        if mode == TARIFF_MODE_TIME_OF_USE:
+            return await self.async_step_tariff_time_of_use()
+        if mode == TARIFF_MODE_TIME_WINDOWS:
+            return await self.async_step_tariff_time_windows()
+        if mode == TARIFF_MODE_CSV_COMMUNITY:
+            return await self.async_step_tariff_csv_community()
+        return self._show_dynamic_tariff(current_data)
+
+    async def async_step_tariff_fixed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
-            vat_rate_str = user_input.get(
-                CONF_VAT_RATE,
-                str(current_data.get(CONF_VAT_RATE, VAT_RATE_DE))
-            )
-            vat_rate = int(vat_rate_str)
-
-            if not errors:
-                new_options = {
-                    **self.config_entry.options,
-                    CONF_VAT_RATE: vat_rate,
-                    CONF_GRID_FEE: user_input.get(CONF_GRID_FEE),
-                    CONF_TAXES_FEES: user_input.get(CONF_TAXES_FEES),
-                    CONF_PROVIDER_MARKUP: user_input.get(CONF_PROVIDER_MARKUP),
-                    CONF_BATTERY_POWER_SENSOR: user_input.get(CONF_BATTERY_POWER_SENSOR, ""),
-                }
-
-                return self.async_create_entry(title="", data=new_options)
-
-        current_country = current_data.get(CONF_COUNTRY, DEFAULT_COUNTRY)
-        current_vat = current_data.get(CONF_VAT_RATE, _get_default_vat_for_country(current_country))
-
-        schema = vol.Schema({
-            vol.Required(
-                CONF_VAT_RATE,
-                default=str(current_vat),
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[
-                        selector.SelectOptionDict(value=str(opt["value"]), label=opt["label"])
-                        for opt in VAT_OPTIONS
-                    ],
-                    mode=selector.SelectSelectorMode.DROPDOWN,
-                ),
-            ),
-            vol.Required(
-                CONF_GRID_FEE,
-                default=current_data.get(CONF_GRID_FEE, DEFAULT_GRID_FEE),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0,
-                    max=50,
-                    step=0.01,
-                    unit_of_measurement="ct/kWh",
-                    mode=selector.NumberSelectorMode.BOX,
-                ),
-            ),
-            vol.Required(
-                CONF_TAXES_FEES,
-                default=current_data.get(CONF_TAXES_FEES, DEFAULT_TAXES_FEES),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0,
-                    max=50,
-                    step=0.01,
-                    unit_of_measurement="ct/kWh",
-                    mode=selector.NumberSelectorMode.BOX,
-                ),
-            ),
-            vol.Required(
-                CONF_PROVIDER_MARKUP,
-                default=current_data.get(CONF_PROVIDER_MARKUP, DEFAULT_PROVIDER_MARKUP),
-            ): selector.NumberSelector(
-                selector.NumberSelectorConfig(
-                    min=0,
-                    max=20,
-                    step=0.01,
-                    unit_of_measurement="ct/kWh",
-                    mode=selector.NumberSelectorMode.BOX,
-                ),
-            ),
-            vol.Optional(
-                CONF_BATTERY_POWER_SENSOR,
-                default=current_data.get(CONF_BATTERY_POWER_SENSOR, ""),
-            ): selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain="sensor",
-                    device_class="power",
-                    multiple=False,
-                ),
-            ),
-        })
-
+            payload, error = _parse_fixed_input(user_input)
+            if error:
+                errors["base"] = error
+            else:
+                return self._write_tariff_options(**{CONF_FIXED: payload})
         return self.async_show_form(
-            step_id="tariff",
-            data_schema=schema,
+            step_id="tariff_fixed",
+            data_schema=_fixed_schema(self._merged()),
             errors=errors,
-            description_placeholders={
-                "country": COUNTRY_OPTIONS.get(current_country, current_country),
-            },
+        )
+
+    async def async_step_tariff_time_of_use(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            payload, error = _parse_tou_input(user_input)
+            if error:
+                errors["base"] = error
+            else:
+                return self._write_tariff_options(**{CONF_TIME_OF_USE: payload})
+        return self.async_show_form(
+            step_id="tariff_time_of_use",
+            data_schema=_tou_schema(self._merged()),
+            errors=errors,
+        )
+
+    async def async_step_tariff_time_windows(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        self._ensure_window_state()
+        return self.async_show_menu(
+            step_id="tariff_time_windows",
+            menu_options=["window_add", "window_remove", "windows_done"],
+            description_placeholders={"windows": _windows_description(self._windows)},
+        )
+
+    async def async_step_window_add(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        self._ensure_window_state()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            candidate, error = _parse_window_candidate(user_input, self._windows)
+            if error:
+                errors["base"] = error
+            else:
+                self._windows.append(candidate)
+                return await self.async_step_tariff_time_windows()
+        return self.async_show_form(
+            step_id="window_edit",
+            data_schema=_window_edit_schema(),
+            errors=errors,
+        )
+
+    async def async_step_window_remove(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        self._ensure_window_state()
+        if not self._windows:
+            return await self.async_step_tariff_time_windows()
+        if user_input is not None:
+            name = user_input.get(CONF_WINDOW_NAME)
+            self._windows = [window for window in self._windows if window.get("name") != name]
+            return await self.async_step_tariff_time_windows()
+        return self.async_show_form(
+            step_id="window_remove",
+            data_schema=_window_remove_schema(self._windows),
+        )
+
+    async def async_step_windows_done(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        self._ensure_window_state()
+        if user_input is not None:
+            default_price = float(user_input.get(CONF_WINDOWS_DEFAULT_PRICE) or 0)
+            return self._write_tariff_options(
+                **{
+                    CONF_TIME_WINDOWS: {
+                        "default_price": default_price,
+                        "windows": list(self._windows),
+                    }
+                }
+            )
+        return self.async_show_form(
+            step_id="windows_done",
+            data_schema=_windows_done_schema(self._window_default_price),
+        )
+
+    async def async_step_tariff_csv_community(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        if user_input is not None:
+            self._pending_csv_community = _parse_csv_community_input(user_input)
+            base = str(self._pending_csv_community.get("base_mode") or TARIFF_MODE_DYNAMIC)
+            return await self._continue_csv_base(base)
+        return self.async_show_form(
+            step_id="tariff_csv_community",
+            data_schema=_csv_community_schema(self._merged()),
         )
 
     async def async_step_license(

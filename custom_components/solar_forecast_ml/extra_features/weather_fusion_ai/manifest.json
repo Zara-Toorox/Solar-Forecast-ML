@@ -1,7 +1,9 @@
 {
   "domain": "weather_fusion_ai",
   "name": "Weather Fusion AI",
-  "codeowners": ["@Zara-Toorox"],
+  "codeowners": [
+    "@Zara-Toorox"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/Zara-Toorox/weather-fusion-ai",
@@ -9,5 +11,5 @@
   "homeassistant": "2026.3.0",
   "issue_tracker": "https://github.com/Zara-Toorox/weather-fusion-ai/issues",
   "requirements": [],
-  "version": "46.0.6"
+  "version": "46.2.0"
 }
