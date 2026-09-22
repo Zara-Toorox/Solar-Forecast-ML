@@ -1,7 +1,11 @@
-<h1 align="center">Solar Forecast ML V46 "Hubble"</h1>
+<p align="center">
+  <img src="custom_components/solar_forecast_ml/brand/logo@2x.png" alt="Solar Forecast ML" width="180">
+</p>
+
+<h1 align="center">Solar Forecast ML</h1>
 
 <p align="center">
-  <strong>Local solar forecasting, energy intelligence, and smart charging for Home Assistant</strong>
+  <strong>Local solar forecasting for Home Assistant — a digital twin of your own PV system</strong>
 </p>
 
 <p align="center">
@@ -9,512 +13,164 @@
   <a href="https://github.com/Zara-Toorox/ha-solar-forecast-ml"><img src="https://img.shields.io/badge/codename-Hubble-purple.svg" alt="Codename"></a>
   <a href="https://hacs.xyz/"><img src="https://img.shields.io/badge/HACS-Custom-orange.svg" alt="HACS"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Proprietary%20Non--Commercial-green.svg" alt="License"></a>
+  <img src="https://img.shields.io/badge/Home%20Assistant-2026.3.0%2B-41BDF5.svg" alt="Home Assistant">
   <img src="https://img.shields.io/badge/platform-x86__64%20%7C%20ARM%20%7C%20RPi-lightgrey.svg" alt="Platform">
 </p>
 
 > [!IMPORTANT]
-> ## Official Solar Forecast ML Website
+> ### Documentation lives on the website
 >
-> Visit **[solarforecastml.com](https://solarforecastml.com/en/)** for the complete product overview, installation guidance, sensor reference, troubleshooting help, known bugs, and release updates.
+> **[solarforecastml.com](https://solarforecastml.com/en/)** is the authoritative source for everything: what each component does, which sensors you need, installation, troubleshooting, known bugs, and release notes.
 >
-> **[Installation](https://solarforecastml.com/en/installation/)** · **[Sensor reference](https://solarforecastml.com/en/sensors/)** · **[Help](https://solarforecastml.com/en/docs/)** · **[Bug tracker](https://solarforecastml.com/en/bugs/)** · **[Updates](https://solarforecastml.com/en/updates/)**
-
-Solar Forecast ML (SFML) builds a local digital twin of your photovoltaic system. It combines solar physics, weather intelligence, panel-group measurements, and locally trained models to produce hourly forecasts for today and the next two days. Version 40 uses an SFML-owned Source-of-Truth layer for validated production, forecast, and diagnostic data instead of relying on recorder-derived energy helpers.
-
-With the optional **Solar Forecast STATS** companion module, the same data becomes a complete energy workspace: live energy flows, forecast evaluation, weather history, long-term model quality, household energy balances, tariffs, battery decisions, and smart charging. The licensed **Solar Forecast Energy AI (EAI)** companion adds explainable recommendations and automation signals for heat pumps and an optional wallbox. No remote model training is involved — forecasting, learning, and EAI license validation run locally on your Home Assistant hardware.
-
-**Fuel my late-night ideas with a coffee? I'd really appreciate it — keep this project running!**
-
-<a href='https://ko-fi.com/Q5Q41NMZZY' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://ko-fi.com/img/githubbutton_sm.svg' border='0' alt='Buy Me a Coffee' /></a>
+> **[Is SFML right for me?](https://solarforecastml.com/en/suitability/)** · **[Installation](https://solarforecastml.com/en/installation/)** · **[Sensors](https://solarforecastml.com/en/sensors/)** · **[Help](https://solarforecastml.com/en/docs/)** · **[Bug tracker](https://solarforecastml.com/en/bugs/)** · **[Updates](https://solarforecastml.com/en/updates/)**
 
 ---
 
-## ☀️ Stop Guessing. Start Knowing.
+## What it does
 
-<img src="custom_components/solar_forecast_ml/brand/logo@2x.png" alt="Solar Forecast ML — AI-Powered Solar Forecasting" align="left" width="250">
+Most solar forecasts are calculated in the cloud for a typical installation: tilt, orientation, kilowatt-peak, done. They do not know the tree that shades your roof from 3 p.m. in winter, the fog in your valley, your second array facing west, or the inverter that caps at 4 kW.
 
-While generic solar estimates model a typical installation, Solar Forecast ML uses the **Hubble AI Stack** to build a digital twin of your specific roof. Its local Attention and Transformer components are designed to run within Home Assistant's resource limits while learning your roof geometry, local shading, microclimate, and inverter behavior.
+Solar Forecast ML builds a **digital twin of your system** instead. It combines solar physics, weather data, your system geometry and your own measurements into an hourly forecast for today, tomorrow and the day after — recalculated every morning, entirely on your Home Assistant hardware.
 
-Powered by proprietary models, a local machine-learning engine, and a solar-physics backbone, it delivers **three-day hourly forecasts with continuously measured quality metrics**. Everything runs on your hardware with a transactional SQL database for reliability. No cloud model training, no subscriptions, and no telemetry. Your smart home gains foresight for planning energy use before the sun rises.
+The forecast improves over time because it learns from your measurements, not from a reference installation. Quality is not asserted — it is measured and shown: accuracy, deviation, usable data days, and long-term trends.
 
-<br clear="both">
+**Everything runs locally.** No cloud model training, no subscriptions, no telemetry.
+
+[![Live energy overview with solar, household, battery and grid](pictures/dashboard.png)](pictures/dashboard.png)
+
+<p align="center"><sub>Live view with the optional STATS module: solar, household demand, battery, grid and forecast status in one place.</sub></p>
 
 ---
 
-## 🌞 SFML + STATS + EAI — From Forecast to Energy Decisions
+## Is it right for you?
 
-SFML, STATS, and EAI are designed as complementary layers of one local energy system:
+**Required:** a DC power sensor for your panels — the power arriving at the inverter, not the inverter's AC output. With a battery, a PV-to-battery sensor as well. Without these values SFML cannot work, and there is no way around it.
 
-| Layer | Responsibility |
-|-------|----------------|
-| **SFML Core** | Creates the 72-hour solar forecast, validates panel-group production, learns local weather and shading effects, protects training data, and persists the solar Source of Truth. |
-| **Solar Forecast STATS** | Turns SFML data and optional household sensors into dashboards, energy balances, forecast intelligence, weather history, tariff analysis, and charging decisions. |
-| **Solar Forecast Energy AI (licensed)** | Combines solar, household, tariff, heat-pump, building, and optional wallbox context into explainable recommendations, confidence and uncertainty values, and passive automation signals. |
-| **Optional companions** | Grid Price Monitor adds dynamic electricity prices; Toorox ForeSight can contribute an additional Transformer forecast track. |
+**Also needed:** your system data (capacity in kWp, orientation, tilt per panel group), Home Assistant 2026.3.0 or newer, and some willingness to understand your own PV system.
 
-Together they answer the questions that matter in daily operation:
+**Not suitable for:** systems without a DC power reading, AC-coupled battery systems, or anyone looking for a one-click product.
 
-- How much solar energy is available today, tomorrow, and the day after?
-- Which hours are suitable for flexible loads, battery charging, or an EV?
-- How does the current forecast compare with measured production and alternative model tracks?
-- Where is energy flowing between PV, home, battery, grid, and optional consumers?
-- How are self-consumption, autonomy, grid costs, and battery use developing?
-- When is the most suitable time to run the heat pump, prepare domestic hot water, use thermal storage, or charge the vehicle?
-- Why is EAI making a recommendation, how confident is it, and how wide is the underlying forecast uncertainty?
-- Did weather, shading, curtailment, clipping, or incomplete sensor data affect the result?
-- Is forecast quality improving over weeks and seasons?
+The website has the [full suitability check](https://solarforecastml.com/en/suitability/) for every component, including the effort each one takes.
 
-### Live Energy Overview
+---
 
-[![Solar Forecast STATS live energy overview](pictures/dashboard.png)](pictures/dashboard.png)
+## What you see
 
-The STATS overview combines SFML's live solar truth with household demand, battery state, grid flow, current weather, forecast status, and the configured electricity price.
+[![Hourly forecast, measured production and model tracks](pictures/forecast.png)](pictures/forecast.png)
 
-### Forecast, Actual Production, and Model Tracks
-
-[![Hourly SFML forecast, actual production, and model comparison](pictures/forecast.png)](pictures/forecast.png)
-
-The hourly view keeps the operational forecast, conservative P10 planning value, hybrid track, measured production, TFS contribution, uncertainty, and learning exclusions in one timeline.
-
-### Panel Groups, Deviations, and Learned Context
+Forecast and measured production hour by hour, with weather context, learning basis and the hours that were excluded — and why.
 
 [![Panel-group production and reference comparison](pictures/solar.png)](pictures/solar.png)
 
-Independent panel groups remain visible throughout the pipeline. STATS shows measured or predicted group output, deviations from the physical reference, excluded hours, forecast quality, and the context behind production gaps.
+Every panel group stays visible on its own: who delivers as expected, who falls behind, how large the gap is — plus the shading pattern learned for your roof.
 
-### Forecast Intelligence Over Time
+[![Long-term forecast quality](pictures/intelligence.png)](pictures/intelligence.png)
 
-[![Long-term forecast intelligence and model development](pictures/intelligence.png)](pictures/intelligence.png)
+Forecast quality over time: accuracy, completeness, deviation, usable days and long-term trends. Model development stays auditable instead of being a promise.
 
-Forecast Intelligence makes model development auditable with forecast health, completeness, MAE, bias, usable days, milestones, replay views, and long-term quality trends.
-
-### Weather as Part of the Energy Model
-
-[![SFML weather forecast and history](pictures/weather.png)](pictures/weather.png)
-
-Weather is not just a decorative forecast. SFML blends and corrects weather inputs, while STATS exposes current conditions, solar potential, radiation, visibility, and the 49-hour weather horizon.
-
-### Energy, Cost, and Smart-Charging Decisions
+<br>
 
 <table>
   <tr>
-    <td width="50%"><a href="pictures/energy_pricing.png"><img src="pictures/energy_pricing.png" alt="Energy balance and financial analysis"></a></td>
-    <td width="50%"><a href="pictures/smart_charge.png"><img src="pictures/smart_charge.png" alt="Forecast-aware smart battery charging"></a></td>
+    <td width="50%"><a href="pictures/energy_pricing.png"><img src="pictures/energy_pricing.png" alt="Energy balance and costs"></a></td>
+    <td width="50%"><a href="pictures/smart_charge.png"><img src="pictures/smart_charge.png" alt="Forecast-aware battery charging"></a></td>
   </tr>
   <tr>
-    <td align="center"><strong>Energy &amp; Finance</strong><br>Consumption, solar share, battery use, grid energy, autonomy, and electricity cost across the billing period.</td>
-    <td align="center"><strong>Smart Charging</strong><br>Battery target, current price, forecast energy, charging thresholds, actions, and the 48-hour price horizon.</td>
+    <td align="center"><strong>Energy &amp; finance</strong><br><sub>Where your energy comes from, what it costs, what you saved.</sub></td>
+    <td align="center"><strong>Smart charging</strong><br><sub>Grid charging planned from price, forecast and battery state.</sub></td>
   </tr>
 </table>
 
-### Explainable Energy AI for Heat Pump and Wallbox
-
-[![Interactive EAI heat-pump cost calculator and PV-window scenario](pictures/eai_heat_pump_cost_calculator.png)](pictures/eai_heat_pump_cost_calculator.png)
-
-The heat-pump workspace turns PV coverage, annual heat demand, electricity price, and a 24-hour load profile into an interactive advisory scenario. The animated energy flow and annual cost comparison make the potential value visible while clearly stating that EAI recommends but does not control the heat pump.
-
-[![EAI wallbox planning with charging cost, residual PV, confidence, and uncertainty](pictures/eai_wallbox_planning.png)](pictures/eai_wallbox_planning.png)
-
-The wallbox workspace combines vehicle state of charge, departure target, household demand, heat-pump demand, battery reserve, PV forecast, and tariff context. It explains the recommended charging window and exposes confidence and forecast uncertainty instead of presenting false precision.
-
-> These screenshots show the clearly labelled interactive premium demo with realistic mock data. With an EAI license, the same views use the sensors, forecasts, tariffs, and system values configured by the user. Simulated savings are orientation values, not a savings guarantee.
-
-> **STATS and EAI are optional.** SFML remains a complete standalone forecasting integration. STATS adds the visual analysis and energy-management layer and is currently available for x86_64 systems. EAI requires a signed license key and remains advisory-only: it never sends control commands to a heat pump, wallbox, or vehicle.
+<p align="center"><sub>The views above come from the optional STATS module. SFML itself provides the forecast and its sensors to Home Assistant.</sub></p>
 
 ---
 
-## 🚀 Why Is This Different From Other Solar Forecasts?
+## What makes it different
 
-Most integrations (like Forecast.Solar or Solcast) use static cloud models. They don't know about your neighbor's tree or why your yield drops every November. Solar Forecast ML is the evolution:
+| | Cloud forecasts | Solar Forecast ML |
+|---|---|---|
+| **Where it runs** | Remote service | Entirely on your hardware |
+| **Basis** | A typical installation | Your measurements, your roof |
+| **Shading** | Not covered | Learned, including seasonal change |
+| **Environment** | Ignored | Snow, fog, haze, air mass and altitude |
+| **Inverter limits** | Unknown | Clipping and curtailment recognised and excluded from learning |
+| **Quality** | Stated | Measured, shown and traceable |
+| **Your data** | Sent to a service | Stays in your home |
 
-| Feature | Standard Cloud Forecasts | Solar Forecast ML (Hubble AI) |
-|---------|--------------------------|-------------------------------|
-| **Logic** | Remote forecast or generic formulas | Local physics, Transformer, Attention, and adaptive ensemble models |
-| **Privacy** | Data sent to the cloud | 100% Local & Private |
-| **Shadows** | None or very basic | Dynamic Seasonal Shadow Mapping |
-| **Environment** | Ignores local anomalies | Detects Snow, Fog, Pollution & Altitude |
-| **Adaptability** | One size fits all | Learns your specific inverter/panel quirks |
-| **Reliability** | "Black Box" predictions | Physics-Backbone + AI Safeguard |
-
----
-
-## 🧭 Version 40 — Source of Truth Architecture
-
-Version 40 makes SFML the authoritative runtime layer for solar production data. Home Assistant remains the interface, but SFML now owns the critical calculations, validation, and persistence path for its solar truth.
-
-- **SFML-owned database truth** — Actual production, panel-group values, forecast rows, diagnostics, and companion-module reads are backed by the SFML database.
-- **Panel-group power first** — Configuration is built around the power sensors (W) of the individual strings or panel groups. Daily-reset energy helpers are no longer required for the core solar setup.
-- **Internal energy integration** — SFML derives hourly and daily kWh values from validated group power data, reducing recorder drift, reset issues, and rounding errors.
-- **Read-only Home Assistant relationship** — SFML reads configured sensors from Home Assistant but keeps its own validated solar state, so HA recorder issues do not become SFML truth.
-- **SOT sensors for automations** — Total and per-group power/energy sensors mirror the SFML database state back into Home Assistant for dashboards, rules, and energy automations.
-- **HA event-loop protection** — Heavy EOD and forecast work is moved away from the main Home Assistant event loop where possible, keeping the UI responsive during model training and daily processing.
+Two AI stacks carry the system: **Hubble** for the solar forecast, **Kepler** for energy decisions in the companion modules. Both run locally inside Home Assistant. If the methods behind a forecast disagree, solar physics takes over — so the result stays dependable even in unusual weather.
 
 ---
 
-## 🏗️ The "Hubble" AI Stack — Enterprise Intelligence built for Home Assistant
+## Companion modules
 
-<img src="pictures/hubble_ai.jpg" alt="Hubble AI 10.0 — Solar Forecast ML" align="left" width="350">
+SFML works standalone. These build on top of it and are installed through the `install_extras` service:
 
-> *"It's kind of like building a Hubble telescope in your living room just to check if the fridge light is on in the kitchen… simply because it's cool."*
-> — **Basti**, Tester
+| Module | What it adds | Platform |
+|---|---|---|
+| **Solar Forecast STATS** | The complete energy workspace: live flows, forecast evaluation, weather history, energy balance, costs, battery and smart charging | x86_64 |
+| **Solar Forecast Energy AI** | Explainable recommendations for heat pump, storage and wallbox. Advisory only — it never switches a device (licensed) | x86_64, ARM64 |
+| **Grid Price Monitor** | Dynamic electricity prices, time-of-use tariffs, real total price per kWh | all |
 
-The heart of this integration is the AI-Stack codename **Hubble**, a custom-built AI ensemble. I didn't just wrap a library — I built a native Transformer architecture from the ground up to fit into Home Assistant's resource limits, without needing TensorFlow or PyTorch.
-
-This isn't a single model. It's a sophisticated ensemble of specialized AIs working in harmony:
-
-<br clear="both">
-
-| Component | Purpose | What It Does |
-|-----------|---------|--------------|
-| **Hybrid-AI V8.0** | Core Neural Engine | Stacked LSTM with Multi-Head Attention and Transformer elements. Analyzes 24-hour sequences for per-panel-group forecasts, capturing complex temporal patterns. |
-| **Miss Ridge** | Quick-Start Model | High-stability model for early-phase predictions (from Day 10 onward), bridging the gap to full ensemble activation. |
-| **Frau Holle** | Weather Correction AI | Multi-layer perceptron that non-linearly adjusts weather data based on local sensors and historical biases. |
-| **Kalman Tracker** | Real-Time Adjustment | Adaptive filter monitoring minute-by-minute bias, dynamically responding to weather volatility. |
-| **Physics Backbone** | Geometric Foundation | Calculates theoretical output with a PhysicsCalibrator that learns deviations from real production (shading, efficiency, aging). |
-| **Graduated Safeguard** | Ensemble Oversight | Monitors model agreement; blends confidently when aligned, falls back to physics during divergence. No hallucinations. |
-| **Subprocess Trainer** | HA Performance Guard | Runs CPU-intensive EOD model training (LSTM/MLP) in an isolated Python worker process, preventing HA event-loop blockages. |
-
-### 🧠 How Hubble "Sees" Your Energy
-
-**Multi-Head Attention** — Instead of looking at weather as a simple list, Hubble understands temporal context: how a cloudy morning should influence your battery strategy for the afternoon. It reasons across time, not just snapshots.
-
-**Graduated Safeguard** — No AI "hallucinations." If the models diverge too strongly, the Physics-Backbone (pure solar geometry) steps in as a safety anchor. The AI knows when to be confident — and when to step back.
-
-**Efficiency Drift Detection** — Most forecasts go wrong because they don't know your panels are dirty or aging. Hubble tracks your real-world efficiency over time and tells you when it's time to clean them.
-
-Additional self-monitoring layers ensure long-term accuracy:
-- **Drift Monitor** — Detects biases and coverage drops in the live forecast and triggers targeted corrections; seasonal behaviour is learned from real data through the physics calibration, not from calendars.
-- **Grid Search "The Professor"** — Fully automated hyperparameter optimization, extracting the maximum from your specific hardware.
-- **Subprocess training (HA-Performance-Fix)** — CPU-intensive model training runs in a separate Python process to prevent Home Assistant UI lags.
+Details and screenshots: [solarforecastml.com](https://solarforecastml.com/en/product/)
 
 ---
 
-## 🌍 Real-World Awareness — Beyond the Horizon
+## Installation
 
-<img src="pictures/beyond_horizon.jpg" alt="Real-World Awareness — Beyond the Horizon" align="left" width="350">
+**Via HACS (recommended)**
 
-Solar Forecast ML is the only solar forecast integration that understands the messy reality of your environment. While other systems treat every roof as identical, Hubble monitors the real-world conditions that actually impact your production — from snow-covered panels to seasonal shadows, from coastal salt haze to altitude-dependent air mass. Every factor is learned, tracked, and applied automatically.
-
-<br clear="both">
-
-❄️ **Snow Logic** — Recognizes when panels are covered and stops contaminated data from polluting your AI training. A snow day doesn't corrupt your model.
-
-烟 **Fog & Visibility** — Uses a learned visibility tracker to evaluate which weather source is most accurate for your specific coordinates.
-
-🌬️ **Atmospheric Depth** — Adjusts for actual air mass. Crucial if you live at altitude or near the sea — your atmosphere is not the same as your neighbor's.
-
-🌳 **The Moving Shadow** — Learns how shadows from trees and buildings change across seasons, accounting for leaves in summer and bare branches in winter.
-
-🌿 **Air Pollution Awareness** — Detects atmospheric aerosols: rapeseed pollen, coastal salt haze, industrial smog. All of it affects your production, and Hubble knows it.
-
-🔋 **MPPT & Battery Intelligence** — Detects inverter clipping and battery-full curtailment. These events are excluded from AI training, so your model reflects true panel capacity — not artificially limited output.
-
----
-
-## ⚡ Key Capabilities
-
-### 🔮 Forecasting
-- 72-hour hourly forecasts for today, tomorrow, and the day after.
-- Dynamic scheduling tied to actual sunrise.
-- Adaptive midday re-forecasts when conditions shift significantly.
-- Per-panel-group predictions with confidence scores.
-- Clean forecast evaluation separates real physical production from curtailed or excluded hours, so MPPT throttling, clipping, and weather-alert exclusions do not distort forecast-quality metrics.
-- **Rain-Gating for Similar Weather Relaxation:** Automatically suppresses historical similarity scaling when rain is forecast (precipitation > 0.3 mm or rain overcast regime), preventing overoptimistic spikes on wet days.
-- **Service-Triggered Reforecast Coupling:** Instantly recalculates rest-of-day operational snapshots (`ops_` tables) upon service call activation of hybrid or operational reforecast modes.
-
-### 🧠 AI & Machine Learning
-- Hubble ensemble with Attention mechanisms for temporal reasoning.
-- Automatic daily training and hyperparameter tuning.
-- Feature importance analysis to reveal what drives your predictions.
-- 28 engineered features: time, weather, astronomy, history, panel geometry.
-- Data filtering for anomalies (MPPT throttling, inverter clipping, zero-export limits, weather alerts, outliers, snow days).
-- Temporal lag features use clean historical production context, reducing contamination from technically curtailed or excluded bad-weather hours.
-- **Out-of-Process Subprocess Training:** Offloads CPU-intensive training of LSTM and MLP models to a separate background worker process to guarantee Home Assistant UI responsiveness.
-- **Panel Group Topology Epochs:** Versions capacity configurations historically to prevent capacity splits (e.g. adding panels) from polluting model training data.
-- **Forced AI-Floor Removal:** Deactivates the mandatory 30% AI floor in rule-based blending on dark/overcast days if physics MAE is superior to AI MAE, allowing the engine to adaptively scale down to a 12% cap.
-
-### 🌦️ Weather Intelligence
-- Blends 5 sources (Open-Meteo, Bright Sky, Pirate Weather, wttr.in, ECMWF) with expert weighting.
-- Multi-stage corrections: rolling biases, hourly adjustments, condition-specific tweaks.
-- Learned cloud correction applies local weather-precision factors back into corrected forecasts.
-- Fog/haze detection, cloud trend/volatility tracking, and daily forecast-vs-actual weather diagnostics.
-
-### 🕵️ Detection & Protection
-- Shadow mapping and pattern learning for fixed and moving obstacles.
-- Frost/fog warnings via dew point and visibility analysis.
-- Full zero-export & battery-full curtailment support with weather/radiation plausibility checks before MPPT exclusions are applied.
-- Self-healing transactional SQLite database with crash recovery and 30-day backup retention.
-- **Self-Healing & Diagnostics (Hubble Persona):** Automatically validates configuration parameters on boot, monitors live sensor data for spikes, generates Repairs notifications, and performs daily EOD data hygiene checkups.
-
-### ❄️ Seasonal Intelligence
-- Automatic Winter Mode (Nov–Feb) with low sun-angle adjustments.
-- Rolling DNI tracking for real-time atmospheric clearness monitoring.
-
-### 📐 Panel Group Support
-- Up to 4 independent panel groups with different orientations, tilts, capacities, and live power sensors.
-- Individual efficiency learning, per-group AI predictions, and per-group Source-of-Truth actuals.
-- Total live power and daily energy are derived from the validated panel-group state.
-
-### 🏠 Energy AI — Heat Pump & Building (Licensed)
-
-- 72-hour heat-pump consumption forecast based on the configured system, building context, weather, solar forecast, household demand, battery reserve, and tariff data.
-- Recommendations for heating, domestic hot water, thermal storage, deferral, and the next suitable operating window.
-- Residual-PV planning accounts for household consumption and battery demand before energy is treated as available for the heat pump.
-- Cost and savings context uses the effective electricity-price data supplied through STATS and the configured EAI inputs.
-- Every recommendation includes a plain-language explanation, supporting evidence, confidence, validity period, and a dynamic forecast-uncertainty value.
-- Passive Home Assistant sensors, binary sensors, and policy switches let users build their own automations without granting EAI direct control of the heat pump.
-
-### 🚗 Energy AI — Wallbox & E-Mobility (Licensed, Optional)
-
-- Charging recommendations consider vehicle state of charge, usable battery capacity, target state of charge, departure time, and maximum charging power.
-- Planning prioritizes household demand, heat-pump demand, and battery reserve before assigning residual PV energy to the wallbox.
-- Provides recommended charging start and end, required energy, expected PV share, estimated charging cost, cost advantage, and departure readiness.
-- Each recommendation exposes its reason, explanation, evidence, confidence, and forecast uncertainty.
-- Dedicated wallbox sensors and binary triggers support user-created automations for PV windows, low-price windows, and departure risk.
-- EAI never switches the wallbox or starts vehicle charging itself. The user remains responsible for the automation and all actuator commands.
-
-### 🧠 Transformer AI Integration — 20.5M Parameter Multihead Transformer (Toorox ForeSight HA Add-on)
-- Seamless integration with the Toorox ForeSight HA companion add-on — a 20.5M-parameter Multihead Transformer trained on multi-year solar history and reanalysis weather data.
-- Adaptive ensemble blend: SFML's physics+AI forecast is fused with the Transformer's 72-hour P10/P50/P90 predictions, dynamically weighted per hour and per panel group.
-- Three live modulators steer the blend in real time:
-  - **MAE-Factor** — tracks 7-day rolling accuracy of both models, shifts weight toward whichever is currently winning
-  - **Cloud-Factor** — boosts Transformer influence under overcast/stratus/fog conditions where physics struggles
-  - **Shadow-Factor** — increases Transformer weight for panel groups with fixed obstructions or frequent shading
-- Effective weight range clamped to 10%–55% (base 35%), ensuring neither model can dominate outliers.
-- Up to 4 independent panel groups with different orientations, tilts, and capacities — each blended individually.
-- Per-group efficiency learning and per-group AI predictions for maximum precision.
-- **Optional component** — SFML works standalone without the Transformer; if the add-on is installed, the blend activates automatically.
-
----
-
-## 📊 Sensors
-
-### Forecast
-| Sensor | Description |
-|--------|-------------|
-| `solar_forecast_ml_today` | Today's forecast (kWh) |
-| `solar_forecast_ml_tomorrow` | Tomorrow's forecast (kWh) |
-| `solar_forecast_ml_day_after_tomorrow` | Day after tomorrow (kWh) |
-| `solar_forecast_ml_next_hour` | Next hour prediction (kWh) |
-| `solar_forecast_ml_peak_production_hour` | Best production hour today |
-
-### Production
-| Sensor | Description |
-|--------|-------------|
-| `solar_forecast_ml_production_time` | Production hours (start/end/duration) |
-| `solar_forecast_ml_max_peak_today` | Peak power today (W) |
-| `solar_forecast_ml_max_peak_all_time` | All-time peak power (W) |
-| `solar_forecast_ml_expected_daily_production` | Daily production target |
-| `solar_forecast_ml_conservative_planning_forecast` | Conservative planning forecast for safe energy scheduling |
-
-### Source of Truth
-| Sensor | Description |
-|--------|-------------|
-| `solar_forecast_ml_total_power` | Current total power derived from validated panel-group power (W) |
-| `solar_forecast_ml_total_yield` | Current day's SFML-owned actual energy total (kWh) |
-| Panel-group SOT sensors | Per-group power and daily energy values backed by the SFML database |
-
-### Planning Sensor Note
-
-`Planungsprognose (P10-Blend)` is a planning-only helper sensor for users who
-prefer a more conservative daily value for battery charging, EV charging, and
-other energy-management automations.
-
-Core idea:
-
-- SFML remains the primary operational forecast truth
-- the planning sensor blends SFML hourly panel-group values with TFS hourly
-  `p10` values to shift the result toward the safer side
-- the current weighting is `65% SFML / 35% TFS p10`
-- the sensor is intentionally separated from `expected_daily_production`,
-  learning, and forecast-truth ownership
-
-Operational behavior:
-
-- the planning value is created only once the official `today` forecast is
-  locked by Morning Routine
-- after that it is persisted and does not roll continuously with normal
-  coordinator refreshes
-- this makes it suitable as a stable day-planning value instead of a rolling
-  intraday truth signal
-
-### Statistics
-| Sensor | Description |
-|--------|-------------|
-| `solar_forecast_ml_average_yield` | Cumulative average yield |
-| `solar_forecast_ml_average_yield_7_days` | 7-day rolling average |
-| `solar_forecast_ml_average_yield_30_days` | 30-day rolling average |
-| `solar_forecast_ml_monthly_yield` | Current month total |
-| `solar_forecast_ml_weekly_yield` | Current week total |
-
-### AI & Diagnostics
-| Sensor | Description |
-|--------|-------------|
-| `solar_forecast_ml_model_state` | Active prediction model (AI / Rule-Based) |
-| `solar_forecast_ml_model_accuracy` | Current prediction accuracy (%) |
-| `solar_forecast_ml_ai_rmse` | Model quality (Excellent / Very Good / Good / Fair) |
-| `solar_forecast_ml_training_samples` | Available training samples |
-| `solar_forecast_ml_ml_metrics` | MAE, RMSE, R² metrics |
-
-### Shadow & Weather
-| Sensor | Description |
-|--------|-------------|
-| `solar_forecast_ml_shadow_current` | Current shadow level (Clear / Light / Moderate / Heavy) |
-| `solar_forecast_ml_performance_loss` | Shadow-related production loss (%) |
-| `solar_forecast_ml_cloudiness_trend_1h` | 1-hour cloud trend |
-| `solar_forecast_ml_cloudiness_trend_3h` | 3-hour cloud trend |
-| `solar_forecast_ml_cloudiness_volatility` | Weather stability index |
-
----
-
-## 📈 Learning Lifecycle
-
-**Phase 1 — Day 0:** The Physics Backbone is active immediately and provides the initial forecast before sufficient local training data exists.
-
-**Phase 2 — Day 10+:** "Miss Ridge" activates as the first local learning track once enough valid samples are available.
-
-**Phase 3 — Day 30+:** The complete Hubble ensemble can activate when its sample, quality, and readiness gates are satisfied.
-
-| Phase | Typical timeline | Active capability |
-|-------|------------------|-------------------|
-| Fresh Install | Day 0 | Physics Backbone and weather processing |
-| Early Learning | Day 1–10 | Data collection, validation, and geometry calibration |
-| Calibration | Day 10–30 | Ridge and adaptive ensemble components begin contributing when ready |
-| Full Activation | Day 30+ | Complete ensemble, subject to sample and quality gates |
-
-Actual forecast quality depends on sensor completeness, weather volatility, shading, curtailment, system configuration, and the amount of clean training data. SFML reports MAE, bias, completeness, usable hours, and forecast-health trends instead of assuming a fixed accuracy percentage.
-
-> 💡 **Note:** Solar Forecast ML learns from the data it records after setup. There is currently no Home Assistant service for importing historical Home Assistant data into the learning model.
-
----
-
-## 🚀 Installation
-
-### HACS (Recommended)
-1. HACS > Integrations > Custom repositories
-2. Add `https://github.com/Zara-Toorox/ha-solar-forecast-ml` (Integration category)
+1. HACS → Integrations → Custom repositories
+2. Add `https://github.com/Zara-Toorox/ha-solar-forecast-ml` as category *Integration*
 3. Install **Solar Forecast ML**
-4. Restart HA, wait 10–15 minutes, then restart once more.
+4. Restart Home Assistant, wait 10–15 minutes, restart once more
+5. Add the integration under Settings → Devices & Services
 
-### Manual
-1. Download the latest release.
-2. Copy to `config/custom_components/solar_forecast_ml`.
-3. Restart HA twice as above.
+**Manually:** download the release, copy it to `config/custom_components/solar_forecast_ml`, restart twice as above.
 
-### Configuration
-Add via Settings > Devices & Services. Key inputs:
-- **Panel-group power sensors** (W) — required for each active string or panel group
-- **System capacity** (kWp) + **Panel groups** (`Power(Wp)/Azimuth(°)/Tilt(°)/PowerSensor`) — required for accurate SOT operation
-- **Optional sensors:** temperature, lux, radiation, humidity, wind
+During setup you provide the power sensor, orientation, tilt and capacity for each panel group, plus your total system capacity. Daily-reset energy helpers are not required — SFML derives hourly and daily energy from the configured power sensors and keeps its own validated state.
 
-Daily-reset energy helpers and manually built sum sensors are no longer required for the core solar setup. SFML calculates hourly and daily energy from the configured power sensors and persists the validated result in its own database.
+The [installation guide](https://solarforecastml.com/en/installation/) walks through every step, including the optional modules.
 
 ---
 
-## 🧩 Companion Modules
+## Licence for Energy AI
 
-Install via the `install_extras` service:
+Solar Forecast Energy AI ships with SFML and is unlocked with a signed offline key. Information on obtaining a licence is available **inside Solar Forecast STATS via the "Licence" entry in the sidebar**.
 
-| Module | Description | Platform |
-|--------|-------------|----------|
-| **SFML Stats** | Complete solar & energy dashboard: real-time flows, historical charts, forecast vs. actual, cost tracking, surplus detection, smart charging, and beta Lovelace cards. | x86_64 only |
-| **Solar Forecast Energy AI** | Licensed, explainable heat-pump/building and optional wallbox analytics with forecasts, cost context, uncertainty bands, and passive automation signals. No direct device control. | x86_64 and ARM64 |
-| **Grid Price Monitor** | Dynamic electricity spot prices for DE/AT, including time-of-use tariff support. | All |
+The key is entered once at the start of the EAI configuration flow. Validation happens entirely offline inside Home Assistant: no licence server is contacted, and neither the key nor any household data is transmitted. Keep your key private and never post it publicly.
 
 ---
 
-## 🔑 EAI License for Heat Pump & Wallbox
+## Your data stays yours
 
-Solar Forecast Energy AI is delivered with SFML but is activated by a signed offline license key. The key is entered once at the beginning of the EAI configuration flow; heat-pump functions and the optional wallbox analytics are then configured in the same integration.
+**No language models are involved.** There is no connection to ChatGPT, Claude, Gemini or any other AI service. Every calculation and every learning step happens inside your own Home Assistant instance.
 
-**The only way to request an EAI license is through the [Simon42 Community](https://community.simon42.com/):**
+**No telemetry, no analytics, no tracking.** The integration contains no usage tracking, no error reporting endpoints and no background callbacks. I cannot see whether you installed it, how you use it, or what your system produces.
 
-1. Sign in to the Simon42 forum.
-2. Send a **private message (PN)** to the forum user **`tom-ha`**.
-3. State that you would like an EAI license for the heat-pump and/or wallbox functions.
-4. Keep the issued `EAI1...` license key private and enter it in the Solar Forecast Energy AI configuration flow.
+**Nothing is shared.** Production data, sensor readings, location and learned model state never leave your system — not to me, not to third parties.
 
-EAI licenses are **not** issued through GitHub, HACS, GitHub Issues, GitHub Discussions, or public forum posts. Please do not publish your license key.
-
-The signature is validated entirely offline inside Home Assistant. EAI does not contact a license server and does not transmit the license key or household data.
+**Weather requests only.** Public weather APIs are queried with coordinates alone: no personal data, no identifiers, no usage metadata. Once configured, everything else works without an internet connection.
 
 ---
 
-## 📋 Requirements
+## Protected code
 
-- Home Assistant 2026.3.0+
-- Power sensors (W) for the active panel groups or strings
-- Correct panel-group capacity, azimuth, and tilt values
-- ~50 MB disk space · ~200 MB RAM during AI training
-- Runs on x86_64, ARM, Raspberry Pi 4/5 (SFML Stats: x86_64 only)
-- Optional but recommended: lux sensor, temperature sensor, solar radiation sensor
+Parts of this integration are protected with PyArmor. The reasons: preventing the source from being used for AI training without permission, protecting work that took considerable effort, and responding to code having been copied into commercial products in the past.
+
+Protection does not change behaviour — the integration works exactly like an unprotected build, with minimal runtime overhead. If you have a legitimate interest in details about the code, contact me via GitHub Issues or Discussions.
 
 ---
 
-## ❓ Troubleshooting
+## Licence and credits
 
-- **Low predictions?** Verify kWp, panel-group capacity, azimuth, tilt, and the configured panel-group power sensors.
-- **No daily actuals?** Check that every active panel group has a valid power sensor in watts. SFML derives kWh from these power signals.
-- **AI stalled?** Check `solar_forecast_ml_training_samples` — minimum 10 needed. Allow 3–7 days for initial collection.
-- **Shadows off?** Add a lux sensor. System needs clear-sky days to establish baseline patterns.
-- **Logs:** `/config/solar_forecast_ml/logs/solar_forecast_ml.log`
-
----
-
-## 🛡️ Your Data Stays Yours — A Privacy Commitment
-
-Solar Forecast ML was designed from day one with one non-negotiable principle: **your data never leaves your home.**
-
-This isn't a marketing claim. It's an architectural fact:
-
-**No Large Language Models involved** — There is no connection to ChatGPT, Claude, Gemini, Grok, or any other AI service. Every calculation, every prediction, every learning step happens entirely within your own Home Assistant instance. The "AI" in Solar Forecast ML is your AI — running on your hardware, trained on your data.
-
-**No telemetry, no analytics, no tracking** — The integration contains no usage tracking, no error reporting endpoints, no analytics libraries, and no background callbacks of any kind. I have no visibility into whether you've installed this, how you use it, or what your system produces.
-
-**No data shared with me or anyone else** — Your production data, your sensor readings, your location, your learned model weights — none of it is ever transmitted anywhere. Not to me as the developer, not to third parties, not to weather services beyond the standard forecast requests that you explicitly configure.
-
-**Free weather APIs only** — The integration fetches raw weather forecasts from public APIs (Open-Meteo etc.). These requests contain only coordinates — no personal data, no identifiers, no usage metadata.
-
-**Fully offline-capable** — Once installed, Solar Forecast ML operates entirely within your local network. No internet connection is required for the AI to learn, predict, or correct forecasts.
-
-> In short: What happens in your Home Assistant, stays in your Home Assistant.
-
----
-
-## 🔐 Protected Code Notice
-
-Some files in this integration are obfuscated (encrypted) with an official **PyArmor** version.
-
-**Why is the code protected?**
-
-1. **Protection against AI Training** — I want to prevent my source code from being used to train AI models like ChatGPT, Claude, Gemini, or other Large Language Models (LLMs) without permission.
-2. **Intellectual Property Protection** — The algorithms for solar forecasting, AI-learning, and weather analysis were developed with considerable effort and represent my intellectual property.
-3. **Open Source with Limits** — This integration is free for personal use, but the source code is proprietary and subject to a Non-Commercial License.
-4. **Unfortunately necessary** — Since code has been copied without my consent, incorporated into commercial applications, and attempts have been made to read and modify it using AI in the past, I unfortunately feel compelled to protect the source code.
-5. **Transparency** — If you have a legitimate interest, I'm happy to provide information about the code or disclose it. Just contact me via GitHub Issues or Discussions.
-
-The obfuscation has **no impact on functionality**. The integration works identically to the non-obfuscated version. Runtime overhead is minimal.
-
-*Solar Forecast ML — Copyright (C) 2026 Zara-Toorox · Protected with PyArmor 9.2.4*
-
----
-
-## 📄 License
-
-Proprietary Non-Commercial — free for personal and educational use. See [LICENSE](LICENSE).
-
-This repository license is separate from the signed EAI activation key. For heat-pump and wallbox EAI access, follow the [EAI license request process](#-eai-license-for-heat-pump--wallbox) above.
-
----
-
-## 👤 Credits
+Proprietary Non-Commercial — free for personal and educational use. See [LICENSE](LICENSE). The repository licence is separate from the EAI activation key.
 
 **Developer:** [Zara-Toorox](https://github.com/Zara-Toorox)
 
-Thanks to Simon42 and the users & contributors of the German-speaking HA Forum "simon42" for their testing, feedback, and discussion. INFO: SFML is a private project not linked to the owner of the Simon42 Forum or any company.
+SFML is a private project. It is discussed in several independent communities; none of them belongs to the project, and the website is the authoritative source. Thanks to everyone testing, reporting and discussing — your feedback shapes every release.
 
-**Support-Forum:** [simon42 Community](https://community.simon42.com/c/sfml/49) | [Issues](https://github.com/Zara-Toorox/ha-solar-forecast-ml/issues) | [Discussions](https://github.com/Zara-Toorox/ha-solar-forecast-ml/discussions)
+[Issues](https://github.com/Zara-Toorox/ha-solar-forecast-ml/issues) · [Discussions](https://github.com/Zara-Toorox/ha-solar-forecast-ml/discussions) · [Bug tracker](https://solarforecastml.com/en/bugs/)
 
----
+**Fuel my late-night ideas with a coffee? I'd really appreciate it — it keeps this project running.**
 
-*Developed with ☀️, late-night passion, and a stiff glass of Grog during Germany's wintertime.*
+<a href='https://ko-fi.com/Q5Q41NMZZY' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://ko-fi.com/img/githubbutton_sm.svg' border='0' alt='Buy Me a Coffee' /></a>
