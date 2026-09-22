@@ -201,7 +201,7 @@ The key is entered once at the start of the EAI configuration flow. Validation h
 
 Parts of this integration are protected with PyArmor. The reasons: preventing the source from being used for AI training without permission, protecting work that took considerable effort, and responding to code having been copied into commercial products in the past.
 
-Protection does not change behaviour — the integration works exactly like an unprotected build, with minimal runtime overhead. If you have a legitimate interest in details about the code, contact me via GitHub Issues or Discussions.
+Protection does not change behaviour — the integration works exactly like an unprotected build, with minimal runtime overhead. If you have a legitimate interest in details about the code, contact me through the website.
 
 ---
 
@@ -213,4 +213,4 @@ Proprietary Non-Commercial — free for personal and educational use. See [LICEN
 
 SFML is a private project. It is discussed in several independent communities; none of them belongs to the project, and the website is the authoritative source. Thanks to everyone testing, reporting and discussing — your feedback shapes every release.
 
-[Issues](https://github.com/Zara-Toorox/ha-solar-forecast-ml/issues) · [Discussions](https://github.com/Zara-Toorox/ha-solar-forecast-ml/discussions) · [Bug tracker](https://solarforecastml.com/en/bugs/)
+[Help centre](https://solarforecastml.com/en/docs/) · [Bug tracker](https://solarforecastml.com/en/bugs/) · [Contact](https://solarforecastml.com/en/contact/)
