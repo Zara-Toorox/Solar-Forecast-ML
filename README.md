@@ -29,6 +29,14 @@
 >
 > **[Is SFML right for me?](https://solarforecastml.com/en/suitability/)** · **[Installation](https://solarforecastml.com/en/installation/)** · **[Sensors](https://solarforecastml.com/en/sensors/)** · **[Help](https://solarforecastml.com/en/docs/)** · **[Bug tracker](https://solarforecastml.com/en/bugs/)** · **[Updates](https://solarforecastml.com/en/updates/)**
 
+<p align="center">
+  <strong>Fuel my late-night ideas with a coffee? I'd really appreciate it — it keeps this project running.</strong>
+</p>
+
+<p align="center">
+  <a href="https://ko-fi.com/Q5Q41NMZZY" target="_blank"><img height="36" style="border:0px;height:36px;" src="https://ko-fi.com/img/githubbutton_sm.svg" border="0" alt="Buy Me a Coffee"></a>
+</p>
+
 ---
 
 ## Not another solar forecast
@@ -206,7 +214,3 @@ Proprietary Non-Commercial — free for personal and educational use. See [LICEN
 SFML is a private project. It is discussed in several independent communities; none of them belongs to the project, and the website is the authoritative source. Thanks to everyone testing, reporting and discussing — your feedback shapes every release.
 
 [Issues](https://github.com/Zara-Toorox/ha-solar-forecast-ml/issues) · [Discussions](https://github.com/Zara-Toorox/ha-solar-forecast-ml/discussions) · [Bug tracker](https://solarforecastml.com/en/bugs/)
-
-**Fuel my late-night ideas with a coffee? I'd really appreciate it — it keeps this project running.**
-
-<a href='https://ko-fi.com/Q5Q41NMZZY' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://ko-fi.com/img/githubbutton_sm.svg' border='0' alt='Buy Me a Coffee' /></a>
