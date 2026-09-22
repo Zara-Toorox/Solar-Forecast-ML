@@ -5,7 +5,12 @@
 <h1 align="center">Solar Forecast ML</h1>
 
 <p align="center">
-  <strong>Local solar forecasting for Home Assistant — a digital twin of your own PV system</strong>
+  <strong>The first and only Home Assistant integration that forecasts solar production with a local AI —<br>a transformer with attention, running on your own hardware</strong>
+</p>
+
+<p align="center">
+  <em>Your data. Your property.<br>
+  Nothing leaves your Home Assistant. No external AI.</em>
 </p>
 
 <p align="center">
@@ -26,15 +31,30 @@
 
 ---
 
+## Not another solar forecast
+
+Every solar forecast tells you what a roof like yours should produce. This one learns what *your* roof actually does — and it learns it on your own hardware.
+
+Solar Forecast ML runs a complete AI stack inside Home Assistant: it trains on your measurements, corrects itself against your weather, and reports how good it currently is. No cloud service calculates your forecast. No language model reads your data. Nothing is uploaded, not even to me as the developer.
+
+That is the difference. Not a better formula — a system that knows your installation and keeps that knowledge where it belongs.
+
+**What no other Home Assistant integration offers today:**
+
+- **A local AI that forecasts solar production.** Every other solar integration either queries a cloud service or applies a static formula. None of them runs its own learning model on your hardware.
+- **A transformer with attention as a Home Assistant integration.** Not an API call to a remote model — the architecture itself runs inside Home Assistant, within the resource limits of a home server, without TensorFlow or PyTorch.
+- **A model pre-trained on multi-year weather and climate data.** It does not start from zero on your roof. It starts with an understanding of weather, and then learns your installation on top of it.
+- **Complete data ownership.** Your production data, your sensor readings, your location, your learned model — all of it stays on your system. Not with a cloud provider, not with a language model, not with me.
+
+---
+
 ## What it does
 
-Most solar forecasts are calculated in the cloud for a typical installation: tilt, orientation, kilowatt-peak, done. They do not know the tree that shades your roof from 3 p.m. in winter, the fog in your valley, your second array facing west, or the inverter that caps at 4 kW.
+A cloud forecast knows tilt, orientation and kilowatt-peak. It does not know the tree that shades your roof from 3 p.m. in winter, the fog in your valley, your second array facing west, or the inverter that caps at 4 kW.
 
-Solar Forecast ML builds a **digital twin of your system** instead. It combines solar physics, weather data, your system geometry and your own measurements into an hourly forecast for today, tomorrow and the day after — recalculated every morning, entirely on your Home Assistant hardware.
+Solar Forecast ML builds a **digital twin of your system** instead: solar physics, weather data, your system geometry and your own measurements become an hourly forecast for today, tomorrow and the day after — recalculated every morning on your Home Assistant hardware.
 
-The forecast improves over time because it learns from your measurements, not from a reference installation. Quality is not asserted — it is measured and shown: accuracy, deviation, usable data days, and long-term trends.
-
-**Everything runs locally.** No cloud model training, no subscriptions, no telemetry.
+It gets better with every day of data, because it learns from your installation rather than a reference one. And it tells you how good it currently is: accuracy, deviation, usable data days, long-term trends. No subscriptions, no telemetry, no cloud training.
 
 [![Live energy overview with solar, household, battery and grid](pictures/dashboard.png)](pictures/dashboard.png)
 
@@ -98,6 +118,22 @@ Forecast quality over time: accuracy, completeness, deviation, usable days and l
 | **Your data** | Sent to a service | Stays in your home |
 
 Two AI stacks carry the system: **Hubble** for the solar forecast, **Kepler** for energy decisions in the companion modules. Both run locally inside Home Assistant. If the methods behind a forecast disagree, solar physics takes over — so the result stays dependable even in unusual weather.
+
+---
+
+## Highlights
+
+Five capabilities that make the difference in daily operation. Each one has a page of its own with screenshots and the reasoning behind it:
+
+| | What it does for you |
+|---|---|
+| **[The forecast](https://solarforecastml.com/en/highlights/local-forecast/)** | Hourly for 72 hours, learned from your roof: shading, local weather, panel groups — and the forecast quality is measured, not claimed. |
+| **[Smart Charge](https://solarforecastml.com/en/highlights/smart-charge/)** | Charges the battery from the grid when electricity is cheap and the sun will not be enough — and leaves room for solar power otherwise. |
+| **[Hubble energy copilot](https://solarforecastml.com/en/highlights/hubble-copilot/)** | Reads your energy data and answers in plain sentences: what is worth doing today, how reliable the forecast is, whether the battery will last. |
+| **[Energy &amp; finance](https://solarforecastml.com/en/highlights/energy-finance/)** | Where your energy comes from, which device consumes it, what a kilowatt-hour really costs — and when the system has paid for itself. |
+| **[Kepler energy management](https://solarforecastml.com/en/highlights/kepler-ems/)** | House, heat pump, storage and car all want the sun. Kepler distributes it in a fixed order and explains every recommendation. |
+
+Smart Charge, Hubble, Energy &amp; finance and Kepler come with the companion modules below. The forecast is SFML itself.
 
 ---
 
