@@ -142,14 +142,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Uses background initialization to avoid blocking HA startup. @zara
     """
     # Lazy import to avoid blocking the event loop during module import
-    from homeassistant.helpers import issue_registry as ir
-
     from .coordinator import GridPriceMonitorCoordinator
     from .license import (
-        CONF_LEGACY_ENTITLED as LICENSE_LEGACY_FLAG,
         has_valid_license_source,
-        license_key_from_entry,
         resolve_entitlements,
+        should_remove_stored_license_key,
     )
     from .license.models import LicenseStatus
 
@@ -165,9 +162,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if backfilled != current:
         hass.config_entries.async_update_entry(entry, data=backfilled)
 
+    _abort_open_gpm_reauth_flows(hass, entry.entry_id)
+    if should_remove_stored_license_key(hass, entry):
+        cleaned = dict(entry.data)
+        cleaned[CONF_LICENSE_KEY] = ""
+        if cleaned != dict(entry.data):
+            hass.config_entries.async_update_entry(entry, data=cleaned)
+
     resolved = resolve_entitlements(hass, entry)
     status = resolved.status
-    key = license_key_from_entry(dict(entry.data))
 
     # Initialize domain data storage
     hass.data.setdefault(DOMAIN, {})
@@ -196,32 +199,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up platforms - they will show "unavailable" until data is ready
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    issue_id = f"license_recommended_{entry.entry_id}"
-    if entry.data.get(LICENSE_LEGACY_FLAG) and not has_valid_license_source(resolved):
-        ir.async_create_issue(
-            hass,
-            DOMAIN,
-            issue_id,
-            is_fixable=True,
-            is_persistent=True,
-            severity=ir.IssueSeverity.WARNING,
-            translation_key="license_recommended",
-            data={"entry_id": entry.entry_id},
-        )
-    else:
-        ir.async_delete_issue(hass, DOMAIN, issue_id)
+    _sync_license_issues(hass, entry, resolved)
 
     for eai_entry in hass.config_entries.async_entries(EAI_DOMAIN):
         entry.async_on_unload(eai_entry.add_update_listener(_async_eai_updated))
 
     if status == LicenseStatus.NOT_YET_VALID.value and not resolved.entitlements:
         coordinator.schedule_not_yet_valid_recheck()
-    elif (
-        key
-        and not resolved.entitlements
-        and status not in (LicenseStatus.VALID.value, LicenseStatus.NOT_YET_VALID.value)
-    ):
-        entry.async_start_reauth(hass)
     elif has_valid_license_source(resolved):
         coordinator.schedule_license_monitor(resolved.expires_at)
 
@@ -284,6 +268,69 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_dispatcher_send(hass, PROVIDER_CHANGED_SIGNAL)
 
     return unload_ok
+
+
+def _abort_open_gpm_reauth_flows(hass: HomeAssistant, entry_id: str) -> None:
+    """Abort open GPM reauth flows for this entry. Idempotent."""
+    from .license import reauth_flow_ids_to_abort
+
+    flow_manager = getattr(hass.config_entries, "flow", None)
+    if flow_manager is None:
+        return
+    progress = flow_manager.async_progress_by_handler(DOMAIN)
+    for flow_id in reauth_flow_ids_to_abort(progress, entry_id):
+        flow_manager.async_abort(flow_id)
+
+
+def _sync_license_issues(hass: HomeAssistant, entry: ConfigEntry, resolved) -> None:
+    """Publish a non-fixable license hint. Never includes key material."""
+    from homeassistant.helpers import issue_registry as ir
+
+    from .license import (
+        CONF_LEGACY_ENTITLED as LICENSE_LEGACY_FLAG,
+        SOURCE_EAI_ENTRY,
+        SOURCE_MANUAL_LEGACY,
+        has_valid_license_source,
+    )
+
+    eai_issue = f"license_eai_required_{entry.entry_id}"
+    legacy_issue = f"license_recommended_{entry.entry_id}"
+    valid_eai = (
+        resolved.source == SOURCE_EAI_ENTRY and has_valid_license_source(resolved)
+    )
+    if valid_eai:
+        ir.async_delete_issue(hass, DOMAIN, eai_issue)
+        ir.async_delete_issue(hass, DOMAIN, legacy_issue)
+        return
+    legacy = bool(entry.data.get(LICENSE_LEGACY_FLAG))
+    if resolved.source == SOURCE_MANUAL_LEGACY or (
+        not has_valid_license_source(resolved) and not legacy
+    ):
+        ir.async_delete_issue(hass, DOMAIN, legacy_issue)
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            eai_issue,
+            is_fixable=False,
+            is_persistent=True,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="license_eai_required",
+        )
+        return
+    if legacy and not has_valid_license_source(resolved):
+        ir.async_delete_issue(hass, DOMAIN, eai_issue)
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            legacy_issue,
+            is_fixable=False,
+            is_persistent=True,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="license_recommended",
+        )
+        return
+    ir.async_delete_issue(hass, DOMAIN, eai_issue)
+    ir.async_delete_issue(hass, DOMAIN, legacy_issue)
 
 
 async def _async_eai_updated(hass: HomeAssistant, eai_entry: ConfigEntry) -> None:

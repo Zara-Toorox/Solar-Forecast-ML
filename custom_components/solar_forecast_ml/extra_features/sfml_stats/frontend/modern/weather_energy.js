@@ -10,8 +10,8 @@ const {
 
 const WE_COPY = {
     de: {
-        tabs: { overview: "Cockpit", story: "Tagesgeschichte", impact: "Weather Impact", compare: "Vergleichstage" },
-        tabsShort: { overview: "Cockpit", story: "Story", impact: "Einfluss", compare: "Vergleich" },
+        tabs: { overview: "Ertrag", story: "Tagesgeschichte", impact: "Weather Impact", compare: "Vergleichstage" },
+        tabsShort: { overview: "Ertrag", story: "Story", impact: "Einfluss", compare: "Vergleich" },
         conditions: "Solar Conditions", conditionsBasis: "beobachtete PV-Bedingungen", forecast: "Morning Forecast", actual: "Tatsächlicher Ertrag", quality: "Forecast-Qualität",
         unavailable: "Für diese Auswertung reicht die gespeicherte Datenbasis noch nicht aus.", retry: "Erneut laden", latest: "Letzter gemeinsamer Datentag",
         scoreClasses: { strong: "Sehr stark", good: "Gut", mixed: "Wechselhaft", weak: "Schwach" },
@@ -25,8 +25,8 @@ const WE_COPY = {
         compareTitle: "Ähnliche historische Bedingungen", similarity: "Ähnlichkeit", target: "Zieltag", noCompare: "Für eine belastbare Auswahl fehlen noch genügend vollständige Vergleichstage.", select: "Tag vergleichen",
     },
     en: {
-        tabs: { overview: "Cockpit", story: "Day Story", impact: "Weather Impact", compare: "Comparable Days" },
-        tabsShort: { overview: "Cockpit", story: "Story", impact: "Impact", compare: "Compare" },
+        tabs: { overview: "Yield", story: "Day Story", impact: "Weather Impact", compare: "Comparable Days" },
+        tabsShort: { overview: "Yield", story: "Story", impact: "Impact", compare: "Compare" },
         conditions: "Solar Conditions", conditionsBasis: "observed PV conditions", forecast: "Morning Forecast", actual: "Actual yield", quality: "Forecast quality",
         unavailable: "The stored data basis is not sufficient for this analysis yet.", retry: "Try again", latest: "Latest shared data day",
         scoreClasses: { strong: "Very strong", good: "Good", mixed: "Mixed", weak: "Weak" },
@@ -40,8 +40,8 @@ const WE_COPY = {
         compareTitle: "Similar historical conditions", similarity: "Similarity", target: "Target day", noCompare: "There are not enough complete comparison days for a reliable selection yet.", select: "Compare day",
     },
     pl: {
-        tabs: { overview: "Kokpit", story: "Historia dnia", impact: "Wpływ pogody", compare: "Podobne dni" },
-        tabsShort: { overview: "Kokpit", story: "Dzień", impact: "Wpływ", compare: "Porównaj" },
+        tabs: { overview: "Uzysk", story: "Historia dnia", impact: "Wpływ pogody", compare: "Podobne dni" },
+        tabsShort: { overview: "Uzysk", story: "Dzień", impact: "Wpływ", compare: "Porównaj" },
         conditions: "Warunki solarne", conditionsBasis: "zaobserwowane warunki PV", forecast: "Prognoza poranna", actual: "Rzeczywisty uzysk", quality: "Jakość prognozy",
         unavailable: "Zapisana baza danych nie wystarcza jeszcze do tej analizy.", retry: "Spróbuj ponownie", latest: "Ostatni wspólny dzień danych",
         scoreClasses: { strong: "Bardzo dobre", good: "Dobre", mixed: "Zmienne", weak: "Słabe" },
@@ -81,11 +81,15 @@ async function weFetch(path, forceRefresh = false) {
 }
 
 window.ModernWeatherEnergyPage = {
-    props: { initialSection: { type: String, default: "" } },
+    props: {
+        initialSection: { type: String, default: "" },
+        embedded: { type: Boolean, default: false },
+        tab: { type: String, default: "" },
+    },
     template: `
         <div class="we-lab">
             <div class="we-commandbar">
-                <div class="we-tabs" role="tablist" :aria-label="copy.conditions">
+                <div v-if="!embedded" class="we-tabs" role="tablist" :aria-label="copy.conditions">
                     <button v-for="tab in tabs" :key="tab" type="button" role="tab"
                             :aria-selected="activeTab === tab" :class="{ active: activeTab === tab }"
                             @click="selectTab(tab)"><span class="we-tab-long">{{ copy.tabs[tab] }}</span><span class="we-tab-short">{{ copy.tabsShort[tab] }}</span></button>
@@ -216,7 +220,11 @@ window.ModernWeatherEnergyPage = {
         const locale = weLocale();
         const copy = WE_COPY[locale] || WE_COPY.en;
         const tabs = ["overview", "story", "impact", "compare"];
-        const activeTab = weRef(tabs.includes(props.initialSection) ? props.initialSection : "overview");
+        const embedded = weComputed(() => props.embedded === true);
+        const startingTab = embedded.value && tabs.includes(props.tab)
+            ? props.tab
+            : (tabs.includes(props.initialSection) ? props.initialSection : "overview");
+        const activeTab = weRef(startingTab);
         const selectedDate = weRef("");
         const latestDate = weRef("");
         const summary = weRef(null);
@@ -288,12 +296,14 @@ window.ModernWeatherEnergyPage = {
                 await weNextTick();
                 if (activeTab.value === "story") renderStory();
                 if (activeTab.value === "compare") renderCompare();
+                requestAnimationFrame(() => resizeCharts());
             }
         }
 
         async function selectTab(tab) {
+            if (!tabs.includes(tab)) return;
             activeTab.value = tab;
-            window.location.hash = `weather_energy/${tab}`;
+            if (!embedded.value) window.location.hash = `weather_energy/${tab}`;
             await loadActive();
         }
 
@@ -392,9 +402,17 @@ window.ModernWeatherEnergyPage = {
             return [copy.conditions, `${weNumber(insight.score)} / 100 · ${copy.scoreClasses[insight.class] || ""}`];
         }
 
-        weWatch(() => props.initialSection, (value) => { if (tabs.includes(value) && value !== activeTab.value) selectTab(value); });
+        weWatch(() => props.tab, (value) => {
+            if (!embedded.value || !tabs.includes(value) || value === activeTab.value) return;
+            activeTab.value = value;
+            loadActive();
+        });
+        weWatch(() => props.initialSection, (value) => {
+            if (embedded.value || !tabs.includes(value) || value === activeTab.value) return;
+            selectTab(value);
+        });
         weOnMounted(async () => { window.addEventListener("resize", resizeCharts); await loadActive(); });
         weOnUnmounted(() => { window.removeEventListener("resize", resizeCharts); storyChartInstance?.dispose(); compareChartInstance?.dispose(); });
-        return { copy, tabs, activeTab, selectedDate, latestDate, summary, day, impact, comparable, impactDays, loading, error, conditions, production, conditionClass, activeHour, storySeries, visibleSeries, storyChart, compareChart, compareDate, loadActive, selectTab, changeDate, setImpactDays, renderStory, selectComparable, number: weNumber, signed: weSigned, date: weDate, signedClass, insightText };
+        return { copy, tabs, embedded, activeTab, selectedDate, latestDate, summary, day, impact, comparable, impactDays, loading, error, conditions, production, conditionClass, activeHour, storySeries, visibleSeries, storyChart, compareChart, compareDate, loadActive, selectTab, changeDate, setImpactDays, renderStory, selectComparable, number: weNumber, signed: weSigned, date: weDate, signedClass, insightText };
     },
 };

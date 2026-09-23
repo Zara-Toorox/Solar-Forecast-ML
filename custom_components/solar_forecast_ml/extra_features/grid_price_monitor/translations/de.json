@@ -3,13 +3,9 @@
     "step": {
       "license": {
         "title": "Lizenz",
-        "description": "Gib den signierten EAI-Lizenzschlüssel ein. Die Prüfung erfolgt lokal und benötigt keine Internetverbindung. Lasse das Feld leer, um die GPM-Demo mit Beispielpreisen zu starten.",
-        "data": {
-          "license_key": "EAI-Lizenzschlüssel"
-        },
-        "data_description": {
-          "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt. Für die GPM-Demo mit Beispielpreisen leer lassen."
-        }
+        "description": "Die Lizenz wird in Solar Forecast Energy AI verwaltet. Trage dort deinen Lizenzschlüssel ein; GPM übernimmt ihn automatisch.",
+        "data": {},
+        "data_description": {}
       },
       "tariff": {
         "title": "Tarifmodell",
@@ -46,14 +42,10 @@
         }
       },
       "reauth_confirm": {
-        "title": "Offline-Lizenz",
-        "description": "Gib den signierten EAI-Lizenzschlüssel ein. Die Prüfung erfolgt lokal und benötigt keine Internetverbindung.",
-        "data": {
-          "license_key": "EAI-Lizenzschlüssel"
-        },
-        "data_description": {
-          "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt."
-        }
+        "title": "Lizenz",
+        "description": "Die Lizenz wird in Solar Forecast Energy AI verwaltet. Trage dort deinen Lizenzschlüssel ein; GPM übernimmt ihn automatisch.",
+        "data": {},
+        "data_description": {}
       },
       "license_detected": {
         "title": "Lizenz",
@@ -211,6 +203,8 @@
       "reauth_successful": "Lizenz aktualisiert.",
       "reauth_started": "Lizenzaktualisierung gestartet.",
       "license_required": "Diese Funktion erfordert eine Lizenz.",
+      "eai_required": "Solar Forecast Energy AI ist erforderlich. Installiere die Integration und trage dort den Lizenzschlüssel ein.",
+      "license_managed_by_eai": "Die Lizenz wird in Solar Forecast Energy AI verwaltet. Trage dort deinen Lizenzschlüssel ein; GPM übernimmt ihn automatisch.",
       "not_available_yet": "Diese Funktion ist noch nicht verfügbar.",
       "monthly_correction_applied": "{rows} Stunden für {month} korrigiert. Preisrevision ist {revision}. Restabweichung {deviation} ct/kWh.",
       "correction_reverted": "Korrektur {id} rückgängig gemacht. Preisrevision ist {revision}."
@@ -343,13 +337,9 @@
       },
       "license": {
         "title": "Lizenz",
-        "description": "Gib den signierten EAI-Lizenzschlüssel ein. Die Prüfung erfolgt lokal und benötigt keine Internetverbindung.",
-        "data": {
-          "license_key": "EAI-Lizenzschlüssel"
-        },
-        "data_description": {
-          "license_key": "Der Lizenzschlüssel beginnt mit EAI1. und wird von deinem EAI-Anbieter ausgestellt. Bestehende Setups laufen weiter, wenn du abbrichst."
-        }
+        "description": "Die Lizenz wird in Solar Forecast Energy AI verwaltet. Trage dort deinen Lizenzschlüssel ein; GPM übernimmt ihn automatisch.",
+        "data": {},
+        "data_description": {}
       },
       "license_detected": {
         "title": "Lizenz",
@@ -495,6 +485,8 @@
     },
     "abort": {
       "license_required": "Diese Funktion erfordert eine Lizenz.",
+      "eai_required": "Solar Forecast Energy AI ist erforderlich. Installiere die Integration und trage dort den Lizenzschlüssel ein.",
+      "license_managed_by_eai": "Die Lizenz wird in Solar Forecast Energy AI verwaltet. Trage dort deinen Lizenzschlüssel ein; GPM übernimmt ihn automatisch.",
       "reauth_successful": "Lizenz aktualisiert.",
       "reauth_started": "Lizenzaktualisierung gestartet.",
       "not_available_yet": "Diese Funktion ist noch nicht verfügbar.",
@@ -506,15 +498,11 @@
   "issues": {
     "license_recommended": {
       "title": "Lizenz empfohlen",
-      "description": "Deine Solar-Forecast-Lizenz schaltet GPM vollständig frei. Ohne Lizenz läuft der bisherige Umfang weiter.",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "title": "Lizenzschlüssel hinterlegen",
-            "description": "Damit öffnet sich das Lizenzformular. Diese Empfehlung kannst du ignorieren."
-          }
-        }
-      }
+      "description": "Die Lizenz wird in Solar Forecast Energy AI verwaltet. Trage dort deinen Lizenzschlüssel ein; GPM übernimmt ihn automatisch. Der bisherige Umfang läuft weiter."
+    },
+    "license_eai_required": {
+      "title": "Lizenz in Solar Forecast Energy AI eintragen",
+      "description": "Die Lizenz wird in Solar Forecast Energy AI verwaltet. Trage dort deinen Lizenzschlüssel ein; GPM übernimmt ihn automatisch."
     }
   },
   "entity": {

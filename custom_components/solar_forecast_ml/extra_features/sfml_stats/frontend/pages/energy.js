@@ -33,6 +33,9 @@ const _EnergyPage = {
                         📅 {{ billing.period.start }} — {{ billing.period.end }}
                     </span>
                 </div>
+                <div class="origin-chip-row" v-if="billingOriginChips.length">
+                    <span v-for="chip in billingOriginChips" :key="chip.key" class="origin-chip" :title="chip.title">{{ chip.label }}</span>
+                </div>
                 <!-- Period Progress Bar -->
                 <div style="margin-bottom: var(--space-lg);">
                     <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">
@@ -140,16 +143,16 @@ const _EnergyPage = {
 
                     <div class="eb-item">
                         <div class="eb-icon">💰</div>
-                        <div class="eb-value" style="color: #ef4444;">{{ billing.finance.grid_cost_eur != null ? billing.finance.grid_cost_eur.toFixed(2) : '0.00' }}</div>
+                        <div class="eb-value" style="color: #ef4444;">{{ formatEuro(billing.finance.grid_cost_eur) }}</div>
                         <div class="eb-label">{{ $t('energy.electricityCosts') }}</div>
                         <div class="eb-sub">
                             Ø {{ billing.finance.avg_price_ct != null ? billing.finance.avg_price_ct.toFixed(1) : '35.0' }} ct/kWh
-                            <template v-if="billing.finance.base_fee_eur"> · +{{ billing.finance.base_fee_eur.toFixed(2) }} €</template>
+                            <template v-if="billing.finance.base_fee_eur"> · +{{ formatEuro(billing.finance.base_fee_eur) }} €</template>
                         </div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">💚</div>
-                        <div class="eb-value" style="color: #22c55e;">{{ (billing.finance.total_savings_eur ?? billing.finance.savings_eur)?.toFixed(2) || '0.00' }}</div>
+                        <div class="eb-value" style="color: #22c55e;">{{ formatEuro(billing.finance.total_savings_eur ?? billing.finance.savings_eur) }}</div>
                         <div class="eb-label">{{ $t('energy.saved') }}</div>
                         <div class="eb-sub">{{ $t('energy.savedSubtitle', { kwh: savedKwh }) }}</div>
                     </div>
@@ -289,22 +292,28 @@ const _EnergyPage = {
                                 <span>{{ $t('energy.amortization.progress') }}</span>
                             </div>
                         </div>
-                        <div class="amortization-kpis">
-                            <div class="amortization-kpi">
-                                <span>{{ $t('energy.amortization.investment') }}</span>
-                                <strong>{{ formatEuro(amortization.summary?.net_investment_eur) }} €</strong>
+                        <div class="amortization-details">
+                            <div class="origin-chip-row" v-if="amortization.summary">
+                                <span class="origin-chip" :title="$t('energy.amortization.reachedHint')">{{ $t('energy.amortization.reachedLine', { benefit: formatEuro(amortization.summary.accumulated_benefit_eur), investment: formatEuro(amortization.summary.net_investment_eur), pct: amortizationProgress }) }}</span>
+                                <span class="origin-chip" :title="$t('energy.amortization.degradationHint')">{{ $t('energy.amortization.degradationAssumption', { pct: amortizationDegradation }) }}</span>
                             </div>
-                            <div class="amortization-kpi">
-                                <span>{{ $t('energy.amortization.paidBack') }}</span>
-                                <strong>{{ formatEuro(amortization.summary?.accumulated_benefit_eur) }} €</strong>
-                            </div>
-                            <div class="amortization-kpi">
-                                <span>{{ $t('energy.amortization.remaining') }}</span>
-                                <strong>{{ formatEuro(amortization.summary?.remaining_eur) }} €</strong>
-                            </div>
-                            <div class="amortization-kpi accent">
-                                <span>{{ $t('energy.amortization.breakEven') }}</span>
-                                <strong>{{ amortizationBreakEven }}</strong>
+                            <div class="amortization-kpis">
+                                <div class="amortization-kpi">
+                                    <span>{{ $t('energy.amortization.investment') }}</span>
+                                    <strong>{{ formatEuro(amortization.summary?.net_investment_eur) }} €</strong>
+                                </div>
+                                <div class="amortization-kpi">
+                                    <span>{{ $t('energy.amortization.paidBack') }}</span>
+                                    <strong>{{ formatEuro(amortization.summary?.accumulated_benefit_eur) }} €</strong>
+                                </div>
+                                <div class="amortization-kpi">
+                                    <span>{{ $t('energy.amortization.remaining') }}</span>
+                                    <strong>{{ formatEuro(amortization.summary?.remaining_eur) }} €</strong>
+                                </div>
+                                <div class="amortization-kpi accent">
+                                    <span>{{ $t('energy.amortization.breakEven') }}</span>
+                                    <strong>{{ amortizationBreakEven }}</strong>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -402,8 +411,8 @@ const _EnergyPage = {
                                 <span v-if="m.isDynamic" style="color:#22c55e; font-size:0.6rem;" :title="$t('energy.dynamicTariff')">●</span>
                                 <span v-else style="color:#eab308; font-size:0.6rem;" :title="$t('energy.estimatedAvg')">○</span>
                             </td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ m.cost }} €</td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ m.saved }} €</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ formatEuro(m.cost) }} €</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ formatEuro(m.saved) }} €</td>
                             <td style="text-align:right;">
                                 <button v-if="m.canEditPrice" class="price-edit-btn price-edit-btn-desktop" @click="openPriceModal(m)">Preis ändern</button>
                             </td>
@@ -421,8 +430,8 @@ const _EnergyPage = {
                             </td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#a855f7;">{{ monthlyTotals.gridImport }} kWh</td>
                             <td></td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ monthlyTotals.cost }} €</td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ monthlyTotals.saved }} €</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ formatEuro(monthlyTotals.cost) }} €</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ formatEuro(monthlyTotals.saved) }} €</td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -460,21 +469,21 @@ const _EnergyPage = {
                         <span class="consumer-icon">♨️</span>
                         <span class="consumer-name">{{ $t('flow.consumer.heatpump') }}</span>
                         <span class="consumer-kwh">{{ billing.consumers.heatpump.total_kwh.toFixed(1) }} kWh</span>
-                        <span class="consumer-cost">{{ billing.consumers.heatpump.cost_eur.toFixed(2) }} €</span>
+                        <span class="consumer-cost">{{ formatEuro(billing.consumers.heatpump.cost_eur) }} €</span>
                         <span class="consumer-arrow">›</span>
                     </div>
                     <div class="consumer-row clickable" v-if="billing.consumers.heatingrod.total_kwh > 0" @click="openConsumerModal('heatingrod')">
                         <span class="consumer-icon">🔥</span>
                         <span class="consumer-name">{{ $t('flow.consumer.heatingrod') }}</span>
                         <span class="consumer-kwh">{{ billing.consumers.heatingrod.total_kwh.toFixed(1) }} kWh</span>
-                        <span class="consumer-cost">{{ billing.consumers.heatingrod.cost_eur.toFixed(2) }} €</span>
+                        <span class="consumer-cost">{{ formatEuro(billing.consumers.heatingrod.cost_eur) }} €</span>
                         <span class="consumer-arrow">›</span>
                     </div>
                     <div class="consumer-row clickable" v-if="billing.consumers.wallbox.total_kwh > 0" @click="openConsumerModal('wallbox')">
                         <span class="consumer-icon">🚗</span>
                         <span class="consumer-name">{{ $t('energy.wallbox') }}</span>
                         <span class="consumer-kwh">{{ billing.consumers.wallbox.total_kwh.toFixed(1) }} kWh</span>
-                        <span class="consumer-cost">{{ billing.consumers.wallbox.cost_eur.toFixed(2) }} €</span>
+                        <span class="consumer-cost">{{ formatEuro(billing.consumers.wallbox.cost_eur) }} €</span>
                         <span class="consumer-arrow">›</span>
                     </div>
                 </div>
@@ -774,7 +783,13 @@ const _EnergyPage = {
         function fmt(v) { return v != null ? v.toFixed(1) : '0.0'; }
         function formatEuro(v) {
             const n = Number(v ?? 0);
-            return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+            const lang = window.SFMLI18n ? window.SFMLI18n.current : 'de';
+            const locale = lang === 'en' || lang === 'pl' ? lang : 'de';
+            return new Intl.NumberFormat(locale, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+                useGrouping: true,
+            }).format(Number.isFinite(n) ? n : 0);
         }
         function formatCt(v) {
             const n = Number(v ?? 0);
@@ -842,7 +857,7 @@ const _EnergyPage = {
 
         const monthlyTotals = computed(() => {
             const d = monthlyData.value;
-            if (!d.length) return { consumption: '0', solar: '0', autarkie: '0', gridImport: '0', cost: '0.00', saved: '0.00' };
+            if (!d.length) return { consumption: '0', solar: '0', autarkie: '0', gridImport: '0', cost: 0, saved: 0 };
             const consumption = d.reduce((s, m) => s + parseFloat(m.consumption), 0);
             const solar = d.reduce((s, m) => s + parseFloat(m.solar), 0);
             const gridImport = d.reduce((s, m) => s + parseFloat(m.gridImport), 0);
@@ -855,8 +870,8 @@ const _EnergyPage = {
                 solar: solar.toFixed(0),
                 autarkie: autarkie.toFixed(0),
                 gridImport: gridImport.toFixed(0),
-                cost: cost.toFixed(2),
-                saved: saved.toFixed(2),
+                cost,
+                saved,
             };
         });
 
@@ -888,7 +903,7 @@ const _EnergyPage = {
             const savings = b?.finance?.total_savings_eur ?? b?.finance?.savings_eur;
             if (!b || savings == null || !b.period?.days_elapsed) return null;
             const factor = b.period.days_total / b.period.days_elapsed;
-            return (savings * factor).toFixed(0);
+            return formatEuro(savings * factor);
         });
 
         const balanceUnknownKwh = computed(() => {
@@ -980,16 +995,69 @@ const _EnergyPage = {
             return Number.isFinite(value) ? Math.max(0, Math.min(100, value)).toFixed(0) : '0';
         });
 
+        const amortizationDegradation = computed(() => {
+            const value = Number(amortization.value?.settings?.degradation_percent ?? 0.5);
+            const text = (Number.isFinite(value) ? value : 0.5).toFixed(1);
+            const lang = window.SFMLI18n ? window.SFMLI18n.current : 'de';
+            return lang === 'en' ? text : text.replace('.', ',');
+        });
+
+        function originChips(provenance) {
+            if (!provenance) return [];
+            const chips = [];
+            const costKeys = {
+                hourly: 'energy.provenance.hourly',
+                daily_avg: 'energy.provenance.dailyAvg',
+                kwh_only: 'energy.provenance.kwhOnly',
+            };
+            const costKey = costKeys[provenance.cost_source];
+            if (costKey) chips.push({ key: 'cost', label: t(costKey), title: t(costKey + 'Hint') });
+            if (provenance.corrected) {
+                chips.push({
+                    key: 'corrected',
+                    label: t('energy.provenance.corrected'),
+                    title: t('energy.provenance.correctedHint'),
+                });
+            }
+            const hourKeys = {
+                watt_recorder: 'energy.provenance.measured',
+                aggregator: 'energy.provenance.calculated',
+            };
+            const hourKey = hourKeys[provenance.hour_source];
+            if (hourKey) chips.push({ key: 'hour', label: t(hourKey), title: t(hourKey + 'Hint') });
+            return chips;
+        }
+
+        const billingOriginChips = computed(() => originChips(billing.value?.provenance));
+
         const amortizationRingStyle = computed(() => ({
             background: `conic-gradient(#22c55e ${amortizationProgress.value}%, rgba(255,255,255,0.08) 0)`,
         }));
+
+        function formatBreakEvenPoint(monthKey, yearOnly) {
+            const lang = window.SFMLI18n ? window.SFMLI18n.current : 'de';
+            const locale = lang === 'en' || lang === 'pl' ? lang : 'de';
+            const match = typeof monthKey === 'string' ? /^(\d{4})-(\d{2})$/.exec(monthKey) : null;
+            if (match) {
+                const year = Number(match[1]);
+                const month = Number(match[2]);
+                if (month >= 1 && month <= 12) {
+                    return new Intl.DateTimeFormat(locale, {
+                        month: 'short',
+                        year: 'numeric',
+                        timeZone: 'UTC',
+                    }).format(new Date(Date.UTC(year, month - 1, 1)));
+                }
+            }
+            return yearOnly ? String(yearOnly) : '';
+        }
 
         const amortizationBreakEven = computed(() => {
             const summary = amortization.value?.summary;
             if (!amortization.value?.configured) return t('energy.amortization.open');
             if (summary?.status === 'reached') return t('energy.amortization.reached');
-            if (summary?.break_even_year) return String(summary.break_even_year);
-            return t('energy.amortization.unavailable');
+            return formatBreakEvenPoint(summary?.break_even_month, summary?.break_even_year)
+                || t('energy.amortization.unavailable');
         });
 
         function parseMoneyInput(value) {
@@ -1014,8 +1082,8 @@ const _EnergyPage = {
 
         function formatScenarioBreakEven(scenario) {
             if (scenario.months_to_break_even === 0) return t('energy.amortization.reached');
-            if (!scenario.break_even_month) return t('energy.amortization.unavailable');
-            return scenario.break_even_month.slice(0, 4);
+            return formatBreakEvenPoint(scenario.break_even_month, scenario.break_even_year)
+                || t('energy.amortization.unavailable');
         }
 
         function toggleAmortizationEdit() {
@@ -1186,12 +1254,12 @@ const _EnergyPage = {
                             autarkie: autarkie.toFixed(0),
                             gridImport: gridImport.toFixed(0),
                             selfCons,
-                            cost: cost.toFixed(2),
+                            cost,
                             avgPrice: priceUsed.toFixed(1),
                             avgPriceValue: Number(priceUsed ?? 0),
                             energyCost: Number(m.energy_cost_eur ?? 0),
                             baseFee: Number(m.base_fee_eur ?? 0),
-                            saved: Number(saved ?? 0).toFixed(2),
+                            saved: Number(saved ?? 0),
                             priceMode,
                             canEditPrice: m.price_mode === 'legacy_fixed',
                             canReset: m.tariff_source === 'manual',
@@ -1638,7 +1706,8 @@ const _EnergyPage = {
         return {
             billing, billingError, priceData, priceRanges, monthlyData, monthlyTotals, fmt,
             amortization, amortizationError, amortizationEdit, amortizationSaving, amortizationForm,
-            amortizationProgress, amortizationRingStyle, amortizationBreakEven,
+            amortizationProgress, amortizationDegradation, amortizationRingStyle, amortizationBreakEven,
+            billingOriginChips,
             toggleAmortizationEdit, saveAmortizationSettings, formatScenarioBreakEven,
             consumerAtlas, consumerAtlasError, consumerAtlasNotice, consumerAtlasSaving,
             consumerAtlasForm,
@@ -2188,6 +2257,12 @@ const _EnergyPage = {
             font-size: 0.64rem;
             text-transform: uppercase;
         }
+        .amortization-details {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+            min-width: 0;
+        }
         .amortization-kpis {
             display: grid;
             gap: var(--space-sm);
@@ -2291,6 +2366,23 @@ const _EnergyPage = {
             min-height: 36px;
             padding: 8px 12px;
         }
+        .origin-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: var(--space-sm);
+        }
+        .origin-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 2px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            font-size: 0.68rem;
+        }
 
         @media (max-width: 768px) {
             .eb-grid { grid-template-columns: repeat(2, 1fr); }
@@ -2305,6 +2397,7 @@ const _EnergyPage = {
             .price-preview-grid { grid-template-columns: 1fr; }
             .amortization-layout { grid-template-columns: 1fr; }
             .amortization-summary { grid-template-columns: 1fr; justify-items: center; }
+            .amortization-details { width: 100%; }
             .amortization-kpis, .amortization-scenarios, .amortization-form { grid-template-columns: 1fr; width: 100%; }
             .price-modal-actions { justify-content: stretch; }
             .price-modal-actions button { flex: 1 1 100%; }

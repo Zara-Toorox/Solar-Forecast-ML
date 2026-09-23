@@ -3,13 +3,9 @@
     "step": {
       "license": {
         "title": "License",
-        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection. Leave the field empty to start the GPM demo with sample electricity prices.",
-        "data": {
-          "license_key": "EAI license key"
-        },
-        "data_description": {
-          "license_key": "The license key starts with EAI1. and is issued by your EAI provider. Leave it empty for the GPM demo with sample prices."
-        }
+        "description": "The license is managed in Solar Forecast Energy AI. Enter your license key there; GPM picks it up automatically.",
+        "data": {},
+        "data_description": {}
       },
       "tariff": {
         "title": "Tariff model",
@@ -46,14 +42,10 @@
         }
       },
       "reauth_confirm": {
-        "title": "Offline license",
-        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection.",
-        "data": {
-          "license_key": "EAI license key"
-        },
-        "data_description": {
-          "license_key": "The license key starts with EAI1. and is issued by your EAI provider."
-        }
+        "title": "License",
+        "description": "The license is managed in Solar Forecast Energy AI. Enter your license key there; GPM picks it up automatically.",
+        "data": {},
+        "data_description": {}
       },
       "license_detected": {
         "title": "License",
@@ -211,6 +203,8 @@
       "reauth_successful": "License updated.",
       "reauth_started": "License update started.",
       "license_required": "This function requires a license.",
+      "eai_required": "Solar Forecast Energy AI is required. Install it and enter the license key there.",
+      "license_managed_by_eai": "The license is managed in Solar Forecast Energy AI. Enter your license key there; GPM picks it up automatically.",
       "not_available_yet": "This function is not available yet.",
       "monthly_correction_applied": "Corrected {rows} hours for {month}. Price revision is {revision}. Remaining deviation {deviation} ct/kWh.",
       "correction_reverted": "Correction {id} reverted. Price revision is {revision}."
@@ -343,13 +337,9 @@
       },
       "license": {
         "title": "License",
-        "description": "Enter the signed EAI license key. Validation is performed locally and does not require an internet connection.",
-        "data": {
-          "license_key": "EAI license key"
-        },
-        "data_description": {
-          "license_key": "The license key starts with EAI1. and is issued by your EAI provider. Existing setups keep running if you cancel."
-        }
+        "description": "The license is managed in Solar Forecast Energy AI. Enter your license key there; GPM picks it up automatically.",
+        "data": {},
+        "data_description": {}
       },
       "license_detected": {
         "title": "License",
@@ -495,6 +485,8 @@
     },
     "abort": {
       "license_required": "This function requires a license.",
+      "eai_required": "Solar Forecast Energy AI is required. Install it and enter the license key there.",
+      "license_managed_by_eai": "The license is managed in Solar Forecast Energy AI. Enter your license key there; GPM picks it up automatically.",
       "reauth_successful": "License updated.",
       "reauth_started": "License update started.",
       "not_available_yet": "This function is not available yet.",
@@ -506,15 +498,11 @@
   "issues": {
     "license_recommended": {
       "title": "License recommended",
-      "description": "Your Solar Forecast license unlocks GPM completely. Without a license the existing scope continues to run.",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "title": "Add a license key",
-            "description": "This opens the license form. You can ignore this recommendation."
-          }
-        }
-      }
+      "description": "The license is managed in Solar Forecast Energy AI. Enter your license key there; GPM picks it up automatically. The current scope keeps running."
+    },
+    "license_eai_required": {
+      "title": "Enter the license in Solar Forecast Energy AI",
+      "description": "The license is managed in Solar Forecast Energy AI. Enter your license key there; GPM picks it up automatically."
     }
   },
   "entity": {

@@ -53,6 +53,7 @@
 .corrections-card th, .corrections-card td { padding: 11px 9px; border-bottom: 1px solid var(--border-default); text-align: left; white-space: nowrap; }
 .corrections-card th { color: var(--text-secondary); font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; }
 .corrections-card .button.compact { min-height: 34px; padding: 6px 10px; }
+.corrections-card a.button { display: inline-flex; align-items: center; width: auto; margin-top: 8px; text-decoration: none; }
 
 @media (max-width: 760px) {
     .corrections-grid, .corrections-values, .corrections-source-values { grid-template-columns: 1fr; }

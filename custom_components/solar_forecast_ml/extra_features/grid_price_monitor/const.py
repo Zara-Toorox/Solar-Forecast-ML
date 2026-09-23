@@ -16,7 +16,7 @@ from homeassistant.const import Platform
 # ============================================================================
 DOMAIN = "grid_price_monitor"
 NAME = "Solar Forecast GPM"
-VERSION = "46.2.2"
+VERSION = "48.0.0"
 
 # ============================================================================
 # PLATFORMS

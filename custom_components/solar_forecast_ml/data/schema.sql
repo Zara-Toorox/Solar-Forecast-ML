@@ -2109,7 +2109,7 @@ CREATE TABLE IF NOT EXISTS ops_reforecast_settings (
     settings_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mode TEXT NOT NULL CHECK(mode IN ('standard', 'standard_midday', 'standard_midday_afternoon', 'custom_time')),
     custom_time TEXT,
-    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
     updated_at TIMESTAMP NOT NULL,
     updated_by TEXT,
     notes TEXT

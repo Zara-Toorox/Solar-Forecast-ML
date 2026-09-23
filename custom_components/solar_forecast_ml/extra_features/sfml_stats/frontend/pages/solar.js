@@ -76,6 +76,9 @@ const _SolarPage = {
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
                     <span class="chart-title">☀ {{ $t('solar.monthlyYield') }}</span>
                 </div>
+                <div class="origin-chip-row" v-if="solarOriginChips.length">
+                    <span v-for="chip in solarOriginChips" :key="chip.key" class="origin-chip" :title="chip.title">{{ chip.label }}</span>
+                </div>
 
                 <!-- 4 KPI Cards -->
                 <div class="annual-kpi-grid">
@@ -1827,7 +1830,36 @@ const _SolarPage = {
             if (smAutoPlayTimer) clearInterval(smAutoPlayTimer);
         });
 
+        function originChips(provenance) {
+            if (!provenance) return [];
+            const chips = [];
+            const costKeys = {
+                hourly: 'energy.provenance.hourly',
+                daily_avg: 'energy.provenance.dailyAvg',
+                kwh_only: 'energy.provenance.kwhOnly',
+            };
+            const costKey = costKeys[provenance.cost_source];
+            if (costKey) chips.push({ key: 'cost', label: t(costKey), title: t(costKey + 'Hint') });
+            if (provenance.corrected) {
+                chips.push({
+                    key: 'corrected',
+                    label: t('energy.provenance.corrected'),
+                    title: t('energy.provenance.correctedHint'),
+                });
+            }
+            const hourKeys = {
+                watt_recorder: 'energy.provenance.measured',
+                aggregator: 'energy.provenance.calculated',
+            };
+            const hourKey = hourKeys[provenance.hour_source];
+            if (hourKey) chips.push({ key: 'hour', label: t(hourKey), title: t(hourKey + 'Hint') });
+            return chips;
+        }
+
+        const solarOriginChips = computed(() => originChips(summaryData.value?.provenance));
+
         return {
+            solarOriginChips,
             monthlyChartEl,
             comparisonChartEl,
             forecastComparisonData,
@@ -2464,6 +2496,23 @@ const _SolarPage = {
                 flex-direction: column;
                 align-items: flex-start;
             }
+        }
+        .origin-chip-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: var(--space-sm);
+        }
+        .origin-chip {
+            display: inline-flex;
+            align-items: center;
+            min-height: 22px;
+            padding: 2px 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-muted);
+            font-size: 0.68rem;
         }
     `;
     document.head.appendChild(style);

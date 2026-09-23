@@ -16,7 +16,11 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import OptionsFlowWithReload, SOURCE_RECONFIGURE
+from homeassistant.config_entries import (
+    SOURCE_REAUTH,
+    SOURCE_RECONFIGURE,
+    OptionsFlowWithReload,
+)
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import selector
@@ -220,14 +224,9 @@ def _get_pricing_schema(
     })
 
 
-def _license_schema(default: str = "") -> vol.Schema:
-    return vol.Schema(
-        {
-            vol.Optional(CONF_LICENSE_KEY, default=default): selector.TextSelector(
-                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
-            ),
-        }
-    )
+def _license_schema() -> vol.Schema:
+    """License steps no longer collect a key. EAI owns the key."""
+    return vol.Schema({})
 
 
 def _detected_eai_license(hass: Any):
@@ -309,6 +308,10 @@ def _strip_inactive_mode_payloads(data: dict[str, Any]) -> dict[str, Any]:
 
 def _reconfigure_data(existing: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     incoming = _strip_inactive_mode_payloads(data)
+    # The flow never writes a new key. An empty value must not erase a stored
+    # legacy key; setup removes that key only when EAI is valid or it is invalid.
+    if incoming.get(CONF_LICENSE_KEY) == "":
+        incoming.pop(CONF_LICENSE_KEY, None)
     kept = {
         key: value for key, value in existing.items() if key not in _RECONFIGURE_STRIP_KEYS
     }
@@ -973,9 +976,11 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_license(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        from .license import mask_license_id
+        from .license import has_eai_config_entry, mask_license_id
         from .license.models import LicenseStatus
-        from .license.validator import OfflineLicenseValidator
+
+        if not has_eai_config_entry(self.hass):
+            return self.async_abort(reason="eai_required")
 
         detected = _detected_eai_license(self.hass)
         if detected is not None:
@@ -993,33 +998,21 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 },
             )
 
-        errors: dict[str, str] = {}
         if user_input is not None:
-            license_key = str(user_input.get(CONF_LICENSE_KEY, "")).strip()
-            if not license_key:
-                await self.async_set_unique_id(DOMAIN)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title="Solar Forecast GPM Demo",
-                    data={
-                        CONF_LICENSE_KEY: "",
-                        CONF_LICENSE_STATUS: LicenseStatus.NOT_PROVIDED.value,
-                        CONF_TARIFF_MODE: TARIFF_MODE_DEMO,
-                        CONF_COUNTRY: DEFAULT_COUNTRY,
-                    },
-                )
-            result = OfflineLicenseValidator().validate(license_key)
-            if result.status is LicenseStatus.VALID and result.payload is not None:
-                self._license_key = license_key
-                self._license_status = result.status.value
-                self._license_id = result.payload.license_id
-                self._entitlements = result.payload.entitlements
-                return await self.async_step_tariff()
-            errors["base"] = result.message_key
+            await self.async_set_unique_id(DOMAIN)
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(
+                title="Solar Forecast GPM Demo",
+                data={
+                    CONF_LICENSE_KEY: "",
+                    CONF_LICENSE_STATUS: LicenseStatus.NOT_PROVIDED.value,
+                    CONF_TARIFF_MODE: TARIFF_MODE_DEMO,
+                    CONF_COUNTRY: DEFAULT_COUNTRY,
+                },
+            )
         return self.async_show_form(
             step_id="license",
             data_schema=_license_schema(),
-            errors=errors,
         )
 
     async def async_step_tariff(
@@ -1101,7 +1094,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_MAX_PRICE: DEFAULT_MAX_PRICE,
                     CONF_BATTERY_POWER_SENSOR: battery_sensor,
                     CONF_TARIFF_MODE: self._tariff_mode or TARIFF_MODE_DYNAMIC,
-                    CONF_LICENSE_KEY: self._license_key,
+                    CONF_LICENSE_KEY: "",
                     CONF_LICENSE_STATUS: self._license_status,
                     CONF_LICENSE_ID: self._license_id,
                 }
@@ -1189,7 +1182,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         ):
             return self.async_abort(reason="license_required")
         self._entitlements = resolved.entitlements
-        self._license_key = str(self._existing_data.get(CONF_LICENSE_KEY, "") or "")
+        self._license_key = ""
         self._license_status = str(self._existing_data.get(CONF_LICENSE_STATUS, "") or "")
         self._license_id = self._existing_data.get(CONF_LICENSE_ID)
         self._tariff_mode = self._existing_data.get(CONF_TARIFF_MODE, TARIFF_MODE_DYNAMIC)
@@ -1228,7 +1221,7 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             CONF_MAX_PRICE: self._existing_data.get(CONF_MAX_PRICE, DEFAULT_MAX_PRICE),
             CONF_BATTERY_POWER_SENSOR: self._existing_data.get(CONF_BATTERY_POWER_SENSOR, ""),
             CONF_TARIFF_MODE: self._tariff_mode,
-            CONF_LICENSE_KEY: self._license_key,
+            CONF_LICENSE_KEY: "",
             CONF_LICENSE_STATUS: self._license_status,
             CONF_LICENSE_ID: self._license_id,
         }
@@ -1397,88 +1390,19 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_license_detected(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        payload = user_input if user_input is not None else {}
-        if self._reauth_entry is not None:
-            return await self.async_step_reauth_confirm(payload)
-        return await self.async_step_license(payload)
+        if self._reauth_entry is not None or self.source == SOURCE_REAUTH:
+            return self.async_abort(reason="license_managed_by_eai")
+        return await self.async_step_license(
+            user_input if user_input is not None else {}
+        )
 
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
-        self._reauth_entry = self.hass.config_entries.async_get_entry(
-            self.context["entry_id"]
-        )
-        return await self.async_step_reauth_confirm()
+        return self.async_abort(reason="license_managed_by_eai")
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        from .license import mask_license_id
-        from .license.models import LicenseStatus
-        from .license.validator import OfflineLicenseValidator
-
-        detected = _detected_eai_license(self.hass)
-        if detected is not None:
-            if user_input is not None:
-                entry = self._reauth_entry
-                if entry is not None and entry.data.get(CONF_TARIFF_MODE) == TARIFF_MODE_DEMO:
-                    self._license_key = ""
-                    self._license_status = detected.status
-                    self._license_id = detected.license_id
-                    self._entitlements = detected.entitlements
-                    return await self.async_step_tariff()
-                if entry is not None:
-                    data = _preserve_legacy_entitled(dict(entry.data), dict(entry.data))
-                    data.update(
-                        {
-                            CONF_LICENSE_KEY: "",
-                            CONF_LICENSE_STATUS: detected.status,
-                            CONF_LICENSE_ID: detected.license_id,
-                        }
-                    )
-                    return self.async_update_reload_and_abort(
-                        entry,
-                        data=data,
-                        reason="reauth_successful",
-                    )
-            return self.async_show_form(
-                step_id="license_detected",
-                data_schema=vol.Schema({}),
-                description_placeholders={
-                    "license_id": mask_license_id(detected.license_id) or "****",
-                },
-            )
-
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            license_key = str(user_input.get(CONF_LICENSE_KEY, "")).strip()
-            result = OfflineLicenseValidator().validate(license_key)
-            if result.status is LicenseStatus.VALID and result.payload is not None:
-                self._license_key = license_key
-                self._license_status = result.status.value
-                self._license_id = result.payload.license_id
-                self._entitlements = result.payload.entitlements
-                entry = self._reauth_entry
-                if entry is not None and entry.data.get(CONF_TARIFF_MODE) == TARIFF_MODE_DEMO:
-                    return await self.async_step_tariff()
-                if entry is not None:
-                    data = _preserve_legacy_entitled(dict(entry.data), dict(entry.data))
-                    data.update(
-                        {
-                            CONF_LICENSE_KEY: license_key,
-                            CONF_LICENSE_STATUS: result.status.value,
-                            CONF_LICENSE_ID: result.payload.license_id,
-                        }
-                    )
-                    return self.async_update_reload_and_abort(
-                        entry,
-                        data=data,
-                        reason="reauth_successful",
-                    )
-            errors["base"] = result.message_key
-        return self.async_show_form(
-            step_id="reauth_confirm",
-            data_schema=_license_schema(),
-            errors=errors,
-        )
+        return self.async_abort(reason="license_managed_by_eai")
 
 
 # ============================================================================
@@ -1877,7 +1801,16 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
         current_data = self._merged()
         mode = current_data.get(CONF_TARIFF_MODE, TARIFF_MODE_DYNAMIC)
         if mode == TARIFF_MODE_DEMO:
-            return self.async_abort(reason="license_required")
+            from .license import has_valid_license_source, resolve_entitlements
+
+            if not has_valid_license_source(
+                resolve_entitlements(self.hass, self.config_entry)
+            ):
+                return self.async_abort(reason="license_required")
+            if user_input is not None and CONF_VAT_RATE in user_input:
+                self._promote_licensed_demo()
+                return self._store_dynamic_tariff(user_input, current_data)
+            return self._show_dynamic_tariff(current_data)
         if mode != TARIFF_MODE_DYNAMIC:
             from .license import has_tariff_models
 
@@ -2001,52 +1934,55 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
             data_schema=_csv_community_schema(self._merged()),
         )
 
+    def _promote_licensed_demo(self) -> None:
+        from .license import SOURCE_EAI_ENTRY, resolve_entitlements
+
+        entry = self.config_entry
+        resolved = resolve_entitlements(self.hass, entry)
+        new_data = _preserve_legacy_entitled(dict(entry.data), dict(entry.data))
+        new_data[CONF_TARIFF_MODE] = TARIFF_MODE_DYNAMIC
+        if resolved.source == SOURCE_EAI_ENTRY:
+            new_data[CONF_LICENSE_KEY] = ""
+            new_data[CONF_LICENSE_STATUS] = resolved.status
+            new_data[CONF_LICENSE_ID] = resolved.license_id
+        self.hass.config_entries.async_update_entry(entry, data=new_data)
+
     async def async_step_license(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        from .license import mask_license_id
-        from .license.models import LicenseStatus
-        from .license.validator import OfflineLicenseValidator
+        from .license import (
+            SOURCE_EAI_ENTRY,
+            has_valid_license_source,
+            mask_license_id,
+            resolve_entitlements,
+        )
 
-        errors: dict[str, str] = {}
         entry = self.config_entry
-        if entry.data.get(CONF_TARIFF_MODE) == TARIFF_MODE_DEMO:
-            entry.async_start_reauth(self.hass)
-            return self.async_abort(reason="reauth_started")
-        detected = _detected_eai_license(self.hass)
-        if detected is not None:
+        resolved = resolve_entitlements(self.hass, entry)
+        if (
+            entry.data.get(CONF_TARIFF_MODE) == TARIFF_MODE_DEMO
+            and has_valid_license_source(resolved)
+        ):
+            return await self.async_step_tariff()
+        if has_valid_license_source(resolved):
             if user_input is not None:
-                new_data = _preserve_legacy_entitled(dict(entry.data), dict(entry.data))
-                new_data[CONF_LICENSE_KEY] = ""
-                new_data[CONF_LICENSE_STATUS] = detected.status
-                new_data[CONF_LICENSE_ID] = detected.license_id
-                self.hass.config_entries.async_update_entry(entry, data=new_data)
+                if resolved.source == SOURCE_EAI_ENTRY:
+                    new_data = _preserve_legacy_entitled(dict(entry.data), dict(entry.data))
+                    new_data[CONF_LICENSE_KEY] = ""
+                    new_data[CONF_LICENSE_STATUS] = resolved.status
+                    new_data[CONF_LICENSE_ID] = resolved.license_id
+                    self.hass.config_entries.async_update_entry(entry, data=new_data)
                 return self.async_create_entry(title="", data=dict(entry.options))
             return self.async_show_form(
                 step_id="license_detected",
                 data_schema=vol.Schema({}),
                 description_placeholders={
-                    "license_id": mask_license_id(detected.license_id) or "****",
+                    "license_id": mask_license_id(resolved.license_id) or "****",
                 },
             )
-        if user_input is not None:
-            license_key = str(user_input.get(CONF_LICENSE_KEY, "")).strip()
-            if not license_key:
-                errors["base"] = "license_not_provided"
-            else:
-                result = OfflineLicenseValidator().validate(license_key)
-                if result.status is LicenseStatus.VALID and result.payload is not None:
-                    new_data = _preserve_legacy_entitled(dict(entry.data), dict(entry.data))
-                    new_data[CONF_LICENSE_KEY] = license_key
-                    new_data[CONF_LICENSE_STATUS] = result.status.value
-                    new_data[CONF_LICENSE_ID] = result.payload.license_id
-                    self.hass.config_entries.async_update_entry(entry, data=new_data)
-                    return self.async_create_entry(title="", data=dict(entry.options))
-                errors["base"] = result.message_key
         return self.async_show_form(
             step_id="license",
             data_schema=_license_schema(),
-            errors=errors,
         )
 
     async def async_step_license_detected(

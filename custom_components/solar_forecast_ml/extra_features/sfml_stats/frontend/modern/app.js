@@ -60,20 +60,22 @@ const UiIcon = {
 const COPY = {
     de: {
         product: "Solar Forecast Stats",
-        sections: { live: "Monitoring", analysis: "Analyse", system: "Steuerung" },
+        sections: { overview: "Übersicht", analysis: "Analyse", control: "Steuerung", system: "System" },
         mobile: { dashboard: "Cockpit", home: "Übersicht", solar: "Solar", energy: "Energie" },
         pages: {
             dashboard: ["Solar Cockpit", "Energie, Prognose und Premium Intelligence auf einen Blick"],
             tomorrow: ["Dein Energietag", "Deine historische Energy Story und echte Energie-Unabhängigkeit"],
             home: ["Live & Prognose", "Ausführlicher Energiefluss und Prognosestatus"],
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],
-            weather: ["Wetter", "Prognose, Strahlung und Historie"],
+            weather: ["Wetter", "Wetterlage, Prognose, Strahlung und Ertrag"],
             energy: ["Energie & Finanzen", "Bilanz, Verbraucher, Tarife und Amortisation"],
             gpm: ["Strompreis (GPM)", "Tarif, Kurve und Lizenzstatus"],
             smart_charging: ["Smart Charging", "Ladeentscheidung, Preise und Batterieziel"],
+            hybrid_forecast: ["Hybrid-Prognose", "Was gilt, was heute gelaufen ist, und die Einstellung"],
             ems: ["EMS", "BETA v2! · Was jetzt tun – und warum"],
             settings: ["Systemstatus", "Konfiguration, Sensoren und Datenqualität"],
             corrections: ["Korrekturen", "Premium · geprüfte Tageswerte berichtigen"],
+            statistics: ["Statistik", "Kennzahlen über frei wählbare Zeiträume"],
             quality: ["Forecast Intelligence", "Qualität, Modelle und Entwicklung nachvollziehen"],
             weather_energy: ["Wetter & Energie", "Bedingungen, Prognose und Ertrag gemeinsam analysieren"],
             eai: ["Wärmepumpe", "Verbrauch, Betrieb, Effizienz und Gebäudeverhalten"],
@@ -95,20 +97,22 @@ const COPY = {
     },
     en: {
         product: "Solar Forecast Stats",
-        sections: { live: "Monitoring", analysis: "Analysis", system: "Control" },
+        sections: { overview: "Overview", analysis: "Analysis", control: "Control", system: "System" },
         mobile: { dashboard: "Cockpit", home: "Overview", solar: "Solar", energy: "Energy" },
         pages: {
             dashboard: ["Solar Cockpit", "Energy, forecast and premium intelligence at a glance"],
             tomorrow: ["Your Energy Day", "Your historical Energy Story and real energy independence"],
             home: ["Live & Forecast", "Detailed energy flow and forecast status"],
             solar: ["Solar & Forecast", "Yield, models, deviations and shading"],
-            weather: ["Weather", "Forecast, radiation and history"],
+            weather: ["Weather", "Conditions, forecast, radiation and yield"],
             energy: ["Energy & Finance", "Balance, consumers, tariffs and payback"],
             gpm: ["Grid prices (GPM)", "Tariff, curve and licence status"],
             smart_charging: ["Smart Charging", "Charge decision, prices and battery target"],
+            hybrid_forecast: ["Hybrid forecast", "What applies, what ran today, and the setting"],
             ems: ["EMS", "BETA v2! · What to do now – and why"],
             settings: ["System Status", "Configuration, sensors and data quality"],
             corrections: ["Corrections", "Premium · correct verified daily values"],
+            statistics: ["Statistics", "Figures over any period you choose"],
             quality: ["Forecast Intelligence", "Understand quality, models and development"],
             weather_energy: ["Weather & Energy", "Analyse conditions, forecast and yield together"],
             eai: ["Heat Pump", "Consumption, operation, efficiency and building response"],
@@ -130,20 +134,22 @@ const COPY = {
     },
     pl: {
         product: "Solar Forecast Stats",
-        sections: { live: "Monitoring", analysis: "Analiza", system: "Sterowanie" },
+        sections: { overview: "Przegląd", analysis: "Analiza", control: "Sterowanie", system: "System" },
         mobile: { dashboard: "Kokpit", home: "Przegląd", solar: "Solar", energy: "Energia" },
         pages: {
             dashboard: ["Solar Cockpit", "Energia, prognoza i funkcje Premium w jednym miejscu"],
             tomorrow: ["Twój dzień energii", "Twoja historyczna Energy Story i rzeczywista niezależność energetyczna"],
             home: ["Na żywo i prognoza", "Szczegółowy przepływ energii i stan prognozy"],
             solar: ["Energia słoneczna", "Produkcja, modele, odchylenia i cień"],
-            weather: ["Pogoda", "Prognoza, promieniowanie i historia"],
+            weather: ["Pogoda", "Warunki, prognoza, promieniowanie i uzysk"],
             energy: ["Energia i finanse", "Bilans, odbiorniki, taryfy i amortyzacja"],
             gpm: ["Ceny energii (GPM)", "Taryfa, wykres i status licencji"],
             smart_charging: ["Smart Charging", "Decyzja ładowania, ceny i cel baterii"],
+            hybrid_forecast: ["Prognoza hybrydowa", "Co obowiązuje, co dziś się wykonało i ustawienie"],
             ems: ["EMS", "BETA v2! · Co teraz zrobić – i dlaczego"],
             settings: ["Stan systemu", "Konfiguracja, czujniki i jakość danych"],
             corrections: ["Korekty", "Premium · korekta zweryfikowanych wartości dziennych"],
+            statistics: ["Statystyka", "Wskaźniki dla dowolnie wybranego okresu"],
             quality: ["Forecast Intelligence", "Jakość, modele i długoterminowy rozwój"],
             weather_energy: ["Pogoda i energia", "Wspólna analiza warunków, prognozy i uzysku"],
             eai: ["Pompa ciepła", "Zużycie, praca, efektywność i reakcja budynku"],
@@ -538,10 +544,10 @@ const ModernApp = {
 
         const navigationDefinition = [
             {
-                id: "live",
+                id: "overview",
                 items: [
                     { id: "home", icon: "home" },
-                    { id: "dashboard", icon: "solar" },
+                    { id: "dashboard", icon: "solar", premium: true },
                 ],
             },
             {
@@ -549,22 +555,28 @@ const ModernApp = {
                 items: [
                     { id: "solar", icon: "solar" },
                     { id: "quality", icon: "quality" },
-                    { id: "weather_energy", icon: "weather" },
                     { id: "weather", icon: "weather" },
+                    { id: "eai_weather", icon: "weather", premium: true },
                     { id: "energy", icon: "energy" },
                     { id: "gpm", icon: "energy", premium: true },
+                    { id: "statistics", icon: "quality", premium: true },
                     { id: "tomorrow", icon: "play", premium: true, panel: true },
+                ],
+            },
+            {
+                id: "control",
+                items: [
                     { id: "eai", icon: "heatpump", premium: true, feature: "heat_pump" },
-                    { id: "mobility", icon: "mobility", feature: "wallbox" },
-                    { id: "eai_weather", icon: "weather" },
+                    { id: "mobility", icon: "mobility", premium: true, feature: "wallbox" },
+                    { id: "smart_charging", icon: "charge" },
+                    { id: "hybrid_forecast", icon: "trend" },
+                    { id: "ems", icon: "energy", premium: true, admin: true },
                 ],
             },
             {
                 id: "system",
                 items: [
-                    { id: "smart_charging", icon: "charge" },
-                    { id: "ems", icon: "energy", admin: true },
-                    { id: "corrections", icon: "settings", panel: true },
+                    { id: "corrections", icon: "settings", premium: true, panel: true },
                     { id: "settings", icon: "settings" },
                 ],
             },
@@ -599,8 +611,7 @@ const ModernApp = {
             home: window.HomePage,
             solar: window.SolarPage,
             quality: window.ModernQualityPage,
-            weather_energy: window.ModernWeatherEnergyPage,
-            weather: window.WeatherPage,
+            weather: window.ModernWeatherPage,
             energy: window.EnergyPage,
             gpm: window.GPMPage,
             tomorrow: window.TomorrowPage,
@@ -608,8 +619,10 @@ const ModernApp = {
             mobility: window.ModernMobilityPage,
             eai_weather: window.ModernEAIWeatherPage,
             smart_charging: window.SmartChargingPage,
+            hybrid_forecast: window.HybridForecastPage,
             ems: window.ModernEMSPage,
             corrections: window.ModernCorrectionsPage,
+            statistics: window.ModernStatisticsPage,
             settings: window.SettingsPage,
             support: window.ModernSupportPage,
         };
@@ -685,11 +698,35 @@ const ModernApp = {
             syncShellPolling();
         }
 
+        const weatherTabs = ["now", "overview", "story", "impact", "compare"];
+        const weatherEnergyTabs = ["overview", "story", "impact", "compare"];
+
+        function weatherHash(tab) {
+            return tab === "now" ? "weather" : `weather/${tab}`;
+        }
+
+        function canonicalWeatherTab(page, detail) {
+            if (page === "weather_energy") {
+                if (!detail) return "overview";
+                return weatherEnergyTabs.includes(detail) ? detail : "now";
+            }
+            if (page === "weather") {
+                if (!detail || detail === "now") return "now";
+                return weatherTabs.includes(detail) ? detail : "now";
+            }
+            return null;
+        }
+
         function navigate(page, detail = "") {
+            const weatherTab = canonicalWeatherTab(page, detail);
+            if (weatherTab) {
+                page = "weather";
+                detail = weatherTab === "now" ? "" : weatherTab;
+            }
             if (!pages[page]) return;
             if (page === "dashboard") dashboardMode.value = "loading";
             currentPage.value = page;
-            currentDetail.value = detail || "";
+            currentDetail.value = page === "weather" ? (detail || "now") : (detail || "");
             window.location.hash = detail ? `${page}/${detail}` : page;
             drawerOpen.value = false;
             document.title = `${pageCopy(page)[0]} · ${copy.product}`;
@@ -698,13 +735,25 @@ const ModernApp = {
 
         function handleHashChange() {
             const [hashPage, hashDetail = ""] = window.location.hash.slice(1).split("/");
-            const requestedPage = pages[hashPage] ? hashPage : "home";
-            const page = requestedPage;
+            const weatherTab = canonicalWeatherTab(hashPage, hashDetail);
+            if (weatherTab) {
+                const next = weatherHash(weatherTab);
+                const current = hashDetail ? `${hashPage}/${hashDetail}` : hashPage;
+                if (current !== next) {
+                    window.location.hash = next;
+                    return;
+                }
+            }
+            const page = pages[hashPage] ? hashPage : "home";
             if (page === "dashboard" && currentPage.value !== "dashboard") {
                 dashboardMode.value = "loading";
             }
             currentPage.value = page;
-            currentDetail.value = ["quality", "weather_energy", "tomorrow"].includes(page) ? hashDetail : "";
+            if (page === "weather") {
+                currentDetail.value = weatherTab || "now";
+            } else {
+                currentDetail.value = ["quality", "tomorrow"].includes(page) ? hashDetail : "";
+            }
             document.title = `${pageCopy(page)[0]} · ${copy.product}`;
         }
 

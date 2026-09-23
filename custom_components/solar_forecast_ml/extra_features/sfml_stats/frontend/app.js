@@ -107,6 +107,7 @@ const App = {
             { id: 'energy',         label: t('nav.energy'),         icon: '⚡' },
             { id: 'gpm',            label: t('nav.gpm'),            icon: '💶' },
             { id: 'smart_charging', label: t('nav.smartCharging'),  icon: '🔌' },
+            { id: 'hybrid_forecast', label: t('nav.hybridForecast'), icon: '☀' },
             { id: 'settings',       label: t('nav.settings'),       icon: '⚙' },
         ]);
 
@@ -119,6 +120,7 @@ const App = {
             energy: window.EnergyPage || { template: '<div class="page page-energy"><h2>⚡ ' + t('nav.energyAndFinances') + '</h2><p>Loading...</p></div>' },
             gpm: window.GPMPage || { template: '<div class="page page-gpm"><h2>💶 ' + t('nav.gpm') + '</h2><p>Loading...</p></div>' },
             smart_charging: window.SmartChargingPage || { template: '<div class="page page-smart-charging"><h2>🔌 ' + t('nav.smartCharging') + '</h2><p>Loading...</p></div>' },
+            hybrid_forecast: window.HybridForecastPage || { template: '<div class="page page-hybrid-forecast"><h2>☀ ' + t('nav.hybridForecast') + '</h2><p>Loading...</p></div>' },
             settings: window.SettingsPage || { template: '<div class="page page-settings"><h2>⚙ ' + t('nav.settings') + '</h2><p>Loading...</p></div>' },
         };
 

@@ -24,8 +24,12 @@ async def async_get_config_entry_diagnostics(
             public[CONF_LICENSE_ID] = mask_license_id(public.get(CONF_LICENSE_ID))
         return public
 
+    snapshot = coordinator.snapshot()
     return {
         "entry": _public_mapping(dict(entry.data)),
         "options": _public_mapping(dict(entry.options)),
-        "snapshot": coordinator.snapshot(),
+        "license_source": snapshot.get("license_source"),
+        "license_status": snapshot.get("license_status"),
+        "license_id": snapshot.get("license_id_masked"),
+        "snapshot": snapshot,
     }

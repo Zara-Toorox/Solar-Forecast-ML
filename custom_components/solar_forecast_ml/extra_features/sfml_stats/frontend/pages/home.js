@@ -795,6 +795,43 @@ const _HomePage = {
         let powerChartInstance = null;
         let batteryChartInstance = null;
         let resizeHandler = null;
+        let chartResizeObserver = null;
+        let chartResizeFrame = 0;
+        const chartResizeTargets = new WeakMap();
+        const pendingChartResizes = new Set();
+
+        const flushChartResizes = () => {
+            chartResizeFrame = 0;
+            for (const chart of pendingChartResizes) {
+                if (!chart?.isDisposed?.()) chart.resize();
+            }
+            pendingChartResizes.clear();
+        };
+
+        const scheduleChartResize = (chart) => {
+            if (!chart || chart.isDisposed?.()) return;
+            pendingChartResizes.add(chart);
+            if (!chartResizeFrame) {
+                chartResizeFrame = requestAnimationFrame(flushChartResizes);
+            }
+        };
+
+        const ensureChartResizeObserver = () => {
+            if (chartResizeObserver || !window.ResizeObserver) return;
+            chartResizeObserver = new ResizeObserver((entries) => {
+                for (const entry of entries) {
+                    scheduleChartResize(chartResizeTargets.get(entry.target));
+                }
+            });
+        };
+
+        const observeChartContainer = (element, chart) => {
+            if (!element || !chart) return;
+            ensureChartResizeObserver();
+            if (!chartResizeObserver) return;
+            chartResizeTargets.set(element, chart);
+            chartResizeObserver.observe(element);
+        };
 
         // Reactive state
         const flow = reactive({
@@ -2810,6 +2847,7 @@ const _HomePage = {
 
                     if (!pgChartInstances[groupName]) {
                         pgChartInstances[groupName] = echarts.init(chartEl);
+                        observeChartContainer(chartEl, pgChartInstances[groupName]);
                     }
                     const chart = pgChartInstances[groupName];
                     const hourly = groupData.hourly || [];
@@ -3345,6 +3383,7 @@ const _HomePage = {
         function updateBatteryChart() {
             if (!batteryChartInstance && batteryChartEl.value && typeof echarts !== 'undefined') {
                 batteryChartInstance = echarts.init(batteryChartEl.value, null, { renderer: 'canvas' });
+                observeChartContainer(batteryChartEl.value, batteryChartInstance);
             }
             if (!batteryChartInstance || !batterySocSensorConfigured.value) return;
 
@@ -3514,6 +3553,7 @@ const _HomePage = {
             // Init forecast chart
             if (forecastChartEl.value && typeof echarts !== 'undefined') {
                 forecastChartInstance = echarts.init(forecastChartEl.value, null, { renderer: 'canvas' });
+                observeChartContainer(forecastChartEl.value, forecastChartInstance);
                 forecastChartInstance.on('legendselectchanged', (event) => {
                     if (!event?.selected) return;
                     Object.keys(forecastLegendSelected).forEach((key) => {
@@ -3527,9 +3567,11 @@ const _HomePage = {
             // Init power chart
             if (powerChartEl.value && typeof echarts !== 'undefined') {
                 powerChartInstance = echarts.init(powerChartEl.value, null, { renderer: 'canvas' });
+                observeChartContainer(powerChartEl.value, powerChartInstance);
             }
             if (batteryChartEl.value && typeof echarts !== 'undefined') {
                 batteryChartInstance = echarts.init(batteryChartEl.value, null, { renderer: 'canvas' });
+                observeChartContainer(batteryChartEl.value, batteryChartInstance);
             }
 
             resizeHandler = () => {
@@ -3573,6 +3615,15 @@ const _HomePage = {
             if (forecastTimer) clearInterval(forecastTimer);
             if (infoTimer) clearInterval(infoTimer);
             if (smartChargingTimer) clearInterval(smartChargingTimer);
+            if (chartResizeFrame) {
+                cancelAnimationFrame(chartResizeFrame);
+                chartResizeFrame = 0;
+            }
+            pendingChartResizes.clear();
+            if (chartResizeObserver) {
+                chartResizeObserver.disconnect();
+                chartResizeObserver = null;
+            }
             if (forecastChartInstance) { forecastChartInstance.dispose(); forecastChartInstance = null; }
             if (powerChartInstance) { powerChartInstance.dispose(); powerChartInstance = null; }
             if (batteryChartInstance) { batteryChartInstance.dispose(); batteryChartInstance = null; }

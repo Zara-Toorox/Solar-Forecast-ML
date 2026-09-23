@@ -2,7 +2,7 @@ const CORRECTIONS_BRIDGE_PROTOCOL = "sfml-corrections-bridge-v1";
 const CORRECTIONS_BRIDGE_PATH = "/sfml-stats-corrections-bridge";
 const CORRECTIONS_REQUEST_LIMIT = 8192;
 const CORRECTIONS_RESPONSE_LIMIT = 262144;
-const CORRECTIONS_OPERATIONS = new Set(["status", "context", "history", "preview", "commit", "undo"]);
+const CORRECTIONS_OPERATIONS = new Set(["status", "context", "history", "preview", "commit", "undo", "range_preview", "range_commit", "csv_commit", "undo_batch"]);
 const CORRECTIONS_API = "sfml_stats/corrections";
 
 const correctionRandomId = () => {
@@ -25,9 +25,10 @@ const correctionPick = (payload, keys) => {
 const correctionApiOperation = (operation, payload) => {
     if (operation === "status") return { method: "GET", path: "status" };
     if (operation === "context") {
-        const values = correctionPick(payload, ["target_date", "metric"]);
+        const values = correctionPick(payload, ["target_date", "metric", "mode"]);
         return { method: "GET", path: `context?target_date=${encodeURIComponent(values.target_date || "")}`
-            + `&metric=${encodeURIComponent(values.metric || "")}` };
+            + `&metric=${encodeURIComponent(values.metric || "")}`
+            + (values.mode && values.mode !== "correct" ? `&mode=${encodeURIComponent(values.mode)}` : "") };
     }
     if (operation === "history") {
         const limit = Number(payload?.limit ?? 100);
@@ -35,11 +36,19 @@ const correctionApiOperation = (operation, payload) => {
         return { method: "GET", path: `history?limit=${limit}` };
     }
     if (operation === "preview") return { method: "POST", path: "preview",
-        payload: correctionPick(payload, ["target_date", "metric", "target_value_kwh", "reason_note", "idempotency_key"]) };
+        payload: correctionPick(payload, ["target_date", "metric", "target_value_kwh", "reason_note", "idempotency_key", "mode", "evidence_type"]) };
     if (operation === "commit") return { method: "POST", path: "commit",
         payload: correctionPick(payload, ["preview_token", "idempotency_key", "confirmed_large_change"]) };
     if (operation === "undo") return { method: "POST", path: "undo",
         payload: correctionPick(payload, ["event_id", "idempotency_key"]) };
+    if (operation === "range_preview") return { method: "POST", path: "range/preview",
+        payload: correctionPick(payload, ["metric", "start_date", "end_date", "target_sum_kwh", "weighting", "idempotency_key"]) };
+    if (operation === "range_commit") return { method: "POST", path: "range/commit",
+        payload: correctionPick(payload, ["preview_token", "idempotency_key", "confirmed_large_change"]) };
+    if (operation === "csv_commit") return { method: "POST", path: "csv/commit",
+        payload: correctionPick(payload, ["preview_token", "idempotency_key", "confirmed_large_change"]) };
+    if (operation === "undo_batch") return { method: "POST", path: "undo_batch",
+        payload: correctionPick(payload, ["batch_id", "idempotency_key"]) };
     throw new Error("Nicht unterstützte Korrekturoperation");
 };
 
@@ -196,6 +205,23 @@ class CorrectionsBridgeClient {
         this.iframe?.remove();
         this.iframe = null;
     }
+
+    async authorizedFetch(path, init = {}) {
+        await this.ready;
+        if (this.destroyed) throw new Error("Home-Assistant-Verbindung wurde geschlossen");
+        if (typeof this.hass?.fetchWithAuth !== "function") {
+            throw new Error("Home-Assistant-Anmeldung nicht verfügbar");
+        }
+        const response = await this.hass.fetchWithAuth(`/api/${CORRECTIONS_API}/${path}`, init);
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+            const payload = await response.json();
+            if (!response.ok || payload?.success === false) throw correctionSafeError({ body: payload, message: payload?.error?.message });
+            return payload;
+        }
+        if (!response.ok) throw new Error("Anfrage fehlgeschlagen");
+        return response;
+    }
 }
 
 const ModernCorrectionsPage = {
@@ -203,7 +229,7 @@ const ModernCorrectionsPage = {
         <section class="corrections-page" aria-labelledby="corrections-title">
             <div ref="bridgeHost" class="corrections-bridge-host" aria-hidden="true"></div>
             <div class="corrections-hero">
-                <div><span class="corrections-kicker">Premium · auditierbare Messwerte</span><h2 id="corrections-title">Energie-Korrekturen</h2><p>Abgeschlossene Tageswerte für Netzbezug, Netzeinspeisung und PV-Ertrag sicher berichtigen.</p></div>
+                <div><span class="corrections-kicker">Premium · auditierbare Messwerte</span><h2 id="corrections-title">Energie-Korrekturen</h2><p>Abgeschlossene Tageswerte korrigieren oder fehlende Tage nachtragen.</p></div>
                 <span class="corrections-badge">Admin · lokal oder HA Cloud</span>
             </div>
             <div class="corrections-notice" role="note"><strong>Dynamische Tarife</strong><span>Der Tages-Energiewert wird korrigiert. Historische Stundenkosten bleiben unverändert und werden nicht als exakt korrigiert ausgewiesen.</span></div>
@@ -213,11 +239,13 @@ const ModernCorrectionsPage = {
 
             <template v-else>
                 <div class="corrections-grid corrections-grid-single">
-                    <article class="corrections-card corrections-wide">
-                        <span class="corrections-eyebrow">Absoluter Zielwert</span><h3>Tageswert korrigieren</h3>
+                    <article class="corrections-card corrections-wide" data-correction-card="day">
+                        <span class="corrections-eyebrow">{{ label('corrections.cardDay', 'Einzeltag') }}</span><h3>Tageswert korrigieren</h3>
                         <p>Wähle den abgeschlossenen Tag und trage den richtigen Tageswert ein. Vor dem Speichern wird immer eine Vorschau angezeigt.</p>
+                        <div class="corrections-confirm"><button class="button compact" :class="{ secondary: form.mode !== 'correct' }" type="button" @click="setMode('correct')">Korrigieren</button><button class="button compact" :class="{ secondary: form.mode !== 'backfill' }" type="button" @click="setMode('backfill')">Nachtragen</button></div>
                         <label><span>Abgeschlossener Tag</span><input v-model="form.target_date" type="date" :max="latestCompletedDate" @input="invalidateSelection" @change="loadContext"></label>
-                        <label><span>Messwert</span><select v-model="form.metric" @change="loadContext"><option value="grid_import_day_kwh">Netzbezug</option><option value="grid_export_day_kwh">Netzeinspeisung</option><option value="solar_yield_day_kwh">PV-Ertrag</option></select></label>
+                        <label><span>Messwert</span><select v-model="form.metric" @change="loadContext"><option v-for="item in metricOptions" :key="item.id" :value="item.id">{{ metricLabel(item.id) }}</option></select></label>
+                        <label v-if="form.mode === 'backfill'"><span>Nachweis</span><select v-model="form.evidence_type" @change="invalidatePreview"><option value="utility_invoice">Stromrechnung</option><option value="meter_portal_export">Zählerportal</option><option value="signed_daily_report">Tagesprotokoll</option></select></label>
                         <div class="corrections-context-card" aria-live="polite">
                             <div v-if="contextBusy" class="corrections-muted">Vorhandener Messwert wird geladen …</div>
                             <div v-else-if="contextError" class="corrections-context-error">{{ contextError }}</div>
@@ -235,24 +263,71 @@ const ModernCorrectionsPage = {
                         <label><span>Notiz (optional, max. 160)</span><textarea v-model="form.reason_note" maxlength="160" aria-describedby="correction-note-help" @input="invalidatePreview" @change="invalidatePreview"></textarea></label>
                         <small id="correction-note-help" class="corrections-muted">Bitte keine personenbezogenen Daten eingeben.</small>
                         <button class="button" type="button" :disabled="previewBusy || contextBusy || !contextData || !form.target_value_kwh" @click="preview">{{ previewBusy ? "Vorschau wird geprüft …" : "Vorschau" }}</button>
+                        <div class="corrections-context-card">
+                            <span class="corrections-eyebrow">Tokengebundener Serverstand</span><h3>Vorschau</h3>
+                            <p v-if="!previewData" class="corrections-muted">Noch keine gültige Vorschau. Eine Vorschau ist fünf Minuten und einmalig gültig.</p>
+                            <template v-else>
+                                <p class="corrections-context">{{ previewContext }}</p>
+                                <div class="corrections-values"><div><span>Vorher</span><strong>{{ kwh(previewData.before_kwh) }}</strong></div><div><span>Nachher</span><strong>{{ kwh(previewData.after_kwh) }}</strong></div><div><span>Differenz</span><strong>{{ signedKwh(previewData.delta_kwh) }}</strong></div></div>
+                                <div v-if="previewData.balance_warnings && previewData.balance_warnings.length" class="corrections-danger"><div v-for="(warning, index) in previewData.balance_warnings" :key="index">{{ balanceText(warning) }}</div></div>
+                                <div v-if="previewData.requires_second_confirmation" class="corrections-danger">Große Änderung: zweite Bestätigung erforderlich.</div>
+                                <label v-if="previewData.requires_second_confirmation" class="corrections-confirm"><input v-model="confirmLarge" type="checkbox"><span>Ich habe Vorher/Nachher geprüft und bestätige die große Änderung.</span></label>
+                            </template>
+                            <button class="button" type="button" :disabled="commitBusy || !previewData || (previewData && previewData.requires_second_confirmation && !confirmLarge)" @click="commit">{{ commitBusy ? "Wird gespeichert …" : label('corrections.apply', 'Übernehmen') }}</button>
+                        </div>
                     </article>
                 </div>
 
-                <article class="corrections-card corrections-wide">
-                    <span class="corrections-eyebrow">Tokengebundener Serverstand</span><h3>Vorschau</h3>
-                    <p v-if="!previewData" class="corrections-muted">Noch keine gültige Vorschau. Eine Vorschau ist fünf Minuten und einmalig gültig.</p>
+                <article class="corrections-card corrections-wide" data-correction-card="range">
+                    <span class="corrections-eyebrow">{{ label('corrections.cardRange', 'Zeitraum') }}</span><h3>{{ label('corrections.cardRange', 'Zeitraum') }}</h3>
+                    <p>{{ label('corrections.rangeHelp', 'Metrik, Zeitraum und Zielsumme. Vor dem Speichern wird immer eine Vorschau angezeigt.') }}</p>
+                    <label><span>{{ label('corrections.metricLabel', 'Metrik') }}</span><select v-model="rangeForm.metric" @change="invalidateRangePreview"><option v-for="item in metricOptions" :key="item.id" :value="item.id">{{ metricLabel(item.id) }}</option></select></label>
+                    <label><span>{{ label('corrections.rangeStart', 'Start') }}</span><input v-model="rangeForm.start_date" type="date" :max="latestCompletedDate" @input="invalidateRangePreview" @change="invalidateRangePreview"></label>
+                    <label><span>{{ label('corrections.rangeEnd', 'Ende') }}</span><input v-model="rangeForm.end_date" type="date" :max="latestCompletedDate" @input="invalidateRangePreview" @change="invalidateRangePreview"></label>
+                    <label><span>{{ label('corrections.rangeTarget', 'Zielsumme (kWh)') }}</span><input v-model="rangeForm.target_sum_kwh" inputmode="decimal" @input="invalidateRangePreview" @change="invalidateRangePreview"></label>
+                    <label><span>{{ label('corrections.rangeWeight', 'Gewichtung') }}</span><select v-model="rangeForm.weighting" @change="invalidateRangePreview"><option value="measured">{{ label('corrections.weightMeasured', 'Nach Messwerten') }}</option><option value="uniform">{{ label('corrections.weightUniform', 'Gleichmäßig') }}</option></select></label>
+                    <button class="button" type="button" :disabled="rangePreviewBusy || !rangeForm.metric || !rangeForm.start_date || !rangeForm.end_date || !rangeForm.target_sum_kwh" @click="previewRange">{{ rangePreviewBusy ? "Vorschau wird geprüft …" : "Vorschau" }}</button>
+                    <p v-if="!rangePreview" class="corrections-muted">Noch keine gültige Vorschau. Eine Vorschau ist fünf Minuten und einmalig gültig.</p>
                     <template v-else>
-                        <p class="corrections-context">{{ previewContext }}</p>
-                        <div class="corrections-values"><div><span>Vorher</span><strong>{{ kwh(previewData.before_kwh) }}</strong></div><div><span>Nachher</span><strong>{{ kwh(previewData.after_kwh) }}</strong></div><div><span>Differenz</span><strong>{{ signedKwh(previewData.delta_kwh) }}</strong></div></div>
-                        <div v-if="previewData.requires_second_confirmation" class="corrections-danger">Große Änderung: zweite Bestätigung erforderlich.</div>
-                        <label v-if="previewData.requires_second_confirmation" class="corrections-confirm"><input v-model="confirmLarge" type="checkbox"><span>Ich habe Vorher/Nachher geprüft und bestätige die große Änderung.</span></label>
-                        <button class="button" type="button" :disabled="commitBusy || (previewData.requires_second_confirmation && !confirmLarge)" @click="commit">{{ commitBusy ? "Wird gespeichert …" : "Korrektur speichern" }}</button>
+                        <p v-if="rangePreview.fallback_reason" class="corrections-danger">{{ label('corrections.uniformFallback', 'Gleichmäßige Verteilung, weil die Rohsumme 0 ist.') }}</p>
+                        <div class="corrections-values"><div><span>{{ label('corrections.targetHit', 'Zielsumme getroffen') }}</span><strong>{{ kwh(rangePreview.after_sum_kwh) }}</strong></div><div><span>{{ label('corrections.rangeTarget', 'Zielsumme (kWh)') }}</span><strong>{{ kwh(rangePreview.target_sum_kwh) }}</strong></div></div>
+                        <div class="corrections-table-wrap"><table><thead><tr><th>Tag</th><th>Vorher</th><th>Nachher</th></tr></thead><tbody><tr v-for="day in rangePreview.days" :key="day.date"><td>{{ day.date }}</td><td>{{ kwh(day.before_kwh) }}</td><td>{{ kwh(day.after_kwh) }}</td></tr></tbody></table></div>
+                        <div v-if="rangePreview.requires_second_confirmation" class="corrections-danger">Große Änderung: zweite Bestätigung erforderlich.</div>
+                        <label v-if="rangePreview.requires_second_confirmation" class="corrections-confirm"><input v-model="rangeConfirm" type="checkbox"><span>Ich habe Vorher/Nachher geprüft und bestätige die große Änderung.</span></label>
                     </template>
+                    <button class="button" type="button" :disabled="rangeCommitBusy || !rangePreview || rangeNeedsConfirm" @click="commitRange">{{ rangeCommitBusy ? "Wird gespeichert …" : label('corrections.apply', 'Übernehmen') }}</button>
                 </article>
 
-                <article class="corrections-card corrections-wide">
-                    <span class="corrections-eyebrow">Append-only Audit</span><h3>Verlauf</h3>
-                    <div class="corrections-table-wrap"><table><thead><tr><th>Zeit</th><th>Tag</th><th>Metrik</th><th>Ziel</th><th>Δ kWh</th><th>Notiz</th><th></th></tr></thead><tbody><tr v-for="row in history" :key="row.event_id"><td>{{ dateTime(row.created_at) }}</td><td>{{ row.target_date }}</td><td>{{ metricLabel(row.metric) }}</td><td>{{ number(row.absolute_value_kwh) }}</td><td>{{ signed(row.delta_kwh) }}</td><td>{{ row.reason_note || "–" }}</td><td><button v-if="row.undoable" class="button secondary compact" type="button" @click="undo(row.event_id)">Rückgängig</button></td></tr></tbody></table></div>
+                <article class="corrections-card corrections-wide" data-correction-card="csv">
+                    <span class="corrections-eyebrow">{{ label('corrections.cardCsv', 'CSV-Import') }}</span><h3>{{ label('corrections.cardCsv', 'CSV-Import') }}</h3>
+                    <p>{{ label('corrections.importHelp', 'Vorlage laden, Datei wählen und die Vorschau prüfen, bevor etwas übernommen wird.') }}</p>
+                    <button class="button secondary" type="button" @click="downloadTemplate">{{ label('corrections.csvTemplate', 'Vorlage herunterladen') }}</button>
+                    <label><span>{{ label('corrections.csvFile', 'Datei wählen') }}</span><input type="file" accept=".csv,text/csv" @change="onCsvFile"></label>
+                    <button class="button" type="button" :disabled="csvPreviewBusy || !csvFile" @click="previewCsv">{{ csvPreviewBusy ? "Vorschau wird geprüft …" : "Vorschau" }}</button>
+                    <p v-if="!csvPreview" class="corrections-muted">Noch keine gültige Vorschau. Eine Vorschau ist fünf Minuten und einmalig gültig.</p>
+                    <template v-else>
+                        <div class="corrections-values"><div><span>{{ label('corrections.rowsTotal', 'Zeilen gesamt') }}</span><strong>{{ csvPreview.rows_total }}</strong></div><div><span>{{ label('corrections.rowsAccepted', 'Übernommen') }}</span><strong>{{ csvPreview.accepted }}</strong></div><div><span>{{ label('corrections.rowsRejected', 'Abgelehnt') }}</span><strong>{{ csvPreview.rejected }}</strong></div></div>
+                        <div v-if="csvPreview.rejections && csvPreview.rejections.length" class="corrections-table-wrap"><table><thead><tr><th>{{ label('corrections.line', 'Zeile') }}</th><th>{{ label('corrections.reasonHeading', 'Grund') }}</th></tr></thead><tbody><tr v-for="item in csvPreview.rejections" :key="item.line"><td>{{ item.line }}</td><td>{{ reasonLabel(item.reason) }}</td></tr></tbody></table></div>
+                        <p class="corrections-context">{{ label('corrections.daysCovered', 'Abgedeckte Tage') }}: {{ (csvPreview.days_covered || []).join(', ') || '–' }}</p>
+                        <div class="corrections-table-wrap"><table><thead><tr><th>{{ label('corrections.metricLabel', 'Metrik') }}</th><th>{{ label('corrections.sumDelta', 'Summen-Delta') }}</th></tr></thead><tbody><tr v-for="(delta, metric) in csvPreview.sum_delta_by_metric" :key="metric"><td>{{ metricLabel(metric) }}</td><td>{{ signedKwh(delta) }}</td></tr></tbody></table></div>
+                        <div v-if="csvPreview.requires_second_confirmation" class="corrections-danger">Große Änderung: zweite Bestätigung erforderlich.</div>
+                        <label v-if="csvPreview.requires_second_confirmation" class="corrections-confirm"><input v-model="csvConfirm" type="checkbox"><span>Ich habe Vorher/Nachher geprüft und bestätige die große Änderung.</span></label>
+                    </template>
+                    <button class="button" type="button" :disabled="csvCommitBusy || !csvPreview || csvNeedsConfirm" @click="commitCsv">{{ csvCommitBusy ? "Wird gespeichert …" : label('corrections.apply', 'Übernehmen') }}</button>
+                </article>
+
+                <article class="corrections-card corrections-wide" data-correction-card="history">
+                    <span class="corrections-eyebrow">Append-only Audit</span><h3>{{ label('corrections.cardHistory', 'Verlauf') }}</h3>
+                    <div class="corrections-table-wrap"><table><thead><tr><th>Zeit</th><th>{{ label('corrections.affectedDays', 'Betroffene Tage') }}</th><th>Metrik</th><th>Ziel</th><th>Δ kWh</th><th>Notiz</th><th></th></tr></thead><tbody>
+                        <tr v-for="batch in batchRows" :key="batch.batch_id"><td>{{ dateTime(batch.created_at) }}</td><td>{{ batch.dayCount }}</td><td>{{ batch.metricLabel }}</td><td>–</td><td>–</td><td>–</td><td><button v-if="batch.undoable" class="button secondary compact" type="button" @click="undoBatch(batch.batch_id)">{{ label('corrections.undoBatch', 'Ganzen Batch rückgängig') }}</button></td></tr>
+                        <tr v-for="row in singleRows" :key="row.event_id"><td>{{ dateTime(row.created_at) }}</td><td>{{ row.target_date }}</td><td>{{ metricLabel(row.metric) }}<span v-if="row.mode === 'backfill'"> · Nachtrag</span></td><td>{{ number(row.absolute_value_kwh) }}</td><td>{{ signed(row.delta_kwh) }}</td><td>{{ row.reason_note || "–" }}</td><td><button v-if="row.undoable" class="button secondary compact" type="button" @click="undo(row.event_id)">Rückgängig</button></td></tr>
+                    </tbody></table></div>
+                </article>
+
+                <article class="corrections-card corrections-wide" data-correction-card="prices">
+                    <span class="corrections-eyebrow">Grid Price Monitor</span><h3>{{ label('corrections.pricesTitle', 'Preise und Monatskorrekturen') }}</h3>
+                    <p>{{ label('corrections.pricesBody', 'Preise und Monatskorrekturen gehören zum Grid Price Monitor.') }}</p>
+                    <a class="button" href="#gpm">{{ label('corrections.pricesLink', 'Zur GPM-Seite') }}</a>
                 </article>
             </template>
         </section>`,
@@ -273,11 +348,31 @@ const ModernCorrectionsPage = {
         const contextBusy = ref(false);
         const contextError = ref("");
         const latestCompletedDate = ref("");
+        const metricOptions = ref([
+            { id: "grid_import_day_kwh", i18n_key: "corrections.metric.gridImport" },
+            { id: "grid_export_day_kwh", i18n_key: "corrections.metric.gridExport" },
+            { id: "solar_yield_day_kwh", i18n_key: "corrections.metric.solarYield" },
+        ]);
         const form = reactive({ target_date: "", metric: "grid_import_day_kwh", target_value_kwh: "",
-            reason_note: "" });
+            reason_note: "", mode: "correct", evidence_type: "utility_invoice" });
+        const rangeForm = reactive({ metric: "grid_import_day_kwh", start_date: "", end_date: "",
+            target_sum_kwh: "", weighting: "measured" });
+        const rangePreview = ref(null);
+        const rangePreviewBusy = ref(false);
+        const rangeCommitBusy = ref(false);
+        const rangeConfirm = ref(false);
+        const rangeIdempotencyKey = ref(null);
+        const csvFile = ref(null);
+        const csvPreview = ref(null);
+        const csvPreviewBusy = ref(false);
+        const csvCommitBusy = ref(false);
+        const csvConfirm = ref(false);
+        const csvIdempotencyKey = ref(null);
         let bridge;
         let previewGeneration = 0;
         let contextGeneration = 0;
+        let rangeGeneration = 0;
+        let csvGeneration = 0;
 
         const showMessage = (text, error = false) => { message.value = text; messageError.value = error; };
         const unwrap = (response) => response?.success === true ? response.data : response?.data ?? response;
@@ -310,13 +405,13 @@ const ModernCorrectionsPage = {
             invalidateSelection();
             if (!form.target_date || !form.metric) return;
             const generation = contextGeneration;
-            const selection = `${form.target_date}:${form.metric}`;
+            const selection = `${form.target_date}:${form.metric}:${form.mode}`;
             contextBusy.value = true;
             try {
                 const result = await call("context", {
-                    target_date: form.target_date, metric: form.metric,
+                    target_date: form.target_date, metric: form.metric, mode: form.mode,
                 });
-                if (generation !== contextGeneration || selection !== `${form.target_date}:${form.metric}`) return;
+                if (generation !== contextGeneration || selection !== `${form.target_date}:${form.metric}:${form.mode}`) return;
                 contextData.value = result;
             } catch (error) {
                 if (generation === contextGeneration) contextError.value = error.message;
@@ -324,11 +419,32 @@ const ModernCorrectionsPage = {
                 if (generation === contextGeneration) contextBusy.value = false;
             }
         };
+        const applyRegistry = (status) => {
+            const registry = Array.isArray(status?.registry) ? status.registry : [];
+            if (registry.length) {
+                metricOptions.value = registry;
+                return;
+            }
+            const metrics = Array.isArray(status?.metrics) ? status.metrics : [];
+            if (metrics.length) metricOptions.value = metrics.map((id) => ({ id, i18n_key: "" }));
+        };
+        const setMode = (mode) => {
+            if (form.mode === mode) return;
+            form.mode = mode;
+            loadContext();
+        };
         const load = async () => {
             try {
                 const status = await call("status");
+                applyRegistry(status);
+                if (!metricOptions.value.some((item) => item.id === form.metric) && metricOptions.value.length) {
+                    form.metric = metricOptions.value[0].id;
+                }
                 latestCompletedDate.value = status.latest_completed_date || "";
                 if (!form.target_date) form.target_date = latestCompletedDate.value;
+                rangeForm.metric = form.metric;
+                if (!rangeForm.start_date) rangeForm.start_date = latestCompletedDate.value;
+                if (!rangeForm.end_date) rangeForm.end_date = latestCompletedDate.value;
                 await Promise.all([loadHistory(), loadContext()]);
             } catch (error) {
                 if (!locked.value) locked.value = error.message;
@@ -375,15 +491,185 @@ const ModernCorrectionsPage = {
                 await loadHistory();
             } catch (error) { showMessage(error.message, true); }
         };
+        const invalidateRangePreview = () => {
+            rangeGeneration += 1;
+            rangePreview.value = null;
+            rangeIdempotencyKey.value = null;
+            rangeConfirm.value = false;
+            rangePreviewBusy.value = false;
+        };
+        const snapshotRange = () => JSON.stringify(rangeForm);
+        const previewRange = async () => {
+            invalidateRangePreview();
+            const generation = rangeGeneration;
+            const formSnapshot = snapshotRange();
+            const idempotencyKey = correctionRandomId();
+            rangePreviewBusy.value = true;
+            try {
+                const result = await call("range_preview", { ...rangeForm, idempotency_key: idempotencyKey });
+                if (generation !== rangeGeneration || formSnapshot !== snapshotRange()) return;
+                rangePreview.value = result;
+                rangeIdempotencyKey.value = idempotencyKey;
+                rangeConfirm.value = false;
+                showMessage("");
+            } catch (error) {
+                if (generation === rangeGeneration && formSnapshot === snapshotRange()) showMessage(error.message, true);
+            } finally {
+                if (generation === rangeGeneration) rangePreviewBusy.value = false;
+            }
+        };
+        const commitRange = async () => {
+            if (!rangePreview.value) return;
+            if (rangePreview.value.requires_second_confirmation && !rangeConfirm.value) return;
+            rangeCommitBusy.value = true;
+            try {
+                await call("range_commit", { preview_token: rangePreview.value.preview_token,
+                    idempotency_key: rangeIdempotencyKey.value, confirmed_large_change: rangeConfirm.value });
+                invalidateRangePreview();
+                showMessage(label("corrections.saved", "Korrektur gespeichert."));
+                await loadHistory();
+            } catch (error) { showMessage(error.message, true); }
+            finally { rangeCommitBusy.value = false; }
+        };
+        const csvStamp = () => {
+            const file = csvFile.value;
+            return file ? `${file.name}:${file.size}:${file.lastModified}` : "";
+        };
+        const invalidateCsvPreview = () => {
+            csvGeneration += 1;
+            csvPreview.value = null;
+            csvIdempotencyKey.value = null;
+            csvConfirm.value = false;
+            csvPreviewBusy.value = false;
+        };
+        const onCsvFile = (event) => {
+            csvFile.value = event.target.files && event.target.files[0] ? event.target.files[0] : null;
+            invalidateCsvPreview();
+        };
+        const previewCsv = async () => {
+            const file = csvFile.value;
+            if (!file) return;
+            invalidateCsvPreview();
+            const generation = csvGeneration;
+            const stamp = `${file.name}:${file.size}:${file.lastModified}`;
+            const idempotencyKey = correctionRandomId();
+            csvPreviewBusy.value = true;
+            try {
+                const raw = await file.text();
+                const result = unwrap(await bridge.authorizedFetch(
+                    `csv/preview?idempotency_key=${encodeURIComponent(idempotencyKey)}`,
+                    { method: "POST", headers: { "Content-Type": "text/csv; charset=utf-8" }, body: raw },
+                ));
+                if (generation !== csvGeneration || stamp !== csvStamp()) return;
+                csvPreview.value = result;
+                csvIdempotencyKey.value = idempotencyKey;
+                csvConfirm.value = false;
+                showMessage("");
+            } catch (error) {
+                if (generation === csvGeneration && stamp === csvStamp()) showMessage(error.message, true);
+            } finally {
+                if (generation === csvGeneration) csvPreviewBusy.value = false;
+            }
+        };
+        const commitCsv = async () => {
+            if (!csvPreview.value) return;
+            if (csvPreview.value.requires_second_confirmation && !csvConfirm.value) return;
+            csvCommitBusy.value = true;
+            try {
+                await call("csv_commit", { preview_token: csvPreview.value.preview_token,
+                    idempotency_key: csvIdempotencyKey.value, confirmed_large_change: csvConfirm.value });
+                invalidateCsvPreview();
+                csvFile.value = null;
+                showMessage(label("corrections.saved", "Korrektur gespeichert."));
+                await loadHistory();
+            } catch (error) { showMessage(error.message, true); }
+            finally { csvCommitBusy.value = false; }
+        };
+        const downloadTemplate = async () => {
+            try {
+                const response = await bridge.authorizedFetch("csv/template", { method: "GET" });
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "sfml_stats_corrections.csv";
+                document.body.append(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+            } catch (error) { showMessage(error.message, true); }
+        };
+        const undoBatch = async (batchId) => {
+            if (!window.confirm(label("corrections.undoBatchConfirm", "Diesen ganzen Batch rückgängig machen?"))) return;
+            try {
+                await call("undo_batch", { batch_id: batchId, idempotency_key: correctionRandomId() });
+                showMessage(label("corrections.batchUndone", "Batch rückgängig gemacht."));
+                await loadHistory();
+            } catch (error) { showMessage(error.message, true); }
+        };
         const number = (value) => Number(value).toFixed(3);
         const signed = (value) => `${Number(value) >= 0 ? "+" : ""}${number(value)}`;
         const kwh = (value) => `${number(value)} kWh`;
         const signedKwh = (value) => `${signed(value)} kWh`;
-        const metricLabel = (metric) => ({
+        const metricText = {
+            home_consumption_day_kwh: "Hausverbrauch",
             grid_import_day_kwh: "Netzbezug",
+            smartmeter_import_day_kwh: "Zählerbezug",
             grid_export_day_kwh: "Netzeinspeisung",
+            smartmeter_export_day_kwh: "Zählereinspeisung",
             solar_yield_day_kwh: "PV-Ertrag",
-        })[metric] || metric;
+            solar_to_house_day_kwh: "PV zu Haus",
+            solar_to_battery_day_kwh: "PV zu Akku",
+            battery_to_house_day_kwh: "Akku zu Haus",
+            grid_to_house_day_kwh: "Netz zu Haus",
+            grid_to_battery_day_kwh: "Netz zu Akku",
+            consumer_heatpump_day_kwh: "Wärmepumpe",
+            consumer_heatingrod_day_kwh: "Heizstab",
+            consumer_wallbox_day_kwh: "Wallbox",
+        };
+        const translate = (key, params) => {
+            const text = window.SFMLI18n?.t?.(key, params);
+            return text && text !== key ? text : "";
+        };
+        const label = (key, fallback) => translate(key) || fallback;
+        const reasonLabel = (code) => label(`corrections.reason.${code}`, code);
+        const rangeNeedsConfirm = computed(() => Boolean(
+            rangePreview.value && rangePreview.value.requires_second_confirmation && !rangeConfirm.value
+        ));
+        const csvNeedsConfirm = computed(() => Boolean(
+            csvPreview.value && csvPreview.value.requires_second_confirmation && !csvConfirm.value
+        ));
+        const batchRows = computed(() => {
+            const groups = new Map();
+            for (const row of history.value) {
+                if (!row.batch_id || row.event_type !== "correction") continue;
+                let batch = groups.get(row.batch_id);
+                if (!batch) {
+                    batch = { batch_id: row.batch_id, created_at: row.created_at,
+                        days: new Set(), metrics: new Set(), undoable: false };
+                    groups.set(row.batch_id, batch);
+                }
+                batch.days.add(row.target_date);
+                batch.metrics.add(metricLabel(row.metric));
+                if (row.undoable) batch.undoable = true;
+            }
+            return Array.from(groups.values()).map((batch) => ({
+                batch_id: batch.batch_id, created_at: batch.created_at, dayCount: batch.days.size,
+                metricLabel: Array.from(batch.metrics).join(", "), undoable: batch.undoable,
+            }));
+        });
+        const singleRows = computed(() => history.value.filter((row) => !row.batch_id));
+        const metricLabel = (metric) => {
+            const spec = metricOptions.value.find((item) => item.id === metric);
+            const translated = spec?.i18n_key ? translate(spec.i18n_key) : "";
+            return translated || metricText[metric] || metric;
+        };
+        const balanceText = (warning) => {
+            const metric = metricLabel(warning.metric);
+            const percent = number(warning.deviation_percent);
+            const translated = translate("corrections.balanceWarning", { percent, metric });
+            return translated || `Bilanzabweichung ${percent} %: ${metric}`;
+        };
         const dateTime = (value) => new Date(value).toLocaleString();
         const hourLabel = (value) => `${String(value).padStart(2, "0")}:00`;
         const previewContext = computed(() => {
@@ -393,12 +679,21 @@ const ModernCorrectionsPage = {
         });
 
         onMounted(() => { bridge = new CorrectionsBridgeClient(); bridge.mount(bridgeHost.value); load(); });
-        onUnmounted(() => { previewGeneration += 1; contextGeneration += 1; bridge?.destroy(); });
+        onUnmounted(() => {
+            previewGeneration += 1;
+            contextGeneration += 1;
+            rangeGeneration += 1;
+            csvGeneration += 1;
+            bridge?.destroy();
+        });
         return { bridgeHost, loading, locked, message, messageError, previewBusy, commitBusy,
             previewData, confirmLarge, history, form, previewContext, invalidatePreview,
-            contextData, contextBusy, contextError, latestCompletedDate, invalidateSelection,
-            loadContext, preview, commit, undo, number, signed, kwh, signedKwh, metricLabel,
-            dateTime, hourLabel };
+            contextData, contextBusy, contextError, latestCompletedDate, metricOptions, invalidateSelection,
+            loadContext, setMode, preview, commit, undo, number, signed, kwh, signedKwh, metricLabel,
+            balanceText, dateTime, hourLabel, label, reasonLabel, rangeForm, rangePreview, rangePreviewBusy,
+            rangeCommitBusy, rangeConfirm, rangeNeedsConfirm, invalidateRangePreview, previewRange, commitRange,
+            csvFile, csvPreview, csvPreviewBusy, csvCommitBusy, csvConfirm, csvNeedsConfirm, onCsvFile,
+            previewCsv, commitCsv, downloadTemplate, batchRows, singleRows, undoBatch };
     },
 };
 
