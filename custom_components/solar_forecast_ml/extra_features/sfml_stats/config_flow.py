@@ -216,20 +216,9 @@ def _consumer_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
 
 
 def _consumer_detail_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
-    """Build the optional heat-pump and wallbox detail schema."""
+    """Build the optional wallbox detail schema. Heat-pump details live in EAI."""
     current = defaults or {}
     return vol.Schema({
-        _optional_entity_key(CONF_SENSOR_HP_HEATING_MODE, current): _entity(domain="select"),
-        _optional_entity_key(CONF_SENSOR_HP_DHW_MODE, current): _entity(domain="select"),
-        _optional_entity_key(CONF_SENSOR_HP_DHW_CHARGING, current): _entity(domain="binary_sensor"),
-        _optional_entity_key(CONF_SENSOR_HP_PV_ACTIVE, current): _entity(domain="binary_sensor"),
-        _optional_entity_key(CONF_SENSOR_HP_ELECTRIC_POWER, current): _entity(device_class="power"),
-        _optional_entity_key(CONF_SENSOR_HP_THERMAL_POWER, current): _entity(device_class="power"),
-        _optional_entity_key(CONF_SENSOR_HP_GRID_ENERGY_DAILY, current): _entity(device_class="energy"),
-        _optional_entity_key(CONF_SENSOR_HP_PV_ENERGY_DAILY, current): _entity(device_class="energy"),
-        _optional_entity_key(CONF_SENSOR_HP_JAZ, current): _entity(domain="sensor"),
-        _optional_entity_key(CONF_SENSOR_HP_COMPRESSOR_STARTS, current): _entity(domain="sensor"),
-        _optional_entity_key(CONF_SENSOR_HP_STORAGE_TEMP, current): _entity(device_class="temperature"),
         _optional_entity_key(CONF_SENSOR_WB_CHARGE_MODE, current): _entity(domain="select"),
         _optional_entity_key(CONF_SENSOR_WB_ENERGY_SESSION, current): _entity(device_class="energy"),
     })
@@ -262,7 +251,7 @@ CONSUMER_KEYS = [
     CONF_SENSOR_WALLBOX_POWER,
     CONF_SENSOR_WALLBOX_STATE,
 ]
-CONSUMER_DETAIL_KEYS = HP_DETAIL_SENSORS + WB_DETAIL_SENSORS
+CONSUMER_DETAIL_KEYS = list(WB_DETAIL_SENSORS)
 
 
 # ---------------------------------------------------------------------------
@@ -490,19 +479,17 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
             if choice == "advanced":
                 return await self.async_step_advanced()
 
-        return self.async_show_form(
+        return self.async_show_menu(
             step_id="init",
-            data_schema=vol.Schema({
-                vol.Required("menu_choice", default="sensors"): vol.In({
-                    "sensors": "Sensors",
-                    "consumers": "Consumer Details (WP/Wallbox)",
-                    "pricing": "Pricing",
-                    "amortization": "Amortisation",
-                    "smart_charging": "Batterie",
-                    "appearance": "Interface",
-                    "advanced": "Advanced",
-                }),
-            }),
+            menu_options=[
+                "sensors",
+                "consumers",
+                "pricing",
+                "amortization",
+                "smart_charging",
+                "appearance",
+                "advanced",
+            ],
         )
 
     # ----- Sensors (merged Step 1 + 2) -----
@@ -580,8 +567,8 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
     async def async_step_consumers(
         self, user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
-        """Configure consumer detail sensors (WP, Heizstab, Wallbox). @zara"""
-        consumer_keys = HP_DETAIL_SENSORS + WB_DETAIL_SENSORS
+        """Configure wallbox detail sensors. Stored heat-pump keys stay untouched. @zara"""
+        consumer_keys = list(WB_DETAIL_SENSORS)
 
         if user_input is not None:
             new_data = {**self._config_entry.data}
@@ -600,19 +587,6 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="consumers",
             data_schema=vol.Schema({
-                # Heat Pump Detail
-                vol.Optional(CONF_SENSOR_HP_HEATING_MODE, description=_sv(CONF_SENSOR_HP_HEATING_MODE)): _entity(domain="select"),
-                vol.Optional(CONF_SENSOR_HP_DHW_MODE, description=_sv(CONF_SENSOR_HP_DHW_MODE)): _entity(domain="select"),
-                vol.Optional(CONF_SENSOR_HP_DHW_CHARGING, description=_sv(CONF_SENSOR_HP_DHW_CHARGING)): _entity(domain="binary_sensor"),
-                vol.Optional(CONF_SENSOR_HP_PV_ACTIVE, description=_sv(CONF_SENSOR_HP_PV_ACTIVE)): _entity(domain="binary_sensor"),
-                vol.Optional(CONF_SENSOR_HP_ELECTRIC_POWER, description=_sv(CONF_SENSOR_HP_ELECTRIC_POWER)): _entity(device_class="power"),
-                vol.Optional(CONF_SENSOR_HP_THERMAL_POWER, description=_sv(CONF_SENSOR_HP_THERMAL_POWER)): _entity(device_class="power"),
-                vol.Optional(CONF_SENSOR_HP_GRID_ENERGY_DAILY, description=_sv(CONF_SENSOR_HP_GRID_ENERGY_DAILY)): _entity(device_class="energy"),
-                vol.Optional(CONF_SENSOR_HP_PV_ENERGY_DAILY, description=_sv(CONF_SENSOR_HP_PV_ENERGY_DAILY)): _entity(device_class="energy"),
-                vol.Optional(CONF_SENSOR_HP_JAZ, description=_sv(CONF_SENSOR_HP_JAZ)): _entity(domain="sensor"),
-                vol.Optional(CONF_SENSOR_HP_COMPRESSOR_STARTS, description=_sv(CONF_SENSOR_HP_COMPRESSOR_STARTS)): _entity(domain="sensor"),
-                vol.Optional(CONF_SENSOR_HP_STORAGE_TEMP, description=_sv(CONF_SENSOR_HP_STORAGE_TEMP)): _entity(device_class="temperature"),
-                # Wallbox Detail
                 vol.Optional(CONF_SENSOR_WB_CHARGE_MODE, description=_sv(CONF_SENSOR_WB_CHARGE_MODE)): _entity(domain="select"),
                 vol.Optional(CONF_SENSOR_WB_ENERGY_SESSION, description=_sv(CONF_SENSOR_WB_ENERGY_SESSION)): _entity(device_class="energy"),
             }),

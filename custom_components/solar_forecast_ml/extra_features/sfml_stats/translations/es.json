@@ -65,7 +65,7 @@
           "sensor_wallbox_state": "🚗 Wallbox estado"
         },
         "data_description": {
-          "sensor_heatpump_power": "Unidad: Vatios. Consumo eléctrico actual de la bomba de calor. ¡Solo consumo del compresor, no la salida de calor! (Opcional)",
+          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
           "sensor_heatingrod_power": "Unidad: Vatios. Consumo eléctrico actual de la resistencia. Se muestra como consumidor separado en el flujo energético. (Opcional)",
           "sensor_wallbox_power": "Unidad: Vatios. Potencia de carga actual del wallbox/estación de carga. ¡Solo potencia de carga real, no consumo en espera! (Opcional)",
           "sensor_wallbox_state": "Formato: Texto. Valores posibles: 'charging' = vehículo cargando, 'idle' = listo/sin carga. Otros valores se ignoran. (Opcional)"
@@ -75,39 +75,17 @@
         "title": "Sensores detallados de consumidores",
         "description": "Additional values for the heat pump and wallbox detail views. These fields are optional and can be skipped.",
         "data": {
-          "sensor_hp_heating_mode": "Heat Pump: Heating Mode",
-          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode",
-          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active",
-          "sensor_hp_pv_active": "Heat Pump: PV Mode Active",
-          "sensor_hp_electric_power": "Heat Pump: Electrical Power (W or kW)",
-          "sensor_hp_thermal_power": "Heat Pump: Thermal Power (W or kW)",
-          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh)",
-          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh)",
-          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
-          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts",
-          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature",
           "sensor_wb_charge_mode": "Wallbox: Charging Mode",
           "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
         },
         "data_description": {
-          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
-          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
-          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
-          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
-          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
-          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
-          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
-          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
-          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
-          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
-          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
           "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
           "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
         }
       },
       "reconfigure": {
         "title": "Actualizar configuración básica",
-        "description": "Update the basic configuration. Empty optional fields remove the currently stored value.\n\nSTATS calculates daily energy values from live power sensors; separate daily kWh sensors are not required.",
+        "description": "Update the basic configuration. Empty optional fields remove the currently stored value.\n\nSTATS calculates daily energy from live power sensors. EAI additionally needs a heat-pump daily energy counter.",
         "data": {
           "country": "Country",
           "sensor_home_consumption": "🏠 Consumo del hogar (W)",
@@ -169,7 +147,7 @@
           "sensor_wallbox_state": "🚗 Wallbox estado"
         },
         "data_description": {
-          "sensor_heatpump_power": "Unidad: Vatios. Consumo eléctrico actual de la bomba de calor. ¡Solo consumo del compresor, no la salida de calor! (Opcional)",
+          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
           "sensor_heatingrod_power": "Unidad: Vatios. Consumo eléctrico actual de la resistencia. Se muestra como consumidor separado en el flujo energético. (Opcional)",
           "sensor_wallbox_power": "Unidad: Vatios. Potencia de carga actual del wallbox/estación de carga. ¡Solo potencia de carga real, no consumo en espera! (Opcional)",
           "sensor_wallbox_state": "Formato: Texto. Valores posibles: 'charging' = vehículo cargando, 'idle' = listo/sin carga. Otros valores se ignoran. (Opcional)"
@@ -179,32 +157,10 @@
         "title": "Actualizar sensores detallados",
         "description": "Additional values for the heat pump and wallbox detail views. Empty fields remove the currently stored sensor.",
         "data": {
-          "sensor_hp_heating_mode": "Heat Pump: Heating Mode",
-          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode",
-          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active",
-          "sensor_hp_pv_active": "Heat Pump: PV Mode Active",
-          "sensor_hp_electric_power": "Heat Pump: Electrical Power (W or kW)",
-          "sensor_hp_thermal_power": "Heat Pump: Thermal Power (W or kW)",
-          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh)",
-          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh)",
-          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
-          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts",
-          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature",
           "sensor_wb_charge_mode": "Wallbox: Charging Mode",
           "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
         },
         "data_description": {
-          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
-          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
-          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
-          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
-          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
-          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
-          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
-          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
-          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
-          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
-          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
           "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
           "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
         }
@@ -225,12 +181,8 @@
       "init": {
         "title": "Opciones de Solar Forecast STATS",
         "description": "Selecciona una categoría para configurar.",
-        "data": {
-          "menu_choice": "Categoría"
-        },
-        "data_description": {
-          "menu_choice": "Choose the area you want to configure."
-        }
+        "data": {},
+        "data_description": {}
       },
       "sensors": {
         "title": "Todos los sensores",
@@ -272,7 +224,7 @@
           "sensor_smartmeter_import": "Unidad: Vatios. Importación total de red en el punto de medición. ¡Incluye TODA la potencia de red — incluyendo carga de batería desde red! (Opcional)",
           "sensor_smartmeter_export": "Unidad: Vatios. Exportación total en el punto de medición. ¡Incluye TODA la inyección — incluyendo inyección de batería a red! (Opcional)",
           "sensor_grid_import_extra": "Additional grid import not measured by smartmeter in kWh. (Optional)",
-          "sensor_heatpump_power": "Unidad: Vatios. Consumo eléctrico actual de la bomba de calor. ¡Solo consumo del compresor, no la salida de calor! (Opcional)",
+          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
           "sensor_heatingrod_power": "Unidad: Vatios. Consumo eléctrico actual de la resistencia. Se muestra como consumidor separado en el flujo energético. (Opcional)",
           "sensor_wallbox_power": "Unidad: Vatios. Potencia de carga actual del wallbox/estación de carga. ¡Solo potencia de carga real, no consumo en espera! (Opcional)",
           "sensor_wallbox_state": "Formato: Texto. Valores posibles: 'charging' = vehículo cargando, 'idle' = listo/sin carga. Otros valores se ignoran. (Opcional)"
@@ -282,32 +234,10 @@
         "title": "Sensores de consumidores (Opcional)",
         "description": "Configura sensores para consumidores adicionales.\n\nEstos son OPCIONALES — configura solo si tienes estos dispositivos.\n\n**Unidades requeridas:**\n- Potencia: Vatios (W)\n- Energía: kWh (con reinicio diario)\n- COP: Número decimal (p. ej. 3.5)\n- Estado: Texto (charging/idle)",
         "data": {
-          "sensor_hp_heating_mode": "Heat Pump: Heating Mode (select entity, e.g. off/auto/eco/comfort)",
-          "sensor_hp_dhw_mode": "Heat Pump: Hot Water Mode (select entity, e.g. off/auto/eco)",
-          "sensor_hp_dhw_charging": "Heat Pump: Hot Water Charging Active (binary sensor)",
-          "sensor_hp_pv_active": "Heat Pump: PV Mode Active (binary sensor)",
-          "sensor_hp_electric_power": "Heat Pump: Electrical Power Input (W or kW)",
-          "sensor_hp_thermal_power": "Heat Pump: Thermal Power Output (W or kW)",
-          "sensor_hp_grid_daily": "Heat Pump: Grid Energy Today (kWh, daily cumulative)",
-          "sensor_hp_pv_daily": "Heat Pump: PV Energy Today (kWh, daily cumulative)",
-          "sensor_hp_jaz": "Heat Pump: Annual COP / JAZ",
-          "sensor_hp_comp_starts": "Heat Pump: Compressor Starts (cumulative)",
-          "sensor_hp_storage_temp": "Heat Pump: Hot Water Storage Temperature (°C)",
           "sensor_wb_charge_mode": "Wallbox: Charging Mode (select entity)",
           "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
         },
         "data_description": {
-          "sensor_hp_heating_mode": "Select entity containing the current heating mode. (Optional)",
-          "sensor_hp_dhw_mode": "Select entity containing the hot water mode. (Optional)",
-          "sensor_hp_dhw_charging": "Binary sensor indicating active hot water preparation. (Optional)",
-          "sensor_hp_pv_active": "Binary sensor indicating the heat pump's PV mode. (Optional)",
-          "sensor_hp_electric_power": "Current electrical input used for the heat pump detail view. The main heat pump power sensor may be selected again. (Optional)",
-          "sensor_hp_thermal_power": "Current thermal output of the heat pump. (Optional)",
-          "sensor_hp_grid_daily": "Grid energy used by the heat pump since midnight. (Optional)",
-          "sensor_hp_pv_daily": "PV energy used by the heat pump since midnight. (Optional)",
-          "sensor_hp_jaz": "Current COP or annual performance factor. (Optional)",
-          "sensor_hp_comp_starts": "Cumulative number of compressor starts. (Optional)",
-          "sensor_hp_storage_temp": "Current hot water storage temperature. (Optional)",
           "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
           "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
         }

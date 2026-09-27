@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Grundkonfiguration",
-        "description": "STATS berechnet die Tagesenergie selbst aus aktuellen Leistungssensoren. Separate Tageszähler in kWh werden nicht benötigt.\n\nDer aktuelle Hausverbrauch in Watt ist erforderlich.",
+        "description": "STATS berechnet die Tagesenergie selbst aus aktuellen Leistungssensoren. EAI braucht zusätzlich einen Tageszähler der Wärmepumpe.\n\nDer aktuelle Hausverbrauch in Watt ist erforderlich.",
         "data": {
           "country": "🌍 Land",
           "sensor_home_consumption": "🏠 Hausverbrauch aktuell (W)",
@@ -65,7 +65,7 @@
           "sensor_wallbox_state": "🚗 Wallbox Status"
         },
         "data_description": {
-          "sensor_heatpump_power": "Aktuelle elektrische Leistungsaufnahme der Wärmepumpe. (Optional)",
+          "sensor_heatpump_power": "Wird automatisch aus EAI übernommen, falls dort eine Wärmepumpen-Leistung mit Einheit W, kW oder MW gesetzt ist. Sonst gilt der hier gespeicherte Sensor. (Optional)",
           "sensor_heatingrod_power": "Aktuelle elektrische Leistungsaufnahme des Heizstabs. (Optional)",
           "sensor_wallbox_power": "Aktuelle Ladeleistung der Wallbox. (Optional)",
           "sensor_wallbox_state": "Aktueller Zustand der Wallbox, zum Beispiel Laden, Verbunden oder Bereit. (Optional)"
@@ -75,39 +75,17 @@
         "title": "Verbraucher-Details",
         "description": "Zusätzliche Werte für die Detailansichten von Wärmepumpe und Wallbox. Alle Felder sind optional und können übersprungen werden.",
         "data": {
-          "sensor_hp_heating_mode": "Wärmepumpe: Heizmodus",
-          "sensor_hp_dhw_mode": "Wärmepumpe: Warmwasser-Modus",
-          "sensor_hp_dhw_charging": "Wärmepumpe: Warmwasserbereitung aktiv",
-          "sensor_hp_pv_active": "Wärmepumpe: PV-Modus aktiv",
-          "sensor_hp_electric_power": "Wärmepumpe: Elektrische Leistung (W oder kW)",
-          "sensor_hp_thermal_power": "Wärmepumpe: Thermische Leistung (W oder kW)",
-          "sensor_hp_grid_daily": "Wärmepumpe: Netzenergie heute (kWh)",
-          "sensor_hp_pv_daily": "Wärmepumpe: PV-Energie heute (kWh)",
-          "sensor_hp_jaz": "Wärmepumpe: JAZ oder COP",
-          "sensor_hp_comp_starts": "Wärmepumpe: Kompressorstarts",
-          "sensor_hp_storage_temp": "Wärmepumpe: Warmwasser-Speichertemperatur",
           "sensor_wb_charge_mode": "Wallbox: Lademodus",
           "sensor_wb_energy_session": "Wallbox: Energie der aktuellen Ladesitzung (kWh)"
         },
         "data_description": {
-          "sensor_hp_heating_mode": "Auswahl-Entität mit dem aktuellen Heizmodus. (Optional)",
-          "sensor_hp_dhw_mode": "Auswahl-Entität mit dem aktuellen Warmwasser-Modus. (Optional)",
-          "sensor_hp_dhw_charging": "Binärsensor, der eine aktive Warmwasserbereitung meldet. (Optional)",
-          "sensor_hp_pv_active": "Binärsensor für den PV-Modus der Wärmepumpe. (Optional)",
-          "sensor_hp_electric_power": "Aktuelle elektrische Aufnahme für die Wärmepumpen-Detailansicht. Hier kann derselbe Sensor wie bei Wärmepumpe Leistung gewählt werden. (Optional)",
-          "sensor_hp_thermal_power": "Aktuelle thermische Leistung der Wärmepumpe. (Optional)",
-          "sensor_hp_grid_daily": "Seit Mitternacht von der Wärmepumpe verwendete Netzenergie. (Optional)",
-          "sensor_hp_pv_daily": "Seit Mitternacht von der Wärmepumpe verwendete PV-Energie. (Optional)",
-          "sensor_hp_jaz": "Aktuelle Jahresarbeitszahl oder Leistungszahl. (Optional)",
-          "sensor_hp_comp_starts": "Kumulierter Zähler der Kompressorstarts. (Optional)",
-          "sensor_hp_storage_temp": "Aktuelle Temperatur des Warmwasserspeichers. (Optional)",
           "sensor_wb_charge_mode": "Auswahl-Entität mit dem aktuellen Lademodus. (Optional)",
           "sensor_wb_energy_session": "Geladene Energie der aktuellen Ladesitzung. (Optional)"
         }
       },
       "reconfigure": {
         "title": "Solar Forecast STATS neu konfigurieren",
-        "description": "Grundkonfiguration aktualisieren\nLeere optionale Felder löschen den aktuellen Wert\n\nSTATS berechnet Tageswerte selbst aus Leistungssensoren; separate Tageszähler in kWh werden nicht benötigt.",
+        "description": "Grundkonfiguration aktualisieren\nLeere optionale Felder löschen den aktuellen Wert\n\nSTATS berechnet die Tagesenergie selbst aus aktuellen Leistungssensoren. EAI braucht zusätzlich einen Tageszähler der Wärmepumpe.",
         "data": {
           "country": "🌍 Land",
           "sensor_home_consumption": "🏠 Hausverbrauch aktuell (W)",
@@ -169,7 +147,7 @@
           "sensor_wallbox_state": "🚗 Wallbox Status"
         },
         "data_description": {
-          "sensor_heatpump_power": "Aktuelle elektrische Leistungsaufnahme der Wärmepumpe. (Optional)",
+          "sensor_heatpump_power": "Wird automatisch aus EAI übernommen, falls dort eine Wärmepumpen-Leistung mit Einheit W, kW oder MW gesetzt ist. Sonst gilt der hier gespeicherte Sensor. (Optional)",
           "sensor_heatingrod_power": "Aktuelle elektrische Leistungsaufnahme des Heizstabs. (Optional)",
           "sensor_wallbox_power": "Aktuelle Ladeleistung der Wallbox. (Optional)",
           "sensor_wallbox_state": "Aktueller Zustand der Wallbox, zum Beispiel Laden, Verbunden oder Bereit. (Optional)"
@@ -179,32 +157,10 @@
         "title": "Verbraucher-Details neu konfigurieren",
         "description": "Zusätzliche Werte für die Detailansichten von Wärmepumpe und Wallbox. Leere Felder entfernen den bisher gespeicherten Sensor.",
         "data": {
-          "sensor_hp_heating_mode": "Wärmepumpe: Heizmodus",
-          "sensor_hp_dhw_mode": "Wärmepumpe: Warmwasser-Modus",
-          "sensor_hp_dhw_charging": "Wärmepumpe: Warmwasserbereitung aktiv",
-          "sensor_hp_pv_active": "Wärmepumpe: PV-Modus aktiv",
-          "sensor_hp_electric_power": "Wärmepumpe: Elektrische Leistung (W oder kW)",
-          "sensor_hp_thermal_power": "Wärmepumpe: Thermische Leistung (W oder kW)",
-          "sensor_hp_grid_daily": "Wärmepumpe: Netzenergie heute (kWh)",
-          "sensor_hp_pv_daily": "Wärmepumpe: PV-Energie heute (kWh)",
-          "sensor_hp_jaz": "Wärmepumpe: JAZ oder COP",
-          "sensor_hp_comp_starts": "Wärmepumpe: Kompressorstarts",
-          "sensor_hp_storage_temp": "Wärmepumpe: Warmwasser-Speichertemperatur",
           "sensor_wb_charge_mode": "Wallbox: Lademodus",
           "sensor_wb_energy_session": "Wallbox: Energie der aktuellen Ladesitzung (kWh)"
         },
         "data_description": {
-          "sensor_hp_heating_mode": "Auswahl-Entität mit dem aktuellen Heizmodus. (Optional)",
-          "sensor_hp_dhw_mode": "Auswahl-Entität mit dem aktuellen Warmwasser-Modus. (Optional)",
-          "sensor_hp_dhw_charging": "Binärsensor, der eine aktive Warmwasserbereitung meldet. (Optional)",
-          "sensor_hp_pv_active": "Binärsensor für den PV-Modus der Wärmepumpe. (Optional)",
-          "sensor_hp_electric_power": "Aktuelle elektrische Aufnahme für die Wärmepumpen-Detailansicht. Hier kann derselbe Sensor wie bei Wärmepumpe Leistung gewählt werden. (Optional)",
-          "sensor_hp_thermal_power": "Aktuelle thermische Leistung der Wärmepumpe. (Optional)",
-          "sensor_hp_grid_daily": "Seit Mitternacht von der Wärmepumpe verwendete Netzenergie. (Optional)",
-          "sensor_hp_pv_daily": "Seit Mitternacht von der Wärmepumpe verwendete PV-Energie. (Optional)",
-          "sensor_hp_jaz": "Aktuelle Jahresarbeitszahl oder Leistungszahl. (Optional)",
-          "sensor_hp_comp_starts": "Kumulierter Zähler der Kompressorstarts. (Optional)",
-          "sensor_hp_storage_temp": "Aktuelle Temperatur des Warmwasserspeichers. (Optional)",
           "sensor_wb_charge_mode": "Auswahl-Entität mit dem aktuellen Lademodus. (Optional)",
           "sensor_wb_energy_session": "Geladene Energie der aktuellen Ladesitzung. (Optional)"
         }
@@ -222,21 +178,17 @@
       "init": {
         "title": "Optionen",
         "description": "Was möchtest du bearbeiten?",
-        "data": {
-          "menu_choice": "Kategorie"
-        },
+        "data": {},
         "menu_options": {
           "sensors": "Sensoren",
-          "consumers": "Verbraucher-Details (WP/Wallbox)",
+          "consumers": "Verbraucher-Details (Wallbox)",
           "pricing": "Strompreis",
           "amortization": "Amortisation",
-          "smart_charging": "Smart Charging",
+          "smart_charging": "Batterie",
           "appearance": "Oberfläche",
           "advanced": "Erweitert"
         },
-        "data_description": {
-          "menu_choice": "Wähle den Bereich, den du konfigurieren möchtest."
-        }
+        "data_description": {}
       },
       "sensors": {
         "title": "Sensoren",
@@ -278,7 +230,7 @@
           "sensor_smartmeter_import": "Aktueller Bezug am Smartmeter in Watt. (Optional)",
           "sensor_smartmeter_export": "Aktuelle Einspeisung am Smartmeter in Watt. (Optional)",
           "sensor_grid_import_extra": "Zusätzlicher Netzbezug außerhalb des Smartmeters in kWh. (Optional)",
-          "sensor_heatpump_power": "Aktuelle elektrische Leistungsaufnahme der Wärmepumpe in Watt. (Optional)",
+          "sensor_heatpump_power": "Wird automatisch aus EAI übernommen, falls dort eine Wärmepumpen-Leistung mit Einheit W, kW oder MW gesetzt ist. Sonst gilt der hier gespeicherte Sensor. (Optional)",
           "sensor_heatingrod_power": "Aktuelle elektrische Leistungsaufnahme des Heizstabs in Watt. (Optional)",
           "sensor_wallbox_power": "Aktuelle Ladeleistung der Wallbox in Watt. (Optional)",
           "sensor_wallbox_state": "Wallbox-Status-Sensor (z.B. Laden, Verbunden, Standby). (Optional)"
@@ -288,32 +240,10 @@
         "title": "Verbraucher-Detailsensoren",
         "description": "Zusätzliche Sensoren für Wärmepumpe, Heizstab und Wallbox Detailansicht. Alle Felder sind optional.",
         "data": {
-          "sensor_hp_heating_mode": "WP: Heizmodus (Select-Entity, z.B. off/auto/eco/comfort)",
-          "sensor_hp_dhw_mode": "WP: Warmwasser-Modus (Select-Entity, z.B. off/auto/eco)",
-          "sensor_hp_dhw_charging": "WP: Warmwasserbereitung aktiv (Binär-Sensor)",
-          "sensor_hp_pv_active": "WP: PV-Modus aktiv (Binär-Sensor)",
-          "sensor_hp_electric_power": "WP: Elektrische Aufnahme (W oder kW)",
-          "sensor_hp_thermal_power": "WP: Thermische Leistung (W oder kW)",
-          "sensor_hp_grid_daily": "WP: Netz-Energie heute (kWh, kumuliert pro Tag)",
-          "sensor_hp_pv_daily": "WP: PV-Energie heute (kWh, kumuliert pro Tag)",
-          "sensor_hp_jaz": "WP: Jahresarbeitszahl (JAZ/COP)",
-          "sensor_hp_comp_starts": "WP: Kompressorstarts (kumuliert)",
-          "sensor_hp_storage_temp": "WP: Warmwasser-Speichertemperatur (°C)",
           "sensor_wb_charge_mode": "Wallbox: Lademodus (Select-Entity)",
           "sensor_wb_energy_session": "Wallbox: Energie aktuelle Ladesitzung (kWh)"
         },
         "data_description": {
-          "sensor_hp_heating_mode": "Auswahl-Entität mit dem aktuellen Heizmodus. (Optional)",
-          "sensor_hp_dhw_mode": "Auswahl-Entität mit dem aktuellen Warmwasser-Modus. (Optional)",
-          "sensor_hp_dhw_charging": "Binärsensor, der eine aktive Warmwasserbereitung meldet. (Optional)",
-          "sensor_hp_pv_active": "Binärsensor für den PV-Modus der Wärmepumpe. (Optional)",
-          "sensor_hp_electric_power": "Aktuelle elektrische Aufnahme für die Wärmepumpen-Detailansicht. Hier kann derselbe Sensor wie bei Wärmepumpe Leistung gewählt werden. (Optional)",
-          "sensor_hp_thermal_power": "Aktuelle thermische Leistung der Wärmepumpe. (Optional)",
-          "sensor_hp_grid_daily": "Seit Mitternacht von der Wärmepumpe verwendete Netzenergie. (Optional)",
-          "sensor_hp_pv_daily": "Seit Mitternacht von der Wärmepumpe verwendete PV-Energie. (Optional)",
-          "sensor_hp_jaz": "Aktuelle Jahresarbeitszahl oder Leistungszahl. (Optional)",
-          "sensor_hp_comp_starts": "Kumulierter Zähler der Kompressorstarts. (Optional)",
-          "sensor_hp_storage_temp": "Aktuelle Temperatur des Warmwasserspeichers. (Optional)",
           "sensor_wb_charge_mode": "Auswahl-Entität mit dem aktuellen Lademodus. (Optional)",
           "sensor_wb_energy_session": "Geladene Energie der aktuellen Ladesitzung. (Optional)"
         }
@@ -434,7 +364,65 @@
     }
   },
   "entity": {
+    "sensor": {
+      "heating_target": {
+        "name": "Zielsoll",
+        "state_attributes": {
+          "mode": {
+            "state": {
+              "observe": "Beobachten",
+              "comfort": "Komfort",
+              "away": "Abwesend",
+              "frost": "Frostschutz",
+              "locked": "Gesperrt",
+              "disabled": "Aus",
+              "override": "Pausiert"
+            }
+          },
+          "reason": {
+            "state": {
+              "locked": "Lizenz ist nicht aktiv",
+              "disabled": "Raumheizung ist ausgeschaltet",
+              "no_persons": "Keine Person gewählt",
+              "presence_home": "Jemand ist zu Hause",
+              "presence_unknown": "Anwesenheit ist unbekannt",
+              "presence_pending": "Abwesenheitsverzögerung läuft noch",
+              "presence_away": "Alle sind abwesend",
+              "window_open": "Fenster ist offen",
+              "away_setback": "Absenkung bei Abwesenheit",
+              "comfort": "Wunschtemperatur",
+              "room_inactive": "Regelung für diesen Raum ist aus",
+              "thermostat_unavailable": "Thermostat ist nicht verfügbar",
+              "hvac_off": "Thermostate ausgeschaltet",
+              "range_setpoint": "Thermostat nutzt einen Temperaturbereich",
+              "setpoint_unreadable": "Sollwert ist nicht lesbar",
+              "within_band": "Schon nah am Ziel",
+              "same_value": "Dieser Sollwert wurde schon gesendet",
+              "decrease_limited": "Absenkung höchstens einmal pro Stunde",
+              "increase_limited": "Anhebung wartet nach dem letzten Schreiben",
+              "manual_override": "Pause nach einer manuellen Änderung",
+              "startup_hold": "Wartet nach dem Neustart",
+              "write_failed": "Der Thermostat hat den Sollwert nicht angenommen",
+              "schedule_setback": "Außerhalb des Zeitfensters",
+              "hvac_switched": "Betriebsart wurde gerade gewechselt",
+              "mixed_reasons": "Mehrere Gründe",
+              "outdoor_unavailable": "Außentemperatur nicht erreichbar",
+              "outdoor_missing": "Keine Außentemperatur gewählt"
+            }
+          },
+          "presence": {
+            "state": {
+              "home": "Zu Hause",
+              "away": "Abwesend"
+            }
+          }
+        }
+      }
+    },
     "switch": {
+      "heating_active": {
+        "name": "Regelung aktiv"
+      },
       "smart_charging_enabled": {
         "name": "Smart Charging"
       }

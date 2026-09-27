@@ -153,7 +153,7 @@ const PremiumDashboardPage = ((Vue) => {
             <section class="premium-dashboard" aria-labelledby="premium-dashboard-title">
                 <h2 id="premium-dashboard-title" class="sr-only">{{ copy.energyNow }}</h2>
 
-                <div v-if="dashboard.is_demo" class="premium-demo-banner" role="status">
+                <div v-if="pageReason === 'no_license'" class="premium-demo-banner" role="status">
                     <div><strong>{{ copy.demoTitle }}</strong><span>{{ copy.demoText }}</span></div>
                     <span class="premium-demo-chip">MOCK</span>
                 </div>
@@ -445,7 +445,7 @@ const PremiumDashboardPage = ((Vue) => {
                                     <div>
                                         <small>ENERGY AI</small>
                                         <strong>{{ copy.heatPump }}</strong>
-                                        <span>{{ heatPump.is_demo ? "Premium-Demo" : (heatPump.configured ? (heatPump.recommendation || heatPumpMode) : copy.notConfigured) }}</span>
+                                        <span>{{ tileReason(heatPump) === "feature_off" ? "Beispieldaten" : tileReason(heatPump) === "learning" ? "Lernphase" : tileReason(heatPump) === "no_license" ? "Premium-Demo" : (heatPump.configured ? (heatPump.recommendation || heatPumpMode) : copy.notConfigured) }}</span>
                                     </div>
                                     <b>{{ (heatPump.configured || heatPump.is_demo) ? powerKw(heatPump.power_kw) : "→" }}</b>
                                 </button>
@@ -457,7 +457,7 @@ const PremiumDashboardPage = ((Vue) => {
                                     <div>
                                         <small>ENERGY AI</small>
                                         <strong>{{ copy.wallbox }}</strong>
-                                        <span>{{ wallbox.is_demo ? "Premium-Demo" : (wallbox.configured ? (wallbox.recommendation || wallboxState) : copy.notConfigured) }}</span>
+                                        <span>{{ tileReason(wallbox) === "feature_off" ? "Beispieldaten" : tileReason(wallbox) === "learning" ? "Lernphase" : tileReason(wallbox) === "no_license" ? "Premium-Demo" : (wallbox.configured ? (wallbox.recommendation || wallboxState) : copy.notConfigured) }}</span>
                                     </div>
                                     <b>{{ (wallbox.configured || wallbox.is_demo) ? powerKw(wallbox.power_kw) : "→" }}</b>
                                 </button>
@@ -928,6 +928,13 @@ const PremiumDashboardPage = ((Vue) => {
                 };
             });
 
+            function tileReason(tile) {
+                const value = tile?.sample_reason;
+                if (value === "no_license" || value === "feature_off" || value === "learning" || value === "live") return value;
+                return tile?.is_demo ? "no_license" : "live";
+            }
+            const pageReason = computed(() => tileReason(dashboard));
+
             onMounted(() => {
                 load(true);
                 schedule();
@@ -939,7 +946,7 @@ const PremiumDashboardPage = ((Vue) => {
             });
 
             return {
-                copy, isEnglish, loaded, error, dashboard, energy, forecast, price, heatPump, wallbox,
+                copy, isEnglish, loaded, error, dashboard, pageReason, tileReason, energy, forecast, price, heatPump, wallbox,
                 weather, warnings, weatherTarget, updatedTime, batteryChargeW, batteryState, gridState, gridPower,
                 weatherSymbol, weatherText, weatherConditionText, temperatureSourceLabel, heatPumpMode, wallboxState,
                 progressPercent, progressText, dayArc,

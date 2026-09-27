@@ -235,12 +235,12 @@ const ModernEMSPage = {
                             <small>{{ intelligence.economics.detail }}</small>
                         </article>
                         <article v-if="intelligence.mobility">
-                            <span>Abfahrt{{ intelligence.mobility.is_demo ? " · Demo" : "" }}</span>
+                            <span>Abfahrt{{ intelligence.mobility.sample_reason === "no_license" || (!intelligence.mobility.sample_reason && intelligence.mobility.is_demo) ? " · Demo" : intelligence.mobility.sample_reason === "feature_off" || intelligence.mobility.sample_reason === "learning" ? " · Beispieldaten" : "" }}</span>
                             <strong>{{ percent(intelligence.mobility.departure_readiness_percent) }} bereit</strong>
                             <small>{{ intelligence.mobility.detail }}</small>
                         </article>
                         <article v-if="intelligence.comfort">
-                            <span>Komfort{{ intelligence.comfort.is_demo ? " · Demo" : "" }}</span>
+                            <span>Komfort{{ intelligence.comfort.sample_reason === "no_license" || (!intelligence.comfort.sample_reason && intelligence.comfort.is_demo) ? " · Demo" : intelligence.comfort.sample_reason === "feature_off" || intelligence.comfort.sample_reason === "learning" ? " · Beispieldaten" : "" }}</span>
                             <strong>{{ intelligence.comfort.indoor_c != null ? intelligence.comfort.indoor_c.toFixed(1) + " °C" : "Gebäude" }}</strong>
                             <small>{{ intelligence.comfort.detail }}</small>
                         </article>
@@ -348,7 +348,7 @@ const ModernEMSPage = {
                     <div class="ems-section-head"><div><span class="ems-eyebrow">Geräte</span><h3>Freigaben und Sollzustand</h3></div><span>Nur freigegebene Geräte dürfen geschaltet werden</span></div>
                     <div class="ems-actor-grid">
                         <article v-for="actor in visibleActors" :key="actor.id" :class="['ems-card', 'ems-actor', actor.ready ? 'ready' : 'blocked']">
-                            <div class="ems-actor-head"><div><span>{{ actor.source }}</span><h4>{{ actor.label }}</h4></div><span v-if="actor.is_demo" class="ems-pill mock">Demo</span><span v-else-if="actor.paused" class="ems-pill quiet">Pausiert</span><button type="button" class="ems-toggle" :class="{ on: actor.enabled }" :disabled="busy || data.mode !== 'live' || !actor.configured || actor.is_demo" :aria-pressed="actor.enabled" @click="setActor(actor)"><i></i>{{ actor.enabled ? "Freigegeben" : "Gesperrt" }}</button></div>
+                            <div class="ems-actor-head"><div><span>{{ actor.source }}</span><h4>{{ actor.label }}</h4></div><span v-if="actor.sample_reason === 'no_license' || (!actor.sample_reason && actor.is_demo)" class="ems-pill mock">Demo</span><span v-else-if="actor.sample_reason === 'feature_off' || actor.sample_reason === 'learning'" class="ems-pill mock">Beispieldaten</span><span v-else-if="actor.paused" class="ems-pill quiet">Pausiert</span><button type="button" class="ems-toggle" :class="{ on: actor.enabled }" :disabled="busy || data.mode !== 'live' || !actor.configured || actor.is_demo" :aria-pressed="actor.enabled" @click="setActor(actor)"><i></i>{{ actor.enabled ? "Freigegeben" : "Gesperrt" }}</button></div>
                             <div class="ems-actor-state"><span>Ist <strong>{{ state(actor.current) }}</strong></span><span>Soll <strong>{{ decision(actor) }}</strong></span></div>
                             <p>{{ actor.detail }}</p><small>{{ actor.reason_label || reason(actor.reason) }}</small>
                             <button v-if="data.control_mode === 'confirm' && actor.confirm_token" type="button" class="ems-action" :disabled="busy" @click="confirmActor(actor)">{{ actor.desired ? "Einschalten bestätigen" : "Ausschalten bestätigen" }}</button>

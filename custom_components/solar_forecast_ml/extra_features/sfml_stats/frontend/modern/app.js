@@ -15,6 +15,7 @@ const ICON_PATHS = {
     weather: "M17.5 19H7a5 5 0 1 1 1.8-9.67A6 6 0 0 1 20 12a3.5 3.5 0 0 1-2.5 7ZM8 5l1-2M4.5 7.5 2-1M3 12H1",
     energy: "M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z",
     heatpump: "M4 7h10v10H4zM14 10h4l2 2v5h-6M7 10h4M7 13h4M6 20h2M16 20h2",
+    heating: "M6 3v18M10 3v18M14 3v18M18 3v18M4 7h16M4 17h16",
     mobility: "M5 15h14l-1.5-5h-11L5 15Zm2-5 2-4h6l2 4M7 15v3M17 15v3M8 18h.01M16 18h.01M20 9h2v5M22 9V6",
     charge: "M7 7V3M17 7V3M5 7h14v4a7 7 0 0 1-7 7v3M8 21h8",
     settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.38.2.73.32 1.1.4h.5v4h-.09A1.7 1.7 0 0 0 19.4 15Z",
@@ -79,6 +80,7 @@ const COPY = {
             quality: ["Forecast Intelligence", "Qualität, Modelle und Entwicklung nachvollziehen"],
             weather_energy: ["Wetter & Energie", "Bedingungen, Prognose und Ertrag gemeinsam analysieren"],
             eai: ["Wärmepumpe", "Verbrauch, Betrieb, Effizienz und Gebäudeverhalten"],
+            heating: ["Heizung", "Räume, Thermostate und Absenkung bei Abwesenheit"],
             mobility: ["E-Mobilität & Wallbox", "PV, Preise, Wärmepumpe und Abfahrtsziel gemeinsam planen"],
             eai_weather: ["Weather Intelligence", "Lokale Prognose, Historie, Genauigkeit und Wetterrisiken"],
             support: ["Fehler melden", "Direkter Kanal zum Entwickler – mit Log-Auszug, ohne persönliche Daten"],
@@ -116,6 +118,7 @@ const COPY = {
             quality: ["Forecast Intelligence", "Understand quality, models and development"],
             weather_energy: ["Weather & Energy", "Analyse conditions, forecast and yield together"],
             eai: ["Heat Pump", "Consumption, operation, efficiency and building response"],
+            heating: ["Heating", "Rooms, thermostats and setback while away"],
             mobility: ["E-Mobility & Wallbox", "Plan PV, prices, heat-pump demand and departure target together"],
             eai_weather: ["Weather Intelligence", "Local forecast, history, accuracy and weather risks"],
             support: ["Report a defect", "Direct channel to the developer – with log excerpt, without personal data"],
@@ -153,6 +156,7 @@ const COPY = {
             quality: ["Forecast Intelligence", "Jakość, modele i długoterminowy rozwój"],
             weather_energy: ["Pogoda i energia", "Wspólna analiza warunków, prognozy i uzysku"],
             eai: ["Pompa ciepła", "Zużycie, praca, efektywność i reakcja budynku"],
+            heating: ["Ogrzewanie", "Pomieszczenia, termostaty i obniżenie przy nieobecności"],
             mobility: ["E-mobilność i wallbox", "Wspólne planowanie PV, cen, pompy ciepła i wyjazdu"],
             eai_weather: ["Weather Intelligence", "Lokalna prognoza, historia, dokładność i ryzyka pogodowe"],
             support: ["Zgłoś błąd", "Bezpośredni kanał do dewelopera – z fragmentem logu, bez danych osobowych"],
@@ -567,6 +571,7 @@ const ModernApp = {
                 id: "control",
                 items: [
                     { id: "eai", icon: "heatpump", premium: true, feature: "heat_pump" },
+                    { id: "heating", icon: "heating", premium: true, admin: true, feature: "heating" },
                     { id: "mobility", icon: "mobility", premium: true, feature: "wallbox" },
                     { id: "smart_charging", icon: "charge" },
                     { id: "hybrid_forecast", icon: "trend" },
@@ -581,7 +586,11 @@ const ModernApp = {
                 ],
             },
         ];
-        const navigation = computed(() => navigationDefinition);
+        const heatingFeatureEnabled = ref(false);
+        const navigation = computed(() => navigationDefinition.map((section) => ({
+            ...section,
+            items: section.items.filter((item) => item.id !== "heating" || heatingFeatureEnabled.value),
+        })));
         const isAdmin = computed(() => {
             try {
                 if (window.parent === window || window.top !== window.parent) return true;
@@ -616,6 +625,7 @@ const ModernApp = {
             gpm: window.GPMPage,
             tomorrow: window.TomorrowPage,
             eai: window.ModernEAIPage,
+            heating: window.HeatingPage,
             mobility: window.ModernMobilityPage,
             eai_weather: window.ModernEAIWeatherPage,
             smart_charging: window.SmartChargingPage,
@@ -876,8 +886,19 @@ const ModernApp = {
             if (themeMode.value === "auto") applyTheme();
         };
 
+        async function loadHeatingFeature() {
+            try {
+                const payload = await SFMLApi.fetch("/api/sfml_stats/heating/status", { authenticated: true });
+                const body = payload && payload.data ? payload.data : payload;
+                heatingFeatureEnabled.value = body?.feature_enabled === true;
+            } catch (_error) {
+                heatingFeatureEnabled.value = false;
+            }
+        }
+
         onMounted(() => {
             applyTheme();
+            loadHeatingFeature();
             handleHashChange();
             window.addEventListener("hashchange", handleHashChange);
             window.addEventListener("keydown", handleKeydown);

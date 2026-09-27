@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "solar_forecast_eai"
-VERSION = "48.0.0"
+VERSION = "50.0.0"
 CONFIG_ENTRY_VERSION = 4
 CONF_LICENSE_KEY = "license_key"
 CONF_LICENSE_STATUS = "license_status"
@@ -100,6 +100,7 @@ CONF_FEED_IN_TARIFF_ENTITY = "feed_in_tariff_entity"
 CONF_FEED_IN_TARIFF_UNIT = "feed_in_tariff_unit"
 CONF_LOW_PRICE_THRESHOLD_CT = "low_price_threshold_ct"
 CONF_WALLBOX_ENABLED = "wallbox_enabled"
+CONF_HEATING_ENABLED = "heating_enabled"
 CONF_WALLBOX_NAME = "wallbox_name"
 CONF_WALLBOX_POWER_ENTITY = "wallbox_power_entity"
 CONF_WALLBOX_ENERGY_TODAY_ENTITY = "wallbox_energy_today_entity"
@@ -152,6 +153,9 @@ SUPPORTED_WP_TYPES = frozenset(
 DEFAULT_WP_TYPE = WP_TYPE_AIR_WATER
 DEFAULT_HEATING_CAPACITY_KW = 10.0
 DEFAULT_COP_RATED = 4.0
+# Whole local day: space heating is off when the mean wind-effective outdoor
+# temperature is at or above this value. Domestic hot water is unchanged.
+HEATING_LIMIT_DAILY_MEAN_C = 15.0
 ELECTRICAL_TOPOLOGY_LEGACY_AGGREGATE = "legacy_aggregate"
 ELECTRICAL_TOPOLOGY_SEPARATE = "separate"
 DEFAULT_ELECTRICAL_MEASUREMENT_TOPOLOGY = ELECTRICAL_TOPOLOGY_LEGACY_AGGREGATE

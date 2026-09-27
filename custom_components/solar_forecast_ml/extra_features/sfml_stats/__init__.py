@@ -108,6 +108,8 @@ CORRECTIONS_PANEL_PATH = "sfml-stats-corrections-bridge"
 CORRECTIONS_PANEL_URL = f"/api/sfml_stats/static/corrections-bridge.js?v={VERSION}"
 EMS_BRIDGE_PANEL_PATH = "sfml-stats-ems-bridge"
 EMS_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/ems-bridge.js?v={VERSION}"
+HEATING_BRIDGE_PANEL_PATH = "sfml-stats-heating-bridge"
+HEATING_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/heating-bridge.js?v={VERSION}"
 API_BRIDGE_PANEL_PATH = "sfml-stats-api-bridge"
 API_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/api-bridge.js?v={VERSION}"
 
@@ -174,6 +176,29 @@ async def _async_register_ems_bridge_panel(hass: HomeAssistant) -> None:
                 "embed_iframe": False,
                 "trust_external": False,
                 "module_url": EMS_BRIDGE_PANEL_URL,
+            }
+        },
+        require_admin=True,
+        show_in_sidebar=False,
+    )
+
+
+async def _async_register_heating_bridge_panel(hass: HomeAssistant) -> None:
+    """Register the hidden authenticated admin-only heating control bridge."""
+    from homeassistant.components import frontend
+
+    if frontend.async_panel_exists(hass, HEATING_BRIDGE_PANEL_PATH):
+        return
+    frontend.async_register_built_in_panel(
+        hass,
+        component_name="custom",
+        frontend_url_path=HEATING_BRIDGE_PANEL_PATH,
+        config={
+            "_panel_custom": {
+                "name": "sfml-stats-heating-bridge",
+                "embed_iframe": False,
+                "trust_external": False,
+                "module_url": HEATING_BRIDGE_PANEL_URL,
             }
         },
         require_admin=True,
@@ -865,6 +890,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await gpm_coordinator.async_configure(entry_config)
     ems_manager = EMSManager(hass, entry, entry_config)
     await ems_manager.async_setup()
+    from .core.heating import HeatingManager
+
+    heating_manager = HeatingManager(hass, entry)
+    await heating_manager.async_setup()
 
     # --- Store everything ---
     hass.data[DOMAIN][entry.entry_id] = {
@@ -881,6 +910,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "hourly_aggregator": hourly_aggregator,
         "energy_context_provider": energy_context_provider,
         "ems_manager": ems_manager,
+        "heating_manager": heating_manager,
     }
 
     # --- Forward sensor platforms ---
@@ -889,6 +919,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_api_bridge_panel(hass)
     await _async_register_corrections_panel(hass)
     await _async_register_ems_bridge_panel(hass)
+    await _async_register_heating_bridge_panel(hass)
 
     # --- Update listener ---
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -1080,7 +1111,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     from .sensor_mapping_provider import SensorMappingProvider, register_provider
 
-    sensor_mapping_provider = SensorMappingProvider(entry.entry_id, entry_config)
+    from .core.eai_wp_sources import mapping_config
+
+    sensor_mapping_provider = SensorMappingProvider(
+        entry.entry_id, mapping_config(hass, entry_config)
+    )
     sensor_mapping_providers = hass.data[DOMAIN].setdefault(
         "sensor_mapping_providers", {}
     )
@@ -1099,6 +1134,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return True
 
     entry_data = hass.data[DOMAIN][entry.entry_id]
+    heating_manager = entry_data.get("heating_manager")
+    if heating_manager is not None:
+        await heating_manager.async_shutdown()
+
     ems_manager = entry_data.get("ems_manager")
     if ems_manager is not None and not await ems_manager.async_shutdown():
         _LOGGER.error(
@@ -1195,6 +1234,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         frontend.async_remove_panel(hass, CORRECTIONS_PANEL_PATH, warn_if_unknown=False)
         frontend.async_remove_panel(hass, API_BRIDGE_PANEL_PATH, warn_if_unknown=False)
         frontend.async_remove_panel(hass, EMS_BRIDGE_PANEL_PATH, warn_if_unknown=False)
+        frontend.async_remove_panel(hass, HEATING_BRIDGE_PANEL_PATH, warn_if_unknown=False)
     return unload_ok
 
 
@@ -1259,7 +1299,11 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
     from .sensor_mapping_provider import SensorMappingProvider, register_provider
 
-    sensor_mapping_provider = SensorMappingProvider(entry.entry_id, new_config)
+    from .core.eai_wp_sources import mapping_config
+
+    sensor_mapping_provider = SensorMappingProvider(
+        entry.entry_id, mapping_config(hass, new_config)
+    )
     sensor_mapping_providers = hass.data[DOMAIN].setdefault(
         "sensor_mapping_providers", {}
     )

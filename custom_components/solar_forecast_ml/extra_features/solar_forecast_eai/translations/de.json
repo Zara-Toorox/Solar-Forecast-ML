@@ -17,12 +17,14 @@
         "data": {
           "heat_pump_enabled": "Wärmepumpen-Intelligenz verwenden",
           "wallbox_enabled": "E-Mobilitäts-Intelligenz verwenden",
+          "heating_enabled": "Raumheizung (Thermostate)",
           "weather_intelligence_enabled": "Weather-Fusion-Intelligenz verwenden",
           "grid_price_enabled": "Strompreis-Intelligenz (GPM) verwenden"
         },
         "data_description": {
           "heat_pump_enabled": "Richtet Wärmepumpen-, Gebäude- und Thermikanalysen ein.",
           "wallbox_enabled": "Richtet passive Ladeempfehlungen für Wallbox oder Fahrzeug ein.",
+          "heating_enabled": "Blendet in STATS die Seite Heizung ein (Premium).",
           "weather_intelligence_enabled": "Wertet eine installierte Weather-Fusion-AI-Prognose, lokale Messungen und Wetterrisiken aus.",
           "grid_price_enabled": "Der dynamische Tarif läuft weiter. Aus schaltet nur die Premium-Gates: Tarifmodelle, CSV-Import und Monatskorrekturen."
         }
@@ -62,7 +64,7 @@
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
           "cop_rated": "COP am Datenblatt-Prüfpunkt",
-          "electrical_measurement_topology": "Topologie der elektrischen Messung",
+          "electrical_measurement_topology": "Was der Stromzähler der Wärmepumpe mitzählt",
           "has_heating_element": "Elektrischer Heizstab vorhanden",
           "has_dhw": "Warmwasserbereitung vorhanden",
           "storage_volume_l": "Nutzbares Speichervolumen (l)",
@@ -74,7 +76,7 @@
           "model": "Optionale Modell- oder Produktbezeichnung.",
           "heating_capacity_kw": "Nenn-Heizleistung laut Datenblatt von 1 bis 100 kW.",
           "cop_rated": "COP laut Datenblatt an einem angegebenen Prüfpunkt, zum Beispiel A7/W35 oder B0/W35. Das ist kein aktueller Messwert und keine JAZ. Falls unbekannt, kann der Standardwert 4,0 beibehalten werden.",
-          "electrical_measurement_topology": "Nutze Gesamtmessung, wenn Wärmepumpenleistung und Tagesenergie alle elektrischen Verbraucher enthalten. Nutze getrennte Messung, wenn sie nur den Kompressor abbilden und Heizstabmessungen separat zugeordnet werden.",
+          "electrical_measurement_topology": "Gesamtzähler, wenn Leistung und Tagesenergie Kompressor und Heizstab zusammen messen. Getrennte Zähler, wenn der Heizstab einen eigenen Sensor hat.",
           "has_heating_element": "Aktivieren, wenn die Anlage über einen elektrischen Zusatzheizer verfügt.",
           "has_dhw": "Aktivieren, wenn die Wärmepumpe auch Warmwasser bereitet.",
           "storage_volume_l": "Erwartet: nutzbares Wasser- oder Puffervolumen laut Datenblatt. Einheit: l. Optional; erst damit kann EAI Temperaturverluste in kWh umrechnen.",
@@ -274,7 +276,7 @@
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
           "cop_rated": "COP am Datenblatt-Prüfpunkt",
-          "electrical_measurement_topology": "Topologie der elektrischen Messung",
+          "electrical_measurement_topology": "Was der Stromzähler der Wärmepumpe mitzählt",
           "has_heating_element": "Elektrischer Heizstab vorhanden",
           "has_dhw": "Warmwasserbereitung vorhanden",
           "storage_volume_l": "Nutzbares Speichervolumen (l)",
@@ -310,7 +312,7 @@
         }
       },
       "hydraulics": {
-        "title": "Hydraulik und Datenqualität",
+        "title": "Einbau und Herkunft der Wärmemengen",
         "description": "Beschreibe, wie die Wärmepumpe eingebunden ist und welche Messwerte belastbar sind. Bestehende Einträge bleiben unvollständig, bis diese Seite beantwortet ist. COP 4,0 und 10 kW aus älteren Setups gelten als unbestätigte Platzhalter.",
         "data": {
           "has_heating_buffer": "Heizungspuffer / hydraulische Weiche vorhanden",
@@ -389,7 +391,7 @@
           "wallbox": "E-Mobilität und Wallbox",
           "weather_intelligence": "Wetterintelligenz",
           "automation": "Automationssignale",
-          "hydraulics": "Hydraulik und Datenqualität"
+          "hydraulics": "Einbau und Herkunft der Wärmemengen"
         }
       },
       "features": {
@@ -398,12 +400,14 @@
         "data": {
           "heat_pump_enabled": "Wärmepumpen-Intelligenz verwenden",
           "wallbox_enabled": "E-Mobilitäts-Intelligenz verwenden",
+          "heating_enabled": "Raumheizung (Thermostate)",
           "weather_intelligence_enabled": "Weather-Fusion-Intelligenz verwenden",
           "grid_price_enabled": "Strompreis-Intelligenz (GPM) verwenden"
         },
         "data_description": {
           "heat_pump_enabled": "Aktiviert Wärmepumpen- und Gebäudeanalysen.",
           "wallbox_enabled": "Aktiviert Wallbox- und Fahrzeugempfehlungen.",
+          "heating_enabled": "Blendet in STATS die Seite Heizung ein (Premium).",
           "weather_intelligence_enabled": "Aktiviert WFAI-Prognoseauswertung und Wetterrisiken.",
           "grid_price_enabled": "Der dynamische Tarif läuft weiter. Aus schaltet nur die Premium-Gates: Tarifmodelle, CSV-Import und Monatskorrekturen."
         }
@@ -453,7 +457,7 @@
           "model": "Modellbezeichnung",
           "heating_capacity_kw": "Nenn-Heizleistung (kW)",
           "cop_rated": "COP am Datenblatt-Prüfpunkt",
-          "electrical_measurement_topology": "Topologie der elektrischen Messung",
+          "electrical_measurement_topology": "Was der Stromzähler der Wärmepumpe mitzählt",
           "has_heating_element": "Elektrischer Heizstab vorhanden",
           "has_dhw": "Warmwasserbereitung vorhanden",
           "storage_volume_l": "Nutzbares Speichervolumen (l)",
@@ -465,7 +469,7 @@
           "model": "Optionale Modell- oder Produktbezeichnung.",
           "heating_capacity_kw": "Nenn-Heizleistung laut Datenblatt.",
           "cop_rated": "COP laut Datenblatt an einem Prüfpunkt wie A7/W35 oder B0/W35; keine aktuelle Effizienz und keine JAZ. Ist der Wert unbekannt, Standard 4,0 beibehalten.",
-          "electrical_measurement_topology": "Nutze Gesamtmessung, wenn Wärmepumpenleistung und Tagesenergie alle elektrischen Verbraucher enthalten. Nutze getrennte Messung, wenn sie nur den Kompressor abbilden und Heizstabmessungen separat zugeordnet werden.",
+          "electrical_measurement_topology": "Gesamtzähler, wenn Leistung und Tagesenergie Kompressor und Heizstab zusammen messen. Getrennte Zähler, wenn der Heizstab einen eigenen Sensor hat.",
           "has_heating_element": "Aktivieren, wenn ein elektrischer Zusatzheizer installiert ist.",
           "has_dhw": "Aktivieren, wenn die Wärmepumpe auch Warmwasser bereitet.",
           "storage_volume_l": "Nutzbares Wasser- oder Puffervolumen laut Datenblatt. Einheit: l. Optional.",
@@ -534,6 +538,16 @@
           "runtime_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Betriebsstundenzähler abdeckt. Einheit: keine. Die mittlere Laufzeit je Start wird nur bei übereinstimmenden Zählerzeiträumen berechnet.",
           "starts_counter_scope": "Erwartet: Auswahl des Zeitraums, den der Startzähler abdeckt. Einheit: keine. Starts seit Mitternacht dürfen nicht mit Betriebsstunden seit Inbetriebnahme verrechnet werden.",
           "energy_counter_mode": "Erwartet: Auswahl, wie die zugeordneten Energie-Entitäten zu lesen sind. Einheit: keine. Automatisch erkennt einen Lebensdauerzähler an der State-Class total oder total_increasing (zum Beispiel EMS-ESP meter total) und rechnet ihn über einen Mitternachts-Bezugswert in einen Tageswert um. Nur überschreiben, wenn eine Quelle eine irreführende State-Class meldet."
+        },
+        "sections": {
+          "standard_sensors": {
+            "name": "Weitere Sensoren",
+            "description": "Optional. Aufklappen, wenn Modus, Temperaturen oder Zähler vorhanden sind."
+          },
+          "advanced_sensors": {
+            "name": "Selten gebrauchte Sensoren",
+            "description": "Optional. Nur zuordnen, wenn die Wärmepumpe diese Messwerte wirklich liefert."
+          }
         }
       },
       "wallbox": {
@@ -607,7 +621,7 @@
         }
       },
       "hydraulics": {
-        "title": "Hydraulik und Datenqualität",
+        "title": "Einbau und Herkunft der Wärmemengen",
         "description": "Beschreibe, wie die Wärmepumpe eingebunden ist und welche Messwerte belastbar sind. Bestehende Einträge bleiben unvollständig, bis diese Seite beantwortet ist. COP 4,0 und 10 kW aus älteren Setups gelten als unbestätigte Platzhalter.",
         "data": {
           "has_heating_buffer": "Heizungspuffer / hydraulische Weiche vorhanden",
@@ -1117,6 +1131,12 @@
       "options": {
         "heat_pump": "Wärmepumpen-Regler",
         "external": "Fremdregler (z. B. UVR)"
+      }
+    },
+    "electrical_measurement_topology": {
+      "options": {
+        "legacy_aggregate": "Ein Zähler für Kompressor und Heizstab",
+        "separate": "Heizstab hat einen eigenen Zähler"
       }
     },
     "data_quality_tier": {

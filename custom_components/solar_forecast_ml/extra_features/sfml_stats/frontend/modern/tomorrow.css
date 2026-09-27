@@ -639,6 +639,8 @@
 .tomorrow-story-values div { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 14px; background: rgba(255, 255, 255, .045); }
 .tomorrow-story-values dt { color: rgba(239, 248, 255, .55); font-size: .66rem; }
 .tomorrow-story-values dd { margin: 0; font-size: 1.08rem; font-weight: 740; }
+.tomorrow-corrected { color: var(--warning, #e0a100); font-weight: 750; }
+.tomorrow-corrected-mark { display: inline-flex; align-items: center; min-height: 22px; margin-top: 8px; padding: 2px 8px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 6px; background: rgba(255, 255, 255, .03); color: var(--text-muted, rgba(239, 248, 255, .55)); font-size: .68rem; }
 
 .tomorrow-device-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .tomorrow-device { position: relative; display: grid; gap: 8px; min-height: 160px; padding: 25px; overflow: hidden; border: 1px solid var(--border-default); border-radius: 20px; background: var(--surface-raised); }

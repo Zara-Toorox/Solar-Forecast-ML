@@ -307,9 +307,16 @@ const ModernEAIWeatherPage = {
                 </div>
             </header>
 
-            <div v-if="status.is_demo" class="eai-weather-demo" role="status">
+            <div v-if="sampleReason === 'no_license'" class="eai-weather-demo" role="status">
                 <div><strong>Interaktive Weather-Intelligence Premium-Demo</strong><span>SFML-Historie und die Prognosequellen sind realistische Beispieldaten.</span></div>
                 <strong>Keine Steuerung · klare lokale Einordnung</strong>
+            </div>
+            <div v-else-if="sampleReason === 'feature_off'" class="eai-weather-demo" role="status">
+                <div><strong>Beispieldaten</strong><span>Weather Intelligence ist in EAI noch nicht eingeschaltet.</span></div>
+                <a href="/config/integrations/integration/solar_forecast_eai" target="_top">Einrichtung</a>
+            </div>
+            <div v-else-if="sampleReason === 'learning'" class="eai-weather-demo" role="status">
+                <div><strong>Lernphase</strong><span>Noch keine Historie – die Werte sind Beispiele.</span></div>
             </div>
 
             <div v-if="loading" class="eai-weather-state" role="status">Weather Intelligence wird geladen …</div>
@@ -574,6 +581,7 @@ const ModernEAIWeatherPage = {
                         nextStatus.is_demo = weatherPayload.is_demo;
                         if (weatherPayload.data_mode) nextStatus.data_mode = weatherPayload.data_mode;
                     }
+                    if (weatherPayload.sample_reason) nextStatus.sample_reason = weatherPayload.sample_reason;
                 } catch (weatherError) {
                     if (!nextStatus.is_demo) throw weatherError;
                     nextWeather = EAI_WEATHER_DEMO;
@@ -839,7 +847,16 @@ const ModernEAIWeatherPage = {
                 : accuracyProvenance.value.kind === "mixed"
                     ? "Die Vergleiche enthalten mehrere Beobachtungsquellen. Sie sind keine unabhängige Stationsgüte."
                 : "Die Herkunft der Vergleichswerte ist nicht bestätigt. Die Tabelle zeigt keine unabhängige Stationsgüte.");
-        const modeLabel = computed(() => ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt" }[status.data_mode] || "Vorschau"));
+        const sampleReason = computed(() => {
+            const value = status.sample_reason;
+            if (value === "no_license" || value === "feature_off" || value === "learning" || value === "live") return value;
+            return status.is_demo ? "no_license" : "live";
+        });
+        const modeLabel = computed(() => {
+            if (sampleReason.value === "feature_off") return "Beispieldaten";
+            if (sampleReason.value === "learning") return "Lernphase";
+            return ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt" }[status.data_mode] || "Vorschau");
+        });
 
         const isFiniteValue = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
         const displayLocale = window.SFMLI18n?.current || "de";
@@ -965,7 +982,7 @@ const ModernEAIWeatherPage = {
         });
         return {
             loading, error, status, weather, chartMetric, selectedChartPoint, chartOptions, chartTitle, chartSubtitle, chartModel, chartAriaLabel,
-            modeLabel, recorderLabel, historySource, outlook, nextHours, hourly, daily, history, current, currentMetrics, currentSourceEyebrow, hasActualTimeline, actualTimelineLabel,
+            modeLabel, sampleReason, recorderLabel, historySource, outlook, nextHours, hourly, daily, history, current, currentMetrics, currentSourceEyebrow, hasActualTimeline, actualTimelineLabel,
             aggregates, monthly, records, warnings, hasOfficialWarnings, hasModelWarnings, warningSummary, rainfall, rainDays, rainRateDays, rainfallAvailable, rainfallRateAvailable, rainfallTitle, historySince, historyQualityLabel,
             yearComparison, sourceCards, sourceComparisonRows, missingSourceLabels, sourceAvailabilityLabel,
             coverageLabel, forecastRain, narrative, qualityRows, trendLabel, qualityEyebrow, qualityTitle, qualityProvenance, accuracyProvenance, number, integer, percent, temperature,

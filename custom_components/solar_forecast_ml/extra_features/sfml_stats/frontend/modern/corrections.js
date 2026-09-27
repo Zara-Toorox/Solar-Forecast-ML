@@ -286,6 +286,7 @@ const ModernCorrectionsPage = {
                     <label><span>{{ label('corrections.rangeEnd', 'Ende') }}</span><input v-model="rangeForm.end_date" type="date" :max="latestCompletedDate" @input="invalidateRangePreview" @change="invalidateRangePreview"></label>
                     <label><span>{{ label('corrections.rangeTarget', 'Zielsumme (kWh)') }}</span><input v-model="rangeForm.target_sum_kwh" inputmode="decimal" @input="invalidateRangePreview" @change="invalidateRangePreview"></label>
                     <label><span>{{ label('corrections.rangeWeight', 'Gewichtung') }}</span><select v-model="rangeForm.weighting" @change="invalidateRangePreview"><option value="measured">{{ label('corrections.weightMeasured', 'Nach Messwerten') }}</option><option value="uniform">{{ label('corrections.weightUniform', 'Gleichmäßig') }}</option></select></label>
+                    <div v-if="rangeError" class="corrections-state error" role="alert">{{ rangeError }}</div>
                     <button class="button" type="button" :disabled="rangePreviewBusy || !rangeForm.metric || !rangeForm.start_date || !rangeForm.end_date || !rangeForm.target_sum_kwh" @click="previewRange">{{ rangePreviewBusy ? "Vorschau wird geprüft …" : "Vorschau" }}</button>
                     <p v-if="!rangePreview" class="corrections-muted">Noch keine gültige Vorschau. Eine Vorschau ist fünf Minuten und einmalig gültig.</p>
                     <template v-else>
@@ -303,11 +304,12 @@ const ModernCorrectionsPage = {
                     <p>{{ label('corrections.importHelp', 'Vorlage laden, Datei wählen und die Vorschau prüfen, bevor etwas übernommen wird.') }}</p>
                     <button class="button secondary" type="button" @click="downloadTemplate">{{ label('corrections.csvTemplate', 'Vorlage herunterladen') }}</button>
                     <label><span>{{ label('corrections.csvFile', 'Datei wählen') }}</span><input type="file" accept=".csv,text/csv" @change="onCsvFile"></label>
+                    <div v-if="csvError" class="corrections-state error" role="alert">{{ csvError }}</div>
                     <button class="button" type="button" :disabled="csvPreviewBusy || !csvFile" @click="previewCsv">{{ csvPreviewBusy ? "Vorschau wird geprüft …" : "Vorschau" }}</button>
                     <p v-if="!csvPreview" class="corrections-muted">Noch keine gültige Vorschau. Eine Vorschau ist fünf Minuten und einmalig gültig.</p>
                     <template v-else>
                         <div class="corrections-values"><div><span>{{ label('corrections.rowsTotal', 'Zeilen gesamt') }}</span><strong>{{ csvPreview.rows_total }}</strong></div><div><span>{{ label('corrections.rowsAccepted', 'Übernommen') }}</span><strong>{{ csvPreview.accepted }}</strong></div><div><span>{{ label('corrections.rowsRejected', 'Abgelehnt') }}</span><strong>{{ csvPreview.rejected }}</strong></div></div>
-                        <div v-if="csvPreview.rejections && csvPreview.rejections.length" class="corrections-table-wrap"><table><thead><tr><th>{{ label('corrections.line', 'Zeile') }}</th><th>{{ label('corrections.reasonHeading', 'Grund') }}</th></tr></thead><tbody><tr v-for="item in csvPreview.rejections" :key="item.line"><td>{{ item.line }}</td><td>{{ reasonLabel(item.reason) }}</td></tr></tbody></table></div>
+                        <div v-if="csvPreview.rejections && csvPreview.rejections.length" class="corrections-table-wrap"><table><thead><tr><th>{{ label('corrections.line', 'Zeile') }}</th><th>{{ label('corrections.reasonHeading', 'Grund') }}</th></tr></thead><tbody><tr v-for="item in csvPreview.rejections" :key="item.line"><td>{{ item.line }}</td><td>{{ item.message || reasonLabel(item.reason) }}</td></tr></tbody></table></div>
                         <p class="corrections-context">{{ label('corrections.daysCovered', 'Abgedeckte Tage') }}: {{ (csvPreview.days_covered || []).join(', ') || '–' }}</p>
                         <div class="corrections-table-wrap"><table><thead><tr><th>{{ label('corrections.metricLabel', 'Metrik') }}</th><th>{{ label('corrections.sumDelta', 'Summen-Delta') }}</th></tr></thead><tbody><tr v-for="(delta, metric) in csvPreview.sum_delta_by_metric" :key="metric"><td>{{ metricLabel(metric) }}</td><td>{{ signedKwh(delta) }}</td></tr></tbody></table></div>
                         <div v-if="csvPreview.requires_second_confirmation" class="corrections-danger">Große Änderung: zweite Bestätigung erforderlich.</div>
@@ -361,12 +363,14 @@ const ModernCorrectionsPage = {
         const rangePreviewBusy = ref(false);
         const rangeCommitBusy = ref(false);
         const rangeConfirm = ref(false);
+        const rangeError = ref("");
         const rangeIdempotencyKey = ref(null);
         const csvFile = ref(null);
         const csvPreview = ref(null);
         const csvPreviewBusy = ref(false);
         const csvCommitBusy = ref(false);
         const csvConfirm = ref(false);
+        const csvError = ref("");
         const csvIdempotencyKey = ref(null);
         let bridge;
         let previewGeneration = 0;
@@ -497,6 +501,7 @@ const ModernCorrectionsPage = {
             rangeIdempotencyKey.value = null;
             rangeConfirm.value = false;
             rangePreviewBusy.value = false;
+            rangeError.value = "";
         };
         const snapshotRange = () => JSON.stringify(rangeForm);
         const previewRange = async () => {
@@ -511,9 +516,9 @@ const ModernCorrectionsPage = {
                 rangePreview.value = result;
                 rangeIdempotencyKey.value = idempotencyKey;
                 rangeConfirm.value = false;
-                showMessage("");
+                rangeError.value = "";
             } catch (error) {
-                if (generation === rangeGeneration && formSnapshot === snapshotRange()) showMessage(error.message, true);
+                if (generation === rangeGeneration && formSnapshot === snapshotRange()) rangeError.value = error.message;
             } finally {
                 if (generation === rangeGeneration) rangePreviewBusy.value = false;
             }
@@ -526,9 +531,10 @@ const ModernCorrectionsPage = {
                 await call("range_commit", { preview_token: rangePreview.value.preview_token,
                     idempotency_key: rangeIdempotencyKey.value, confirmed_large_change: rangeConfirm.value });
                 invalidateRangePreview();
+                rangeError.value = "";
                 showMessage(label("corrections.saved", "Korrektur gespeichert."));
                 await loadHistory();
-            } catch (error) { showMessage(error.message, true); }
+            } catch (error) { rangeError.value = error.message; }
             finally { rangeCommitBusy.value = false; }
         };
         const csvStamp = () => {
@@ -541,6 +547,7 @@ const ModernCorrectionsPage = {
             csvIdempotencyKey.value = null;
             csvConfirm.value = false;
             csvPreviewBusy.value = false;
+            csvError.value = "";
         };
         const onCsvFile = (event) => {
             csvFile.value = event.target.files && event.target.files[0] ? event.target.files[0] : null;
@@ -564,9 +571,9 @@ const ModernCorrectionsPage = {
                 csvPreview.value = result;
                 csvIdempotencyKey.value = idempotencyKey;
                 csvConfirm.value = false;
-                showMessage("");
+                csvError.value = "";
             } catch (error) {
-                if (generation === csvGeneration && stamp === csvStamp()) showMessage(error.message, true);
+                if (generation === csvGeneration && stamp === csvStamp()) csvError.value = error.message;
             } finally {
                 if (generation === csvGeneration) csvPreviewBusy.value = false;
             }
@@ -580,9 +587,10 @@ const ModernCorrectionsPage = {
                     idempotency_key: csvIdempotencyKey.value, confirmed_large_change: csvConfirm.value });
                 invalidateCsvPreview();
                 csvFile.value = null;
+                csvError.value = "";
                 showMessage(label("corrections.saved", "Korrektur gespeichert."));
                 await loadHistory();
-            } catch (error) { showMessage(error.message, true); }
+            } catch (error) { csvError.value = error.message; }
             finally { csvCommitBusy.value = false; }
         };
         const downloadTemplate = async () => {
@@ -691,8 +699,8 @@ const ModernCorrectionsPage = {
             contextData, contextBusy, contextError, latestCompletedDate, metricOptions, invalidateSelection,
             loadContext, setMode, preview, commit, undo, number, signed, kwh, signedKwh, metricLabel,
             balanceText, dateTime, hourLabel, label, reasonLabel, rangeForm, rangePreview, rangePreviewBusy,
-            rangeCommitBusy, rangeConfirm, rangeNeedsConfirm, invalidateRangePreview, previewRange, commitRange,
-            csvFile, csvPreview, csvPreviewBusy, csvCommitBusy, csvConfirm, csvNeedsConfirm, onCsvFile,
+            rangeCommitBusy, rangeConfirm, rangeError, rangeNeedsConfirm, invalidateRangePreview, previewRange, commitRange,
+            csvFile, csvPreview, csvPreviewBusy, csvCommitBusy, csvConfirm, csvError, csvNeedsConfirm, onCsvFile,
             previewCsv, commitCsv, downloadTemplate, batchRows, singleRows, undoBatch };
     },
 };

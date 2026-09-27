@@ -65,10 +65,12 @@ const ModernMobilityPage = {
         <section class="mobility-page" aria-labelledby="mobility-title">
             <div class="mobility-hero">
                 <div><span class="mobility-kicker">Energy AI · E-Mobilität</span><h2 id="mobility-title">Laden, wenn Energie wirklich passt</h2><p>PV-Prognose, Wärmepumpenbedarf, Strompreis und Abfahrtsziel in einem gemeinsamen Beratungsplan.</p></div>
-                <div class="mobility-badges"><span :class="['mobility-badge', status.data_mode]">{{ modeLabel }}</span><span class="mobility-badge neutral">Keine Steuerung</span></div>
+                <div class="mobility-badges"><span :class="['mobility-badge', status.data_mode]">{{ modeLabel }}</span><span v-if="sampleReason === 'no_license'" class="mobility-badge neutral">Vorschau</span><span class="mobility-badge neutral">Keine Steuerung</span></div>
             </div>
 
-            <div v-if="status.is_demo" class="mobility-demo" role="status"><div><strong>Interaktive Premium-Demo</strong><span>Alle Fahrzeug-, Wallbox-, Preis- und Energiewerte sind realistische Mock-Daten.</span></div><strong>Mit Lizenz werden konfigurierte Sensoren und reale Prognosen verwendet.</strong></div>
+            <div v-if="sampleReason === 'no_license'" class="mobility-demo" role="status"><div><strong>Interaktive Premium-Demo</strong><span>Alle Fahrzeug-, Wallbox-, Preis- und Energiewerte sind realistische Mock-Daten.</span></div><strong>Mit Lizenz werden konfigurierte Sensoren und reale Prognosen verwendet.</strong></div>
+            <div v-else-if="sampleReason === 'feature_off'" class="mobility-demo" role="status"><div><strong>Beispieldaten</strong><span>Beispieldaten – die Wallbox ist in EAI noch nicht eingerichtet.</span></div><a href="/config/integrations/integration/solar_forecast_eai" target="_top">Einrichtung</a></div>
+            <div v-else-if="sampleReason === 'learning'" class="mobility-demo" role="status"><div><strong>Lernphase</strong><span>Noch keine Historie – die Werte sind Beispiele.</span></div></div>
             <div v-if="loading" class="mobility-state" role="status">Wallbox-Planung wird geladen …</div>
             <div v-else-if="error" class="mobility-state error" role="alert"><strong>Daten nicht verfügbar</strong><span>{{ error }}</span></div>
             <div v-else-if="mobility.locked" class="mobility-state" role="status"><strong>Premium-Funktion nicht freigeschaltet</strong><span>Für die Wallbox-Planung wird {{ entitlementLabel }} benötigt.</span></div>
@@ -177,6 +179,7 @@ const ModernMobilityPage = {
                     status.is_demo = mobilityPayload.is_demo;
                     if (mobilityPayload.data_mode) status.data_mode = mobilityPayload.data_mode;
                 }
+                if (mobilityPayload?.sample_reason) status.sample_reason = mobilityPayload.sample_reason;
                 if (mobility.control_services_called === true) throw new Error("Unsicherer Provider-Vertrag");
                 const demo = status.is_demo === true;
                 const valueOrDemo = (value, fallback) => finiteNumber(value) ?? (demo ? fallback : null);
@@ -242,7 +245,16 @@ const ModernMobilityPage = {
             tariffSource.value = billing?.finance?.avg_price_ct ? "gewichteter STATS-Abrechnungspreis und Stundenpreise" : "konfigurierter STATS-Tarif und Stundenpreise";
         }
 
-        const modeLabel = computed(() => ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt" }[status.data_mode] || "Vorschau"));
+        const sampleReason = computed(() => {
+            const value = status.sample_reason;
+            if (value === "no_license" || value === "feature_off" || value === "learning" || value === "live") return value;
+            return status.is_demo ? "no_license" : "live";
+        });
+        const modeLabel = computed(() => {
+            if (sampleReason.value === "feature_off") return "Beispieldaten";
+            if (sampleReason.value === "learning") return "Lernphase";
+            return ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt" }[status.data_mode] || "Vorschau");
+        });
         const entitlementLabel = computed(() => ({
             forecast_enabled: "die Premium-Funktion Prognose und Energieeinsatz",
             mobility: "die Premium-Funktion Wallbox und Mobilität",
@@ -514,7 +526,7 @@ const ModernMobilityPage = {
                 ? `${point.label}, Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde, Wallbox-Netzplanung ${number(point.wallbox)} Kilowattstunden, verfügbare Ladezeit ${number(point.availableHours, 2)} Stunden, PV-Zuordnung nicht verfügbar`
             : `${point.label}, Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde, PV ${number(point.pv)} Kilowattstunden, Haus ${number(point.house)} Kilowattstunden, Wärmepumpe ${number(point.hp)} Kilowattstunden, Speicherreserve ${number(point.battery)} Kilowattstunden, Wallbox ${number(point.wallbox)} Kilowattstunden, davon PV ${number(point.pvWallbox)} Kilowattstunden, verfügbare Ladezeit ${number(point.availableHours, 2)} Stunden`;
         onMounted(load);
-        return { loading, error, status, mobility, demandMode, currentSoc, targetSoc, batteryCapacity, requestedEnergy, plannedDistance, consumption, chargingEfficiency, modeLabel, entitlementLabel, contractIncompatible, telemetryState, providerNotice, plan, mobilityBudget, timelineColumns, animatedSaving, tariffSource, departureLabel, recommendationWindow, recommendationInsight, insightConfidenceStyle, mobilityPointLabel, number, euro };
+        return { loading, error, status, sampleReason, mobility, demandMode, currentSoc, targetSoc, batteryCapacity, requestedEnergy, plannedDistance, consumption, chargingEfficiency, modeLabel, entitlementLabel, contractIncompatible, telemetryState, providerNotice, plan, mobilityBudget, timelineColumns, animatedSaving, tariffSource, departureLabel, recommendationWindow, recommendationInsight, insightConfidenceStyle, mobilityPointLabel, number, euro };
     },
 };
 

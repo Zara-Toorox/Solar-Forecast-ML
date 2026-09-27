@@ -47,3 +47,7 @@ async def async_setup_entry(
         AveragePriceTodaySensor(coordinator, entry),
     ]
     async_add_entities(entities)
+    heating = data.get("heating_manager")
+    if heating is not None:
+        heating.bind_platforms(sensors=async_add_entities, switches=heating._switch_add)
+        async_add_entities(heating.sensor_entities())

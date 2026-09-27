@@ -28,6 +28,7 @@ HOURLY_FORECAST_FIELDS: Final = (
     "cloud_coverage",
     "precipitation",
     "precipitation_probability",
+    "visibility",
 )
 
 # `observed_at` is represented separately, so values contain only weather
@@ -63,6 +64,7 @@ _PUBLIC_NUMBER_RANGES: Final = {
     "cloud_coverage": (0.0, 100.0),
     "precipitation": (0.0, 500.0),
     "precipitation_probability": (0.0, 100.0),
+    "visibility": (0.0, 100_000.0),
 }
 
 

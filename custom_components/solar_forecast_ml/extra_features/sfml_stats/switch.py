@@ -28,6 +28,11 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     async_add_entities([SmartChargingEnabledSwitch(hass, entry)])
+    data = hass.data[DOMAIN][entry.entry_id]
+    heating = data.get("heating_manager")
+    if heating is not None:
+        heating.bind_platforms(sensors=heating._sensor_add, switches=async_add_entities)
+        async_add_entities(heating.switch_entities())
 
 
 class SmartChargingEnabledSwitch(SwitchEntity):

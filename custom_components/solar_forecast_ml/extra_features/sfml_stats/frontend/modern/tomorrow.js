@@ -132,6 +132,8 @@ const TOMORROW_COPY = {
         hourError: "Stundenwerte konnten nicht geladen werden.",
         emptyDay: "Für diesen Tag liegen noch keine Daten vor.",
         autonomy: "Autarkie",
+        corrected: "korrigiert",
+        correctedHint: "Dieser Tageswert wurde manuell korrigiert",
         hourOf: "Gesamttag · Prognose {value}",
         atHour: "um {value}",
     },
@@ -255,6 +257,8 @@ const TOMORROW_COPY = {
         hourError: "Hourly values could not be loaded.",
         emptyDay: "No data is available for this day yet.",
         autonomy: "autonomy",
+        corrected: "corrected",
+        correctedHint: "This daily value was corrected by hand",
         hourOf: "Full day · forecast {value}",
         atHour: "at {value}",
     },
@@ -378,6 +382,8 @@ const TOMORROW_COPY = {
         hourError: "Nie udało się wczytać wartości godzinowych.",
         emptyDay: "Dla tego dnia nie ma jeszcze danych.",
         autonomy: "autarkia",
+        corrected: "skorygowano",
+        correctedHint: "Ta wartość dzienna została skorygowana ręcznie",
         hourOf: "Cały dzień · prognoza {value}",
         atHour: "o {value}",
     },
@@ -598,7 +604,7 @@ window.TomorrowPage = {
                         </div>
                 </section>
 
-                <div v-if="payload.is_demo" class="tomorrow-demo-banner" role="status">
+                <div v-if="pageReason === 'no_license'" class="tomorrow-demo-banner" role="status">
                     <div>
                         <strong>{{ copy.demoTitle }}</strong>
                         <span>{{ copy.demoText }}</span>
@@ -666,6 +672,7 @@ window.TomorrowPage = {
                         <span>{{ selectedWeekday }}</span>
                         <strong>{{ selectedDayNumber }}</strong>
                         <small>{{ selectedMonthYear }}</small>
+                        <small v-if="selectedDay.corrected" class="tomorrow-corrected-mark" :title="copy.correctedHint">{{ copy.corrected }}</small>
                     </div>
                     <div class="tomorrow-story-copy">
                         <p>{{ copy.storyOverline }}</p>
@@ -673,10 +680,10 @@ window.TomorrowPage = {
                         <span>{{ story.narrative }}</span>
                     </div>
                     <dl class="tomorrow-story-values">
-                        <div><dt>{{ copy.ownEnergy }}</dt><dd>{{ formatEnergy(selectedDay.own_energy_kwh) }}</dd></div>
-                        <div><dt>{{ copy.solarUsed }}</dt><dd>{{ formatPercent(selectedDay.solar_use_percent) }}</dd></div>
-                        <div><dt>{{ copy.feedIn }}</dt><dd>{{ formatEnergy(selectedDay.grid_export_kwh) }}</dd></div>
-                        <div><dt>{{ copy.gridImport }}</dt><dd>{{ formatEnergy(selectedDay.grid_import_kwh) }}</dd></div>
+                        <div><dt>{{ copy.ownEnergy }}</dt><dd :class="{ 'tomorrow-corrected': metricCorrected('own_energy_kwh') }" :title="metricCorrected('own_energy_kwh') ? copy.correctedHint : null">{{ formatEnergy(selectedDay.own_energy_kwh) }}</dd></div>
+                        <div><dt>{{ copy.solarUsed }}</dt><dd :class="{ 'tomorrow-corrected': metricCorrected('solar_use_percent') }" :title="metricCorrected('solar_use_percent') ? copy.correctedHint : null">{{ formatPercent(selectedDay.solar_use_percent) }}</dd></div>
+                        <div><dt>{{ copy.feedIn }}</dt><dd :class="{ 'tomorrow-corrected': metricCorrected('grid_export_kwh') }" :title="metricCorrected('grid_export_kwh') ? copy.correctedHint : null">{{ formatEnergy(selectedDay.grid_export_kwh) }}</dd></div>
+                        <div><dt>{{ copy.gridImport }}</dt><dd :class="{ 'tomorrow-corrected': metricCorrected('grid_import_kwh') }" :title="metricCorrected('grid_import_kwh') ? copy.correctedHint : null">{{ formatEnergy(selectedDay.grid_import_kwh) }}</dd></div>
                     </dl>
                 </section>
 
@@ -741,17 +748,17 @@ window.TomorrowPage = {
                     <div class="tomorrow-device-grid">
                         <article v-if="payload.devices?.heat_pump?.visible" class="tomorrow-device heat-pump">
                             <span>{{ copy.heatPump }}</span>
-                            <strong>{{ formatEnergy(selectedDay.heat_pump_kwh) }}</strong>
+                            <strong :class="{ 'tomorrow-corrected': metricCorrected('heat_pump_kwh') }" :title="metricCorrected('heat_pump_kwh') ? copy.correctedHint : null">{{ formatEnergy(selectedDay.heat_pump_kwh) }}</strong>
                             <small>{{ consumerCaption(payload.devices.heat_pump) }}</small>
                         </article>
                         <article v-if="payload.devices?.wallbox?.visible" class="tomorrow-device wallbox">
                             <span>{{ copy.wallbox }}</span>
-                            <strong>{{ formatEnergy(selectedDay.wallbox_kwh) }}</strong>
+                            <strong :class="{ 'tomorrow-corrected': metricCorrected('wallbox_kwh') }" :title="metricCorrected('wallbox_kwh') ? copy.correctedHint : null">{{ formatEnergy(selectedDay.wallbox_kwh) }}</strong>
                             <small>{{ consumerCaption(payload.devices.wallbox) }}</small>
                         </article>
                         <article v-if="payload.devices?.heating_rod?.visible" class="tomorrow-device heating-rod">
                             <span>{{ copy.heatingRod }}</span>
-                            <strong>{{ formatEnergy(selectedDay.heating_rod_kwh) }}</strong>
+                            <strong :class="{ 'tomorrow-corrected': metricCorrected('heating_rod_kwh') }" :title="metricCorrected('heating_rod_kwh') ? copy.correctedHint : null">{{ formatEnergy(selectedDay.heating_rod_kwh) }}</strong>
                             <small>{{ consumerCaption(payload.devices.heating_rod) }}</small>
                         </article>
                     </div>
@@ -765,6 +772,11 @@ window.TomorrowPage = {
         const loading = Vue.ref(true);
         const error = Vue.ref("");
         const payload = Vue.reactive({ mode: "unavailable", history: [], kpis: [], devices: {} });
+        const pageReason = Vue.computed(() => {
+            const value = payload.sample_reason;
+            if (value === "no_license" || value === "feature_off" || value === "learning" || value === "live") return value;
+            return payload.is_demo ? "no_license" : "live";
+        });
         const selectedDate = Vue.ref("");
         const selectedHour = Vue.ref(12);
         const timelineLoading = Vue.ref(false);
@@ -1011,6 +1023,11 @@ window.TomorrowPage = {
             }
         }
 
+        function metricCorrected(field) {
+            const marks = selectedDay.value && selectedDay.value.corrected_metrics;
+            return Array.isArray(marks) && marks.includes(field);
+        }
+
         function formatEnergy(value) {
             if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
             return `${Number(value).toFixed(1)} kWh`;
@@ -1074,7 +1091,9 @@ window.TomorrowPage = {
 
         function consumerCaption(device) {
             if (!device) return "";
-            if (device.is_demo) return copy.value.demoConsumer;
+            const reason = device.sample_reason || (device.is_demo ? "no_license" : "live");
+            if (reason === "no_license") return copy.value.demoConsumer;
+            if (reason === "feature_off" || reason === "learning") return "Beispieldaten";
             return copy.value.activeDays.replace("{n}", String(device.active_history_days || 0));
         }
 
@@ -1097,7 +1116,7 @@ window.TomorrowPage = {
         });
 
         return {
-            loading, error, payload, unavailable, selectedDate, selectedDay, heroPhotos, copy,
+            loading, error, payload, pageReason, unavailable, selectedDate, selectedDay, heroPhotos, copy,
             selectedHour, selectedHourData, selectedHourLabel, timelineLoading, timelineError,
             timeMachineAvailable, timePhase, timePhaseLabel, energyState, gridFlowLabel, gridFlowValue,
             hasBatterySoc, hasHourlyFlows, hasForecastQuality, lockMessage, story,
@@ -1106,7 +1125,7 @@ window.TomorrowPage = {
             hasDeviceInsights, deviceInsightHint, visibleMonths, calendarCells, weekdayLabels,
             calendarStyle, monthStyle, dayFinance, hasFinance, hasPeakSolar, hasDayInsights,
             hasRecords, hasComparisons, comparisonCards, coverageLabel, reasonLabel,
-            load, selectDay, formatEnergy, formatMoney, formatPrice, formatPower,
+            load, selectDay, metricCorrected, formatEnergy, formatMoney, formatPrice, formatPower,
             formatPercent, formatQuality, formatKpi, kpiLabel, kpiDetail, kpiUnit,
             band, dayLabel, consumerCaption, openWeather, tomorrowDate,
         };

@@ -8,7 +8,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.data_entry_flow import FlowResult, section
 from homeassistant.helpers import selector
 
 from . import get_license_validator
@@ -57,6 +57,7 @@ from .const import (
     CONF_HEATING_ELEMENT_ENERGY_TODAY_ENTITY,
     CONF_HEATING_ELEMENT_IN_WP_METER,
     CONF_HEATING_ELEMENT_POWER_ENTITY,
+    CONF_HEATING_ENABLED,
     CONF_HYDRAULICS_ANSWERED,
     CONF_INDOOR_TEMP_ENTITY,
     CONF_LICENSE_ID,
@@ -828,6 +829,12 @@ def _features_schema(defaults: dict[str, Any]) -> vol.Schema:
                 ),
             ): bool,
             vol.Required(
+                CONF_HEATING_ENABLED,
+                default=_safe_bool_default(
+                    defaults.get(CONF_HEATING_ENABLED), False
+                ),
+            ): bool,
+            vol.Required(
                 CONF_WEATHER_INTELLIGENCE_ENABLED,
                 default=_safe_bool_default(
                     defaults.get(CONF_WEATHER_INTELLIGENCE_ENABLED), False
@@ -952,6 +959,33 @@ def _has_disallowed_duplicate_assignments(
     )
 
 
+def _entity_selector_config(key: str) -> dict[str, Any]:
+    """Limit the entity picker by domain. Unit checks stay outside the picker."""
+    domains = ["sensor", "binary_sensor"]
+    if key in {
+        CONF_CIRCULATION_PUMP_ENTITY,
+        CONF_COMPRESSOR_ENTITY,
+        CONF_HEATING_ELEMENT_ENTITY,
+    }:
+        domains.append("switch")
+    if key in NUMERIC_HEAT_PUMP_ENTITY_KEYS:
+        domains.append("input_number")
+        domains.append("number")
+    if key in {CONF_INDOOR_TEMP_ENTITY, CONF_TARGET_TEMP_ENTITY}:
+        domains.append("climate")
+    return {"domain": domains}
+
+
+def _flatten_sensor_sections(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Keep stored keys flat when the options form uses collapsed sections."""
+    data = dict(user_input)
+    for key in ("standard_sensors", "advanced_sensors"):
+        nested = data.pop(key, None)
+        if isinstance(nested, dict):
+            data.update(nested)
+    return data
+
+
 def _entity_schema(
     keys: tuple[str, ...],
     *,
@@ -976,20 +1010,8 @@ def _entity_schema(
                 if defaults.get(key) is not None
                 else vol.Optional(key)
             )
-        domains = ["sensor", "binary_sensor"]
-        if key in {
-            CONF_CIRCULATION_PUMP_ENTITY,
-            CONF_COMPRESSOR_ENTITY,
-            CONF_HEATING_ELEMENT_ENTITY,
-        }:
-            domains.append("switch")
-        if key in NUMERIC_HEAT_PUMP_ENTITY_KEYS:
-            domains.append("input_number")
-            domains.append("number")
-        if key in {CONF_INDOOR_TEMP_ENTITY, CONF_TARGET_TEMP_ENTITY}:
-            domains.append("climate")
         fields[marker] = selector.EntitySelector(
-            selector.EntitySelectorConfig(domain=domains)
+            selector.EntitySelectorConfig(**_entity_selector_config(key))
         )
     return vol.Schema(fields)
 
@@ -1006,14 +1028,20 @@ def _license_schema() -> vol.Schema:
 
 def _sensor_options_schema(defaults: dict[str, Any]) -> vol.Schema:
     required = _entity_schema(REQUIRED_SENSORS, required=True, defaults=defaults)
-    optional = _entity_schema(
-        STANDARD_SENSORS + ADVANCED_SENSORS,
-        required=False,
-        defaults=defaults,
-    )
+    standard = _entity_schema(STANDARD_SENSORS, required=False, defaults=defaults)
+    advanced = _entity_schema(ADVANCED_SENSORS, required=False, defaults=defaults)
     scopes = _counter_scope_schema(defaults)
     return vol.Schema(
-        {**required.schema, **optional.schema, **scopes.schema}
+        {
+            **required.schema,
+            vol.Required("standard_sensors"): section(
+                standard, {"collapsed": True}
+            ),
+            vol.Required("advanced_sensors"): section(
+                advanced, {"collapsed": True}
+            ),
+            **scopes.schema,
+        }
     )
 
 
@@ -1533,6 +1561,7 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 for key in (
                     CONF_HEAT_PUMP_ENABLED,
                     CONF_WALLBOX_ENABLED,
+                    CONF_HEATING_ENABLED,
                     CONF_WEATHER_INTELLIGENCE_ENABLED,
                 )
             ):
@@ -1562,7 +1591,9 @@ class SolarForecastEAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_heat_pump()
         if self._data.get(CONF_WALLBOX_ENABLED):
             return await self.async_step_wallbox()
-        return await self.async_step_weather_intelligence()
+        if self._data.get(CONF_WEATHER_INTELLIGENCE_ENABLED):
+            return await self.async_step_weather_intelligence()
+        return await self.async_step_validation()
 
     async def async_step_heat_pump_device(
         self, user_input: dict[str, Any] | None = None
@@ -2109,6 +2140,7 @@ class SolarForecastEAIOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             proposed = dict(self._options)
+            user_input = _flatten_sensor_sections(user_input)
             _replace_options(
                 proposed,
                 user_input,

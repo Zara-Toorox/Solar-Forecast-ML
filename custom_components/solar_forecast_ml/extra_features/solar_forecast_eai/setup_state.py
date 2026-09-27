@@ -75,6 +75,24 @@ DERIVED_ENERGY_TODAY_KEYS = frozenset(
     }
 )
 POWER_UNITS = {"w", "kw", "mw"}
+
+
+def power_watts(value: Any, unit: Any) -> float | None:
+    """Convert a power reading to watts. Unknown units are not watts."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    normalized = str(unit or "").strip().lower()
+    if normalized in {"w", "watt", "watts"}:
+        return number
+    if normalized in {"kw", "kilowatt", "kilowatts"}:
+        return number * 1000.0
+    if normalized in {"mw", "megawatt", "megawatts"}:
+        return number * 1_000_000.0
+    return None
 ENERGY_UNITS = {"wh", "kwh", "mwh"}
 TEMPERATURE_UNITS = {"°c", "c", "°f", "f", "k"}
 
@@ -213,24 +231,46 @@ def design_flow_temp_c(config: dict[str, Any]) -> float | None:
     return value
 
 
+_DHW_MODE_MARKERS = (
+    "water_heating",
+    "warmwater",
+    "warm_water",
+    "hot_water",
+    "hotwater",
+    "hot water",
+    "dhw",
+    "domestic",
+    "warmwasser",
+)
+
+
+def operation_mode_contains_ww_token(text: str) -> bool:
+    """True when ``ww`` is its own token, not a substring of another word."""
+    current: list[str] = []
+    for char in text:
+        if char.isalnum():
+            current.append(char)
+            continue
+        if "".join(current) == "ww":
+            return True
+        current.clear()
+    return "".join(current) == "ww"
+
+
 def normalize_operation_mode(value: Any) -> str | None:
-    """Map a live operating-mode reading onto the COP heating/DHW cascade."""
+    """Map a live operating-mode reading onto the COP heating/DHW cascade.
+
+    Hot-water markers are checked before ``heat``/``heiz`` because
+    ``water_heating`` contains ``heat``.
+    """
     if value in {COP_MODE_HEATING, COP_MODE_DHW}:
         return str(value)
     text = str(value or "").strip().lower()
     if not text:
         return None
-    if any(
-        token in text
-        for token in (
-            "dhw",
-            "domestic",
-            "warmwasser",
-            "warm water",
-            "hot_water",
-            "hot water",
-        )
-    ):
+    if any(token in text for token in _DHW_MODE_MARKERS):
+        return COP_MODE_DHW
+    if operation_mode_contains_ww_token(text):
         return COP_MODE_DHW
     if any(token in text for token in ("heat", "heiz")):
         return COP_MODE_HEATING

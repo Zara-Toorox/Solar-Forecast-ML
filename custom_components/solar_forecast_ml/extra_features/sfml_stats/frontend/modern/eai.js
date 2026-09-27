@@ -13,12 +13,19 @@ const ModernEAIPage = {
         <section class="eai-page" aria-labelledby="eai-title">
             <div class="eai-hero">
                 <div><span class="eai-kicker">Energy AI · Premium</span><h2 id="eai-title">Wärmepumpe intelligent verstehen</h2><p>Erklärt den Betrieb, prognostiziert den Bedarf und findet die besten Energiezeitfenster.</p></div>
-                <div class="eai-state-badges"><span class="eai-badge" :class="status.data_mode">{{ modeLabel }}</span><span class="eai-badge neutral">{{ capabilityLabel }}</span></div>
+                <div class="eai-state-badges"><span class="eai-badge" :class="status.data_mode">{{ modeLabel }}</span><span v-if="sampleReason !== 'feature_off'" class="eai-badge neutral">{{ capabilityLabel }}</span></div>
             </div>
 
-            <div v-if="status.is_demo" class="eai-demo-banner" role="status">
+            <div v-if="sampleReason === 'no_license'" class="eai-demo-banner" role="status">
                 <div><strong>Interaktive Premium-Demo</strong><span>Alle gezeigten Werte sind realistische Mock-Daten und keine Messwerte deiner Anlage.</span></div>
                 <div class="demo-cta"><span>Mit EAI werden dieselben Ansichten aus deinen Sensoren berechnet.</span><strong>Lizenz beim Anbieter anfordern</strong></div>
+            </div>
+            <div v-else-if="sampleReason === 'feature_off'" class="eai-demo-banner" role="status">
+                <div><strong>Beispieldaten</strong><span>Beispieldaten – die Wärmepumpe ist in EAI noch nicht eingerichtet.</span></div>
+                <div class="demo-cta"><button type="button" @click="selectTab('setup')">Einrichtung</button></div>
+            </div>
+            <div v-else-if="sampleReason === 'learning'" class="eai-demo-banner" role="status">
+                <div><strong>Lernphase</strong><span>Noch keine Historie – die Werte sind Beispiele.</span></div>
             </div>
             <div v-else-if="notice" class="eai-notice" :class="status.data_mode" role="status"><strong>{{ notice.title }}</strong><span>{{ notice.text }}</span></div>
 
@@ -86,7 +93,7 @@ const ModernEAIPage = {
                 <div class="chart-legend"><span><i class="forecast-line"></i>Prognose</span><span><i class="actual-line"></i>Ist</span><span><i class="band-line"></i>Unsicherheit</span></div><p class="eai-caption">Haupttreiber: {{ (forecast.main_drivers || []).join(" · ") || "Nicht verfügbar" }}</p>
             </div>
 
-            <div v-else-if="locked" class="eai-card locked-card"><span class="lock-icon">◆</span><h3>Premium-Modul nicht freigeschaltet</h3><p>Für diesen Bereich wird <strong>{{ entitlementLabel }}</strong> benötigt.</p><span>Lizenz beim Anbieter anfordern und anschließend im EAI-Config-Flow hinterlegen.</span></div>
+            <div v-else-if="locked" class="eai-card locked-card"><span class="lock-icon">◆</span><h3>Premium-Modul nicht freigeschaltet</h3><p>Für diesen Bereich wird <strong>{{ entitlementLabel }}</strong> benötigt.</p><span v-if="sampleReason === 'no_license'">Lizenz beim Anbieter anfordern und anschließend im EAI-Config-Flow hinterlegen.</span></div>
             <template v-else-if="activeTab === 'energy'">
                 <allocation-waterfall class="energy-waterfall" :model="pvWaterfall"></allocation-waterfall>
                 <div class="eai-grid detail-grid"><article v-for="item in energyItems" :key="item.label" class="eai-card detail-card"><span class="metric-label">{{ item.label }}</span><strong>{{ item.value }}</strong><small>{{ item.description }}</small></article></div>
@@ -96,6 +103,22 @@ const ModernEAIPage = {
                     <div class="energy-equation"><span>PV verfügbar</span><i>=</i><span>Haus</span><i>+</i><span>Wärmepumpe</span><i>+</i><span>Speicherreserve</span><i>+</i><span>Kalibrierungsreserve</span><i>+</i><span>Wallbox-PV-Budget</span><i>+</i><span>Unverplant / Einspeisung</span><i>±</i><strong>{{ energyAudit.difference }}</strong></div>
                 </article>
             </template>
+            <div v-else-if="activeTab === 'setup'" class="eai-setup">
+                <p v-if="sampleReason === 'feature_off'" class="eai-notice" role="status">Die Wärmepumpe wird in EAI unter Funktionen eingeschaltet.</p>
+                <p class="eai-caption">In EAI unter Einstellungen → <a :href="setupLink" target="_top">{{ setupMenu }}</a> ändern.</p>
+                <section v-for="group in setupGroups" :key="group.tier" class="eai-setup-group">
+                    <h3>{{ group.tier }}</h3>
+                    <div class="eai-grid detail-grid">
+                        <article v-for="row in group.sensors" :key="row.key" class="eai-card detail-card">
+                            <span class="metric-label">{{ row.label }}</span>
+                            <strong>{{ row.state || "—" }}<small v-if="row.unit"> {{ row.unit }}</small></strong>
+                            <span class="eai-badge" :class="setupChipClass(row.status)">{{ setupStatusLabel(row.status) }}</span>
+                            <small>{{ row.entity_id || "keine Entität" }}</small>
+                            <small>{{ row.effect }}</small>
+                        </article>
+                    </div>
+                </section>
+            </div>
             <div v-else-if="activeTab === 'diagnostics'" class="diagnostics-layout">
                 <article v-for="group in diagnosticGroups" :key="group.id" class="eai-card diagnostic-group"><span class="eyebrow">{{ group.eyebrow }}</span><h3>{{ group.title }}</h3><p>{{ group.text }}</p><ul v-if="group.issues.length"><li v-for="issue in group.issues" :key="issue.id"><strong>{{ issue.title }}</strong><span>{{ issue.impact }}</span><span>{{ issue.action }}</span></li></ul></article>
             </div>
@@ -104,7 +127,7 @@ const ModernEAIPage = {
         </section>`,
     setup() {
         const { ref, reactive, computed, onMounted, onUnmounted, watch } = Vue;
-        const tabs = [["overview", "Übersicht"], ["operation", "Live-Betrieb"], ["forecast", "Prognose"], ["efficiency", "Effizienz"], ["building", "Gebäude"], ["energy", "Energieeinsatz"], ["diagnostics", "Diagnose"]].map(([id, label]) => ({ id, label }));
+        const tabs = [["overview", "Übersicht"], ["operation", "Live-Betrieb"], ["forecast", "Prognose"], ["efficiency", "Effizienz"], ["building", "Gebäude"], ["energy", "Energieeinsatz"], ["diagnostics", "Diagnose"], ["setup", "Einrichtung"]].map(([id, label]) => ({ id, label }));
         const activeTab = ref("overview");
         const loading = ref(true);
         const error = ref("");
@@ -156,6 +179,7 @@ const ModernEAIPage = {
                     status.is_demo = overviewPayload.is_demo;
                     if (overviewPayload.data_mode) status.data_mode = overviewPayload.data_mode;
                 }
+                if (overviewPayload?.sample_reason) status.sample_reason = overviewPayload.sample_reason;
                 hasLoaded = true;
                 error.value = "";
                 if (status.is_demo) {
@@ -280,11 +304,18 @@ const ModernEAIPage = {
         });
         const building = computed(() => sections.building || {});
         const thermalLoss = computed(() => building.value.thermal_loss || {});
+        const sampleReason = computed(() => {
+            const value = status.sample_reason;
+            if (value === "no_license" || value === "feature_off" || value === "learning" || value === "live") return value;
+            return status.is_demo ? "no_license" : "live";
+        });
         const capabilityLabel = computed(() => ({
             preview: "Vorschau", essential: "Basis", standard: "Standard", advanced: "Erweitert",
         }[status.capability_level] || "Vorschau"));
         const dataStatus = computed(() => {
-            if (status.is_demo) return { title: "Datenstatus: Premium-Demo", text: "Alle Werte dieser Ansicht sind gekennzeichnete Beispieldaten." };
+            if (sampleReason.value === "feature_off") return { title: "Datenstatus: Beispieldaten", text: "Die Wärmepumpe ist in EAI noch nicht eingerichtet." };
+            if (sampleReason.value === "learning") return { title: "Datenstatus: Lernphase", text: "Noch keine Historie – die Werte sind Beispiele." };
+            if (sampleReason.value === "no_license") return { title: "Datenstatus: Premium-Demo", text: "Alle Werte dieser Ansicht sind gekennzeichnete Beispieldaten." };
             const dataReadiness = readiness.value.data || {};
             const dataState = dataReadiness.status ?? diagnostics.value.sensor_quality;
             if (dataReadiness.ready === true || dataState === "ready") return { title: "Datenstatus: bereit", text: "Messwerte, Prognosen und Modellergebnisse werden in ihren Beschreibungen getrennt ausgewiesen." };
@@ -513,7 +544,11 @@ const ModernEAIPage = {
             const confidence = Math.min(100, Math.max(0, Number(forecastUncertainty.value.confidence_percent || 0)));
             return { background: `conic-gradient(#45c7bb ${confidence}%, color-mix(in srgb, #45c7bb 12%, var(--bg-elevated)) 0)` };
         });
-        const modeLabel = computed(() => ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt", unavailable: "Nicht verfügbar" }[status.data_mode] || status.data_mode));
+        const modeLabel = computed(() => {
+            if (sampleReason.value === "feature_off") return "Beispieldaten";
+            if (sampleReason.value === "learning") return "Lernphase";
+            return ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt", unavailable: "Nicht verfügbar" }[status.data_mode] || status.data_mode);
+        });
         const notice = computed(() => status.data_mode === "degraded" ? { title: "Datenquelle eingeschränkt", text: "Fehlende Werte werden nicht erfunden oder als Null dargestellt." } : null);
         const windowLabel = computed(() => optimization.value.available ? new Date(optimization.value.start).toLocaleTimeString(EAI_LOCALE, { hour: "2-digit", minute: "2-digit" }) : "Wird ermittelt");
         const overviewMetrics = computed(() => [
@@ -691,6 +726,15 @@ const ModernEAIPage = {
                         : scopedDescription),
             };
         }));
+        const setupPayload = computed(() => sections.setup || {});
+        const setupLink = computed(() => setupPayload.value.integration_path || "/config/integrations/integration/solar_forecast_eai");
+        const setupMenu = computed(() => setupPayload.value.menu_name || "Sensoren");
+        const setupGroups = computed(() => ["Pflicht", "Standard", "Erweitert"].map((tier) => ({
+            tier,
+            sensors: (setupPayload.value.sensors || []).filter((sensor) => sensor.tier === tier),
+        })).filter((group) => group.sensors.length));
+        const setupStatusLabel = (statusName) => ({ ok: "in Ordnung", missing: "fehlt", unavailable: "nicht verfügbar", wrong_unit: "falsche Einheit" })[statusName] || statusName;
+        const setupChipClass = (statusName) => ({ ok: "", missing: "neutral", unavailable: "unavailable", wrong_unit: "degraded" })[statusName] || "neutral";
         const locked = computed(() => current.value.locked === true);
         const powerHeight = (value) => `${Math.min(100, Math.max(2, Number(value || 0) * 26))}%`;
         const bandStyle = (point) => ({ bottom: powerHeight(point.lower_kw), height: `${Math.max(2, (point.upper_kw - point.lower_kw) * 26)}%` });
@@ -707,7 +751,7 @@ const ModernEAIPage = {
             stopRefresh();
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         });
-        return { EAI_LOCALE, tabs, activeTab, selectTab, handleTabKeydown, loading, error, status, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle };
+        return { EAI_LOCALE, tabs, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
     },
 };
 

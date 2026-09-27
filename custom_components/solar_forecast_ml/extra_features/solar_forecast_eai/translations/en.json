@@ -17,12 +17,14 @@
         "data": {
           "heat_pump_enabled": "Use heat-pump intelligence",
           "wallbox_enabled": "Use e-mobility intelligence",
+          "heating_enabled": "Room heating (thermostats)",
           "weather_intelligence_enabled": "Use Weather Fusion intelligence",
           "grid_price_enabled": "Use electricity-price intelligence (GPM)"
         },
         "data_description": {
           "heat_pump_enabled": "Configure heat-pump, building and thermal analysis.",
           "wallbox_enabled": "Configure passive charging recommendations for a wallbox or vehicle.",
+          "heating_enabled": "Shows the Heating page in STATS (Premium).",
           "weather_intelligence_enabled": "Evaluate an installed Weather Fusion AI forecast, local observations and weather risks.",
           "grid_price_enabled": "Keeps the dynamic tariff running. Disable only the premium tariff models, CSV import and monthly corrections."
         }
@@ -62,7 +64,7 @@
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
           "cop_rated": "COP at the data-sheet test point",
-          "electrical_measurement_topology": "Electrical measurement topology",
+          "electrical_measurement_topology": "What the heat-pump electricity meter includes",
           "has_heating_element": "Electric auxiliary heater available",
           "has_dhw": "Domestic hot water available",
           "storage_volume_l": "Usable storage volume (L)",
@@ -74,7 +76,7 @@
           "model": "Optional model or product designation.",
           "heating_capacity_kw": "Rated heat output according to the data sheet, from 1 to 100 kW.",
           "cop_rated": "COP stated for a data-sheet test point such as A7/W35 or B0/W35. This is neither a live reading nor an annual performance factor. Keep the default 4.0 if unknown.",
-          "electrical_measurement_topology": "Use legacy aggregate when heat-pump power and daily energy include every electrical component. Use separate when they represent the compressor only and backup-heater measurements are configured separately.",
+          "electrical_measurement_topology": "Choose one meter when power and daily energy include the compressor and the backup heater. Choose separate meters when the backup heater has its own sensor.",
           "has_heating_element": "Enable this if the system has an electric auxiliary heater.",
           "has_dhw": "Enable this if the heat pump also provides domestic hot water.",
           "storage_volume_l": "Expected: usable water or buffer volume from the data sheet. Unit: L. Optional; required to convert temperature loss into kWh.",
@@ -274,7 +276,7 @@
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
           "cop_rated": "COP at the data-sheet test point",
-          "electrical_measurement_topology": "Electrical measurement topology",
+          "electrical_measurement_topology": "What the heat-pump electricity meter includes",
           "has_heating_element": "Electric backup heater installed",
           "has_dhw": "Domestic hot water enabled",
           "storage_volume_l": "Usable storage volume (L)",
@@ -310,7 +312,7 @@
         }
       },
       "hydraulics": {
-        "title": "Hydraulics and data quality",
+        "title": "Installation and origin of heat figures",
         "description": "Describe how the heat pump is piped and which measurements are trustworthy. Existing entries stay incomplete until this page is answered. Rated COP 4.0 and 10 kW from older setups are treated as unconfirmed placeholders.",
         "data": {
           "has_heating_buffer": "Heating buffer / low-loss header present",
@@ -389,7 +391,7 @@
           "wallbox": "E-mobility and wallbox",
           "weather_intelligence": "Weather intelligence",
           "automation": "Automation signals",
-          "hydraulics": "Hydraulics and data quality"
+          "hydraulics": "Installation and origin of heat figures"
         }
       },
       "features": {
@@ -398,12 +400,14 @@
         "data": {
           "heat_pump_enabled": "Use heat-pump intelligence",
           "wallbox_enabled": "Use e-mobility intelligence",
+          "heating_enabled": "Room heating (thermostats)",
           "weather_intelligence_enabled": "Use Weather Fusion intelligence",
           "grid_price_enabled": "Use electricity-price intelligence (GPM)"
         },
         "data_description": {
           "heat_pump_enabled": "Enable heat-pump and building analysis.",
           "wallbox_enabled": "Enable wallbox and vehicle recommendations.",
+          "heating_enabled": "Shows the Heating page in STATS (Premium).",
           "weather_intelligence_enabled": "Enable WFAI forecast evaluation and weather risks.",
           "grid_price_enabled": "Keeps the dynamic tariff running. Disable only the premium tariff models, CSV import and monthly corrections."
         }
@@ -453,7 +457,7 @@
           "model": "Model designation",
           "heating_capacity_kw": "Rated heating output (kW)",
           "cop_rated": "COP at the data-sheet test point",
-          "electrical_measurement_topology": "Electrical measurement topology",
+          "electrical_measurement_topology": "What the heat-pump electricity meter includes",
           "has_heating_element": "Electric backup heater installed",
           "has_dhw": "Domestic hot water enabled",
           "storage_volume_l": "Usable storage volume (L)",
@@ -465,7 +469,7 @@
           "model": "Optional model or product designation.",
           "heating_capacity_kw": "Rated heat output according to the data sheet.",
           "cop_rated": "COP stated for a data-sheet test point such as A7/W35 or B0/W35; neither a live efficiency reading nor an annual performance factor. Keep 4.0 if unknown.",
-          "electrical_measurement_topology": "Use legacy aggregate when heat-pump power and daily energy include every electrical component. Use separate when they represent the compressor only and backup-heater measurements are configured separately.",
+          "electrical_measurement_topology": "Choose one meter when power and daily energy include the compressor and the backup heater. Choose separate meters when the backup heater has its own sensor.",
           "has_heating_element": "Enable if an electric backup heater is installed.",
           "has_dhw": "Enable if the heat pump also prepares domestic hot water.",
           "storage_volume_l": "Usable water or buffer volume from the data sheet. Unit: L. Optional.",
@@ -534,6 +538,16 @@
           "runtime_counter_scope": "Select the period covered by the operating-hours counter. The average runtime per start is calculated only when both counter periods match.",
           "starts_counter_scope": "Select the period covered by the start counter. Do not combine starts since midnight with lifetime operating hours.",
           "energy_counter_mode": "Expected: a choice of how the assigned energy entities have to be read. Unit: none. Automatic recognises a lifetime counter from the state class total or total_increasing (for example an EMS-ESP meter total) and converts it into a daily value against a midnight baseline. Override this only when a source reports a misleading state class."
+        },
+        "sections": {
+          "standard_sensors": {
+            "name": "Additional sensors",
+            "description": "Optional. Open this when mode, temperatures, or counters are available."
+          },
+          "advanced_sensors": {
+            "name": "Rarely used sensors",
+            "description": "Optional. Assign these only when the heat pump actually provides them."
+          }
         }
       },
       "wallbox": {
@@ -607,7 +621,7 @@
         }
       },
       "hydraulics": {
-        "title": "Hydraulics and data quality",
+        "title": "Installation and origin of heat figures",
         "description": "Describe how the heat pump is piped and which measurements are trustworthy. Existing entries stay incomplete until this page is answered. Rated COP 4.0 and 10 kW from older setups are treated as unconfirmed placeholders.",
         "data": {
           "has_heating_buffer": "Heating buffer / low-loss header present",
@@ -1117,6 +1131,12 @@
       "options": {
         "heat_pump": "Heat-pump controller",
         "external": "External controller (for example UVR)"
+      }
+    },
+    "electrical_measurement_topology": {
+      "options": {
+        "legacy_aggregate": "One meter for compressor and backup heater",
+        "separate": "Backup heater has its own meter"
       }
     },
     "data_quality_tier": {
