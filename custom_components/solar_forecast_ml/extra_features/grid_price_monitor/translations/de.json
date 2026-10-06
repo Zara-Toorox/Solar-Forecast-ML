@@ -552,13 +552,13 @@
     },
     "number": {
       "cheap_price": {
-        "name": "Günstig-Schwelle"
+        "name": "Preisgrenze"
       },
       "force_charge_price": {
-        "name": "Force-Ladepreis"
+        "name": "Force-Preis"
       },
       "below_average_pct": {
-        "name": "Prozent unter Durchschnitt"
+        "name": "Unter dem Tagesmittel"
       },
       "cheapest_hours": {
         "name": "Günstigste Stunden"
@@ -566,10 +566,10 @@
     },
     "select": {
       "threshold_mode": {
-        "name": "Schwellenmodus",
+        "name": "Günstige Stunde",
         "state": {
-          "absolute": "Absolut",
-          "below_average": "Unter Durchschnitt",
+          "absolute": "Preisgrenze",
+          "below_average": "Unter dem Tagesmittel",
           "cheapest_hours": "Günstigste Stunden"
         }
       }

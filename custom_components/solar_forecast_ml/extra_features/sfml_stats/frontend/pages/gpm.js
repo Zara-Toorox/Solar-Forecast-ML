@@ -343,7 +343,8 @@ const _GPMPage = {
                 </p>
             </div>
 
-            <details class="chart-card" style="margin-bottom: var(--space-lg);">
+            <p v-if="!devOn && priceStand" class="public-result-line">{{ priceStand }}</p>
+            <details v-if="devOn && status.diagnostics" class="chart-card" style="margin-bottom: var(--space-lg);">
                 <summary class="chart-title">{{ $t('gpm.diagnostics') }}</summary>
                 <p style="font-size: 0.85rem; color: var(--text-muted);">
                     {{ lastFetchLabel }}: {{ status.diagnostics.last_fetch || '—' }} ·
@@ -831,6 +832,18 @@ const _GPMPage = {
             return t("gpm.correctionMonthApplied", { month, date: applied });
         });
 
+        const devOn = computed(() => window.sfmlDevState?.active === true);
+        const priceStand = computed(() => {
+            const stamp = status.value.updated_at;
+            if (!stamp) return "";
+            const parsed = new Date(stamp);
+            if (Number.isNaN(parsed.getTime())) return "";
+            const time = new Intl.DateTimeFormat(undefined, {
+                hour: "2-digit",
+                minute: "2-digit",
+            }).format(parsed);
+            return t("gpm.priceStand").replace("{time}", time);
+        });
         const diagnosticsCorrectionKind = computed(() => {
             const row = status.value.diagnostics && status.value.diagnostics.last_correction;
             return correctionKindLabel(row && row.kind);
@@ -1645,8 +1658,7 @@ const _GPMPage = {
             renderChart();
             renderSchedule();
             if (extras) {
-                loadBill();
-                loadYearly();
+                await Promise.allSettled([loadBill(), loadYearly()]);
             }
         }
 
@@ -1687,6 +1699,8 @@ const _GPMPage = {
 
         return {
             status,
+            devOn,
+            priceStand,
             statusLabel,
             licenseBadge,
             showCsvImport,

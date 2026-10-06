@@ -17,6 +17,11 @@ reset_ai_model:
   description: "Developer only or on advice."
   fields: {}
 
+reset_consumption_model:
+  name: "Reset Consumption Model"
+  description: "Developer only or on advice. Restores consumption factors and the counter baseline. History stays."
+  fields: {}
+
 run_grid_search:
   name: "Grid-Search Hyperparameter Optimization"
   description: "Developer only or on advice."

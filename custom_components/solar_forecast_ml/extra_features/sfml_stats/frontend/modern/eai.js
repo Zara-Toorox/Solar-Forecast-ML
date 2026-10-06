@@ -61,11 +61,11 @@ const ModernEAIPage = {
                     <footer class="calculator-disclaimer">STATS-Preisbasis: {{ tariffSourceLabel }}. Annahmen: COP {{ potential.cop.toFixed(1) }}, {{ feedInTariff.toFixed(1) }} ct/kWh Einspeisevergütung und maximal 18 % zeitlich nutzbarer Wärmepumpenstrom. Grundgebühren werden nicht als Einsparung gerechnet. Das Ergebnis ist eine Modellrechnung, keine Steuerung und keine Garantie.</footer>
                 </article>
                 <div class="eai-wow-grid">
-                    <article class="eai-card wow-card accent"><span class="eyebrow">Warum läuft sie gerade?</span><h3>{{ whyNow.headline || "Noch keine Erklärung verfügbar" }}</h3><p>{{ whyNow.explanation }}</p><ul><li v-for="item in whyNow.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(whyNow.confidence_percent, " % Vertrauen") }}</span></footer></article>
+                    <article v-if="devOn" class="eai-card wow-card accent"><span class="eyebrow">Warum läuft sie gerade?</span><h3>{{ whyNow.headline || "Noch keine Erklärung verfügbar" }}</h3><p>{{ whyNow.explanation }}</p><ul><li v-for="item in whyNow.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(whyNow.confidence_percent, " % Vertrauen") }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Tägliches Energie-Briefing</span><h3>{{ briefing.headline || "Briefing wird vorbereitet" }}</h3><p>{{ briefing.summary }}</p><ol><li v-for="item in briefing.actions || []" :key="item">{{ item }}</li></ol></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Bestes Wärmepumpen-PV-Fenster</span><h3>{{ windowLabel }}</h3><strong class="wow-number">{{ format(optimization.pv_surplus_kwh, " kWh") }}</strong><p>{{ optimizationExplanation.summary || optimization.recommendation || "Noch kein belastbares Wärmepumpen-PV-Fenster erkannt." }}</p><ul><li v-for="item in optimizationExplanation.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(optimizationExplanation.confidence_percent, " % Vertrauen") }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Betriebsbeobachtung</span><h3>{{ healthStatus.title }}</h3><p>{{ healthStatus.text }}</p></article>
-                    <article class="eai-card wow-card"><span class="eyebrow">Gebäude-Fingerabdruck</span><h3>{{ buildingStatus.title }}</h3><p>{{ buildingStatus.text }}</p><div class="learning"><span :style="{ width: buildingStatus.progress + '%' }"></span></div></article>
+                    <article v-if="devOn" class="eai-card wow-card"><span class="eyebrow">Gebäude-Fingerabdruck</span><h3>{{ buildingStatus.title }}</h3><p>{{ buildingStatus.text }}</p><div class="learning"><span :style="{ width: buildingStatus.progress + '%' }"></span></div></article>
                 </div>
                 <article v-if="thermalLossDisplay.configured" class="eai-card thermal-loss-card">
                     <header><div><span class="eyebrow">Speicher- & Zirkulationsverluste</span><h3>Wo verschwindet die gespeicherte Wärme?</h3></div></header>
@@ -98,9 +98,9 @@ const ModernEAIPage = {
                 <allocation-waterfall class="energy-waterfall" :model="pvWaterfall"></allocation-waterfall>
                 <div class="eai-grid detail-grid"><article v-for="item in energyItems" :key="item.label" class="eai-card detail-card"><span class="metric-label">{{ item.label }}</span><strong>{{ item.value }}</strong><small>{{ item.description }}</small></article></div>
                 <article class="eai-card energy-audit-card" :class="{ warning: !energyAudit.valid }">
-                    <span class="eyebrow">Geprüfte Energiebilanz · gleicher Prognosezeitraum</span>
+                    <span class="eyebrow">Selbstprüfung · Verteilung der PV-Prognose</span>
                     <h3>{{ energyAudit.title }}</h3><p>{{ energyAudit.text }}</p>
-                    <div class="energy-equation"><span>PV verfügbar</span><i>=</i><span>Haus</span><i>+</i><span>Wärmepumpe</span><i>+</i><span>Speicherreserve</span><i>+</i><span>Kalibrierungsreserve</span><i>+</i><span>Wallbox-PV-Budget</span><i>+</i><span>Unverplant / Einspeisung</span><i>±</i><strong>{{ energyAudit.difference }}</strong></div>
+                    <div class="energy-equation"><span>PV-Prognose</span><i>=</i><span>Haus</span><i>+</i><span>Wärmepumpe</span><i>+</i><span>Speicher</span><i>+</i><span>Sicherheitsabschlag</span><i>+</i><span>Wallbox</span><i>+</i><span>Überschuss / Einspeisung</span><i>±</i><strong>{{ energyAudit.difference }}</strong></div>
                 </article>
             </template>
             <div v-else-if="activeTab === 'setup'" class="eai-setup">
@@ -119,7 +119,7 @@ const ModernEAIPage = {
                     </div>
                 </section>
             </div>
-            <div v-else-if="activeTab === 'diagnostics'" class="diagnostics-layout">
+            <div v-else-if="devOn && activeTab === 'diagnostics'" class="diagnostics-layout">
                 <article v-for="group in diagnosticGroups" :key="group.id" class="eai-card diagnostic-group"><span class="eyebrow">{{ group.eyebrow }}</span><h3>{{ group.title }}</h3><p>{{ group.text }}</p><ul v-if="group.issues.length"><li v-for="issue in group.issues" :key="issue.id"><strong>{{ issue.title }}</strong><span>{{ issue.impact }}</span><span>{{ issue.action }}</span></li></ul></article>
             </div>
             <div v-else class="eai-grid detail-grid"><article v-for="item in detailItems" :key="item.label" class="eai-card detail-card"><span class="metric-label">{{ item.label }}</span><strong>{{ item.value }}</strong><small>{{ item.description }}</small></article></div>
@@ -127,12 +127,24 @@ const ModernEAIPage = {
         </section>`,
     setup() {
         const { ref, reactive, computed, onMounted, onUnmounted, watch } = Vue;
-        const tabs = [["overview", "Übersicht"], ["operation", "Live-Betrieb"], ["forecast", "Prognose"], ["efficiency", "Effizienz"], ["building", "Gebäude"], ["energy", "Energieeinsatz"], ["diagnostics", "Diagnose"], ["setup", "Einrichtung"]].map(([id, label]) => ({ id, label }));
+        const devOn = computed(() => window.sfmlDevState?.active === true);
+        const tabs = computed(() => [["overview", "Übersicht"], ["operation", "Live-Betrieb"], ["forecast", "Prognose"], ["efficiency", "Effizienz"], ["building", "Gebäude"], ["energy", "Energieeinsatz"], ["diagnostics", "Diagnose"], ["setup", "Einrichtung"]]
+            .filter(([id]) => devOn.value || !["building", "diagnostics"].includes(id))
+            .map(([id, label]) => ({ id, label })));
         const activeTab = ref("overview");
         const loading = ref(true);
         const error = ref("");
         const status = reactive({ data_mode: "mock", capability_level: "preview", is_demo: true });
-        const sections = reactive(Object.fromEntries(tabs.map((tab) => [tab.id, {}])));
+        const sections = reactive({
+            overview: {},
+            operation: {},
+            forecast: {},
+            efficiency: {},
+            building: {},
+            energy: {},
+            diagnostics: {},
+            setup: {},
+        });
         const electricityPrice = ref(36.9);
         const pvShare = ref(35);
         const annualHeat = ref(12000);
@@ -149,18 +161,18 @@ const ModernEAIPage = {
         let refreshTimer = null;
         let loadInFlight = false;
         let hasLoaded = false;
-        const selectTab = (id) => { if (tabs.some((tab) => tab.id === id)) activeTab.value = id; };
+        const selectTab = (id) => { if (tabs.value.some((tab) => tab.id === id)) activeTab.value = id; };
         const handleTabKeydown = (event) => {
-            const currentIndex = tabs.findIndex((tab) => tab.id === activeTab.value);
+            const currentIndex = tabs.value.findIndex((tab) => tab.id === activeTab.value);
             const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
             let nextIndex = currentIndex;
-            if (event.key in keys) nextIndex = (currentIndex + keys[event.key] + tabs.length) % tabs.length;
+            if (event.key in keys) nextIndex = (currentIndex + keys[event.key] + tabs.value.length) % tabs.value.length;
             else if (event.key === "Home") nextIndex = 0;
-            else if (event.key === "End") nextIndex = tabs.length - 1;
+            else if (event.key === "End") nextIndex = tabs.value.length - 1;
             else return;
             event.preventDefault();
-            selectTab(tabs[nextIndex].id);
-            Vue.nextTick(() => document.getElementById(`eai-tab-${tabs[nextIndex].id}`)?.focus());
+            selectTab(tabs.value[nextIndex].id);
+            Vue.nextTick(() => document.getElementById(`eai-tab-${tabs.value[nextIndex].id}`)?.focus());
         };
         async function load(background = false) {
             if (loadInFlight) return;
@@ -170,10 +182,15 @@ const ModernEAIPage = {
                 error.value = "";
             }
             try {
-                const responses = await Promise.all(["status", ...tabs.map((tab) => tab.id)].map((section) => SFMLApi.fetch(endpoint(section), { forceRefresh: true, ttl: 0 })));
+                await SFMLApi.ensureDevMode();
+                const names = ["status", ...tabs.value.map((tab) => tab.id)];
+                const settled = await Promise.allSettled(names.map((section) => SFMLApi.fetch(endpoint(section), { forceRefresh: true, ttl: 0 })));
+                const responses = settled.map((item) => item.status === "fulfilled" ? item.value : null);
+                if (responses.every((item) => !item)) throw new Error("eai_unavailable");
                 const unwrap = (response) => response?.success === true ? response.data : response;
-                Object.assign(status, unwrap(responses[0]));
-                tabs.forEach((tab, index) => { sections[tab.id] = unwrap(responses[index + 1])?.data || {}; });
+                const statusPayload = unwrap(responses[0]);
+                if (statusPayload && typeof statusPayload === "object") Object.assign(status, statusPayload);
+                tabs.value.forEach((tab, index) => { sections[tab.id] = unwrap(responses[index + 1])?.data || {}; });
                 const overviewPayload = unwrap(responses[1]);
                 if (typeof overviewPayload?.is_demo === "boolean") {
                     status.is_demo = overviewPayload.is_demo;
@@ -277,8 +294,12 @@ const ModernEAIPage = {
             invalid: "Ungültig", stale: "Veraltet", fresh: "Aktuell", ready: "Bereit", partial: "Teilweise",
         };
         const displayState = (value) => value == null || value === "" ? "Noch nicht verfügbar" : stateLabels[String(value).toLowerCase()] || "Unbekannter Zustand";
-        const containsTechnicalId = (value) => /(?:^|[^a-z0-9])(?:sensor|binary_sensor|switch|climate|number|input_number)\.[a-z0-9_]+|\b[a-z0-9]+_entity\b/i.test(String(value || ""));
-        const safeCustomerText = (value, fallback = "Details sind in der Diagnose zusammengefasst.") => value && !containsTechnicalId(value) ? String(value) : fallback;
+        const safeCustomerText = (value, fallback) => {
+            const resolved = fallback === undefined
+                ? (devOn.value ? "Details sind in der Diagnose zusammengefasst." : "Details stehen im Reiter Einrichtung.")
+                : fallback;
+            return value && !containsTechnicalId(value) ? String(value) : resolved;
+        };
         const safeTextList = (values) => Array.isArray(values) ? values.filter((value) => value && !containsTechnicalId(value)).map(String) : [];
         const current = computed(() => sections[activeTab.value] || {});
         const entitlementLabel = computed(() => ({
@@ -295,13 +316,8 @@ const ModernEAIPage = {
         const operation = computed(() => sections.operation || {});
         const forecast = computed(() => sections.forecast || {});
         const diagnostics = computed(() => sections.diagnostics || {});
-        const readiness = computed(() => diagnostics.value.readiness || {});
-        const setupComplete = computed(() => {
-            if (typeof readiness.value.setup?.complete === "boolean") return readiness.value.setup.complete;
-            return typeof diagnostics.value.setup_complete === "boolean"
-                ? diagnostics.value.setup_complete
-                : null;
-        });
+        const readiness = computed(() => resolveCustomerReadiness(overview.value, diagnostics.value));
+        const setupComplete = computed(() => resolveSetupComplete(overview.value, diagnostics.value));
         const building = computed(() => sections.building || {});
         const thermalLoss = computed(() => building.value.thermal_loss || {});
         const sampleReason = computed(() => {
@@ -312,18 +328,13 @@ const ModernEAIPage = {
         const capabilityLabel = computed(() => ({
             preview: "Vorschau", essential: "Basis", standard: "Standard", advanced: "Erweitert",
         }[status.capability_level] || "Vorschau"));
-        const dataStatus = computed(() => {
-            if (sampleReason.value === "feature_off") return { title: "Datenstatus: Beispieldaten", text: "Die Wärmepumpe ist in EAI noch nicht eingerichtet." };
-            if (sampleReason.value === "learning") return { title: "Datenstatus: Lernphase", text: "Noch keine Historie – die Werte sind Beispiele." };
-            if (sampleReason.value === "no_license") return { title: "Datenstatus: Premium-Demo", text: "Alle Werte dieser Ansicht sind gekennzeichnete Beispieldaten." };
-            const dataReadiness = readiness.value.data || {};
-            const dataState = dataReadiness.status ?? diagnostics.value.sensor_quality;
-            if (dataReadiness.ready === true || dataState === "ready") return { title: "Datenstatus: bereit", text: "Messwerte, Prognosen und Modellergebnisse werden in ihren Beschreibungen getrennt ausgewiesen." };
-            if (dataState === "degraded") return { title: "Datenstatus: eingeschränkt", text: "Mindestens eine zugeordnete Messgröße ist nicht aktuell oder nicht ausreichend belastbar; abhängige Werte werden zurückgehalten." };
-            if (dataState === "unavailable") return { title: "Datenstatus: nicht verfügbar", text: "Die erforderliche Datengrundlage ist noch nicht vollständig nutzbar. Details stehen in der Diagnose." };
-            if (status.data_mode === "degraded") return { title: "Datenstatus: eingeschränkt", text: "Messwerte, Prognosen und Modellergebnisse werden nur angezeigt, wenn ihre Grundlage belastbar ist." };
-            return { title: "Datenstatus: nicht prüfbar", text: "Der Provider liefert keinen eindeutigen Datenstatus. Details stehen in der Diagnose." };
-        });
+        const dataStatus = computed(() => customerDataStatus({
+            sampleReason: sampleReason.value,
+            dataMode: status?.data_mode,
+            readiness: readiness.value,
+            sensorQuality: diagnostics.value.sensor_quality,
+            devOn: devOn.value,
+        }));
         const sensorAvailability = computed(() => {
             if (!isValue(diagnostics.value.sensor_count_available)
                 || !isValue(diagnostics.value.sensor_count_configured)) return null;
@@ -391,7 +402,9 @@ const ModernEAIPage = {
                     };
                     return `${fields[field]} ${messages[reason]}.`;
                 }
-                return "Die Berechnungsgrundlage ist aktuell nicht belastbar. Details stehen in der Diagnose.";
+                return devOn.value
+                    ? "Die Berechnungsgrundlage ist aktuell nicht belastbar. Details stehen in der Diagnose."
+                    : "Die Berechnungsgrundlage ist aktuell nicht belastbar. Prüfe die Zuordnung im Reiter Einrichtung.";
             }
             const message = metricStatus.customer_message
                 ?? metricStatus.message
@@ -444,7 +457,7 @@ const ModernEAIPage = {
         const diagnosticGroups = computed(() => {
             const availability = sensorAvailability.value;
             const setupState = setupComplete.value;
-            const dataState = displayState(readiness.value.data?.status ?? diagnostics.value.sensor_quality);
+            const dataState = displayState(normalizeDataState(readiness.value.data?.status ?? diagnostics.value.sensor_quality));
             const modelState = displayState(readiness.value.model?.status ?? diagnostics.value.model_status);
             const hasAssignmentIssue = diagnosticIssues.value.some((issue) => issue.category === "assignment");
             const groups = [
@@ -465,7 +478,15 @@ const ModernEAIPage = {
                 return { title: "Betriebsbeobachtung läuft", text: `${EAI_NUMBER_FORMAT.format(observedHours)} von ${EAI_NUMBER_FORMAT.format(requiredHours)} erforderlichen Beobachtungsstunden liegen vor. Home Assistant muss lediglich weiterlaufen; zusätzliche Eingaben sind nicht erforderlich.` };
             }
             if (plantStatus === "data_required") {
-                return { title: "Messdaten für Betriebsbeobachtung fehlen", text: "Prüfe die unter Datenquellen genannten Pflichtmessungen. Nach gültigen Messwerten beginnt die 24-stündige Betriebsbeobachtung automatisch." };
+                const names = customerMissingInputs(readiness.value);
+                return {
+                    title: "Messdaten für Betriebsbeobachtung fehlen",
+                    text: names.length
+                        ? setupGapText(devOn.value, names)
+                        : (devOn.value
+                            ? "Prüfe die unter Datenquellen genannten Pflichtmessungen. Nach gültigen Messwerten beginnt die 24-stündige Betriebsbeobachtung automatisch."
+                            : "Prüfe die Pflichtmessungen im Reiter Einrichtung. Nach gültigen Messwerten beginnt die 24-stündige Betriebsbeobachtung automatisch."),
+                };
             }
             if (plantStatus === "operation_data_required") {
                 return { title: "Taktbeobachtung wartet auf vergleichbare Zähler", text: "Bestätige in der EAI-Konfiguration für Laufzeit und Kompressorstarts denselben Zählerzeitraum. Nach mindestens fünf Starts kann EAI das Taktverhalten einordnen." };
@@ -479,10 +500,14 @@ const ModernEAIPage = {
             if (plantStatus === "not_assessed") {
                 return { title: "Taktbeobachtung nicht bereitgestellt", text: "Diese EAI-Vertragsversion liefert noch keine Taktbeobachtung. Dafür gibt es keine fehlende Kundeneingabe; die Anzeige wird mit einem Provider aktualisiert, der den aktuellen Vertrag unterstützt." };
             }
-            if (setupComplete.value !== true) {
-                return { title: "Einrichtung noch unvollständig", text: "Mindestens eine erforderliche Eingabe fehlt noch. Das ist kein nachgewiesener Defekt der Wärmepumpe." };
-            }
-            return { title: "Taktbeobachtung noch nicht möglich", text: "Die konkrete fehlende Voraussetzung steht in dieser Diagnose. Die Auswertung startet automatisch, sobald sie erfüllt ist." };
+            const setupStatus = customerSetupStatus(setupComplete.value, devOn.value, readiness.value.missing_inputs);
+            if (setupStatus) return setupStatus;
+            return {
+                title: "Taktbeobachtung noch nicht möglich",
+                text: devOn.value
+                    ? "Die konkrete fehlende Voraussetzung steht in dieser Diagnose. Die Auswertung startet automatisch, sobald sie erfüllt ist."
+                    : "Die konkrete fehlende Voraussetzung steht im Reiter Einrichtung. Die Auswertung startet automatisch, sobald sie erfüllt ist.",
+            };
         });
         const buildingStatus = computed(() => {
             const progress = Math.min(100, Math.max(0, Number(building.value.learning_progress_percent || 0)));
@@ -532,7 +557,12 @@ const ModernEAIPage = {
         });
         const briefing = computed(() => {
             const source = overview.value.briefing || {};
-            return { ...source, headline: safeCustomerText(source.headline, "Briefing wird vorbereitet"), summary: safeCustomerText(source.summary, "Noch keine belastbare Zusammenfassung verfügbar."), actions: safeTextList(source.actions) };
+            const actions = safeTextList(source.actions).map((item) => (
+                !devOn.value && item === "Die priorisierten Diagnosehinweise prüfen"
+                    ? "Offene Punkte im Reiter Einrichtung prüfen"
+                    : item
+            ));
+            return { ...source, headline: safeCustomerText(source.headline, "Briefing wird vorbereitet"), summary: safeCustomerText(source.summary, "Noch keine belastbare Zusammenfassung verfügbar."), actions };
         });
         const optimization = computed(() => forecast.value.optimization || sections.energy?.optimization || {});
         const optimizationExplanation = computed(() => {
@@ -563,14 +593,14 @@ const ModernEAIPage = {
             const energy = sections.energy || {};
             const assessment = assessEaiEnergyAllocation(energy);
             const error = assessment.complete ? Math.abs(assessment.calculatedBalanceError) : null;
-            if (!assessment.complete) return { valid: false, title: "Bilanz noch nicht prüfbar", text: "Dieser Provider liefert den neuen prüfbaren Allokationsvertrag noch nicht vollständig. Rest-PV wird nicht aus älteren Ausgleichsfeldern rekonstruiert.", difference: "Prüfung ausstehend" };
+            if (!assessment.complete) return { valid: false, title: "Prüfung noch nicht möglich", text: "Es liegen noch nicht alle Werte vor, um die Verteilung der PV-Prognose zu prüfen. Der Überschuss wird erst angezeigt, wenn die Prüfung möglich ist.", difference: "Prüfung ausstehend" };
             return {
                 valid: assessment.valid,
-                difference: `${format(error, " kWh Bilanzfehler")}`,
-                title: assessment.valid ? "Stündliche PV-Allokation ist geschlossen" : "Energiebilanz nicht vollständig belastbar",
+                difference: `${format(error, " kWh Abweichung")}`,
+                title: assessment.valid ? "Rechnung geht auf – PV-Prognose vollständig verteilt" : "Rechnung geht nicht auf",
                 text: assessment.valid
-                    ? "Alle Teilintervalle gehören zum selben Zeitraum. Rest-PV ist explizit nicht zugeordnet oder zur Einspeisung verfügbar; Netzenergie wird getrennt ausgewiesen."
-                    : "Providerstatus, Zeitraum oder die selbst geprüfte Komponentensumme bestätigen keine geschlossene Allokation. Rest-PV wird bis zur Klärung unterdrückt.",
+                    ? "Die erwartete Solarenergie ist Stunde für Stunde vollständig auf Haus, Wärmepumpe, Speicher, Sicherheitsabschlag und Wallbox verteilt. Was übrig bleibt, wird voraussichtlich eingespeist. Strom aus dem Netz zählt hier nicht mit. Es ist nichts zu tun."
+                    : "Die Summe der Anteile ergibt nicht die PV-Prognose, oder die Werte beziehen sich nicht auf denselben Zeitraum. Der Überschuss wird deshalb vorerst nicht angezeigt.",
             };
         });
         const allocationPeriod = computed(() => {
@@ -604,7 +634,7 @@ const ModernEAIPage = {
                 { label: "PV direkt fürs Haus", value: format(energy.household_pv_kwh, " kWh"), description: "Zeitgleicher PV-Anteil am prognostizierten Hausverbrauch." },
                 { label: "PV direkt für Wärmepumpe", value: format(energy.heat_pump_pv_kwh, " kWh"), description: "Zeitgleicher PV-Anteil am elektrischen Wärmepumpenbedarf." },
                 { label: "Speicherreserve", value: format(energy.battery_pv_reserve_kwh, " kWh"), description: "Für den Batteriespeicher reservierte PV-Energie." },
-                { label: "Rest-PV", value: format(providerResidual, " kWh"), description: energyAudit.value.valid ? "Nach allen bestätigten Allokationen nicht zugeordnet oder zur Einspeisung verfügbar; keine Wallbox-Zusage." : "Wegen einer nicht geschlossenen Energiebilanz unterdrückt." },
+                { label: "Rest-PV", value: format(providerResidual, " kWh"), description: energyAudit.value.valid ? "Nach Abzug aller Anteile übrig; wird voraussichtlich eingespeist. Keine Zusage für die Wallbox." : "Ausgeblendet, weil die Verteilung der PV-Prognose nicht aufgeht." },
                 { label: "Konservativer Sicherheitsabschlag", value: format(energy.pv_calibration_reserve_kwh, " kWh"), description: "Nicht zusätzlich verplante PV-Energie aufgrund historischer Prognose- und Überschussabweichungen." },
                 { label: "PV-Anteil Wärmepumpe", value: format(energy.pv_coverage_percent, " %"), description: "Anteil des elektrischen Wärmepumpenbedarfs, den PV voraussichtlich deckt." },
                 { label: "Netzbezug Wärmepumpe", value: format(heatPumpGridImport, " kWh"), description: "Vom EAI-Provider für denselben Prognosezeitraum ausgewiesener Netzbezug." },
@@ -663,7 +693,7 @@ const ModernEAIPage = {
                 runtime_dhw_hours: ["Laufzeit Warmwasser", " h", "Davon für Warmwasserbereitung."],
                 starts: ["Kompressorstarts", "", "Kumulierter Startzähler des Kompressors."],
                 average_cycle_minutes: ["Durchschnittliche Laufzeit je Start", "", "Mittlere Kompressorlaufzeit pro Start."],
-                sensor_coverage_percent: ["Datenabdeckung", " %", "Anteil verfügbarer Betriebsdaten; Details stehen in Diagnose."],
+                sensor_coverage_percent: ["Datenabdeckung", " %", "Anteil verfügbarer Betriebsdaten."],
             },
             efficiency: {
                 electric_kwh: [EAI_ACTIVE_LOCALE === "en" ? "Electrical energy today" : "Elektrische Energie heute", " kWh", "Heute gemessener Stromverbrauch der Wärmepumpe."],
@@ -751,9 +781,121 @@ const ModernEAIPage = {
             stopRefresh();
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         });
-        return { EAI_LOCALE, tabs, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
+        return { EAI_LOCALE, tabs, devOn, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
     },
 };
 
+
+function containsTechnicalId(value) {
+    return /(?:^|[^a-z0-9])(?:sensor|binary_sensor|switch|climate|number|input_number)\.[a-z0-9_]+|\b[a-z0-9]+_entity\b/i.test(String(value || ""));
+}
+
+function normalizeDataState(value) {
+    if (value == null || value === "") return null;
+    const state = String(value).toLowerCase();
+    if (state === "good" || state === "ready") return "ready";
+    if (state === "attention" || state === "critical" || state === "degraded") return "degraded";
+    if (state === "unavailable") return "unavailable";
+    return state;
+}
+
+function readinessPayload(section) {
+    if (!section || typeof section !== "object" || section.locked === true) return null;
+    const readiness = section.readiness;
+    if (!readiness || typeof readiness !== "object" || readiness.locked === true) return null;
+    if (!readiness.setup && !readiness.data && !readiness.model && !readiness.plant) return null;
+    return readiness;
+}
+
+function resolveCustomerReadiness(overview, diagnostics) {
+    return readinessPayload(overview) || readinessPayload(diagnostics) || {};
+}
+
+function resolveSetupComplete(overview, diagnostics) {
+    const readiness = resolveCustomerReadiness(overview, diagnostics);
+    if (typeof readiness.setup?.complete === "boolean") return readiness.setup.complete;
+    if (overview && typeof overview.setup_complete === "boolean") return overview.setup_complete;
+    if (diagnostics && diagnostics.locked === true) return null;
+    if (diagnostics && typeof diagnostics.setup_complete === "boolean") return diagnostics.setup_complete;
+    return null;
+}
+
+function customerMissingInputs(readiness) {
+    const values = Array.isArray(readiness?.missing_inputs) ? readiness.missing_inputs : [];
+    return values.filter((value) => value && !containsTechnicalId(value)).map(String);
+}
+
+function setupGapText(devOn, missingInputs) {
+    const names = customerMissingInputs({ missing_inputs: missingInputs });
+    if (names.length) return `Es fehlt noch: ${names.join(", ")}. Ordne das im Reiter Einrichtung zu.`;
+    return devOn
+        ? "Details stehen in der Diagnose."
+        : "Den Einrichtungsstand prüfst du im Reiter Einrichtung.";
+}
+
+function customerDataStatus({ sampleReason, dataMode, readiness, sensorQuality, devOn }) {
+    if (sampleReason === "feature_off") return { title: "Datenstatus: Beispieldaten", text: "Die Wärmepumpe ist in EAI noch nicht eingerichtet." };
+    if (sampleReason === "learning") return { title: "Datenstatus: Lernphase", text: "Noch keine Historie – die Werte sind Beispiele." };
+    if (sampleReason === "no_license") return { title: "Datenstatus: Premium-Demo", text: "Alle Werte dieser Ansicht sind gekennzeichnete Beispieldaten." };
+    const dataReadiness = readiness?.data || {};
+    const dataState = normalizeDataState(dataReadiness.status ?? sensorQuality);
+    if (dataReadiness.ready === true || dataState === "ready") {
+        return { title: "Datenstatus: bereit", text: "Messwerte, Prognosen und Modellergebnisse werden in ihren Beschreibungen getrennt ausgewiesen." };
+    }
+    if (dataState === "degraded") {
+        return { title: "Datenstatus: eingeschränkt", text: "Mindestens eine zugeordnete Messgröße ist nicht aktuell oder nicht ausreichend belastbar; abhängige Werte werden zurückgehalten." };
+    }
+    if (dataState === "unavailable") {
+        const names = customerMissingInputs(readiness);
+        return {
+            title: "Datenstatus: nicht verfügbar",
+            text: names.length
+                ? setupGapText(devOn, names)
+                : (devOn
+                    ? "Die erforderliche Datengrundlage ist noch nicht vollständig nutzbar. Details stehen in der Diagnose."
+                    : "Die erforderliche Datengrundlage ist noch nicht vollständig nutzbar. Offene Punkte stehen im Reiter Einrichtung."),
+        };
+    }
+    if (dataMode === "degraded") {
+        return { title: "Datenstatus: eingeschränkt", text: "Messwerte, Prognosen und Modellergebnisse werden nur angezeigt, wenn ihre Grundlage belastbar ist." };
+    }
+    return {
+        title: "Datenstatus: nicht prüfbar",
+        text: devOn
+            ? "Der Provider liefert keinen eindeutigen Datenstatus. Details stehen in der Diagnose."
+            : "Der Provider liefert keinen eindeutigen Datenstatus. Den Einrichtungsstand prüfst du im Reiter Einrichtung.",
+    };
+}
+
+function customerSetupStatus(setupComplete, devOn, missingInputs) {
+    if (setupComplete === false) {
+        const names = customerMissingInputs({ missing_inputs: missingInputs });
+        return {
+            title: "Einrichtung noch unvollständig",
+            text: names.length
+                ? `Es fehlt noch: ${names.join(", ")}. Das ist kein nachgewiesener Defekt der Wärmepumpe. Ordne das im Reiter Einrichtung zu.`
+                : "Mindestens eine erforderliche Eingabe fehlt noch. Das ist kein nachgewiesener Defekt der Wärmepumpe. Ordne sie im Reiter Einrichtung zu.",
+        };
+    }
+    if (setupComplete !== true) {
+        return {
+            title: "Einrichtungsstatus nicht prüfbar",
+            text: devOn
+                ? "Der Provider hat keinen eindeutigen Einrichtungsstatus geliefert. Details stehen in der Diagnose."
+                : "Der Provider hat keinen eindeutigen Einrichtungsstatus geliefert. Den Stand prüfst du im Reiter Einrichtung.",
+        };
+    }
+    return null;
+}
+
 if (typeof window !== "undefined") window.ModernEAIPage = ModernEAIPage;
-if (typeof module !== "undefined") module.exports = { assessEaiEnergyAllocation };
+if (typeof module !== "undefined") {
+    module.exports = {
+        assessEaiEnergyAllocation,
+        normalizeDataState,
+        resolveCustomerReadiness,
+        resolveSetupComplete,
+        customerDataStatus,
+        customerSetupStatus,
+    };
+}

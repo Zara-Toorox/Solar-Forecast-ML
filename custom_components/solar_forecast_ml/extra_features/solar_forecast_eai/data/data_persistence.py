@@ -15,7 +15,6 @@ All operations use DatabaseManager for SQLite access.
 @zara
 """
 
-import asyncio
 import logging
 import shutil
 from datetime import datetime, timedelta

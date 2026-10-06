@@ -111,7 +111,6 @@
         "description": "Configurer les intervalles de mise a jour et les notifications",
         "data": {
           "update_interval": "Intervalle de mise a jour (s)",
-          "diagnostic": "Mode diagnostic",
           "hourly": "Capteur prevision horaire",
           "evcc_forecast": "evcc Prevision Solaire",
           "notify_startup": "Notification au demarrage",
@@ -133,7 +132,6 @@
         },
         "data_description": {
           "update_interval": "Intervalle de mise a jour des previsions (300-86400s, defaut : 3600)",
-          "diagnostic": "Activer les capteurs de diagnostic pour la surveillance",
           "hourly": "Activer le capteur de prevision pour l'heure suivante",
           "evcc_forecast": "Fournit un capteur avec des donnees de prevision horaire au format evcc. Permet l'integration directe dans evcc sans capteur template. Par defaut: DESACTIVE",
           "notify_startup": "Afficher une notification au demarrage",
@@ -366,7 +364,11 @@
         "name": "Prochaine mise a jour prevue"
       },
       "ml_metrics": {
-        "name": "État de l'IA"
+        "name": "État de l'IA",
+        "state": {
+          "forecast_active": "Prévision active",
+          "forecast_learning": "La prévision apprend encore, les valeurs sont prudentes"
+        }
       },
       "ai_gate_status": {
         "name": "Statut du portail IA",
@@ -374,7 +376,9 @@
           "serving": "IA active",
           "candidate_evaluating": "Candidat en evaluation",
           "waiting_regime": "En attente de couverture des regimes meteo",
-          "physics_baseline": "IA pas encore active – baseline physique"
+          "physics_baseline": "IA pas encore active – baseline physique",
+          "forecast_active": "Prévision active",
+          "forecast_learning": "La prévision apprend encore, les valeurs sont prudentes"
         }
       },
       "ai_rmse": {

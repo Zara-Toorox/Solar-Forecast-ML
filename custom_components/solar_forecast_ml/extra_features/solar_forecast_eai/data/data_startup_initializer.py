@@ -20,8 +20,6 @@ from datetime import date, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .db_manager import DatabaseManager
-
 _LOGGER = logging.getLogger(__name__)
 
 

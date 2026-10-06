@@ -11,6 +11,11 @@ const {
 const IQ_COPY = {
     de: {
         score: "Forecast Health",
+        quality30: "Die Prognosegüte der letzten 30 Tage liegt bei {percent} %.",
+        quality7: "Prognosegüte 7 Tage",
+        quality30Label: "Prognosegüte 30 Tage",
+        yesterdayDeviation: "Abweichung gestern",
+        publicChartTitle: "Prognose und IST, letzte 30 Tage",
         unavailable: "Noch nicht belastbar",
         validDays: "verwertbare Tage",
         accuracy: "Genauigkeit",
@@ -73,12 +78,12 @@ const IQ_COPY = {
         healthClasses: { excellent: "Exzellent", good: "Gut", moderate: "Moderat", weak: "Schwach", critical: "Kritisch" },
     },
     en: {
-        score: "Forecast Health", unavailable: "Not reliable yet", validDays: "usable days", accuracy: "Accuracy", completeness: "Completeness", period: "Assessment period", calculated: "Calculated", open: "Open analysis", summary: "Executive Summary", insights: "Relevant insights", noSummary: "No reliable summary is available for this period yet.", noInsights: "There is currently no evidence-based prioritized insight.", retry: "Retry",
+        score: "Forecast Health", quality30: "Forecast quality over the last 30 days is {percent}%.", quality7: "Forecast quality, 7 days", quality30Label: "Forecast quality, 30 days", yesterdayDeviation: "Yesterday's deviation", publicChartTitle: "Forecast versus actual, last 30 days", unavailable: "Not reliable yet", validDays: "usable days", accuracy: "Accuracy", completeness: "Completeness", period: "Assessment period", calculated: "Calculated", open: "Open analysis", summary: "Executive Summary", insights: "Relevant insights", noSummary: "No reliable summary is available for this period yet.", noInsights: "There is currently no evidence-based prioritized insight.", retry: "Retry",
         tabs: { overview: "Overview", replay: "Replay", models: "Models", calendar: "Quality year", milestones: "Milestones", trends: "Development" },
         formula: "Assessment model", formulaName: "Harmonic mean", positive: "Strongest influence", negative: "Limiting influence", minimum: "Minimum basis", days: "Days", morning: "Morning Forecast", reforecast: "Reforecast", winner: "Winner", tie: "Tie", noBattle: "There are not enough common model hours for a reliable comparison.", commonPoints: "common hours", model: "Model", mae: "MAE", rmse: "RMSE", bias: "Bias", wape: "WAPE", hourWins: "Hour wins", dayWins: "Day wins", timeline: "Daily development", replayDate: "Day", speed: "Speed", largest: "Largest deviation", currentHour: "Current hour", cumulativeActual: "Cumulative actual", cumulativeForecast: "Cumulative forecast", cumulativeError: "Cumulative deviation", absoluteError: "Absolute deviation", missingActual: "Actual missing", excluded: "Not eligible", p10Missing: "P10 is not stored as a historical hourly series.", heatmap: "Forecast quality by day", missingDay: "No record", insufficientDay: "Insufficient data basis", rank: "Rank", metric: "Daily quality", forecast: "Forecast", actual: "Actual yield", coverage: "Coverage", evaluationHours: "Evaluation hours", milestone: "Milestone", achieved: "Achieved", inProgress: "In progress", trend: "Weekly development", weeks: "weeks", valid: "Usable", healthClasses: { excellent: "Excellent", good: "Good", moderate: "Moderate", weak: "Weak", critical: "Critical" },
     },
     pl: {
-        score: "Forecast Health", unavailable: "Jeszcze niewiarygodne", validDays: "użyteczne dni", accuracy: "Dokładność", completeness: "Kompletność", period: "Okres oceny", calculated: "Obliczono", open: "Otwórz analizę", summary: "Podsumowanie", insights: "Istotne wnioski", noSummary: "Dla tego okresu nie ma jeszcze wiarygodnego podsumowania.", noInsights: "Obecnie nie ma priorytetowego wniosku opartego na danych.", retry: "Spróbuj ponownie",
+        score: "Forecast Health", quality30: "Jakość prognozy z ostatnich 30 dni wynosi {percent}%.", quality7: "Jakość prognozy, 7 dni", quality30Label: "Jakość prognozy, 30 dni", yesterdayDeviation: "Odchylenie z wczoraj", publicChartTitle: "Prognoza i wartość rzeczywista, ostatnie 30 dni", unavailable: "Jeszcze niewiarygodne", validDays: "użyteczne dni", accuracy: "Dokładność", completeness: "Kompletność", period: "Okres oceny", calculated: "Obliczono", open: "Otwórz analizę", summary: "Podsumowanie", insights: "Istotne wnioski", noSummary: "Dla tego okresu nie ma jeszcze wiarygodnego podsumowania.", noInsights: "Obecnie nie ma priorytetowego wniosku opartego na danych.", retry: "Spróbuj ponownie",
         tabs: { overview: "Przegląd", replay: "Replay", models: "Modele", calendar: "Rok jakości", milestones: "Kamienie milowe", trends: "Rozwój" },
         formula: "Model oceny", formulaName: "Średnia harmoniczna", positive: "Najsilniejszy wpływ", negative: "Czynnik ograniczający", minimum: "Minimalna baza", days: "Dni", morning: "Morning Forecast", reforecast: "Reforecast", winner: "Zwycięzca", tie: "Remis", noBattle: "Brakuje wspólnych godzin modeli do wiarygodnego porównania.", commonPoints: "wspólne godziny", model: "Model", mae: "MAE", rmse: "RMSE", bias: "Bias", wape: "WAPE", hourWins: "Wygrane godziny", dayWins: "Wygrane dni", timeline: "Rozwój dzienny", replayDate: "Dzień", speed: "Tempo", largest: "Największe odchylenie", currentHour: "Bieżąca godzina", cumulativeActual: "Suma rzeczywista", cumulativeForecast: "Suma prognozy", cumulativeError: "Odchylenie skumulowane", absoluteError: "Odchylenie bezwzględne", missingActual: "Brak wartości rzeczywistej", excluded: "Poza oceną", p10Missing: "P10 nie jest zapisane jako historyczna seria godzinowa.", heatmap: "Jakość prognozy według dnia", missingDay: "Brak rekordu", insufficientDay: "Niewystarczająca baza danych", rank: "Pozycja", metric: "Jakość dnia", forecast: "Prognoza", actual: "Uzysk rzeczywisty", coverage: "Pokrycie", evaluationHours: "Godziny oceny", milestone: "Kamień milowy", achieved: "Osiągnięto", inProgress: "W toku", trend: "Rozwój tygodniowy", weeks: "tygodni", valid: "Użyteczne", healthClasses: { excellent: "Doskonała", good: "Dobra", moderate: "Umiarkowana", weak: "Słaba", critical: "Krytyczna" },
     },
@@ -163,10 +168,191 @@ function iqInsightText(insight) {
     return (labels[locale] || labels.en)[insight.id] || [insight.id, ""];
 }
 
+function iqSelectPublicSolar(payload, today, yesterday) {
+    const candidate = payload?.daily ?? payload?.data?.daily;
+    const raw = Array.isArray(candidate) ? candidate : [];
+    const rows = raw
+        .filter((item) => item && typeof item.date === "string" && item.date)
+        .slice()
+        .sort((left, right) => (left.date < right.date ? -1 : left.date > right.date ? 1 : 0))
+        .slice(-30);
+    const row = rows.find((item) => item.date === yesterday)
+        || [...rows].reverse().find((item) => item.date < today)
+        || null;
+    return { rows, row };
+}
+
 async function iqFetch(endpoint, forceRefresh = false) {
     const payload = await SFMLApi.fetch(endpoint, { forceRefresh, ttl: 120000 });
     return payload?.data ?? payload;
 }
+
+function iqForecastRating(percent, month) {
+    const value = Number(percent);
+    const seasonMonth = Number(month);
+    if (!Number.isFinite(value) || !Number.isInteger(seasonMonth) || seasonMonth < 1 || seasonMonth > 12) return null;
+    const summer = seasonMonth >= 4 && seasonMonth <= 9;
+    const veryGood = summer ? 85 : 75;
+    const good = summer ? 75 : 65;
+    const usable = summer ? 65 : 55;
+    let rating = "estimate";
+    if (value >= veryGood) rating = "veryGood";
+    else if (value >= good) rating = "good";
+    else if (value >= usable) rating = "usable";
+    return { rating, season: summer ? "summer" : "winter" };
+}
+
+const IQ_GUIDE = {
+    de: {
+        title: "So liest du die Prognose",
+        fixedTitle: "Feste Tagesprognose",
+        fixedText: "SFML legt die Tagesprognose 45 Minuten vor Sonnenaufgang fest und misst die Genauigkeit gegen genau diesen Stand. Dienste wie Solcast oder Forecast.Solar rechnen den ganzen Tag neu. Abends wirken sie dadurch fast perfekt, sind dann aber eher eine Messung als eine Vorhersage. Ein direkter Vergleich ist deshalb nicht fair.",
+        dayPartsTitle: "IST bisher und Rest des Tages",
+        dayPartsText: "„IST bisher“ ist der heute bereits gemessene Ertrag. „Rest des Tages“ plant die noch offenen Stunden laufend neu und ändert sich deshalb im Tagesverlauf. Die Genauigkeit wird immer gegen die feste Tagesprognose gemessen.",
+        p10Title: "P10 – die sichere Bank",
+        p10Text: "Mit 90 % Wahrscheinlichkeit wird mindestens dieser Ertrag erreicht. Für kritische Automationen, zum Beispiel das Laden des Akkus aus dem Netz, ist P10 die empfohlene Grundlage.",
+        goodTitle: "Wann ist eine Prognose gut?",
+        goodText: "Bewertet wird der Durchschnitt über 30 Tage, nicht ein einzelner Tag.",
+        colRating: "Einstufung",
+        colSummer: "Sommerhalbjahr",
+        colWinter: "Winterhalbjahr",
+        rows: [
+            { id: "veryGood", rating: "Sehr gut", summer: "ab 85 %", winter: "ab 75 %" },
+            { id: "good", rating: "Gut", summer: "75–85 %", winter: "65–75 %" },
+            { id: "usable", rating: "Brauchbar", summer: "65–75 %", winter: "55–65 %" },
+            { id: "estimate", rating: "Eher eine Schätzung", summer: "unter 65 %", winter: "unter 55 %" },
+        ],
+        rareDays: "Einzelne schwache Tage, etwa bei Hochnebel, gibt es bei jeder Prognose. Entscheidend ist, dass sie selten bleiben.",
+        own: "Deine Prognose: {percent} % in den letzten 30 Tagen – {class} ({season}).",
+        sources: "Grundlage: Fachliteratur zur Bewertung von Solarprognosen, u. a. Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
+    },
+    en: {
+        title: "How to read the forecast",
+        fixedTitle: "Fixed daily forecast",
+        fixedText: "SFML fixes the daily forecast 45 minutes before sunrise and measures accuracy against exactly that version. Services such as Solcast or Forecast.Solar recalculate throughout the day. By evening they therefore look almost perfect, but at that point they are more a measurement than a prediction. A direct comparison is not fair.",
+        dayPartsTitle: "Actual so far and rest of day",
+        dayPartsText: "“Actual so far” is the yield already measured today. “Rest of day” continuously replans the remaining hours and therefore changes during the day. Accuracy is always measured against the fixed daily forecast.",
+        p10Title: "P10 – the safe bet",
+        p10Text: "With 90 % probability at least this yield is reached. For critical automations, for example charging the battery from the grid, P10 is the recommended basis.",
+        goodTitle: "When is a forecast good?",
+        goodText: "It is assessed on the 30-day average, not on a single day.",
+        colRating: "Rating",
+        colSummer: "Summer half-year",
+        colWinter: "Winter half-year",
+        rows: [
+            { id: "veryGood", rating: "Very good", summer: "from 85 %", winter: "from 75 %" },
+            { id: "good", rating: "Good", summer: "75–85 %", winter: "65–75 %" },
+            { id: "usable", rating: "Usable", summer: "65–75 %", winter: "55–65 %" },
+            { id: "estimate", rating: "Rather an estimate", summer: "below 65 %", winter: "below 55 %" },
+        ],
+        rareDays: "Single weak days, for example with low stratus, happen with every forecast. What matters is that they stay rare.",
+        own: "Your forecast: {percent} % over the last 30 days – {class} ({season}).",
+        sources: "Basis: research on solar forecast verification, including Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
+    },
+    pl: {
+        title: "Jak czytać prognozę",
+        fixedTitle: "Stała prognoza dzienna",
+        fixedText: "SFML ustala prognozę dzienną 45 minut przed wschodem słońca i mierzy dokładność względem dokładnie tej wersji. Usługi takie jak Solcast lub Forecast.Solar przeliczają ją przez cały dzień. Wieczorem wyglądają przez to niemal idealnie, ale są wtedy raczej pomiarem niż prognozą. Bezpośrednie porównanie nie jest więc uczciwe.",
+        dayPartsTitle: "Rzecz. dotąd i reszta dnia",
+        dayPartsText: "„Rzecz. dotąd“ to uzysk zmierzony już dziś. „Reszta dnia“ na bieżąco planuje od nowa pozostałe godziny i dlatego zmienia się w ciągu dnia. Dokładność jest zawsze mierzona względem stałej prognozy dziennej.",
+        p10Title: "P10 – pewna podstawa",
+        p10Text: "Z prawdopodobieństwem 90 % osiągnięty zostanie co najmniej ten uzysk. Dla krytycznych automatyzacji, na przykład ładowania akumulatora z sieci, P10 jest zalecaną podstawą.",
+        goodTitle: "Kiedy prognoza jest dobra?",
+        goodText: "Ocenie podlega średnia z 30 dni, a nie pojedynczy dzień.",
+        colRating: "Ocena",
+        colSummer: "Półrocze letnie",
+        colWinter: "Półrocze zimowe",
+        rows: [
+            { id: "veryGood", rating: "Bardzo dobra", summer: "od 85 %", winter: "od 75 %" },
+            { id: "good", rating: "Dobra", summer: "75–85 %", winter: "65–75 %" },
+            { id: "usable", rating: "Użyteczna", summer: "65–75 %", winter: "55–65 %" },
+            { id: "estimate", rating: "Raczej oszacowanie", summer: "poniżej 65 %", winter: "poniżej 55 %" },
+        ],
+        rareDays: "Pojedyncze słabe dni, na przykład przy niskich chmurach warstwowych, zdarzają się przy każdej prognozie. Ważne, aby pozostawały rzadkie.",
+        own: "Twoja prognoza: {percent} % w ostatnich 30 dniach – {class} ({season}).",
+        sources: "Podstawa: literatura naukowa dotycząca oceny prognoz solarnych, m.in. Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
+    },
+};
+
+const ModernForecastGuide = {
+    props: {
+        percent: { default: undefined },
+    },
+    template: `
+        <section class="iq-guide" aria-labelledby="iq-guide-title">
+            <h2 id="iq-guide-title">{{ copy.title }}</h2>
+            <section>
+                <h3>{{ copy.fixedTitle }}</h3>
+                <p>{{ copy.fixedText }}</p>
+            </section>
+            <section>
+                <h3>{{ copy.dayPartsTitle }}</h3>
+                <p>{{ copy.dayPartsText }}</p>
+            </section>
+            <section>
+                <h3>{{ copy.p10Title }}</h3>
+                <p>{{ copy.p10Text }}</p>
+            </section>
+            <section>
+                <h3>{{ copy.goodTitle }}</h3>
+                <p>{{ copy.goodText }}</p>
+                <div class="iq-guide-table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col">{{ copy.colRating }}</th>
+                                <th scope="col">{{ copy.colSummer }}</th>
+                                <th scope="col">{{ copy.colWinter }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="row in copy.rows" :key="row.id">
+                                <th scope="row">{{ row.rating }}</th>
+                                <td>{{ row.summer }}</td>
+                                <td>{{ row.winter }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p>{{ copy.rareDays }}</p>
+                <p v-if="ownLine">{{ ownLine }}</p>
+            </section>
+            <p class="iq-guide-sources">{{ copy.sources }}</p>
+        </section>
+    `,
+    setup(props) {
+        const copy = IQ_GUIDE[iqLocale()] || IQ_GUIDE.en;
+        const fetched = iqRef(undefined);
+        const accuracy = iqComputed(() => {
+            const source = props.percent !== undefined ? props.percent : fetched.value;
+            const value = Number(source);
+            return Number.isFinite(value) ? value : null;
+        });
+        const ownLine = iqComputed(() => {
+            if (accuracy.value == null) return "";
+            const rated = iqForecastRating(accuracy.value, new Date().getMonth() + 1);
+            if (!rated) return "";
+            const label = copy.rows.find((row) => row.id === rated.rating);
+            const season = rated.season === "summer" ? copy.colSummer : copy.colWinter;
+            return copy.own
+                .replace("{percent}", new Intl.NumberFormat(iqLocale(), { maximumFractionDigits: 1 }).format(accuracy.value))
+                .replace("{class}", label ? label.rating : "")
+                .replace("{season}", season);
+        });
+
+        iqOnMounted(async () => {
+            if (props.percent !== undefined) return;
+            try {
+                const dashboard = await iqFetch("/api/sfml_stats/modern/dashboard?days=30");
+                fetched.value = dashboard?.health?.accuracy ?? null;
+            } catch (_error) {
+                fetched.value = null;
+            }
+        });
+
+        return { copy, ownLine };
+    },
+};
 
 const ModernIntelligenceOverview = {
     emits: ["navigate"],
@@ -270,7 +456,7 @@ const ModernQualityPage = {
     },
     template: `
         <div class="iq-lab">
-            <div class="iq-tabs" role="tablist" :aria-label="copy.score">
+            <div v-if="devOn" class="iq-tabs" role="tablist" :aria-label="copy.score">
                 <button v-for="tab in tabs" :key="tab" type="button" role="tab"
                         :aria-selected="activeSection === tab"
                         :class="{ active: activeSection === tab }"
@@ -283,6 +469,26 @@ const ModernQualityPage = {
                 <button class="button secondary" type="button" @click="loadSection(activeSection, true)">{{ copy.retry }}</button>
             </div>
 
+            <section v-else-if="activeSection === 'overview' && !devOn" class="iq-detail-section iq-public-results">
+                <div class="iq-definition-grid">
+                    <article>
+                        <span>{{ copy.quality7 }}</span>
+                        <strong>{{ format(publicQuality7) }}%</strong>
+                    </article>
+                    <article>
+                        <span>{{ copy.quality30Label }}</span>
+                        <strong>{{ format(publicQuality30) }}%</strong>
+                    </article>
+                    <article>
+                        <span>{{ copy.yesterdayDeviation }}</span>
+                        <strong>{{ signed(publicYesterdayKwh, 2) }} kWh</strong>
+                        <small>{{ signed(publicYesterdayPercent) }}%</small>
+                    </article>
+                </div>
+                <h2 class="iq-kicker">{{ copy.publicChartTitle }}</h2>
+                <div ref="publicChart" class="iq-chart iq-public-chart" role="img" :aria-label="copy.publicChartTitle"></div>
+                <modern-forecast-guide :percent="publicQuality30"></modern-forecast-guide>
+            </section>
             <section v-else-if="activeSection === 'overview' && dashboard" class="iq-detail-section">
                 <div class="iq-detail-hero" :class="'health-' + (dashboard.health.class || 'unavailable')">
                     <div><span class="iq-kicker">{{ copy.score }}</span><strong>{{ dashboard.health.available ? format(dashboard.health.score) : '–' }}</strong><small>/100 · {{ healthLabel(dashboard.health.class) }}</small></div>
@@ -395,8 +601,21 @@ const ModernQualityPage = {
     setup(props) {
         const locale = iqLocale();
         const copy = IQ_COPY[locale] || IQ_COPY.en;
-        const tabs = ["overview", "replay", "models", "calendar", "milestones", "trends"];
-        const activeSection = iqRef(tabs.includes(props.initialSection) ? props.initialSection : "overview");
+        const devOn = iqComputed(() => window.sfmlDevState?.active === true);
+        const allTabs = ["overview", "replay", "models", "calendar", "milestones", "trends"];
+        const tabs = iqComputed(() => (
+            devOn.value ? allTabs : ["overview"]
+        ));
+        const quality30Sentence = iqComputed(() => {
+            const accuracy = dashboard.value?.health?.accuracy;
+            const value = Number(accuracy);
+            if (!Number.isFinite(value)) return copy.unavailable;
+            return copy.quality30.replace("{percent}", value.toFixed(0));
+        });
+        const initial = allTabs.includes(props.initialSection) && (props.initialSection === "overview" || window.sfmlDevState?.active === true)
+            ? props.initialSection
+            : "overview";
+        const activeSection = iqRef(initial);
         const loading = iqReactive({});
         const errors = iqReactive({});
         const dashboard = iqRef(null);
@@ -412,6 +631,12 @@ const ModernQualityPage = {
         const replayChart = iqRef(null);
         const modelChart = iqRef(null);
         const trendChart = iqRef(null);
+        const publicChart = iqRef(null);
+        const publicQuality7 = iqRef(null);
+        const publicQuality30 = iqRef(null);
+        const publicYesterdayKwh = iqRef(null);
+        const publicYesterdayPercent = iqRef(null);
+        const publicSeries = iqRef([]);
         const modelDays = iqRef(30);
         const modelMode = iqRef("morning");
         const selectedHeatDay = iqRef(null);
@@ -460,9 +685,11 @@ const ModernQualityPage = {
         let replayChartInstance = null;
         let modelChartInstance = null;
         let trendChartInstance = null;
+        let publicChartInstance = null;
+        let publicChartTimer = null;
 
         function selectSection(section) {
-            if (!tabs.includes(section)) return;
+            if (!tabs.value.includes(section)) return;
             activeSection.value = section;
             window.location.hash = `quality/${section}`;
         }
@@ -471,7 +698,25 @@ const ModernQualityPage = {
             loading[section] = true;
             errors[section] = "";
             try {
-                if (section === "overview") dashboard.value = await iqFetch("/api/sfml_stats/modern/dashboard?days=14", forceRefresh);
+                await SFMLApi.ensureDevMode();
+                if (section === "overview" && !devOn.value) {
+                    const [dash30, dash7, solar] = await Promise.allSettled([
+                        iqFetch("/api/sfml_stats/modern/dashboard?days=30", forceRefresh),
+                        iqFetch("/api/sfml_stats/modern/dashboard?days=7", forceRefresh),
+                        iqFetch("/api/sfml_stats/solar?days=30", forceRefresh),
+                    ]);
+                    dashboard.value = dash30.status === "fulfilled" ? dash30.value : null;
+                    publicQuality30.value = dashboard.value?.health?.accuracy ?? null;
+                    publicQuality7.value = dash7.status === "fulfilled" ? (dash7.value?.health?.accuracy ?? null) : null;
+                    if (solar.status === "fulfilled") applyPublicSolar(solar.value);
+                    if (!dashboard.value && !publicSeries.value.length && publicQuality7.value == null) {
+                        throw new Error("public_overview_empty");
+                    }
+                } else if (section === "overview") {
+                    const days = 14;
+                    dashboard.value = await iqFetch(`/api/sfml_stats/modern/dashboard?days=${days}`, forceRefresh);
+                }
+                if (!devOn.value && section !== "overview") return;
                 if (section === "replay") await loadReplay(forceRefresh);
                 if (section === "models") await loadModels(forceRefresh);
                 if (section === "calendar") {
@@ -575,7 +820,69 @@ const ModernQualityPage = {
             }, true);
         }
 
+        function localDayKey(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, "0");
+            const d = String(date.getDate()).padStart(2, "0");
+            return `${y}-${m}-${d}`;
+        }
+
+        function applyPublicSolar(payload) {
+            const today = localDayKey(new Date());
+            const yesterday = localDayKey(new Date(Date.now() - 86400000));
+            const selected = iqSelectPublicSolar(payload, today, yesterday);
+            const overall = selected.row?.overall || {};
+            const actual = Number(overall.actual_total_kwh);
+            const forecast = Number(overall.predicted_total_kwh);
+            if (Number.isFinite(actual) && Number.isFinite(forecast)) {
+                publicYesterdayKwh.value = actual - forecast;
+                publicYesterdayPercent.value = Math.abs(forecast) > 0.05
+                    ? ((actual - forecast) / forecast) * 100
+                    : null;
+            } else {
+                publicYesterdayKwh.value = null;
+                publicYesterdayPercent.value = null;
+            }
+            publicSeries.value = selected.rows;
+        }
+
+        function renderPublicChart() {
+            const host = publicChart.value;
+            if (devOn.value || !host || host.clientWidth <= 0 || !publicSeries.value.length || !window.echarts) return false;
+            if (publicChartInstance && publicChartInstance.getDom() !== host) {
+                publicChartInstance.dispose();
+                publicChartInstance = null;
+            }
+            publicChartInstance ||= echarts.init(host);
+            const rows = publicSeries.value;
+            publicChartInstance.setOption({
+                tooltip: { trigger: "axis" },
+                legend: {},
+                grid: { left: 18, right: 20, top: 48, bottom: 28, containLabel: true },
+                xAxis: { type: "category", data: rows.map((row) => String(row.date || "").slice(5)) },
+                yAxis: { type: "value", name: "kWh", min: 0 },
+                series: [
+                    { name: copy.forecast, type: "line", data: rows.map((row) => row.overall?.predicted_total_kwh ?? null), connectNulls: false, showSymbol: false, animation: !reducedMotion },
+                    { name: copy.actual, type: "line", data: rows.map((row) => row.overall?.actual_total_kwh ?? null), connectNulls: false, showSymbol: false, animation: !reducedMotion },
+                ],
+            }, true);
+            publicChartInstance.resize();
+            return true;
+        }
+
+        function schedulePublicChart(attempt = 0) {
+            window.clearTimeout(publicChartTimer);
+            publicChartTimer = window.setTimeout(() => {
+                iqNextTick(() => {
+                    if (devOn.value || activeSection.value !== "overview" || !publicSeries.value.length || !window.echarts) return;
+                    if (renderPublicChart()) return;
+                    if (attempt < 12) schedulePublicChart(attempt + 1);
+                });
+            }, attempt === 0 ? 0 : 50);
+        }
+
         function renderActiveChart() {
+            if (!devOn.value && activeSection.value === "overview") schedulePublicChart();
             if (activeSection.value === "replay") renderReplayChart();
             if (activeSection.value === "models") renderModelChart();
             if (activeSection.value === "trends") renderTrendChart();
@@ -680,11 +987,12 @@ const ModernQualityPage = {
             replayChartInstance?.resize();
             modelChartInstance?.resize();
             trendChartInstance?.resize();
+            publicChartInstance?.resize();
         };
 
         iqWatch(activeSection, (section) => loadSection(section));
         iqWatch(() => props.initialSection, (section) => {
-            if (tabs.includes(section) && section !== activeSection.value) activeSection.value = section;
+            if (tabs.value.includes(section) && section !== activeSection.value) activeSection.value = section;
         });
         iqWatch(activeHourIndex, () => iqNextTick(renderReplayChart));
         iqWatch(visibleSeries, () => iqNextTick(renderReplayChart), { deep: true });
@@ -693,17 +1001,24 @@ const ModernQualityPage = {
             window.addEventListener("resize", resizeCharts);
             loadSection(activeSection.value);
         });
+        iqWatch(publicSeries, () => {
+            if (!devOn.value && activeSection.value === "overview") schedulePublicChart();
+        });
         iqOnUnmounted(() => {
             pausePlayback();
+            window.clearTimeout(publicChartTimer);
             window.removeEventListener("resize", resizeCharts);
             replayChartInstance?.dispose();
             modelChartInstance?.dispose();
             trendChartInstance?.dispose();
+            publicChartInstance?.dispose();
         });
 
         return {
             copy, tabs, activeSection, loading, errors, dashboard, replay, models, heatmap, milestones, trends,
-            replayDate, activeHourIndex, playing, playbackSpeed, replayChart, modelChart, trendChart,
+            devOn, quality30Sentence,
+            replayDate, activeHourIndex, playing, playbackSpeed, replayChart, modelChart, trendChart, publicChart,
+            publicQuality7, publicQuality30, publicYesterdayKwh, publicYesterdayPercent,
             modelDays, modelMode, selectedHeatDay, visibleSeries, replaySeries, currentReplayHour,
             heatmapOffset, heatmapMonths, heatmapCanvasStyle, selectSection, loadSection, loadReplay, setModelDays, setModelMode,
             togglePlayback, pausePlayback, restartReplay, jumpBiggest, componentValue, heatClass, heatTitle,
@@ -713,5 +1028,61 @@ const ModernQualityPage = {
     },
 };
 
+const PAGE_GUIDE = {
+    de: {
+        title: "ℹ️ So liest du diese Seite",
+        pages: {
+            tomorrow: "Diese Seite blickt zurück: Sie erzählt deine abgeschlossenen Tage anhand der gemessenen Tagesbilanzen und ist keine Prognose für morgen. Die Energy Story startet, sobald mindestens sieben abgeschlossene Tage vorliegen. Die Seite schaltet keine Geräte.",
+            solar: "Hier siehst du deinen gemessenen Ertrag über Monate, Wochen und Jahre. Der Hinweis zur Verschattung nennt nur die heute bisher durch Schatten verlorene Energie und ist keine zweite Prognose. Wie gut die heutige Prognose trifft, siehst du auf „Live & Prognose“.",
+            energy: "Alle Werte sind gemessen und beziehen sich auf deinen Abrechnungszeitraum, nicht auf eine Prognose. Autarkie ist der Anteil deines Hausverbrauchs, den Solar direkt und dein Akku gedeckt haben, und kein Euro-Betrag. Die Amortisation stellt deine Netto-Investition der realen Ersparnis und den Einspeiseerlösen gegenüber und hängt von den Annahmen ab, die du unter „Bearbeiten“ einträgst.",
+            smart_charging: "Der Schalter geht nur in einer günstigen Stunde an, oder wenn der Preis unter dem Force-Preis liegt. Drei Zeilen zeigen, ob geladen wird, warum, und was als Nächstes passiert. Nur die Lücke rechnet die nächsten anderthalb Tage und lädt in günstigen Stunden auch tagsüber. Unter dem Force-Preis lädt jeder Modus bis zur Obergrenze, unabhängig von der Prognose.",
+            heating: "Neue Räume starten im Beobachtungsmodus: Die Seite zeigt dann nur, was sie tun würde. Erst wenn du „Regelung aktivieren“ einschaltest, stellt sie die Thermostate selbst. Der angezeigte Grund beschreibt den aktuellen Zustand und ist kein Defekt: Bei offenem Fenster gilt die Frostgrenze, bei Abwesenheit die Absenk- bzw. Grundtemperatur. Änderst du ein Thermostat von Hand, pausiert der Raum bis zum nächsten Anwesenheitswechsel und regelt nicht dagegen.",
+            ems: "Das EMS ist eine Beta-Version. Unter „Beobachten“ gibt es nur Empfehlungen und schaltet nie, unter „Bestätigen“ gibst du jeden Vorschlag einzeln frei, und nur unter „Automatik“ darf es freigegebene Geräte schalten. Vor jeder Schaltung werden Freigabe, Datenlage und Schutzregeln erneut geprüft. Meldet die Seite eine ausstehende Sicherheitsfreigabe, bleibt das EMS gesperrt, bis das Gerät bestätigt ausgeschaltet ist. Ohne gültige Freigabe siehst du Beispielwerte.",
+        },
+    },
+    en: {
+        title: "ℹ️ How to read this page",
+        pages: {
+            tomorrow: "This page looks back: it tells the story of your completed days from the measured daily balances and is not a forecast for tomorrow. The Energy Story starts as soon as at least seven completed days are available. The page does not switch any devices.",
+            solar: "Here you see your measured yield over months, weeks and years. The shading note only states the energy lost to shade so far today and is not a second forecast. How well today's forecast is doing is shown on “Live & Forecast”.",
+            energy: "All values are measured and refer to your billing period, not to a forecast. Autarky is the share of your household consumption covered directly by solar and by your battery, not a euro amount. Amortization compares your net investment with the real savings and feed-in revenue and depends on the assumptions you enter under “Edit”.",
+            smart_charging: "The switch turns on only in a cheap hour, or when the price is below the force price. Three lines show whether it is charging, why, and what happens next. Gap only looks at the next day and a half and charges in cheap hours, including daytime. Below the force price every mode charges to the ceiling, regardless of the forecast.",
+            heating: "New rooms start in observation mode: the page then only shows what it would do. Only when you switch on “Enable control” does it set the thermostats itself. The reason shown describes the current state and is not a defect: with an open window the frost limit applies, when nobody is home the setback or base temperature applies. If you change a thermostat by hand, the room pauses until the next presence change and does not work against you.",
+            ems: "The EMS is a beta version. In “Beobachten” it only gives recommendations and never switches, in “Bestätigen” you approve each suggestion individually, and only in “Automatik” may it switch approved devices. Before every switching action, approval, data quality and protection rules are checked again. If the page reports a pending safety release, the EMS stays locked until the device is confirmed switched off. Without a valid license you see example values.",
+        },
+    },
+    pl: {
+        title: "ℹ️ Jak czytać tę stronę",
+        pages: {
+            tomorrow: "Ta strona patrzy wstecz: opowiada zakończone dni na podstawie zmierzonych bilansów dziennych i nie jest prognozą na jutro. Energy Story startuje, gdy dostępnych jest co najmniej siedem zakończonych dni. Strona nie przełącza żadnych urządzeń.",
+            solar: "Tutaj widzisz zmierzony uzysk z miesięcy, tygodni i lat. Wskazówka o zacienieniu podaje tylko energię utraconą dziś do tej pory przez cień i nie jest drugą prognozą. Jak dobrze sprawdza się dzisiejsza prognoza, zobaczysz na „Na żywo i prognoza“.",
+            energy: "Wszystkie wartości są zmierzone i odnoszą się do okresu rozliczeniowego, a nie do prognozy. Samowystarczalność to udział zużycia domu pokryty bezpośrednio przez słońce i przez akumulator, a nie kwota w euro. Amortyzacja zestawia inwestycję netto z realną oszczędnością i przychodem z oddania energii i zależy od założeń, które wpisujesz pod „Edytuj“.",
+            smart_charging: "Przełącznik włącza się tylko w taniej godzinie albo gdy cena jest poniżej ceny force. Trzy linie pokazują, czy trwa ładowanie, dlaczego i co będzie dalej. Tylko luka liczy najbliższe półtora dnia i ładuje w tanich godzinach także w dzień. Poniżej ceny force każdy tryb ładuje do maksimum, niezależnie od prognozy.",
+            heating: "Nowe pomieszczenia startują w trybie obserwacji: strona pokazuje wtedy tylko, co by zrobiła. Dopiero gdy włączysz „Włącz regulację“, ustawia termostaty sama. Pokazany powód opisuje bieżący stan i nie jest usterką: przy otwartym oknie obowiązuje granica przeciwzamrożeniowa, przy nieobecności temperatura obniżenia albo domyślne obniżenie. Jeśli zmienisz termostat ręcznie, pomieszczenie pauzuje do następnej zmiany obecności i nie reguluje wbrew tobie.",
+            ems: "EMS jest wersją beta. Pod „Beobachten“ są tylko zalecenia i nic nie jest przełączane, pod „Bestätigen“ zatwierdzasz każdą propozycję osobno, a tylko pod „Automatik“ może przełączać zatwierdzone urządzenia. Przed każdym przełączeniem ponownie sprawdzane są zezwolenie, jakość danych i reguły ochrony. Jeśli strona zgłasza oczekujące zwolnienie bezpieczeństwa, EMS pozostaje zablokowane, aż urządzenie zostanie potwierdzone jako wyłączone. Bez ważnej licencji widzisz wartości przykładowe.",
+        },
+    },
+};
+
+const ModernPageGuide = {
+    props: {
+        page: { type: String, required: true },
+    },
+    template: `
+        <details v-if="!devOn && text" class="page-guide">
+            <summary>{{ copy.title }}</summary>
+            <p>{{ text }}</p>
+        </details>
+    `,
+    setup(props) {
+        const devOn = iqComputed(() => window.sfmlDevState?.active === true);
+        const copy = iqComputed(() => PAGE_GUIDE[iqLocale()] || PAGE_GUIDE.en);
+        const text = iqComputed(() => copy.value.pages[props.page] || "");
+        return { devOn, copy, text };
+    },
+};
+
+window.ModernPageGuide = ModernPageGuide;
+window.ModernForecastGuide = ModernForecastGuide;
 window.ModernIntelligenceOverview = ModernIntelligenceOverview;
 window.ModernQualityPage = ModernQualityPage;

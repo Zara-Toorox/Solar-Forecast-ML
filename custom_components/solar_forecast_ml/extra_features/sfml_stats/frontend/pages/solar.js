@@ -121,7 +121,8 @@ const _SolarPage = {
             </div>
 
             <!-- ========== KARTE 2b: PROGNOSE-VERGLEICH ========== -->
-            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="forecastComparisonData">
+            <p v-if="!devOn && publicShadowKwh != null" class="public-result-line">{{ publicShadowSentence }}</p>
+            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="devOn && forecastComparisonData">
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
                     <span class="chart-title">📊 {{ $t('solar.forecastComparison.title') }}</span>
                     <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: var(--space-sm);">{{ $t('solar.forecastComparison.subtitle') }}</span>
@@ -131,7 +132,7 @@ const _SolarPage = {
 
 
             <!-- ========== KARTE 3: SCHATTEN-ANALYSE ========== -->
-            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="shadowStats">
+            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="devOn && shadowStats">
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
                     <span class="chart-title">🌑 {{ $t('solar.shadowAnalysis') }}</span>
                 </div>
@@ -170,7 +171,7 @@ const _SolarPage = {
             </div>
 
             <!-- ========== KARTE 3b: SCHATTEN-FINGERPRINT (Monat × Stunde) ========== -->
-            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="shadowFingerprint.loaded">
+            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="devOn && shadowFingerprint.loaded">
                 <div class="chart-header fingerprint-header" style="margin-bottom: var(--space-md);">
                     <div class="fingerprint-header-copy">
                         <div class="fingerprint-title-row">
@@ -246,7 +247,7 @@ const _SolarPage = {
             </div>
 
             <!-- ========== KARTE 3c: SCHATTEN-WANDERUNG ========== -->
-            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="shadowMovement.loaded">
+            <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="devOn && shadowMovement.loaded">
                 <div class="chart-header" style="margin-bottom: var(--space-md);">
                     <span class="chart-title">🌗 {{ $t('solar.movement.title') }}</span>
                     <div class="sm-date-bar">
@@ -450,6 +451,7 @@ const _SolarPage = {
                 </div>
             </div>
 
+            <modern-page-guide page="solar"></modern-page-guide>
         </div>
     `,
 
@@ -568,6 +570,12 @@ const _SolarPage = {
         // Real monthly data from daily_summaries (grouped by year)
         const monthlyByYear = ref([]);
         const shadowStats = ref(null);
+        const devOn = computed(() => window.sfmlDevState?.active === true);
+        const publicShadowKwh = ref(null);
+        const publicShadowSentence = computed(() => {
+            if (publicShadowKwh.value == null) return "";
+            return t("solar.shadowToday").replace("{kwh}", publicShadowKwh.value);
+        });
         const weeklyRows = ref([]);
         const shadowData = ref(null);
         const solarDailyData = ref(null);
@@ -618,6 +626,8 @@ const _SolarPage = {
         }
 
         async function loadShadowFingerprint(group = shadowFingerprint.selectedGroup) {
+            const dev = await SFMLApi.ensureDevMode();
+            if (!dev.active) return;
             const requestedGroup = group || '_system_';
             const requestId = ++shadowFingerprintRequestId;
             shadowFingerprint.loading = true;
@@ -1001,11 +1011,15 @@ const _SolarPage = {
 	        }
 
         async function loadShadowMovement() {
+            const dev = await SFMLApi.ensureDevMode();
+            if (!dev.active) return;
             try {
-                const [movement, fingerprint] = await Promise.all([
+                const [movementResult, fingerprintResult] = await Promise.allSettled([
                     SFMLApi.fetch('/api/sfml_stats/solar/shadow_movement?days=7', { forceRefresh: true }),
                     SFMLApi.fetch('/api/sfml_stats/solar/shadow_fingerprint', { forceRefresh: true }),
                 ]);
+                const movement = movementResult.status === 'fulfilled' ? movementResult.value : null;
+                const fingerprint = fingerprintResult.status === 'fulfilled' ? fingerprintResult.value : null;
                 syncTimeContext(movement);
                 syncTimeContext(fingerprint);
                 shadowMovement.currentHour = smCurrentHourInRange();
@@ -1261,13 +1275,30 @@ const _SolarPage = {
 
         async function loadData() {
             try {
-                const [annual, summary, shadow, solar, comparison] = await Promise.all([
-                    SFMLApi.fetch('/api/sfml_stats/annual_forecast', { forceRefresh: true }),
-                    SFMLApi.fetch('/api/sfml_stats/summary', { forceRefresh: true }),
-                    SFMLApi.fetch('/api/sfml_stats/shadow_analytics?days=30', { forceRefresh: true }),
-                    SFMLApi.fetch('/api/sfml_stats/solar?days=7', { forceRefresh: true }),
-                    SFMLApi.fetch('/api/sfml_stats/forecast_comparison?days=7', { forceRefresh: true }),
-                ]);
+                const dev = await SFMLApi.ensureDevMode();
+                const jobs = [
+                    ['annual', SFMLApi.fetch('/api/sfml_stats/annual_forecast', { forceRefresh: true })],
+                    ['summary', SFMLApi.fetch('/api/sfml_stats/summary', { forceRefresh: true })],
+                    ['shadow', SFMLApi.fetch('/api/sfml_stats/shadow_analytics?days=30', { forceRefresh: true })],
+                    ['solar', SFMLApi.fetch('/api/sfml_stats/solar?days=7', { forceRefresh: true })],
+                ];
+                if (dev.active) {
+                    jobs.push(['comparison', SFMLApi.fetch('/api/sfml_stats/forecast_comparison?days=7', { forceRefresh: true })]);
+                }
+                const settled = await Promise.allSettled(jobs.map(([, request]) => request));
+                const picked = {};
+                jobs.forEach(([name], index) => {
+                    picked[name] = settled[index].status === 'fulfilled' ? settled[index].value : null;
+                });
+                const annual = picked.annual;
+                const summary = picked.summary;
+                const shadow = picked.shadow;
+                const solar = picked.solar;
+                const comparison = picked.comparison || null;
+                if (!annual && !summary && !shadow && !solar) {
+                    console.error('[SolarPage] data load error: no primary payload');
+                    return;
+                }
                 annualData.value = annual;
                 syncTimeContext(annual);
                 syncTimeContext(summary);
@@ -1383,7 +1414,8 @@ const _SolarPage = {
 
             // Shadow stats
             const sh = shadowData.value?.data;
-            if (sh?.stats) {
+            publicShadowKwh.value = sh?.public_summary?.today_loss_kwh ?? null;
+            if (devOn.value && sh?.stats) {
                 shadowStats.value = {
                     totalLoss: (sh.stats.total_loss_kwh || 0).toFixed(1),
                     hours: sh.stats.shadow_hours || 0,
@@ -1864,7 +1896,7 @@ const _SolarPage = {
             comparisonChartEl,
             forecastComparisonData,
             dataCoverage, annualKpis, yearOverview,
-            shadowStats, weeklyRows,
+            shadowStats, weeklyRows, devOn, publicShadowKwh, publicShadowSentence,
             shadowFingerprint, shadowFingerprintEl,
             shadowFingerprintGroupLabel, shadowFingerprintEmptyText,
             selectShadowFingerprintGroup, retryShadowFingerprint,

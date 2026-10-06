@@ -31,7 +31,7 @@
             ),
             calibrationReserve: finiteNumber(payload.pv_calibration_reserve_kwh),
             wallboxBudget: finiteNumber(
-                payload.residual_pv_kwh ?? payload.wallbox_pv_available_kwh,
+                payload.wallbox_pv_available_kwh ?? payload.residual_pv_kwh,
             ),
             wallboxGrid: finiteNumber(
                 payload.expected_grid_energy_kwh ?? payload.grid_wallbox_kwh,
@@ -281,7 +281,7 @@
             battery_reserve_kwh: optionalSum("batteryDemand"),
             battery_pv_reserve_kwh: sum("batteryReserve"),
             pv_calibration_reserve_kwh: sum("calibrationReserve"),
-            residual_pv_kwh: sum("wallboxBudget"),
+            residual_pv_kwh: sum("wallboxBudget") + sum("unallocated"),
             wallbox_pv_available_kwh: sum("wallboxBudget"),
             grid_wallbox_kwh: optionalSum("wallboxGrid"),
             expected_grid_energy_kwh: optionalSum("wallboxGrid"),

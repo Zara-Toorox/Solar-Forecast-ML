@@ -36,7 +36,6 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_ADAPTIVE_FORECAST_MODE,
     CONF_BATTERY_SOC_SENSOR,
-    CONF_DIAGNOSTIC,
     CONF_EVCC_FORECAST,
     CONF_HAS_BATTERY,
     CONF_HOURLY,
@@ -849,7 +848,6 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
             # Build updated options @zara
             valid_keys = [
                 CONF_UPDATE_INTERVAL,
-                CONF_DIAGNOSTIC,
                 CONF_HOURLY,
                 CONF_EVCC_FORECAST,
                 CONF_NOTIFY_STARTUP,
@@ -879,6 +877,7 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 "enable_tiny_lstm",
                 "learning_backup_protection",
                 "ml_algorithm",
+                "diagnostic",
             ):
                 updated_options.pop(obsolete_key, None)
             # Remove empty API keys @zara
@@ -930,10 +929,6 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                         unit_of_measurement="s",
                     )
                 ),
-                vol.Optional(
-                    CONF_DIAGNOSTIC,
-                    default=current_options.get(CONF_DIAGNOSTIC, True),
-                ): bool,
                 vol.Optional(
                     CONF_HOURLY, default=current_options.get(CONF_HOURLY, False)
                 ): bool,

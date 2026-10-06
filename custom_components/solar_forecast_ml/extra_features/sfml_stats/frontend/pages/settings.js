@@ -141,12 +141,12 @@ const SettingsPage = {
                                     <span class="settings-item-value" :class="chargingInfo.active ? 'val-ok' : ''">{{ chargingStatusText }}</span>
                                 </div>
                                 <div class="settings-item">
-                                    <span class="settings-item-label">{{ $t('settings.priceThreshold') }}</span>
-                                    <span class="settings-item-value">{{ chargingInfo.max_price != null ? chargingInfo.max_price.toFixed(1) + ' ct/kWh' : '--' }}</span>
+                                    <span class="settings-item-label">{{ chargingThresholdLabel }}</span>
+                                    <span class="settings-item-value">{{ chargingThresholdValue }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.currentPrice') }}</span>
-                                    <span class="settings-item-value" :class="chargingInfo.is_cheap === true ? 'val-ok' : chargingInfo.is_cheap === false ? 'val-warn' : ''">{{ chargingInfo.current_price != null ? chargingInfo.current_price.toFixed(2) + ' ct/kWh' : '--' }}{{ chargingInfo.is_cheap === true ? ' (' + $t('settings.cheap') + ')' : chargingInfo.is_cheap === false ? ' (' + $t('settings.tooHigh') + ')' : '' }}</span>
+                                    <span class="settings-item-value" :class="chargingPriceClass">{{ chargingInfo.current_price != null ? chargingInfo.current_price.toFixed(2) + ' ct/kWh' : '--' }}{{ chargingPriceSuffix }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.batteryCapacity') }}</span>
@@ -194,25 +194,21 @@ const SettingsPage = {
                             <div class="settings-grid">
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.azimuth') }}</span>
-                                    <span class="settings-item-value">{{ formatValue(pg.azimuth, 0, 'deg') }}</span>
+                                    <span class="settings-item-value">{{ formatValue(pg.azimuth, 0, '°') }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.tilt') }}</span>
-                                    <span class="settings-item-value">{{ formatValue(pg.tilt, 0, 'deg') }}</span>
+                                    <span class="settings-item-value">{{ formatValue(pg.tilt, 0, '°') }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.power') }}</span>
                                     <span class="settings-item-value">{{ formatValue(pg.kwp, 3, ' kWp') }}</span>
                                 </div>
-                                <div class="settings-item">
-                                    <span class="settings-item-label">{{ $t('settings.modules') }}</span>
-                                    <span class="settings-item-value">{{ pg.module_count ?? '--' }}</span>
-                                </div>
-                                <div class="settings-item" v-if="pg.factor != null">
+                                <div class="settings-item" v-if="devOn && pg.factor != null">
                                     <span class="settings-item-label">{{ $t('settings.physicsFactor') }}</span>
                                     <span class="settings-item-value">{{ pg.factor.toFixed(3) }}</span>
                                 </div>
-                                <div class="settings-item" v-if="pg.confidence != null">
+                                <div class="settings-item" v-if="devOn && pg.confidence != null">
                                     <span class="settings-item-label">{{ $t('settings.confidence') }}</span>
                                     <span class="settings-item-value">{{ (pg.confidence * 100).toFixed(0) }}%</span>
                                 </div>
@@ -223,7 +219,7 @@ const SettingsPage = {
                 </div>
 
                 <!-- Accordion: Hubble AI -->
-                <div class="accordion-section" :class="{ open: openSection === 'ai' }">
+                <div v-if="devOn" class="accordion-section" :class="{ open: openSection === 'ai' }">
                     <button class="accordion-header" @click="toggle('ai')">
                         <span class="accordion-icon">{{ openSection === 'ai' ? '\u25BE' : '\u25B8' }}</span>
                         <span class="accordion-title">Hubble AI</span>
@@ -255,14 +251,6 @@ const SettingsPage = {
                                 <span class="settings-item-label">{{ $t('settings.lastTraining') }}</span>
                                 <span class="settings-item-value">{{ formatDate(aiInfo.last_trained) }}</span>
                             </div>
-                            <div v-if="aiInfo.lstm" class="settings-item">
-                                <span class="settings-item-label">{{ $t('settings.lstmArchitecture') }}</span>
-                                <span class="settings-item-value">{{ aiInfo.lstm.input_size }}&times;{{ aiInfo.lstm.hidden_size }} &middot; seq={{ aiInfo.lstm.sequence_length }} &middot; {{ aiInfo.lstm.num_layers }}L / {{ aiInfo.lstm.num_heads }}H{{ aiInfo.lstm.has_attention ? ' + Attention' : '' }}</span>
-                            </div>
-                            <div v-if="aiInfo.ridge" class="settings-item">
-                                <span class="settings-item-label">Ridge &alpha; / LOO-CV</span>
-                                <span class="settings-item-value">{{ aiInfo.ridge.alpha }} &middot; {{ aiInfo.ridge.loo_cv_score != null ? aiInfo.ridge.loo_cv_score.toFixed(4) : '--' }}</span>
-                            </div>
                             <div v-if="aiInfo.coordinator" class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.expectedToday') }}</span>
                                 <span class="settings-item-value">{{ aiInfo.coordinator.expected_kwh_today != null ? aiInfo.coordinator.expected_kwh_today.toFixed(2) + ' kWh' : '--' }}</span>
@@ -270,16 +258,6 @@ const SettingsPage = {
                             <div v-if="aiInfo.drift" class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.driftStatus') }}</span>
                                 <span class="settings-item-value" :class="driftStatusClass">{{ driftStatusText }}</span>
-                            </div>
-                        </div>
-                        <div v-if="aiInfo.physics_groups && aiInfo.physics_groups.length" class="ai-physics">
-                            <div class="ai-physics-title">Physics Calibrator</div>
-                            <div class="ai-physics-grid">
-                                <div v-for="pg in aiInfo.physics_groups" :key="pg.group" class="ai-physics-item">
-                                    <span class="ai-physics-name">{{ pg.group }}</span>
-                                    <span class="ai-physics-factor">{{ pg.factor.toFixed(3) }}&times;</span>
-                                    <span class="ai-physics-meta">{{ pg.samples }} samples &middot; conf {{ (pg.confidence * 100).toFixed(0) }}%</span>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -341,6 +319,35 @@ const SettingsPage = {
                                 <span class="export-option-format">{{ option.format }}</span>
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <div class="accordion-section dev-access" :class="{ open: openSection === 'dev' }">
+                    <button class="accordion-header" type="button" @click="toggle('dev')">
+                        <span class="accordion-icon">{{ openSection === 'dev' ? '\u25BE' : '\u25B8' }}</span>
+                        <span class="accordion-title">{{ $t('settings.dev.title') }}</span>
+                        <span class="accordion-badge" :class="devBadgeClass">{{ devBadgeText }}</span>
+                    </button>
+                    <div class="accordion-body" v-show="openSection === 'dev'">
+                        <div class="settings-grid dev-access-grid">
+                            <div class="settings-item">
+                                <span class="settings-item-label">{{ $t('settings.dev.installId') }}</span>
+                                <div class="dev-install-row">
+                                    <span class="settings-item-value">{{ devInstallLabel }}</span>
+                                    <button type="button" class="button secondary compact" @click="copyInstallHash" :disabled="devInstallBlocked">{{ devCopied ? $t('settings.dev.copied') : $t('settings.dev.copy') }}</button>
+                                </div>
+                            </div>
+                            <label class="settings-item">
+                                <span class="settings-item-label">{{ $t('settings.dev.token') }}</span>
+                                <input class="dev-token-input" type="password" autocomplete="off" v-model="devToken" :disabled="devInstallBlocked" :title="devInstallTitle" />
+                            </label>
+                        </div>
+                        <p class="dev-access-hint">{{ $t('settings.dev.hint') }}</p>
+                        <div class="dev-access-actions">
+                            <button type="button" class="button primary compact" @click="activateDevToken" :disabled="devInstallBlocked" :title="devInstallTitle">{{ $t('settings.dev.activate') }}</button>
+                            <button type="button" class="button secondary compact" @click="clearDevToken" :disabled="devInstallBlocked" :title="devInstallTitle">{{ $t('settings.dev.remove') }}</button>
+                        </div>
+                        <p v-if="devMessage" class="dev-access-status">{{ devMessage }}</p>
                     </div>
                 </div>
             </div>
@@ -479,17 +486,10 @@ const SettingsPage = {
             enabled: false, capacity: null, min_soc: null, max_soc: null,
             max_price: null, soc_sensor: null, soc_sensor_configured: false,
             current_soc: null, target_soc: null, active: null, reason: null,
-            is_cheap: null, current_price: null,
+            is_cheap: null, current_price: null, threshold_mode: '',
+            cheapest_hours: null, below_average_pct: null,
+            grid_kind: '', grid_allowed: null,
         });
-
-        // Reason keys map directly to i18n keys for localization.
-        const REASON_KEYS = {
-            price_too_high: 'settings.reason.priceTooHigh',
-            soc_unavailable_fallback: 'settings.reason.socUnavailable',
-            soc_below_target: 'settings.reason.socBelowTarget',
-            soc_reached_solar_expected: 'settings.reason.socReachedSolar',
-            soc_reached_target: 'settings.reason.socReachedTarget',
-        };
 
         const chargingBadgeText = computed(() => {
             if (!chargingInfo.enabled) return t('settings.charging.inactive');
@@ -507,14 +507,148 @@ const SettingsPage = {
             return t('settings.charging.waiting');
         });
 
+        const chargingThresholdLabel = computed(() => {
+            if (chargingInfo.threshold_mode === 'cheapest_hours') return t('smart_charging.thresholdModeCheapestHours');
+            if (chargingInfo.threshold_mode === 'below_average') return t('smart_charging.thresholdModeBelowAverage');
+            return t('smart_charging.thresholdModeAbsolute');
+        });
+
+        const chargingThresholdValue = computed(() => {
+            if (chargingInfo.threshold_mode === 'cheapest_hours') {
+                return chargingInfo.cheapest_hours != null ? String(chargingInfo.cheapest_hours) : '--';
+            }
+            if (chargingInfo.threshold_mode === 'below_average') {
+                return chargingInfo.below_average_pct != null ? String(chargingInfo.below_average_pct) + ' %' : '--';
+            }
+            return chargingInfo.max_price != null ? chargingInfo.max_price.toFixed(1) + ' ct/kWh' : '--';
+        });
+
+        const chargingPriceSuffix = computed(() => {
+            const kind = chargingInfo.grid_kind;
+            if (kind === 'demo' || kind === 'stale' || kind === 'missing' || kind === 'unspecified') return '';
+            if (chargingInfo.grid_allowed === true) return ' (' + t('settings.cheap') + ')';
+            if (chargingInfo.grid_allowed === false) return ' (' + t('settings.tooHigh') + ')';
+            if (chargingInfo.is_cheap === true) return ' (' + t('settings.cheap') + ')';
+            if (chargingInfo.is_cheap === false) return ' (' + t('settings.tooHigh') + ')';
+            return '';
+        });
+
+        const chargingPriceClass = computed(() => {
+            if (!chargingPriceSuffix.value) return '';
+            return chargingInfo.grid_allowed === true || chargingInfo.is_cheap === true ? 'val-ok' : 'val-warn';
+        });
+
         const chargingReasonText = computed(() => {
-            if (!chargingInfo.reason) return '--';
-            const k = REASON_KEYS[chargingInfo.reason];
-            return k ? t(k) : chargingInfo.reason;
+            let code = chargingInfo.reason;
+            if (chargingInfo.grid_kind === 'demo') code = 'price_demo';
+            else if (chargingInfo.grid_kind === 'stale' || chargingInfo.grid_kind === 'missing') code = 'price_unavailable';
+            if (!code) return '--';
+            const reasonKey = `smart_charging.reasons.${code}`;
+            const translation = t(reasonKey);
+            if (translation !== reasonKey) return translation;
+            return t('smart_charging.status.unknownReason').replace('{code}', String(code));
         });
         const panelGroups = vRef([]);
         const systemInfo = reactive({ stats_version: '', ml_version: '', db_status: '', db_size: '', db_ok: true, healthy: true, last_aggregation: '', data_points: null });
-        const aiInfo = reactive({ active_model: null, active_model_display: null, version: null, accuracy_percent: null, rmse: null, training_samples: null, last_trained: null, lstm: null, ridge: null, physics_groups: [], drift: null, coordinator: null });
+        const aiInfo = reactive({ active_model: null, active_model_display: null, version: null, accuracy_percent: null, rmse: null, training_samples: null, last_trained: null, drift: null, coordinator: null });
+        const devOn = computed(() => window.sfmlDevState?.active === true);
+        const devInstallHash = vRef("");
+        const devInstallState = vRef("loading");
+        const devToken = vRef("");
+        const devMessage = vRef("");
+        const devCopied = vRef(false);
+        const devInstallBlocked = computed(() => devInstallState.value !== "ready");
+        const devInstallTitle = computed(() => devInstallState.value === "blocked" ? t("settings.dev.panelOnly") : "");
+        const devInstallLabel = computed(() => {
+            if (devInstallState.value === "blocked") return t("settings.dev.panelOnly");
+            return devInstallHash.value || "--";
+        });
+        const devBadgeText = computed(() => {
+            const active = window.sfmlDevState?.active === true;
+            const raw = window.sfmlDevState?.expires_at;
+            const parsed = raw ? new Date(raw) : null;
+            if (!active || !parsed || Number.isNaN(parsed.getTime())) return t("settings.dev.badgeOff");
+            const formatted = new Intl.DateTimeFormat(bcp(currentLocale.value), {
+                dateStyle: "medium",
+                timeStyle: "short",
+            }).format(parsed);
+            return t("settings.dev.badgeUntil", { date: formatted });
+        });
+        const devBadgeClass = computed(() => window.sfmlDevState?.active === true ? "ok" : "neutral");
+
+        function devStatusText(code) {
+            if (code === "valid") return t("settings.dev.accepted");
+            if (code === "install_mismatch") return t("settings.dev.installMismatch");
+            if (code === "expired") return t("settings.dev.expired");
+            if (code === "not_yet_valid") return t("settings.dev.notYetValid");
+            if (code === "not_provided") return t("settings.dev.notProvided");
+            if (code === "invalid" || code === "invalid_format" || code === "invalid_signature"
+                || code === "unknown_key_id" || code === "wrong_entitlement"
+                || code === "validation_error") {
+                return t("settings.dev.invalid");
+            }
+            return t("settings.dev.failed");
+        }
+
+        async function loadDevAccess() {
+            try {
+                await SFMLApi.ensureDevMode(true);
+            } catch (_error) {
+                // The public flag is optional for this panel.
+            }
+            try {
+                const payload = await SFMLApi.fetch("/api/sfml_stats/dev_mode/install", {
+                    forceRefresh: true,
+                    authenticated: true,
+                });
+                const data = payload && payload.data ? payload.data : payload;
+                devInstallHash.value = data?.install_hash || "";
+                devInstallState.value = devInstallHash.value ? "ready" : "blocked";
+            } catch (_error) {
+                devInstallHash.value = "";
+                devInstallState.value = "blocked";
+            }
+        }
+
+        async function copyInstallHash() {
+            if (!devInstallHash.value || !navigator.clipboard) return;
+            await navigator.clipboard.writeText(devInstallHash.value);
+            devCopied.value = true;
+        }
+
+        async function activateDevToken() {
+            if (devInstallBlocked.value) {
+                devMessage.value = t("settings.dev.panelOnly");
+                return;
+            }
+            devMessage.value = "";
+            try {
+                const result = await SFMLApi.postAuthenticated("/api/sfml_stats/dev_token", { token: devToken.value });
+                devToken.value = "";
+                devMessage.value = devStatusText(result?.data?.status);
+                await SFMLApi.ensureDevMode(true);
+            } catch (error) {
+                devMessage.value = devStatusText(error && error.code);
+            }
+        }
+
+        async function clearDevToken() {
+            if (devInstallBlocked.value) {
+                devMessage.value = t("settings.dev.panelOnly");
+                return;
+            }
+            devMessage.value = "";
+            devToken.value = "";
+            try {
+                const result = await SFMLApi.postAuthenticated("/api/sfml_stats/dev_token/clear", {});
+                devMessage.value = result?.data?.status === "cleared"
+                    ? t("settings.dev.cleared")
+                    : devStatusText(result?.data?.status);
+                await SFMLApi.ensureDevMode(true);
+            } catch (error) {
+                devMessage.value = devStatusText(error && error.code);
+            }
+        }
 
         function formatDate(ts) {
             if (!ts) return '--';
@@ -594,6 +728,27 @@ const SettingsPage = {
 
         function toggle(section) {
             openSection.value = openSection.value === section ? null : section;
+            if (openSection.value === 'charging') loadChargingThresholds();
+        }
+
+        async function loadChargingThresholds() {
+            try {
+                const payload = await SFMLApi.fetch('/api/sfml_stats/smart_charging/dashboard', { forceRefresh: true, ttl: 0 });
+                const live = payload && payload.live ? payload.live : null;
+                const price = Number(live && live.max_price);
+                if (Number.isFinite(price)) chargingInfo.max_price = price;
+                if (live) {
+                    chargingInfo.threshold_mode = live.threshold_mode || '';
+                    chargingInfo.cheapest_hours = live.cheapest_hours ?? null;
+                    chargingInfo.below_average_pct = live.below_average_pct ?? null;
+                    chargingInfo.grid_kind = live.grid_kind || '';
+                    chargingInfo.grid_allowed = live.grid_allowed ?? null;
+                    if (live.reason) chargingInfo.reason = live.reason;
+                    if (live.is_cheap != null) chargingInfo.is_cheap = live.is_cheap;
+                }
+            } catch (error) {
+                console.error('Settings smart charging threshold error:', error);
+            }
         }
 
         async function loadSettings() {
@@ -622,9 +777,6 @@ const SettingsPage = {
                     aiInfo.rmse = ai.rmse ?? null;
                     aiInfo.training_samples = ai.training_samples ?? null;
                     aiInfo.last_trained = ai.last_trained || null;
-                    aiInfo.lstm = ai.lstm || null;
-                    aiInfo.ridge = ai.ridge || null;
-                    aiInfo.physics_groups = ai.physics_groups || [];
                     aiInfo.drift = ai.drift || null;
                     aiInfo.coordinator = ai.coordinator || null;
                 }
@@ -657,7 +809,9 @@ const SettingsPage = {
                     chargingInfo.capacity = sc.capacity ?? null;
                     chargingInfo.min_soc = sc.min_soc ?? null;
                     chargingInfo.max_soc = sc.max_soc ?? null;
-                    chargingInfo.max_price = sc.max_price ?? null;
+                    if (sc.max_price != null && Number.isFinite(Number(sc.max_price))) {
+                        chargingInfo.max_price = Number(sc.max_price);
+                    }
                     chargingInfo.soc_sensor = sc.soc_sensor ?? null;
                     chargingInfo.soc_sensor_configured = sc.soc_sensor_configured === true;
                     chargingInfo.current_soc = sc.current_soc ?? null;
@@ -673,7 +827,6 @@ const SettingsPage = {
                         azimuth: pg.azimuth ?? null,
                         tilt: pg.tilt ?? null,
                         kwp: pg.kwp ?? null,
-                        module_count: pg.module_count ?? null,
                         factor: pg.factor ?? null,
                         confidence: pg.confidence ?? null,
                     }));
@@ -723,13 +876,18 @@ const SettingsPage = {
 
         onMounted(() => {
             loadSettings();
+            loadDevAccess();
         });
 
         return {
             openSection, exportingType, isExporting, exportOptions,
             sensors, priceInfo, chargingInfo, panelGroups, systemInfo, aiInfo,
+            devOn, devInstallHash, devInstallLabel, devInstallBlocked, devInstallTitle, devBadgeText, devBadgeClass,
+            devToken, devMessage, devCopied,
+            copyInstallHash, activateDevToken, clearDevToken,
             haConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
+            chargingThresholdLabel, chargingThresholdValue, chargingPriceSuffix, chargingPriceClass,
             toggle, exportDataset, formatDate, formatValue, openHaLink, openIntegration,
             translateSensorLabel, translateSensorState,
             currentLocale, supportedLocales, localeName, changeLocale, changeTheme,
@@ -980,45 +1138,6 @@ const SettingsPage = {
             padding: var(--space-lg);
             font-size: 0.9rem;
         }
-        .ai-physics {
-            margin-top: var(--space-md);
-            padding-top: var(--space-md);
-            border-top: 1px solid rgba(255,255,255,0.06);
-        }
-        .ai-physics-title {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-bottom: var(--space-sm);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        .ai-physics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: var(--space-sm);
-        }
-        .ai-physics-item {
-            display: grid;
-            grid-template-columns: auto auto;
-            gap: 2px var(--space-sm);
-            padding: var(--space-sm);
-            background: rgba(255,255,255,0.03);
-            border-radius: 6px;
-        }
-        .ai-physics-name {
-            font-weight: 600;
-            color: var(--text);
-        }
-        .ai-physics-factor {
-            text-align: right;
-            color: var(--accent);
-            font-variant-numeric: tabular-nums;
-        }
-        .ai-physics-meta {
-            grid-column: 1 / -1;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
         .missing-helpers-section {
             margin-top: var(--space-md);
             padding: var(--space-md);
@@ -1110,7 +1229,63 @@ const SettingsPage = {
         [data-theme="light"] .accordion-badge.neutral { background: rgba(15, 23, 42, 0.03); }
         [data-theme="light"] .sensor-row:hover { background: rgba(15, 23, 42, 0.02); }
         [data-theme="light"] .panel-group-card { background: rgba(15, 23, 42, 0.015); }
-        [data-theme="light"] .ai-physics-item { background: rgba(15, 23, 42, 0.015); }
+        .dev-access-grid {
+            grid-template-columns: 1fr;
+        }
+        .dev-install-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: var(--space-sm);
+        }
+        .dev-install-row .settings-item-value {
+            min-width: 0;
+            overflow-wrap: anywhere;
+        }
+        .dev-token-input {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 36px;
+            margin-top: 4px;
+            padding: 7px 10px;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-md);
+            background: var(--bg-elevated, var(--bg-card));
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+        }
+        .dev-token-input:disabled,
+        .dev-access-actions .button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        .dev-access-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+        }
+        .dev-access-actions .button {
+            width: auto;
+        }
+        .dev-access-actions .button.primary {
+            background: var(--accent);
+            color: #041018;
+            border-color: transparent;
+        }
+        [data-theme="light"] .dev-access-actions .button.primary {
+            color: #ffffff;
+        }
+        .dev-access-hint,
+        .dev-access-status {
+            margin: var(--space-sm) 0 0;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            line-height: 1.45;
+        }
+        [data-theme="light"] .dev-token-input {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
         [data-theme="light"] .missing-helpers-section { background: rgba(15, 23, 42, 0.015); }
     `;
     document.head.appendChild(style);

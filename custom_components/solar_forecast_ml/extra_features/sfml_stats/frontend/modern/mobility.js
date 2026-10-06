@@ -122,7 +122,7 @@ const ModernMobilityPage = {
                 <article class="mobility-card mobility-timeline-card">
                     <header><div><span class="mobility-eyebrow">Providerbestätigte Planungsintervalle</span><h3>Haus, Wärme, Reserve und Laden teilen sich denselben PV-Haushalt</h3></div><div class="mobility-legend"><span class="pv">PV</span><span class="house">Haus</span><span class="hp">Wärmepumpe</span><span class="battery">Reserve</span><span class="ev">Wallbox</span><span class="price">Preis</span></div></header>
                     <div class="mobility-timeline" :style="{ gridTemplateColumns: timelineColumns }" aria-label="Energie- und Preisplan aus bestätigten Intervallen"><div v-for="point in plan.hours" :key="point.timestamp" class="mobility-hour" :class="{ selected: point.wallbox > 0 }" tabindex="0" role="img" :title="mobilityPointLabel(point)" :aria-label="mobilityPointLabel(point)"><span class="price-bar" :style="{ height: point.priceHeight + '%' }"></span><span class="pv-bar" :style="{ height: point.pvHeight + '%' }"></span><span class="house-bar" :style="{ height: point.houseHeight + '%' }"></span><span class="hp-bar" :style="{ height: point.hpHeight + '%' }"></span><span class="battery-bar" :style="{ height: point.batteryHeight + '%' }"></span><span class="ev-bar" :style="{ height: point.evHeight + '%' }"></span><small>{{ point.label }}</small></div></div>
-                    <footer>Preisquelle: {{ tariffSource }}. Hausbedarf, Wärmepumpe, Speicherreserve und Kalibrierungsreserve werden in dieser Reihenfolge vor der Wallbox-Freigabe berücksichtigt.</footer>
+                    <footer>Preisquelle: {{ tariffSource }}. Hausbedarf, Wärmepumpe, Speicherreserve und Sicherheitsabschlag werden in dieser Reihenfolge vor der Wallbox-Freigabe berücksichtigt.</footer>
                 </article>
 
                 <div class="mobility-grid">
@@ -167,10 +167,13 @@ const ModernMobilityPage = {
             loading.value = true;
             error.value = "";
             try {
-                const [statusResponse, mobilityResponse] = await Promise.all([
+                const [statusResult, mobilityResult] = await Promise.allSettled([
                     SFMLApi.fetch(endpoint("status")),
                     SFMLApi.fetch(endpoint("mobility")),
                 ]);
+                const statusResponse = statusResult.status === "fulfilled" ? statusResult.value : null;
+                const mobilityResponse = mobilityResult.status === "fulfilled" ? mobilityResult.value : null;
+                if (!statusResponse && !mobilityResponse) throw new Error("mobility_unavailable");
                 const unwrap = (response) => response?.success === true ? response.data : response;
                 Object.assign(status, unwrap(statusResponse));
                 const mobilityPayload = unwrap(mobilityResponse);

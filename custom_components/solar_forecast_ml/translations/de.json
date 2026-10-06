@@ -178,7 +178,6 @@
         "description": "Update-Intervalle und Benachrichtigungen konfigurieren",
         "data": {
           "update_interval": "Update-Intervall (s)",
-          "diagnostic": "Diagnose-Modus",
           "hourly": "Stunden-Prognose Sensor",
           "evcc_forecast": "evcc Solar-Prognose",
           "notify_startup": "Start-Benachrichtigung",
@@ -200,7 +199,6 @@
         },
         "data_description": {
           "update_interval": "Prognose-Update-Intervall (300-86400s, Standard: 3600)",
-          "diagnostic": "Diagnose-Sensoren zur Überwachung aktivieren",
           "hourly": "Nächste-Stunde-Prognose Sensor aktivieren",
           "evcc_forecast": "Stellt einen Sensor mit stündlichen Prognosedaten im evcc-Format bereit. Ermöglicht die direkte Integration in evcc ohne Template-Sensor. Standard: AUS",
           "notify_startup": "Benachrichtigung beim Start anzeigen",
@@ -433,7 +431,11 @@
         "name": "Nächstes geplantes Update"
       },
       "ml_metrics": {
-        "name": "AI-Status"
+        "name": "AI-Status",
+        "state": {
+          "forecast_active": "Prognose aktiv",
+          "forecast_learning": "Prognose lernt noch, Werte sind vorsichtig"
+        }
       },
       "ai_gate_status": {
         "name": "KI-Gate-Status",
@@ -441,7 +443,9 @@
           "serving": "KI aktiv",
           "candidate_evaluating": "Kandidat in Bewertung",
           "waiting_regime": "Wartet auf Wetterlagen-Abdeckung",
-          "physics_baseline": "KI noch nicht aktiv – Physik-Baseline"
+          "physics_baseline": "KI noch nicht aktiv – Physik-Baseline",
+          "forecast_active": "Prognose aktiv",
+          "forecast_learning": "Prognose lernt noch, Werte sind vorsichtig"
         }
       },
       "ai_rmse": {

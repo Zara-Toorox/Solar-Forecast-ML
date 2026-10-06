@@ -97,6 +97,7 @@ from .const import (
     DEFAULT_BILLING_GRID_FEES,
     DEFAULT_BILLING_FIXED_PRICE,
 )
+from .core.smc_enable import EMS_ORIGIN, bind_enable_writer, current_origin
 from .storage import DataValidator
 from .storage.db_connection_manager import DatabaseConnectionManager, get_manager
 from .api import async_setup_views, async_setup_websocket
@@ -485,8 +486,12 @@ class GPMProviderView:
                     "solar_forecast_tomorrow": None,
                 }
             else:
+                from homeassistant.util import dt as dt_util
+
+                from .core.grid_charge_gate import grid_charge_allowed
+
                 current_price = provider_data.get("total_price")
-                is_cheap = bool(provider_data.get("is_cheap"))
+                is_cheap = grid_charge_allowed(provider_data, dt_util.now())
                 is_force_price = bool(provider_data.get("is_force_price"))
                 future_slots = self._future_price_slots(provider_data)
                 state = await manager.async_update(
@@ -777,6 +782,15 @@ async def async_update_smart_charging_settings(
         schedule = getattr(gpm_coordinator, "_schedule_smart_charging", None)
         if callable(schedule):
             schedule()
+        if (
+            CONF_SMART_CHARGING_ENABLED in changes
+            and current_origin() != EMS_ORIGIN
+        ):
+            note = getattr(
+                runtime.get("ems_manager"), "note_external_smc_enable", None
+            )
+            if callable(note):
+                await note(bool(new_data.get(CONF_SMART_CHARGING_ENABLED, False)))
     return {
         CONF_SMART_CHARGING_ENABLED: bool(
             new_data.get(CONF_SMART_CHARGING_ENABLED, False)
@@ -788,6 +802,18 @@ async def async_update_smart_charging_settings(
         CONF_MAX_SOC: new_data.get(CONF_MAX_SOC, DEFAULT_MAX_SOC),
         CONF_TARGET_SOC: new_data.get(CONF_TARGET_SOC, DEFAULT_MAX_SOC),
     }
+
+
+async def _write_smc_enabled_for_ems(
+    hass: HomeAssistant, enabled: bool
+) -> dict[str, object]:
+    """EMS entry point. The context variable, not a settings key, marks the caller."""
+    return await async_update_smart_charging_settings(
+        hass, **{CONF_SMART_CHARGING_ENABLED: bool(enabled)}
+    )
+
+
+bind_enable_writer(_write_smc_enabled_for_ems)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -1043,6 +1069,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await async_reprice_from_revision(hass, config=entry_config)
         except Exception as err:
             _LOGGER.debug("Initial STATS reprice skipped: %s", err)
+        try:
+            from .core.grid_split_backfill import (
+                async_backfill_daily_grid_split,
+                async_backfill_grid_split,
+            )
+
+            await async_backfill_grid_split(hass, config=entry_config)
+            await async_backfill_daily_grid_split(hass)
+        except Exception as err:
+            _LOGGER.error("Grid-split backfill failed: %s", err)
 
     task_reprice = hass.async_create_background_task(
         _initial_reprice(), f"{DOMAIN}_initial_reprice"

@@ -12,6 +12,21 @@
 from typing import Any
 
 
+_DEV_ONLY_PLAIN_TEXT = {
+    "AI_NOT_ENOUGH_RESIDUALS": "The forecast is still learning. Values are cautious.",
+    "AI_TSS_ZERO": "The forecast is still learning. Values are cautious.",
+    "AI_TRAINING_SUCCESS": "Training completed.",
+    "AI_TRAINING_LAMBDA": "",
+}
+_dev_messages_active = False
+
+
+def set_dev_message_visibility(active: bool) -> None:
+    """Remember whether internal training sentences may be shown."""
+    global _dev_messages_active
+    _dev_messages_active = bool(active)
+
+
 class UserMessages:
     """Centralized user messages @zara"""
 
@@ -199,6 +214,8 @@ class UserMessages:
     @classmethod
     def format(cls, message_key: str, **kwargs: Any) -> str:
         """Format message with parameters @zara"""
+        if message_key in _DEV_ONLY_PLAIN_TEXT and not _dev_messages_active:
+            return _DEV_ONLY_PLAIN_TEXT[message_key]
         message_template = getattr(cls, message_key, None)
         if message_template is None:
             return message_key

@@ -34,7 +34,7 @@
           "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. (Optional)",
           "sensor_solar_to_battery": "Solar power charging the battery. (Optional)",
           "sensor_battery_to_house": "Battery power supplied to the household. (Optional)",
-          "sensor_grid_to_house": "Grid power supplied directly to the household. (Optional)",
+          "sensor_grid_to_house": "Grid power into the house in watts, excluding battery charging from the grid. Enter total grid import only together with the smart meter import sensor: STATS then subtracts battery charging. Without that sensor the value stays unchanged. (Optional)",
           "sensor_grid_to_battery": "Grid power charging the battery. (Optional)",
           "sensor_house_to_grid": "Power exported from the house to the grid. (Optional)",
           "sensor_smartmeter_import": "Current import measured by the smart meter. Used when no separate Grid to House sensor is available. (Optional)",
@@ -116,7 +116,7 @@
           "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. Leave empty if unavailable. (Optional)",
           "sensor_solar_to_battery": "Solar power charging the battery. (Optional)",
           "sensor_battery_to_house": "Battery power supplied to the household. (Optional)",
-          "sensor_grid_to_house": "Grid power supplied directly to the household. (Optional)",
+          "sensor_grid_to_house": "Grid power into the house in watts, excluding battery charging from the grid. Enter total grid import only together with the smart meter import sensor: STATS then subtracts battery charging. Without that sensor the value stays unchanged. (Optional)",
           "sensor_grid_to_battery": "Grid power charging the battery. (Optional)",
           "sensor_house_to_grid": "Power exported from the house to the grid. (Optional)",
           "sensor_smartmeter_import": "Current import measured by the smart meter. Used when no separate Grid to House sensor is available. (Optional)",
@@ -189,7 +189,6 @@
           "pricing": "Pricing",
           "amortization": "Amortization",
           "smart_charging": "Battery",
-          "appearance": "Interface",
           "advanced": "Advanced"
         },
         "data_description": {}
@@ -228,7 +227,7 @@
           "sensor_battery_power": "Battery charge/discharge power in Watt. Positive = charge, Negative = discharge. (Optional)",
           "sensor_solar_to_battery": "Solar power flowing into battery in Watt. (Optional)",
           "sensor_battery_to_house": "Power flowing from battery to house in Watt. (Optional)",
-          "sensor_grid_to_house": "Power flowing directly from grid to house in Watt. (Optional)",
+          "sensor_grid_to_house": "Grid power into the house in watts, excluding battery charging from the grid. Enter total grid import only together with the smart meter import sensor: STATS then subtracts battery charging. Without that sensor the value stays unchanged. (Optional)",
           "sensor_grid_to_battery": "Power flowing directly from grid to battery in Watt. (Optional)",
           "sensor_house_to_grid": "Total solar power fed into the grid in Watt. (Optional)",
           "sensor_smartmeter_import": "Smartmeter current import power in Watt. (Optional)",
@@ -267,7 +266,7 @@
         "data_description": {
           "battery_capacity": "Required. 0 means not configured. Usable battery capacity. Used to translate solar kWh forecast into SOC percent.",
           "max_charge_power_kw": "Grid charge power in kW. 0 = unlimited (0 = unbegrenzt, no window cap).",
-          "battery_soc_sensor": "Battery State-of-Charge sensor (0-100%). Without it, logic falls back to price-only mode.",
+          "battery_soc_sensor": "Battery state-of-charge sensor (0-100%). Without it there is no grid charging.",
           "smart_charging_switch": "Switch entity to turn grid charging on/off in Home Assistant.",
           "ems_surplus_switch": "Optional switch for a flexible load. EMS only enables it after the stable S-Plus surplus gate.",
           "ems_wallbox_switch": "Optional fail-safe charge-enable switch for the wallbox. Do not select its main power switch.",
@@ -298,16 +297,6 @@
           "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
           "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
           "amortization_degradation_percent": "Annual PV output degradation in the projection."
-        }
-      },
-      "appearance": {
-        "title": "Dashboard Interface",
-        "description": "Choose which dashboard is opened. The classic interface remains available and is the safe default.",
-        "data": {
-          "ui_mode": "Interface"
-        },
-        "data_description": {
-          "ui_mode": "Classic preserves the existing dashboard. Modern enables the redesigned responsive interface. Reload the dashboard after changing this setting."
         }
       },
       "advanced": {
@@ -438,21 +427,21 @@
       "smart_charging_mode": {
         "name": "Smart charging mode",
         "state": {
-          "forecast": "Fill the gap only",
-          "price_band_soc": "Charge to target when power is cheap",
-          "combined": "Both – the higher need wins"
+          "forecast": "Gap only",
+          "price_band_soc": "Up to target",
+          "combined": "Both"
         }
       }
     },
     "number": {
       "smart_charging_target_soc": {
-        "name": "Target SoC"
+        "name": "Target level"
       },
       "smart_charging_min_soc": {
-        "name": "Minimum SoC"
+        "name": "Floor"
       },
       "smart_charging_max_soc": {
-        "name": "Maximum SoC"
+        "name": "Ceiling"
       }
     }
   }

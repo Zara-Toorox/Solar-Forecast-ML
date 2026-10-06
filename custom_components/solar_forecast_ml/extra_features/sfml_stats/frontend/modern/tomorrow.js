@@ -766,6 +766,7 @@ window.TomorrowPage = {
 
                 <p class="tomorrow-footnote">{{ copy.footnote }}</p>
             </template>
+            <modern-page-guide page="tomorrow"></modern-page-guide>
         </section>
     `,
     setup(props, { emit }) {

@@ -38,7 +38,8 @@ const SmartChargingPage = ((Vue) => {
         if (Number(live.reserved_future_grid_charge_kwh) > 0) flags.reserved = true;
         const hour = live.next_cheap_hour;
         const hasHour = hour != null && hour !== '';
-        const inWindow = live.is_cheap === true;
+        const inWindow = live.grid_allowed === true
+            || (live.grid_allowed == null && live.is_cheap === true);
         if (hasHour && (!inWindow || live.decision === 'wait')) {
             flags.nextWindow = true;
             flags.nextWindowBand = mode === 'price_band_soc';
@@ -59,7 +60,11 @@ const SmartChargingPage = ((Vue) => {
                 <div class="chart-card sc-status-card" style="margin-bottom: var(--space-lg);">
                     <div class="sc-status-row">
                         <span class="sc-status-ampel" :class="'sc-status-' + statusAmpel" aria-hidden="true"></span>
-                        <p class="sc-status-line">{{ statusSentenceText }}</p>
+                        <div class="sc-status-copy">
+                            <p class="sc-status-line">{{ statusHeadlineText }}</p>
+                            <p class="sc-status-why" v-if="statusWhyText">{{ statusWhyText }}</p>
+                            <p class="sc-status-next" v-if="statusNextText">{{ statusNextText }}</p>
+                        </div>
                     </div>
                     <div class="live-metrics sc-status-chips" v-if="statusChips.length">
                         <div class="live-metric" v-for="chip in statusChips" :key="chip.id">
@@ -101,7 +106,7 @@ const SmartChargingPage = ((Vue) => {
                         <p class="sc-help">{{ thresholdModeHelp }}</p>
                         <p v-if="fieldError('threshold_mode')" class="sc-settings-error">{{ fieldError('threshold_mode') }}</p>
                     </div>
-                    <div class="sc-control">
+                    <div class="sc-control" v-show="thresholdMode === 'absolute'">
                         <div class="sc-control-head">
                             <label>{{ $t('smart_charging.cheapThreshold') }}</label>
                             <span class="sc-number-wrap">
@@ -480,6 +485,22 @@ const SmartChargingPage = ((Vue) => {
                     </div>
                 </div>
 
+                <div class="chart-card" style="margin-bottom: var(--space-lg);" v-if="gridChargePeriods.length">
+                    <div class="chart-header" style="margin-bottom: var(--space-md);">
+                        <span class="chart-title">⚡🔋 {{ $t('smart_charging.gridChargeTitle') }}</span>
+                    </div>
+                    <div class="eb-grid">
+                        <div class="eb-item" v-for="period in gridChargePeriods" :key="period.id">
+                            <div class="eb-label">{{ period.label }}</div>
+                            <div class="eb-value" style="color: var(--solar);">{{ fmtKwh(period.kwh) }}</div>
+                            <div class="eb-sub" v-if="period.avg_ct_kwh != null || !period.unpriced_kwh">{{ fmtEur(period.cost_eur) }}</div>
+                            <div class="eb-sub" v-if="period.avg_ct_kwh != null">{{ $t('smart_charging.gridChargeAvg', { price: fmtPrice(period.avg_ct_kwh) }) }}</div>
+                            <div class="eb-sub" v-if="period.unpriced_kwh > 0">{{ $t('smart_charging.gridChargeUnpriced', { kwh: Number(period.unpriced_kwh).toFixed(1) }) }}</div>
+                            <div class="eb-sub" v-if="period.under_limit_share != null">{{ $t('smart_charging.gridChargeUnderLimit', { pct: (period.under_limit_share * 100).toFixed(0) }) }}</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 3. INTERACTIVE 48H CHART -->
                 <div class="chart-card" style="margin-bottom: var(--space-lg);">
                     <div class="chart-header">
@@ -617,6 +638,7 @@ const SmartChargingPage = ((Vue) => {
                         </div>
                     </div>
                 </div>
+                <modern-page-guide page="smart_charging"></modern-page-guide>
             </div>
         `,
 
@@ -629,6 +651,7 @@ const SmartChargingPage = ((Vue) => {
                 history: null,
                 gpm: {},
                 chart_plan: null,
+                grid_charge: null,
             });
 
             const selectedPeriod = ref('today');
@@ -675,6 +698,15 @@ const SmartChargingPage = ((Vue) => {
             const currentKpis = computed(() => {
                 if (!dashboardData.kpis) return { charged_kwh: 0, avg_price_ct: 0, savings_eur: 0 };
                 return dashboardData.kpis[selectedPeriod.value] || { charged_kwh: 0, avg_price_ct: 0, savings_eur: 0 };
+            });
+            const gridChargePeriods = computed(() => {
+                const card = dashboardData.grid_charge;
+                if (!card) return [];
+                return [
+                    { id: 'today', label: t('smart_charging.gridChargeToday') },
+                    { id: 'month', label: t('smart_charging.gridChargeMonth') },
+                    { id: 'year', label: t('smart_charging.gridChargeYear') },
+                ].map((period) => Object.assign({ label: period.label, id: period.id }, card[period.id] || {}));
             });
 
             // Robust SoC resolution
@@ -755,80 +787,70 @@ const SmartChargingPage = ((Vue) => {
 
             const translatedReason = computed(() => {
                 if (!dashboardData.live) return '--';
-                if (!dashboardData.live.enabled) return t('smart_charging.reasonDisabled');
-                let reason = dashboardData.live.reason;
+                const facts = dashboardData.live.status;
+                let reason = facts && facts.why_code ? facts.why_code : dashboardData.live.reason;
                 if (reason === 'soc_unavailable' && currentSoc.value != null) {
                     reason = 'unknown';
                 }
-                const reasonKey = `smart_charging.reasons.${reason}`;
-                const translation = t(reasonKey);
-                return translation !== reasonKey ? translation : reason;
+                return catalogReason(reason);
             });
 
-            function shortReasonText(code) {
-                if (!code) return t('smart_charging.status.reason.unknown');
-                const key = `smart_charging.status.reason.${code}`;
+            function catalogReason(code) {
+                if (!code) return t('smart_charging.reasons.unknown');
+                const key = `smart_charging.reasons.${code}`;
                 const text = t(key);
                 if (text !== key) return text;
                 return t('smart_charging.status.unknownReason').replace('{code}', String(code));
             }
 
-            function statusGpmMeta() {
-                const dashGpm = dashboardData.gpm || {};
+            function statusHourLabel(hour) {
+                const number = Number(hour);
+                if (!Number.isInteger(number) || number < 0 || number > 23) return '';
+                return String(number).padStart(2, '0') + ':00';
+            }
+
+            function statusView(live) {
+                const row = live || {};
+                const facts = row.status && typeof row.status === 'object' ? row.status : null;
+                const allowed = row.grid_allowed === true
+                    || (row.grid_allowed == null && row.is_cheap === true);
+                const charging = facts
+                    ? facts.headline === 'charging'
+                    : Boolean(row.active && allowed);
+                const whyCode = facts && facts.why_code ? facts.why_code : row.reason;
+                let next = '';
+                const step = facts && facts.next;
+                if (step && step.kind === 'observe') {
+                    next = t('smart_charging.status.observe');
+                } else if (step && step.kind === 'stop_soc' && step.soc != null) {
+                    next = t('smart_charging.status.stopSoc').replace('{soc}', String(step.soc));
+                } else if (step && step.kind === 'stop_hour') {
+                    next = t('smart_charging.status.stopHour');
+                } else if (step && step.kind === 'next_hour') {
+                    const time = statusHourLabel(step.hour);
+                    if (time && step.soc != null) {
+                        next = t('smart_charging.status.nextHourThen')
+                            .replace('{time}', time)
+                            .replace('{soc}', String(step.soc));
+                    } else if (time) {
+                        next = t('smart_charging.status.nextHour').replace('{time}', time);
+                    }
+                }
                 return {
-                    available: Boolean(gpmMeta.available || dashGpm.available),
-                    is_demo: Boolean(gpmMeta.is_demo || dashGpm.is_demo),
+                    headline: t(charging ? 'smart_charging.status.charging' : 'smart_charging.status.idle'),
+                    why: catalogReason(whyCode),
+                    next: next,
                 };
             }
 
-            function statusPricePart(live, gpm) {
-                if (gpm && gpm.is_demo) return t('smart_charging.status.priceUnknownDemo');
-                if (!gpm || !gpm.available) return t('smart_charging.status.priceUnknownGpm');
-                if (live && live.is_cheap === true) return t('smart_charging.status.priceCheapNow');
-                return t('smart_charging.status.priceNotCheap');
-            }
-
-            function statusSentence(live, gpm) {
-                const gpmObj = gpm || {};
-                const unknown = Boolean(gpmObj.is_demo) || !gpmObj.available;
-                const reason = shortReasonText(live && live.reason);
-                if (!live || !live.enabled) {
-                    return t('smart_charging.status.sentenceOff').replace(
-                        '{price}',
-                        statusPricePart(live || {}, gpmObj)
-                    );
-                }
-                const cheap = live.is_cheap === true;
-                const decision = live.decision;
-                if (unknown || cheap) {
-                    const price = unknown
-                        ? statusPricePart(live, gpmObj)
-                        : (decision === 'load'
-                            ? t('smart_charging.status.priceCheapNow')
-                            : t('smart_charging.status.priceCheap'));
-                    if (decision === 'load') {
-                        return t('smart_charging.status.sentenceCheapLoad').replace('{price}', price);
-                    }
-                    if (decision === 'wait') {
-                        return t('smart_charging.status.sentenceCheapWait')
-                            .replace('{price}', price)
-                            .replace('{reason}', reason);
-                    }
-                    return t('smart_charging.status.sentenceCheapNotLoad')
-                        .replace('{price}', price)
-                        .replace('{reason}', reason);
-                }
-                const price = t('smart_charging.status.priceNotCheap');
-                if (decision === 'load') {
-                    return t('smart_charging.status.sentenceNotCheapLoad')
-                        .replace('{price}', price)
-                        .replace('{reason}', reason);
-                }
-                return t('smart_charging.status.sentenceNotCheap').replace('{price}', price);
-            }
-
+            const statusViewNow = computed(() => statusView(dashboardData.live || {}));
+            const statusHeadlineText = computed(() => statusViewNow.value.headline);
+            const statusWhyText = computed(() => statusViewNow.value.why);
+            const statusNextText = computed(() => statusViewNow.value.next);
             const statusSentenceText = computed(() => {
-                return statusSentence(dashboardData.live || {}, statusGpmMeta());
+                return [statusHeadlineText.value, statusWhyText.value, statusNextText.value]
+                    .filter(Boolean)
+                    .join(' ');
             });
 
             const statusAmpel = computed(() => {
@@ -837,7 +859,11 @@ const SmartChargingPage = ((Vue) => {
                 }
                 const live = dashboardData.live || {};
                 if (!live.enabled) return 'idle';
-                if (live.decision === 'load') return 'load';
+                const facts = live.status;
+                if (facts && facts.headline === 'charging') return 'load';
+                if (!facts && live.active && (live.grid_allowed === true || (live.grid_allowed == null && live.is_cheap === true))) {
+                    return 'load';
+                }
                 if (live.decision === 'wait') return 'wait';
                 return 'idle';
             });
@@ -1336,6 +1362,7 @@ const SmartChargingPage = ((Vue) => {
                         dashboardData.advisor = data.advisor;
                         dashboardData.gpm = data.gpm || {};
                         dashboardData.chart_plan = data.chart_plan || null;
+                        dashboardData.grid_charge = data.grid_charge || null;
                         if (data.gpm) {
                             applyCheapHours(data.gpm.cheap_hours, data.gpm.tomorrow_available);
                         }
@@ -1566,6 +1593,7 @@ const SmartChargingPage = ((Vue) => {
                 selectedPeriod,
                 periods,
                 currentKpis,
+                gridChargePeriods,
                 currentSoc,
                 statusBadgeClass,
                 statusBadgeText,
@@ -1610,6 +1638,9 @@ const SmartChargingPage = ((Vue) => {
                 cheapHoursTodayLabel,
                 cheapHoursTomorrowLabel,
                 chartThresholdsUnavailable,
+                statusHeadlineText,
+                statusWhyText,
+                statusNextText,
                 statusSentenceText,
                 statusAmpel,
                 statusChips,
@@ -1645,11 +1676,18 @@ const SmartChargingPage = ((Vue) => {
             border-radius: 999px;
             padding: 4px 10px;
         }
-        .sc-status-card .sc-status-line {
+        .sc-status-card .sc-status-line,
+        .sc-status-card .sc-status-why,
+        .sc-status-card .sc-status-next {
             margin: 0;
             font-size: 1rem;
             line-height: 1.4;
             color: var(--text-primary);
+        }
+        .sc-status-card .sc-status-why,
+        .sc-status-card .sc-status-next {
+            margin-top: 4px;
+            color: var(--text-secondary, var(--text-primary));
         }
         .sc-status-row {
             display: flex;

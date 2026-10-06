@@ -75,7 +75,6 @@ WEATHER_FALLBACK_DEFAULT = "weather.home"
 
 # Containment Feature Toggles @starfleet-engineering
 CONF_UPDATE_INTERVAL = "update_interval"
-CONF_DIAGNOSTIC = "diagnostic"
 CONF_HOURLY = "hourly"
 CONF_NOTIFY_STARTUP = "notify_startup"
 CONF_NOTIFY_FORECAST = "notify_forecast"

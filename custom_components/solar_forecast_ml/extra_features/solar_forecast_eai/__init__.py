@@ -52,6 +52,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PROVIDER_KEY = "capability_provider"
 VALIDATOR_KEY = "license_validator"
+_SERVICE_REGISTRY = "service_registry"
 PLATFORMS = (Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH)
 
 
@@ -71,6 +72,32 @@ def get_license_validator(hass: HomeAssistant) -> OfflineLicenseValidator:
         if isinstance(candidate, OfflineLicenseValidator)
         else OfflineLicenseValidator()
     )
+
+
+async def _async_attach_services(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Register domain services once, for every loaded entry."""
+    from .services.service_registry import ServiceRegistry
+
+    domain = hass.data.setdefault(DOMAIN, {})
+    registry = domain.get(_SERVICE_REGISTRY)
+    if not isinstance(registry, ServiceRegistry):
+        registry = ServiceRegistry(hass)
+        await registry.async_register_all_services()
+        domain[_SERVICE_REGISTRY] = registry
+    registry.bind_entry(entry.entry_id)
+
+
+def _async_detach_services(hass: HomeAssistant, entry_id: str) -> None:
+    """Remove domain services when the last config entry unloads."""
+    from .services.service_registry import ServiceRegistry
+
+    domain = hass.data.get(DOMAIN, {})
+    registry = domain.get(_SERVICE_REGISTRY) if isinstance(domain, dict) else None
+    if not isinstance(registry, ServiceRegistry):
+        return
+    if registry.release_entry(entry_id):
+        registry.unregister_all_services()
+        domain.pop(_SERVICE_REGISTRY, None)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -168,6 +195,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         if str(entry.data.get(CONF_LICENSE_KEY, "")).strip():
             entry.async_start_reauth(hass)
+        await _async_attach_services(hass, entry)
         return True
     provider.update_configuration(
         configured=True,
@@ -197,6 +225,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise
     runtime.schedule_license_monitor(result.payload.expires_at)
     await _async_sync_hydraulics_repair(hass, entry)
+    await _async_attach_services(hass, entry)
     return True
 
 
@@ -215,6 +244,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if isinstance(runtime, EAIRuntime):
         await runtime.async_shutdown()
     get_capability_provider(hass).reset()
+    _async_detach_services(hass, entry.entry_id)
     return True
 
 

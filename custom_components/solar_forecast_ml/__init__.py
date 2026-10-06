@@ -59,13 +59,25 @@ from .const import (
     SERVICE_REPAIR_TOOL,
     VERSION,
 )
+from .core.core_dev_mode import get_dev_mode
 from .core.core_helpers import SafeDateTimeUtil as dt_util
 
 _LOGGER = logging.getLogger(__name__)
 
+
+class _WarningToParentHandler(logging.Handler):
+    """Copy WARNING and above to the parent logger without enabling propagate."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        parent = logging.getLogger(__package__).parent
+        if parent is None or not parent.isEnabledFor(record.levelno):
+            return
+        parent.handle(record)
+
 # File logging globals @zara
 _log_queue_listener: Optional[QueueListener] = None
 _log_queue_handler: Optional[QueueHandler] = None
+_log_forward_handler: Optional[logging.Handler] = None
 _logging_initialized: bool = False
 _ENTRY_DELAYED_TASKS = "_entry_delayed_tasks"
 
@@ -642,19 +654,26 @@ async def _copy_calibration_from_donor(
 ) -> None:
     scaled_ratio = min(max(capacity_ratio, 0.0), 1.0)
     donor_cal = await db.fetchone(
-        "SELECT global_factor, sample_count, confidence "
+        "SELECT global_factor, sample_count, confidence, "
+        "rearm_learning_days, rearm_pending_factor "
         "FROM physics_calibration_groups WHERE group_name = ?",
         (donor_name,),
     )
     if donor_cal:
+        # Rearm is a learning generation, not a sample count: copy it as-is.
+        # NULL stays NULL, so a donor without an open rearm does not start one.
         await db.execute(
             "INSERT OR IGNORE INTO physics_calibration_groups "
-            "(group_name, global_factor, sample_count, confidence) VALUES (?, ?, ?, ?)",
+            "(group_name, global_factor, sample_count, confidence, "
+            "rearm_learning_days, rearm_pending_factor) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (
                 target_name,
                 donor_cal[0],
                 _scaled_count(donor_cal[1], scaled_ratio),
                 _scaled_confidence(donor_cal[2], scaled_ratio),
+                donor_cal[3],
+                donor_cal[4],
             ),
         )
 
@@ -731,7 +750,9 @@ async def _copy_calibration_from_donor(
 async def _initialize_group_defaults(db, group_name: str, tilt: float) -> None:
     await db.execute(
         "INSERT OR IGNORE INTO physics_calibration_groups "
-        "(group_name, global_factor, sample_count, confidence) VALUES (?, 1.0, 0, 0.0)",
+        "(group_name, global_factor, sample_count, confidence, "
+        "rearm_learning_days, rearm_pending_factor) "
+        "VALUES (?, 1.0, 0, 0.0, NULL, NULL)",
         (group_name,),
     )
     await db.execute(
@@ -1073,15 +1094,18 @@ async def setup_file_logging(hass: HomeAssistant) -> None:
 
     Prevents duplicate handlers on reload by checking initialization state.
     """
-    global _log_queue_listener, _log_queue_handler, _logging_initialized
+    global _log_queue_listener, _log_queue_handler, _log_forward_handler, _logging_initialized
 
     if _logging_initialized and _log_queue_listener is not None:
         _LOGGER.debug("File logging already initialized - skipping (prevents duplicate handlers)")
         return
 
+    dev_active = bool(get_dev_mode(hass).get("active"))
+    log_level = logging.DEBUG if dev_active else logging.INFO
+
     def _setup_logging_sync():
         """Synchronous file operations - runs in executor. @zara"""
-        global _log_queue_listener, _log_queue_handler, _logging_initialized
+        global _log_queue_listener, _log_queue_handler, _log_forward_handler, _logging_initialized
 
         try:
             integration_logger = logging.getLogger(__package__)
@@ -1089,7 +1113,7 @@ async def setup_file_logging(hass: HomeAssistant) -> None:
             # Remove any existing QueueHandlers to prevent accumulation @zara
             existing_queue_handlers = [
                 h for h in integration_logger.handlers
-                if isinstance(h, QueueHandler)
+                if isinstance(h, QueueHandler) or isinstance(h, _WarningToParentHandler)
             ]
             for handler in existing_queue_handlers:
                 _LOGGER.debug(f"Removing existing QueueHandler: {handler}")
@@ -1105,7 +1129,7 @@ async def setup_file_logging(hass: HomeAssistant) -> None:
                 backupCount=5,
                 encoding="utf-8",
             )
-            file_handler.setLevel(logging.DEBUG)
+            file_handler.setLevel(log_level)
 
             formatter = logging.Formatter(
                 "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -1116,7 +1140,7 @@ async def setup_file_logging(hass: HomeAssistant) -> None:
             log_queue: queue.Queue = queue.Queue(-1)
 
             _log_queue_handler = QueueHandler(log_queue)
-            _log_queue_handler.setLevel(logging.DEBUG)
+            _log_queue_handler.setLevel(log_level)
 
             _log_queue_listener = QueueListener(
                 log_queue,
@@ -1128,7 +1152,11 @@ async def setup_file_logging(hass: HomeAssistant) -> None:
             atexit.register(_stop_queue_listener)
 
             integration_logger.addHandler(_log_queue_handler)
-            integration_logger.setLevel(logging.DEBUG)
+            _log_forward_handler = _WarningToParentHandler()
+            _log_forward_handler.setLevel(logging.WARNING)
+            integration_logger.addHandler(_log_forward_handler)
+            integration_logger.setLevel(log_level)
+            integration_logger.propagate = False
 
             _logging_initialized = True
 
@@ -1147,13 +1175,17 @@ async def setup_file_logging(hass: HomeAssistant) -> None:
 
 def _stop_queue_listener() -> None:
     """Stop the queue listener on shutdown. @zara"""
-    global _log_queue_listener, _log_queue_handler, _logging_initialized
+    global _log_queue_listener, _log_queue_handler, _log_forward_handler, _logging_initialized
 
-    if _log_queue_handler is not None:
+    if _log_queue_handler is not None or _log_forward_handler is not None:
         try:
             integration_logger = logging.getLogger(__package__)
-            integration_logger.removeHandler(_log_queue_handler)
-            _log_queue_handler = None
+            if _log_queue_handler is not None:
+                integration_logger.removeHandler(_log_queue_handler)
+                _log_queue_handler = None
+            if _log_forward_handler is not None:
+                integration_logger.removeHandler(_log_forward_handler)
+                _log_forward_handler = None
         except Exception:
             pass
 
@@ -1207,9 +1239,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Solar Forecast ML from a config entry. @zara"""
     from .coordinator import SolarForecastMLCoordinator
     from .core.core_dependency_handler import DependencyHandler
+    from .core.core_dev_mode import (
+        async_evaluate_dev_mode,
+        async_register_dev_mode_services,
+    )
     from .services.service_notification import create_notification_service
 
+    await async_evaluate_dev_mode(hass)
     await setup_file_logging(hass)
+    await async_register_dev_mode_services(hass)
 
 
     # Check ML dependencies @zara
@@ -1519,8 +1557,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Properly cleans up logging handlers on unload to prevent duplicate log entries.
     """
     from .astronomy.astronomy_cache_manager import reset_cache_manager
+    from .core.core_dev_mode import unregister_dev_mode_services
 
     _LOGGER.info("Unloading Solar Forecast ML integration...")
+    unregister_dev_mode_services(hass)
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
@@ -1638,33 +1678,20 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
 
     ent_reg = er.async_get(hass)
 
-    # Patterns for diagnostic entities to remove when diagnostic mode is disabled @zara
-    diagnostic_patterns = [
-        "diagnostic_status",
-        "external_sensors_status",
-        "next_production_start",
-        "ml_service_status",
-        "ml_metrics",
-        "ml_training_readiness",
-        "active_prediction_model",
-        "pattern_count",
-        "physics_samples",
-    ]
+    from .core.core_dev_mode import get_dev_mode, unique_id_requires_dev_mode
 
-    diagnostic_enabled = config_entry.options.get("diagnostic", True)
+    dev_active = bool(get_dev_mode(hass).get("active"))
 
-    if not diagnostic_enabled:
+    if not dev_active:
         entities_removed = 0
         for entity_entry in list(ent_reg.entities.values()):
             if entity_entry.config_entry_id != config_entry.entry_id:
                 continue
 
-            for pattern in diagnostic_patterns:
-                if pattern in str(entity_entry.unique_id).lower():
-                    _LOGGER.debug(f"Removing orphaned diagnostic entity: {entity_entry.entity_id}")
-                    ent_reg.async_remove(entity_entry.entity_id)
-                    entities_removed += 1
-                    break
+            if unique_id_requires_dev_mode(entity_entry.unique_id):
+                _LOGGER.debug(f"Removing DEV-only entity: {entity_entry.entity_id}")
+                ent_reg.async_remove(entity_entry.entity_id)
+                entities_removed += 1
 
         if entities_removed > 0:
             _LOGGER.info(f"Removed {entities_removed} orphaned diagnostic entities")
@@ -1687,7 +1714,12 @@ async def _async_register_services(
 
     hass.data[DOMAIN]["service_registry"] = registry
 
-    if not hass.services.has_service(DOMAIN, SERVICE_REPAIR_TOOL):
+    from .core.core_dev_mode import get_dev_mode
+
+    if (
+        bool(get_dev_mode(hass).get("active"))
+        and not hass.services.has_service(DOMAIN, SERVICE_REPAIR_TOOL)
+    ):
         from .services.service_repair_tool import RepairToolService
 
         repair_tool = RepairToolService(hass, coordinator)

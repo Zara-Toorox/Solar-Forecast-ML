@@ -1650,6 +1650,7 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
         if not has_corrections(self._entitlements()):
             return self.async_abort(reason="license_required")
         errors: dict[str, str] = {}
+        placeholders: dict[str, str] = {}
         defaults = getattr(self, "_monthly_defaults", {})
         if user_input is not None:
             month_key = str(user_input.get("month") or "")
@@ -1676,6 +1677,9 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
                     preview = await coordinator.async_preview_month_correction(**payload)
                 except CorrectionError as err:
                     errors["base"] = err.key
+                    placeholders = {
+                        key: str(value) for key, value in err.placeholders.items()
+                    }
                 else:
                     self._monthly_payload = payload
                     self._monthly_preview = preview
@@ -1683,6 +1687,7 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
         return self.async_show_form(
             step_id="monthly_correction",
             data_schema=_monthly_correction_schema(defaults),
+            description_placeholders=placeholders,
             errors=errors,
         )
 
@@ -1721,6 +1726,9 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
                 result = await coordinator.async_apply_month_correction(**payload)
             except CorrectionError as err:
                 errors["base"] = err.key
+                placeholders.update(
+                    {key: str(value) for key, value in err.placeholders.items()}
+                )
             else:
                 return self.async_abort(
                     reason="monthly_correction_applied",

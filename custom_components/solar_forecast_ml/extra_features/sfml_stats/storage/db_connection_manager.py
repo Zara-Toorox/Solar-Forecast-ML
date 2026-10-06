@@ -56,6 +56,7 @@ _STATS_TABLES: dict[str, str] = {
         grid_export_kwh REAL DEFAULT 0, feed_in_revenue_ct REAL DEFAULT 0,
         feed_in_tariff_ct REAL DEFAULT 0, price_ct_kwh REAL DEFAULT 0,
         grid_to_house_kwh REAL DEFAULT 0, grid_to_battery_kwh REAL DEFAULT 0,
+        grid_to_house_cost_ct REAL, grid_to_battery_cost_ct REAL,
         solar_yield_kwh REAL DEFAULT 0, solar_to_house_kwh REAL DEFAULT 0,
         solar_to_battery_kwh REAL DEFAULT 0, battery_to_house_kwh REAL DEFAULT 0,
         home_consumption_kwh REAL DEFAULT 0, consumer_heatpump_kwh REAL DEFAULT 0,

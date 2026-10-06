@@ -178,7 +178,6 @@
         "description": "Configure update intervals and notifications",
         "data": {
           "update_interval": "Update Interval (s)",
-          "diagnostic": "Diagnostic Mode",
           "hourly": "Hourly Forecast Sensor",
           "evcc_forecast": "evcc Solar Forecast",
           "notify_startup": "Startup Notification",
@@ -200,7 +199,6 @@
         },
         "data_description": {
           "update_interval": "Forecast update interval (300-86400s, default: 3600)",
-          "diagnostic": "Enable diagnostic sensors for monitoring",
           "hourly": "Enable next hour forecast sensor",
           "evcc_forecast": "Provides a sensor with hourly forecast data in evcc format. Enables direct integration into evcc without template sensors. Default: OFF",
           "notify_startup": "Show notification on startup",
@@ -433,7 +431,11 @@
         "name": "Next Scheduled Update"
       },
       "ml_metrics": {
-        "name": "AI Status"
+        "name": "AI Status",
+        "state": {
+          "forecast_active": "Forecast active",
+          "forecast_learning": "Forecast is still learning, values are cautious"
+        }
       },
       "ai_gate_status": {
         "name": "AI Gate Status",
@@ -441,7 +443,9 @@
           "serving": "AI active",
           "candidate_evaluating": "Candidate in evaluation",
           "waiting_regime": "Waiting for weather-regime coverage",
-          "physics_baseline": "AI not yet active – physics baseline"
+          "physics_baseline": "AI not yet active – physics baseline",
+          "forecast_active": "Forecast active",
+          "forecast_learning": "Forecast is still learning, values are cautious"
         }
       },
       "ai_rmse": {

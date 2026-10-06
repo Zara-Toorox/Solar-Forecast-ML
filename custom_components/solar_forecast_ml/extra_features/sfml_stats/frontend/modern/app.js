@@ -9,6 +9,27 @@ const {
     nextTick,
 } = Vue;
 
+window.sfmlDevState = reactive({
+    active: false,
+    expires_at: null,
+    install_hash: "",
+    loaded: false,
+});
+
+const SPOCK_QUOTES = [
+    "Insufficient facts always invite danger.",
+    "Highly illogical.",
+    "Fascinating.",
+    "Logic is the beginning of wisdom, not the end.",
+];
+
+function spockQuote(now = new Date()) {
+    const start = Date.UTC(now.getFullYear(), 0, 0);
+    const day = Math.floor((now.getTime() - start) / 86400000);
+    const index = ((day % SPOCK_QUOTES.length) + SPOCK_QUOTES.length) % SPOCK_QUOTES.length;
+    return SPOCK_QUOTES[index];
+}
+
 const ICON_PATHS = {
     home: "M3 11.5 12 4l9 7.5M5.5 10v10h13V10M9.5 20v-6h5v6",
     solar: "M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8",
@@ -61,6 +82,8 @@ const UiIcon = {
 const COPY = {
     de: {
         product: "Solar Forecast Stats",
+        devUntil: "gültig bis {date}",
+        devSubline: "DEV-Mode: alle Fakten, ungefiltert. Deuten nur mit Sachkenntnis.",
         sections: { overview: "Übersicht", analysis: "Analyse", control: "Steuerung", system: "System" },
         mobile: { dashboard: "Cockpit", home: "Übersicht", solar: "Solar", energy: "Energie" },
         pages: {
@@ -99,6 +122,8 @@ const COPY = {
     },
     en: {
         product: "Solar Forecast Stats",
+        devUntil: "valid until {date}",
+        devSubline: "DEV mode: every fact, unfiltered. Interpret only with expertise.",
         sections: { overview: "Overview", analysis: "Analysis", control: "Control", system: "System" },
         mobile: { dashboard: "Cockpit", home: "Overview", solar: "Solar", energy: "Energy" },
         pages: {
@@ -137,6 +162,8 @@ const COPY = {
     },
     pl: {
         product: "Solar Forecast Stats",
+        devUntil: "ważny do {date}",
+        devSubline: "Tryb DEV: wszystkie fakty, bez filtra. Interpretuj tylko ze znajomością rzeczy.",
         sections: { overview: "Przegląd", analysis: "Analiza", control: "Sterowanie", system: "System" },
         mobile: { dashboard: "Kokpit", home: "Przegląd", solar: "Solar", energy: "Energia" },
         pages: {
@@ -172,6 +199,21 @@ const COPY = {
         more: "Więcej",
         help: "Pomoc",
         licenseLabel: "Licencja",
+    },
+};
+
+const PUBLIC_PAGE_SUBTITLES = {
+    de: {
+        solar: "Ertrag, Abweichungen und Schatten",
+        quality: "Qualität und Entwicklung nachvollziehen",
+    },
+    en: {
+        solar: "Yield, deviations and shading",
+        quality: "Understand quality and development",
+    },
+    pl: {
+        solar: "Produkcja, odchylenia i cień",
+        quality: "Jakość i długoterminowy rozwój",
     },
 };
 
@@ -359,6 +401,7 @@ const ModernApp = {
             'drawer-open': drawerOpen,
             'orbit-mode': currentPage === 'dashboard',
             'premium-mode': currentPage === 'eai',
+            'dev-mode': devActive,
         }">
             <a class="skip-link" href="#main-content">{{ copy.skip }}</a>
 
@@ -394,6 +437,11 @@ const ModernApp = {
                 </nav>
 
                 <div class="sidebar-footer">
+                    <div v-if="devActive" class="dev-tag" role="status" :title="devHint">
+                        <strong>🖖 DEV</strong>
+                        <span v-if="devUntilLabel">{{ devUntilLabel }}</span>
+                        <span class="sr-only">{{ devHint }}</span>
+                    </div>
                     <a class="nav-item sidebar-help-link" :href="handbookUrl"
                        target="_blank" rel="noopener noreferrer">
                         <ui-icon name="help"></ui-icon>
@@ -488,8 +536,10 @@ const ModernApp = {
                                        @mode-change="handleDashboardMode"
                                        @change-theme="handlePageTheme" />
                             <modern-intelligence-overview
-                                v-if="currentPage === 'home'"
+                                v-if="currentPage === 'home' && devActive"
                                 @navigate="navigate" />
+                            <modern-forecast-guide
+                                v-if="currentPage === 'home' && !devActive" />
                         </div>
                     </transition>
                 </main>
@@ -649,7 +699,10 @@ const ModernApp = {
         });
 
         function pageCopy(page) {
-            return copy.pages[page] || copy.pages.home;
+            const pair = copy.pages[page] || copy.pages.home;
+            if (window.sfmlDevState.active === true) return pair;
+            const subtitle = PUBLIC_PAGE_SUBTITLES[locale]?.[page];
+            return subtitle ? [pair[0], subtitle] : pair;
         }
 
         function formatPower(value) {
@@ -896,8 +949,27 @@ const ModernApp = {
             }
         }
 
+        const devActive = computed(() => window.sfmlDevState.active === true);
+        const devHint = computed(() => `${spockQuote()} — ${copy.devSubline}`);
+        const devUntilLabel = computed(() => {
+            const raw = window.sfmlDevState.expires_at;
+            if (!raw) return "";
+            const parsed = new Date(raw);
+            if (Number.isNaN(parsed.getTime())) return "";
+            const formatted = new Intl.DateTimeFormat(locale, {
+                dateStyle: "medium",
+                timeStyle: "short",
+            }).format(parsed);
+            return copy.devUntil.replace("{date}", formatted);
+        });
+
+        async function loadDevMode() {
+            await SFMLApi.ensureDevMode(true);
+        }
+
         onMounted(() => {
             applyTheme();
+            loadDevMode();
             loadHeatingFeature();
             handleHashChange();
             window.addEventListener("hashchange", handleHashChange);
@@ -949,6 +1021,9 @@ const ModernApp = {
             handlePageTheme,
             handleDashboardMode,
             fetchData,
+            devActive,
+            devHint,
+            devUntilLabel,
         };
     },
 };
@@ -956,6 +1031,8 @@ const ModernApp = {
 installModernChartDefaults();
 const sfmlStatsModernApp = createApp(ModernApp);
 sfmlStatsModernApp.component("ui-icon", UiIcon);
+sfmlStatsModernApp.component("modern-page-guide", window.ModernPageGuide);
+sfmlStatsModernApp.component("modern-forecast-guide", window.ModernForecastGuide);
 sfmlStatsModernApp.component("modern-intelligence-overview", window.ModernIntelligenceOverview);
 sfmlStatsModernApp.config.globalProperties.$t = window.SFMLI18n?.t || ((key) => key);
 sfmlStatsModernApp.mount("#app");

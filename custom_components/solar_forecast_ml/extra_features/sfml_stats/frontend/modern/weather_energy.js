@@ -162,7 +162,7 @@ window.ModernWeatherEnergyPage = {
                 </div>
             </section>
 
-            <section v-else-if="activeTab === 'story' && day" class="we-section">
+            <section v-else-if="devOn && activeTab === 'story' && day" class="we-section">
                 <header class="we-section-heading"><div><span>Weather-to-Energy Story</span><h2>{{ copy.storyTitle }}</h2></div><small>{{ date(day.date) }} · {{ day.forecast_basis }}</small></header>
                 <div class="we-series-controls">
                     <label v-for="item in storySeries" :key="item.id"><input type="checkbox" v-model="visibleSeries[item.id]" @change="renderStory">{{ item.label }}</label>
@@ -177,7 +177,7 @@ window.ModernWeatherEnergyPage = {
                 <p class="we-method-note">{{ copy.storyNote }}</p>
             </section>
 
-            <section v-else-if="activeTab === 'impact' && impact" class="we-section">
+            <section v-else-if="devOn && activeTab === 'impact' && impact" class="we-section">
                 <header class="we-section-heading"><div><span>Weather Impact Explorer</span><h2>{{ copy.impactTitle }}</h2></div><div class="iq-segmented"><button v-for="days in [30, 90, 180]" :key="days" type="button" :class="{ active: impactDays === days }" @click="setImpactDays(days)">{{ days }} {{ copy.days }}</button></div></header>
                 <h3>{{ copy.cloudGroups }}</h3>
                 <div class="we-impact-grid">
@@ -198,7 +198,7 @@ window.ModernWeatherEnergyPage = {
                 <p class="we-method-note">{{ copy.storyNote }} · n ≥ {{ impact.minimum_points }}, {{ impact.minimum_days }} {{ copy.days }}.</p>
             </section>
 
-            <section v-else-if="activeTab === 'compare' && comparable" class="we-section">
+            <section v-else-if="devOn && activeTab === 'compare' && comparable" class="we-section">
                 <header class="we-section-heading"><div><span>Comparable Days</span><h2>{{ copy.compareTitle }}</h2></div><small>{{ copy.target }} · {{ date(comparable.target_date) }}</small></header>
                 <div v-if="!comparable.available" class="we-empty-state"><strong>{{ copy.noCompare }}</strong><span>{{ comparable.candidate_days || 0 }} / {{ comparable.minimum_candidate_days || 14 }} {{ copy.days }}</span></div>
                 <template v-else>
@@ -219,11 +219,14 @@ window.ModernWeatherEnergyPage = {
     setup(props) {
         const locale = weLocale();
         const copy = WE_COPY[locale] || WE_COPY.en;
-        const tabs = ["overview", "story", "impact", "compare"];
+        const devOn = weComputed(() => window.sfmlDevState?.active === true);
+        const tabs = weComputed(() => (
+            devOn.value ? ["overview", "story", "impact", "compare"] : ["overview"]
+        ));
         const embedded = weComputed(() => props.embedded === true);
-        const startingTab = embedded.value && tabs.includes(props.tab)
+        const startingTab = embedded.value && tabs.value.includes(props.tab)
             ? props.tab
-            : (tabs.includes(props.initialSection) ? props.initialSection : "overview");
+            : (tabs.value.includes(props.initialSection) ? props.initialSection : "overview");
         const activeTab = weRef(startingTab);
         const selectedDate = weRef("");
         const latestDate = weRef("");
@@ -283,25 +286,32 @@ window.ModernWeatherEnergyPage = {
         async function loadActive(force = false) {
             loading.value = true;
             error.value = "";
+            await SFMLApi.ensureDevMode();
             try {
                 if (!summary.value || activeTab.value === "overview") await loadOverview(force);
-                if (activeTab.value === "story") await loadDay(force);
-                if (activeTab.value === "impact") await loadImpact(force);
-                if (activeTab.value === "compare") await loadComparable(force);
             } catch (err) {
-                console.error("[SFML Stats] Weather-energy analytics unavailable", err);
-                error.value = copy.unavailable;
-            } finally {
-                loading.value = false;
-                await weNextTick();
-                if (activeTab.value === "story") renderStory();
-                if (activeTab.value === "compare") renderCompare();
-                requestAnimationFrame(() => resizeCharts());
+                console.error("[SFML Stats] Weather-energy overview unavailable", err);
+                if (!summary.value) error.value = copy.unavailable;
             }
+            if (devOn.value && !error.value) {
+                try {
+                    if (activeTab.value === "story") await loadDay(force);
+                    if (activeTab.value === "impact") await loadImpact(force);
+                    if (activeTab.value === "compare") await loadComparable(force);
+                } catch (err) {
+                    console.error("[SFML Stats] Weather-energy detail unavailable", err);
+                    if (activeTab.value !== "overview") error.value = copy.unavailable;
+                }
+            }
+            loading.value = false;
+            await weNextTick();
+            if (activeTab.value === "story") renderStory();
+            if (activeTab.value === "compare") renderCompare();
+            requestAnimationFrame(() => resizeCharts());
         }
 
         async function selectTab(tab) {
-            if (!tabs.includes(tab)) return;
+            if (!tabs.value.includes(tab)) return;
             activeTab.value = tab;
             if (!embedded.value) window.location.hash = `weather_energy/${tab}`;
             await loadActive();
@@ -403,16 +413,16 @@ window.ModernWeatherEnergyPage = {
         }
 
         weWatch(() => props.tab, (value) => {
-            if (!embedded.value || !tabs.includes(value) || value === activeTab.value) return;
+            if (!embedded.value || !tabs.value.includes(value) || value === activeTab.value) return;
             activeTab.value = value;
             loadActive();
         });
         weWatch(() => props.initialSection, (value) => {
-            if (embedded.value || !tabs.includes(value) || value === activeTab.value) return;
+            if (embedded.value || !tabs.value.includes(value) || value === activeTab.value) return;
             selectTab(value);
         });
         weOnMounted(async () => { window.addEventListener("resize", resizeCharts); await loadActive(); });
         weOnUnmounted(() => { window.removeEventListener("resize", resizeCharts); storyChartInstance?.dispose(); compareChartInstance?.dispose(); });
-        return { copy, tabs, embedded, activeTab, selectedDate, latestDate, summary, day, impact, comparable, impactDays, loading, error, conditions, production, conditionClass, activeHour, storySeries, visibleSeries, storyChart, compareChart, compareDate, loadActive, selectTab, changeDate, setImpactDays, renderStory, selectComparable, number: weNumber, signed: weSigned, date: weDate, signedClass, insightText };
+        return { copy, tabs, embedded, activeTab, selectedDate, latestDate, summary, day, impact, comparable, impactDays, loading, error, conditions, production, conditionClass, activeHour, storySeries, visibleSeries, storyChart, compareChart, compareDate, loadActive, selectTab, changeDate, setImpactDays, renderStory, selectComparable, number: weNumber, signed: weSigned, date: weDate, signedClass, insightText, devOn };
     },
 };

@@ -472,6 +472,7 @@
                         </div>
                     </form>
                 </div>
+                <modern-page-guide page="heating"></modern-page-guide>
             </section>
         `,
         setup() {

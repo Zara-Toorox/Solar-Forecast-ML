@@ -552,13 +552,13 @@
     },
     "number": {
       "cheap_price": {
-        "name": "Cheap price threshold"
+        "name": "Price limit"
       },
       "force_charge_price": {
-        "name": "Force-charge price"
+        "name": "Force price"
       },
       "below_average_pct": {
-        "name": "Below-average percent"
+        "name": "Below today's average"
       },
       "cheapest_hours": {
         "name": "Cheapest hours"
@@ -566,10 +566,10 @@
     },
     "select": {
       "threshold_mode": {
-        "name": "Threshold mode",
+        "name": "Cheap hour",
         "state": {
-          "absolute": "Absolute",
-          "below_average": "Below average",
+          "absolute": "Price limit",
+          "below_average": "Below today's average",
           "cheapest_hours": "Cheapest hours"
         }
       }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from math import isfinite
 from typing import Any, NamedTuple
 
 from .const import (
@@ -34,6 +35,9 @@ from .const import (
     CONF_WP_ENERGY_TODAY,
     COP_MODE_DHW,
     COP_MODE_HEATING,
+    GENERATOR_FLOW_STANDBY_MAX_W,
+    GENERATOR_FLOW_STARTUP_S,
+    GENERATOR_FLOW_TOLERANCE_K,
     DEFAULT_COP_RATED,
     DEFAULT_HEATING_CAPACITY_KW,
     DHW_DAILY_DRAW_L_MAX,
@@ -277,15 +281,127 @@ def normalize_operation_mode(value: Any) -> str | None:
     return None
 
 
+def _plain_temperature(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not isfinite(parsed):
+        return None
+    return parsed
+
+
+def generator_circuit_flow_implausible(
+    *,
+    has_dhw: bool,
+    mode: str | None,
+    compressor_on: bool | None,
+    power_w: float | None,
+    heating_element_on: bool | None,
+    inputs_fresh_and_sync: bool,
+    dhw_active_seconds: float | None,
+    flow_c: float | None,
+    return_c: float | None,
+    reference_c: float | None,
+    margin_k: float = GENERATOR_FLOW_TOLERANCE_K,
+) -> bool | None:
+    """Judge whether a DHW flow sensor is not on the generator circuit.
+
+    ``True`` means this sample must not be used as a measured sink or as a
+    volume-flow heat reading. ``False`` means the sample was judged and the
+    flow is plausible. ``None`` means the sample is not judged, so callers
+    keep today's behaviour.
+
+    Heating is never judged: a heating-circuit sensor behind a buffer is not
+    distinguishable while the circuit is actually heating. Defrost, cooling,
+    standby, an unconfirmed mode, a stopped compressor, a heating element
+    alone, stale inputs, and the first minutes of a charge are not judged
+    either. Without a tank sensor only flow versus return is used.
+    """
+    if not has_dhw or mode != COP_MODE_DHW:
+        return None
+    if compressor_on is False:
+        return None
+    if heating_element_on is True and compressor_on is not True:
+        return None
+    if (
+        power_w is None
+        or not isfinite(power_w)
+        or power_w <= GENERATOR_FLOW_STANDBY_MAX_W
+    ):
+        return None
+    if not inputs_fresh_and_sync:
+        return None
+    if (
+        dhw_active_seconds is None
+        or not isfinite(dhw_active_seconds)
+        or dhw_active_seconds < GENERATOR_FLOW_STARTUP_S
+    ):
+        return None
+    if flow_c is None or not isfinite(flow_c):
+        return None
+    compared = False
+    if return_c is not None and isfinite(return_c):
+        compared = True
+        if flow_c < return_c - margin_k:
+            return True
+    if reference_c is not None and isfinite(reference_c):
+        compared = True
+        if flow_c < reference_c - margin_k:
+            return True
+    if not compared:
+        return None
+    return False
+
+
 def cop_sink_kwargs(
     config: dict[str, Any],
     *,
     flow_temp: float | None = None,
     operation_mode: Any = None,
+    return_temp: float | None = None,
+    reference_temp: float | None = None,
+    compressor_on: bool | None = None,
+    power_w: float | None = None,
+    heating_element_on: bool | None = None,
+    inputs_fresh_and_sync: bool = False,
+    dhw_active_seconds: float | None = None,
+    generator_flow_hint: bool = False,
 ) -> dict[str, Any]:
-    """Build evaluate_cop kwargs from config plus live flow/mode readings."""
+    """Build evaluate_cop kwargs from config plus live flow/mode readings.
+
+    A DHW flow that fails the generator-circuit check is omitted. The engine
+    then uses the existing setpoint / mode cascade and does not report
+    ``measured``.
+
+    ``generator_flow_hint`` is the insights latch, already decided on the
+    live path. Callers that only have that latch (the forecast) must not
+    compare flow, return, and tank temperatures again. A latched hint drops
+    the measured flow in DHW mode only; heating keeps the live flow.
+    """
+    if operation_mode in {COP_MODE_HEATING, COP_MODE_DHW, "defrost", "standby", "cooling"}:
+        gate_mode = operation_mode
+    else:
+        gate_mode = normalize_operation_mode(operation_mode)
+    implausible = generator_circuit_flow_implausible(
+        has_dhw=is_true(config, CONF_HAS_DHW),
+        mode=gate_mode,
+        compressor_on=compressor_on,
+        power_w=power_w,
+        heating_element_on=heating_element_on,
+        inputs_fresh_and_sync=inputs_fresh_and_sync,
+        dhw_active_seconds=dhw_active_seconds,
+        flow_c=_plain_temperature(flow_temp),
+        return_c=_plain_temperature(return_temp),
+        reference_c=_plain_temperature(reference_temp),
+    )
+    measured = _finite_temperature(flow_temp)
+    if implausible is True or (
+        generator_flow_hint is True and gate_mode == COP_MODE_DHW
+    ):
+        measured = None
     return {
-        "flow_temp": _finite_temperature(flow_temp),
+        "flow_temp": measured,
         "mode": normalize_operation_mode(operation_mode),
         "dhw_setpoint": _finite_temperature(config.get(CONF_DHW_TARGET_C)),
         "design_flow_temp": design_flow_temp_c(config),

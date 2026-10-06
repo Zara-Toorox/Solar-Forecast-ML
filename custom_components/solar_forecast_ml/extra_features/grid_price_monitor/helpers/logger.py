@@ -30,6 +30,46 @@ MAX_LOG_SIZE = 5 * 1024 * 1024
 BACKUP_COUNT = 12  # Keep 12 months
 
 
+def _dev_mode_active(hass: Any) -> bool:
+    """True only when SFML published dev_mode.active as True. @zara"""
+    if hass is None:
+        return False
+    try:
+        data = getattr(hass, "data", None)
+        if data is None or not hasattr(data, "get"):
+            return False
+        solar = data.get("solar_forecast_ml", {})
+        if solar is None or not hasattr(solar, "get"):
+            return False
+        dev_mode = solar.get("dev_mode", {})
+        if dev_mode is None or not hasattr(dev_mode, "get"):
+            return False
+        return dev_mode.get("active") is True
+    except (AttributeError, TypeError, KeyError):
+        return False
+
+
+def _log_level_for_hass(hass: Any) -> int:
+    """File log level: DEBUG in DEV, otherwise INFO. @zara"""
+    if _dev_mode_active(hass):
+        return logging.DEBUG
+    return logging.INFO
+
+
+class _WarningToParentHandler(logging.Handler):
+    """Forward WARNING and above to the parent logger. @zara"""
+
+    def __init__(self, logger: logging.Logger) -> None:
+        super().__init__(level=logging.WARNING)
+        self._logger = logger
+
+    def emit(self, record: logging.LogRecord) -> None:
+        parent = self._logger.parent
+        if parent is None or not parent.isEnabledFor(record.levelno):
+            return
+        parent.handle(record)
+
+
 class GPMLogger:
     """Custom logger for Solar Forecast GPM @zara
 
@@ -47,11 +87,15 @@ class GPMLogger:
         self._logs_path = logs_path
         self._file_handler: RotatingFileHandler | None = None
         self._logger = logging.getLogger(f"grid_price_monitor.gpm.{id(self)}")
-        self._logger.setLevel(logging.DEBUG)
+        self._logger.setLevel(_log_level_for_hass(hass))
         self._hass = hass
-
-        # Prevent propagation to root logger for file output
-        self._logger.propagate = True
+        self._logger.propagate = False
+        has_forward = any(
+            isinstance(handler, _WarningToParentHandler)
+            for handler in self._logger.handlers
+        )
+        if not has_forward:
+            self._logger.addHandler(_WarningToParentHandler(self._logger))
 
     async def _run_in_executor(self, func):
         """Run a function in executor, using hass if available @zara"""
@@ -89,7 +133,9 @@ class GPMLogger:
                     backupCount=BACKUP_COUNT,
                     encoding="utf-8",
                 )
-                self._file_handler.setLevel(logging.DEBUG)
+                level = _log_level_for_hass(self._hass)
+                self._logger.setLevel(level)
+                self._file_handler.setLevel(level)
 
                 # Set formatter
                 formatter = logging.Formatter(LOG_FORMAT, DATE_FORMAT)

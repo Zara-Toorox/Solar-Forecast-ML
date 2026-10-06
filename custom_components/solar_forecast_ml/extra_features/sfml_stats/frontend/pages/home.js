@@ -393,7 +393,7 @@ const _HomePage = {
                         </span>
                     </div>
                 </div>
-                <div v-if="hubbleView.systemStatus" class="hubble-system-status" :class="hubbleView.systemStatus.variant">
+                <div v-if="devOn && hubbleView.systemStatus" class="hubble-system-status" :class="hubbleView.systemStatus.variant">
                     <span class="hubble-system-title">{{ hubbleView.systemStatus.title }}</span>
                     <span class="hubble-system-meta">{{ hubbleView.systemStatus.meta }}</span>
                 </div>
@@ -465,7 +465,7 @@ const _HomePage = {
                     </div>
                 </div>
             </div>
-            <div class="hubble-chip-row">
+            <div v-if="devOn" class="hubble-chip-row">
                 <span v-for="chip in hubbleView.chips" :key="chip.key" class="hubble-chip" :title="chip.title || null">
                     <span class="hubble-chip-label">{{ chip.label }}</span>
                     <span class="hubble-chip-value">{{ chip.value }}</span>
@@ -500,7 +500,7 @@ const _HomePage = {
             </div>
             <div v-if="hubbleView.answer" class="hubble-answer">
                 <span class="hubble-answer-label">{{ hubbleView.answer.label }}</span>
-                <div v-if="hubbleView.answer.chips" class="hubble-chip-row">
+                <div v-if="devOn && hubbleView.answer.chips" class="hubble-chip-row">
                     <span v-for="chip in hubbleView.answer.chips" :key="chip.key" class="hubble-chip">
                         <span class="hubble-chip-label">{{ chip.label }}</span>
                         <span class="hubble-chip-value">{{ chip.value }}</span>
@@ -523,12 +523,12 @@ const _HomePage = {
                 </div>
                 <p v-else>{{ hubbleView.answer.text }}</p>
             </div>
-            <div class="hubble-report-toggle-row">
+            <div v-if="devOn" class="hubble-report-toggle-row">
                 <button type="button" class="hubble-toggle" @click="hubbleExpanded = !hubbleExpanded">
                     {{ hubbleExpanded ? $t('home.hubble.reportClose') : $t('home.hubble.reportOpen') }}
                 </button>
             </div>
-            <div v-if="hubbleExpanded" class="hubble-details">
+            <div v-if="devOn && hubbleExpanded" class="hubble-details">
                 <div class="hubble-story-grid">
                     <template v-for="block in hubbleView.story" :key="block.key">
                         <div v-if="block.type === 'tile'" class="hubble-story-tile" :class="block.key">
@@ -549,7 +549,8 @@ const _HomePage = {
         <!-- ========== SECTION 2: PROGNOSE-CHART ========== -->
         <div class="chart-card" style="margin-top: var(--space-lg)">
             <div class="chart-header forecast-card-title-row">
-                <span class="chart-title">{{ $t('home.dayForecastVsActual') }}</span>
+                    <span class="chart-title">{{ $t('home.dayForecastVsActual') }}</span>
+                    <span v-if="quality30Sentence" class="public-result-line">{{ quality30Sentence }}</span>
                 <div class="day-history-nav">
                     <button class="day-nav-button" type="button" @click="selectPreviousDay" :title="$t('home.previousDay')">&lsaquo;</button>
                     <span class="day-nav-label">{{ selectedDayLabel }}</span>
@@ -574,14 +575,14 @@ const _HomePage = {
                             <span class="metric-badge-label">{{ dayErrorLabel }}</span>
                         </div>
                     </div>
-                    <div v-if="todayLearningBasisLabel" class="metric-badge-card">
+                    <div v-if="devOn && todayLearningBasisLabel" class="metric-badge-card">
                         <span class="metric-badge-icon">⏱️</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" style="color: #fbbf24">{{ todayLearningBasisLabel }}</span>
                             <span class="metric-badge-label">{{ dayLearningBasisLabel }}</span>
                         </div>
                     </div>
-                    <div v-if="todayDiscardedLearningLabel" class="metric-badge-card">
+                    <div v-if="devOn && todayDiscardedLearningLabel" class="metric-badge-card" :title="todayDiscardedLearningLabel">
                         <span class="metric-badge-icon">🗑️</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" style="color: #f87171">{{ todayDiscardedLearningLabel }}</span>
@@ -619,7 +620,7 @@ const _HomePage = {
                             <span class="metric-badge-label">{{ $t('home.conservativeDayKpi') }}</span>
                         </div>
                     </div>
-                    <div class="metric-badge-card">
+                    <div v-if="devOn" class="metric-badge-card">
                         <span class="metric-badge-icon">↕️</span>
                         <div class="metric-badge-info">
                             <span class="metric-badge-value" :style="{ color: yieldDeviationColor(forecastDeviationKwh) }">{{ forecastDeviationKwhLabel }}</span>
@@ -628,11 +629,11 @@ const _HomePage = {
                     </div>
                 </div>
             </div>
-            <div v-if="hasWeatherTrace" class="weather-trace" :aria-label="$t('home.weatherTraceAria')">
+            <div v-if="hasWeatherTrace" class="weather-trace" :class="{ 'has-match-row': devOn }" :aria-label="$t('home.weatherTraceAria')">
                 <div class="weather-trace-labels">
                     <span :title="$t('home.expected')">🔮</span>
                     <span :title="$t('home.seen')">👀</span>
-                    <span :title="$t('home.matchTitle')">🎯</span>
+                    <span v-if="devOn" :title="$t('home.matchTitle')">🎯</span>
                 </div>
                 <div class="weather-trace-grid">
                     <template v-for="item in weatherTrace" :key="'weather-' + item.hour">
@@ -659,7 +660,7 @@ const _HomePage = {
                                 >{{ indicator.label }}</span>
                             </div>
                         </div>
-                        <div class="weather-trace-cell weather-trace-match-badge" :class="'match-' + item.matchState" :title="item.matchTitle">
+                        <div v-if="devOn" class="weather-trace-cell weather-trace-match-badge" :class="'match-' + item.matchState" :title="item.matchTitle">
                             <span class="match-icon">{{ item.matchIcon }}</span>
                         </div>
                     </template>
@@ -771,7 +772,11 @@ const _HomePage = {
                 </div>
                 <button type="button" class="sc-home-status" v-if="smartChargingLine" @click="$emit('navigate', 'smart_charging')">
                     <span class="sc-status-ampel" :class="'sc-status-' + smartChargingAmpel" aria-hidden="true"></span>
-                    <span>{{ smartChargingLine }}</span>
+                    <span class="sc-home-status-copy">
+                        <span class="sc-status-line">{{ smartChargingHeadline }}</span>
+                        <span class="sc-status-why" v-if="smartChargingWhy">{{ smartChargingWhy }}</span>
+                        <span class="sc-status-next" v-if="smartChargingNext">{{ smartChargingNext }}</span>
+                    </span>
                     <span v-if="setupIncomplete" class="sc-home-setup-badge">{{ $t('smart_charging.setup.incompleteBadge') }}</span>
                 </button>
             </div>
@@ -861,7 +866,7 @@ const _HomePage = {
         const panelGroupsData = reactive({ available: false, groups: {} });
         const pgChartRefs = reactive({});
         const pgChartInstances = {};
-        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], conservative: [], operationalTotal: null, conservativeTotal: null, actual: [], actualRaw: [], cleanEligible: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [], tfs: [], tfs_weight: [], ai: [], physics: [], lstm: [], ridge: [] });
+        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], conservative: [], operationalTotal: null, conservativeTotal: null, actual: [], actualRaw: [], cleanEligible: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [] });
         const weatherTrace = ref([]);
         const powerData = ref([]);
         const batterySocSensorConfigured = ref(false);
@@ -969,7 +974,7 @@ const _HomePage = {
             Object.keys(pgChartInstances).forEach((key) => { delete pgChartInstances[key]; });
             panelGroupsData.available = false;
             panelGroupsData.groups = {};
-            await Promise.all([
+            await Promise.allSettled([
                 loadForecastData(),
                 loadPowerHistory(),
                 loadPanelGroups(),
@@ -1039,14 +1044,14 @@ const _HomePage = {
             }
             const cleanHours = finiteNumber(group.clean_hours_count);
             const elapsedHours = finiteNumber(group.elapsed_hours_count);
-            if (cleanHours != null && elapsedHours != null && elapsedHours > 0) {
+            if (devOn.value && cleanHours != null && elapsedHours != null && elapsedHours > 0) {
                 parts.push(t('home.panelGroups.learningBasisShort', {
                     clean: cleanHours.toFixed(0),
                     elapsed: elapsedHours.toFixed(0),
                 }));
             }
             const excludedHours = finiteNumber(group.excluded_hours_count);
-            if (excludedHours != null && excludedHours > 0) {
+            if (devOn.value && excludedHours != null && excludedHours > 0) {
                 parts.push(t('home.panelGroups.discardedShort', { value: excludedHours.toFixed(0) }));
             }
             return parts;
@@ -1323,7 +1328,6 @@ const _HomePage = {
             P10: true,
             Hybrid: false,
             IST: true,
-            TFS: false,
             Unsicherheit: true,
         });
 
@@ -1441,8 +1445,15 @@ const _HomePage = {
             return (Number.isFinite(forecastCap) ? Math.min(sum, forecastCap) : sum).toFixed(1);
         });
 
+        const devOn = computed(() => window.sfmlDevState?.active === true);
+        const quality30Sentence = computed(() => {
+            const value = Number(cleanEvalStats.last30.accuracy);
+            if (!Number.isFinite(value)) return "";
+            return t("home.quality30").replace("{percent}", value.toFixed(0));
+        });
+
         const hasHybridForecast = computed(() => {
-            return forecastData.hybrid.some(v => v != null);
+            return devOn.value && forecastData.hybrid.some(v => v != null);
         });
 
         const hasConservativeForecast = computed(() => {
@@ -2401,66 +2412,61 @@ const _HomePage = {
 
         // ========== DATA LOADING ==========
 
-        function shortReasonText(code) {
-            if (!code) return t('smart_charging.status.reason.unknown');
-            const key = `smart_charging.status.reason.${code}`;
+        function catalogReason(code) {
+            if (!code) return t('smart_charging.reasons.unknown');
+            const key = `smart_charging.reasons.${code}`;
             const text = t(key);
             if (text !== key) return text;
             return t('smart_charging.status.unknownReason').replace('{code}', String(code));
         }
 
-        function statusPricePart(live, gpm) {
-            if (gpm && gpm.is_demo) return t('smart_charging.status.priceUnknownDemo');
-            if (!gpm || !gpm.available) return t('smart_charging.status.priceUnknownGpm');
-            if (live && live.is_cheap === true) return t('smart_charging.status.priceCheapNow');
-            return t('smart_charging.status.priceNotCheap');
+        function statusHourLabel(hour) {
+            const number = Number(hour);
+            if (!Number.isInteger(number) || number < 0 || number > 23) return '';
+            return String(number).padStart(2, '0') + ':00';
         }
 
-        function statusSentence(live, gpm) {
-            const gpmObj = gpm || {};
-            const unknown = Boolean(gpmObj.is_demo) || !gpmObj.available;
-            const reason = shortReasonText(live && live.reason);
-            if (!live || !live.enabled) {
-                return t('smart_charging.status.sentenceOff').replace(
-                    '{price}',
-                    statusPricePart(live || {}, gpmObj)
-                );
-            }
-            const cheap = live.is_cheap === true;
-            const decision = live.decision;
-            if (unknown || cheap) {
-                const price = unknown
-                    ? statusPricePart(live, gpmObj)
-                    : (decision === 'load'
-                        ? t('smart_charging.status.priceCheapNow')
-                        : t('smart_charging.status.priceCheap'));
-                if (decision === 'load') {
-                    return t('smart_charging.status.sentenceCheapLoad').replace('{price}', price);
+        function statusView(live) {
+            const row = live || {};
+            const facts = row.status && typeof row.status === 'object' ? row.status : null;
+            const allowed = row.grid_allowed === true
+                || (row.grid_allowed == null && row.is_cheap === true);
+            const charging = facts
+                ? facts.headline === 'charging'
+                : Boolean(row.active && allowed);
+            const whyCode = facts && facts.why_code ? facts.why_code : row.reason;
+            let next = '';
+            const step = facts && facts.next;
+            if (step && step.kind === 'stop_soc' && step.soc != null) {
+                next = t('smart_charging.status.stopSoc').replace('{soc}', String(step.soc));
+            } else if (step && step.kind === 'stop_hour') {
+                next = t('smart_charging.status.stopHour');
+            } else if (step && step.kind === 'next_hour') {
+                const time = statusHourLabel(step.hour);
+                if (time && step.soc != null) {
+                    next = t('smart_charging.status.nextHourThen')
+                        .replace('{time}', time)
+                        .replace('{soc}', String(step.soc));
+                } else if (time) {
+                    next = t('smart_charging.status.nextHour').replace('{time}', time);
                 }
-                if (decision === 'wait') {
-                    return t('smart_charging.status.sentenceCheapWait')
-                        .replace('{price}', price)
-                        .replace('{reason}', reason);
-                }
-                return t('smart_charging.status.sentenceCheapNotLoad')
-                    .replace('{price}', price)
-                    .replace('{reason}', reason);
             }
-            const price = t('smart_charging.status.priceNotCheap');
-            if (decision === 'load') {
-                return t('smart_charging.status.sentenceNotCheapLoad')
-                    .replace('{price}', price)
-                    .replace('{reason}', reason);
-            }
-            return t('smart_charging.status.sentenceNotCheap').replace('{price}', price);
+            return {
+                headline: t(charging ? 'smart_charging.status.charging' : 'smart_charging.status.idle'),
+                why: catalogReason(whyCode),
+                next: next,
+            };
         }
 
         async function loadSmartChargingStatus() {
             try {
-                const [dash, settings] = await Promise.all([
+                const [dashResult, settingsResult] = await Promise.allSettled([
                     SFMLApi.fetch('/api/sfml_stats/smart_charging/dashboard'),
                     SFMLApi.fetch('/api/sfml_stats/smart_charging/settings'),
                 ]);
+                const dash = dashResult.status === 'fulfilled' ? dashResult.value : null;
+                const settings = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+                if (!dash && !settings) return;
                 const status = (dash && dash.smart_charging_status) || {};
                 const live = (dash && dash.live) || {};
                 const gpm = (dash && dash.gpm) || (settings && settings.gpm) || {};
@@ -2469,6 +2475,9 @@ const _HomePage = {
                     is_force_price: Boolean(status.is_force_price || live.is_force_price),
                     decision: status.decision || live.decision || 'not_load',
                     reason: status.reason || live.reason || '',
+                    active: status.active != null ? Boolean(status.active) : Boolean(live.active),
+                    grid_allowed: status.grid_allowed != null ? status.grid_allowed : live.grid_allowed,
+                    status: status.status || live.status || null,
                     enabled: status.enabled != null ? Boolean(status.enabled) : Boolean(live.enabled),
                     reserved_future_grid_charge_kwh: Number(
                         status.reserved_future_grid_charge_kwh
@@ -2492,11 +2501,14 @@ const _HomePage = {
             }
         }
 
+        const smartChargingView = computed(() => statusView(smartChargingStatus));
+        const smartChargingHeadline = computed(() => smartChargingView.value.headline);
+        const smartChargingWhy = computed(() => smartChargingView.value.why);
+        const smartChargingNext = computed(() => smartChargingView.value.next);
         const smartChargingLine = computed(() => {
-            return statusSentence(smartChargingStatus, {
-                available: smartChargingStatus.gpm_available,
-                is_demo: smartChargingStatus.is_demo,
-            });
+            return [smartChargingHeadline.value, smartChargingWhy.value, smartChargingNext.value]
+                .filter(Boolean)
+                .join(' ');
         });
 
         const setupIncomplete = computed(() => {
@@ -2509,7 +2521,12 @@ const _HomePage = {
         const smartChargingAmpel = computed(() => {
             if (setupIncomplete.value) return 'warn';
             if (!smartChargingStatus.enabled) return 'idle';
-            if (smartChargingStatus.decision === 'load') return 'load';
+            const facts = smartChargingStatus.status;
+            if (facts && facts.headline === 'charging') return 'load';
+            if (!facts && smartChargingStatus.active && (
+                smartChargingStatus.grid_allowed === true
+                || (smartChargingStatus.grid_allowed == null && smartChargingStatus.is_cheap === true)
+            )) return 'load';
             if (smartChargingStatus.decision === 'wait') return 'wait';
             return 'idle';
         });
@@ -3024,12 +3041,6 @@ const _HomePage = {
                 forecastData.temperature = todayData.map(h => h.temperature ?? null);
                 forecastData.radiation = todayData.map(h => h.solar_radiation ?? null);
                 forecastData.clouds = todayData.map(h => h.clouds ?? null);
-                forecastData.tfs = todayData.map(h => h.tfs_kwh ?? null);
-                forecastData.tfs_weight = todayData.map(h => h.tfs_weight ?? null);
-                forecastData.ai = todayData.map(h => h.ai_kwh ?? null);
-                forecastData.physics = todayData.map(h => h.physics_kwh ?? null);
-                forecastData.lstm = todayData.map(h => h.lstm_kwh ?? null);
-                forecastData.ridge = todayData.map(h => h.ridge_kwh ?? null);
                 weatherTrace.value = buildWeatherTrace(
                     forecastData.hours,
                     targetDate,
@@ -3128,21 +3139,6 @@ const _HomePage = {
                         s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.mlShare') + ':</span><span>' + mlPct.toFixed(0) + '%</span></div>';
                         s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('settings.confidence') + ':</span><span>' + conf.toFixed(0) + '%</span></div>';
                         s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.method') + ':</span><span>' + method + '</span></div>';
-                        const tfs = forecastData.tfs[idx];
-                        const tfsW = forecastData.tfs_weight[idx];
-                        const ai = forecastData.ai[idx];
-                        const physics = forecastData.physics[idx];
-                        const lstm = forecastData.lstm[idx];
-                        const ridge = forecastData.ridge[idx];
-                        if (tfs != null || ai != null || physics != null) {
-                            s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
-                            s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">' + t('home.models') + ':</div>';
-                            if (tfs != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#a78bfa">TFS:</span><span>' + tfs.toFixed(3) + ' kWh' + (tfsW != null ? ' (' + (tfsW * 100).toFixed(0) + '%)' : '') + '</span></div>';
-                            if (ai != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>AI:</span><span>' + ai.toFixed(3) + ' kWh</span></div>';
-                            if (physics != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.physics') + ':</span><span>' + physics.toFixed(3) + ' kWh</span></div>';
-                            if (lstm != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>LSTM:</span><span>' + lstm.toFixed(3) + ' kWh</span></div>';
-                            if (ridge != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>Ridge:</span><span>' + ridge.toFixed(3) + ' kWh</span></div>';
-                        }
                         if (temp != null || rad != null || clouds != null) {
                             s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
                             s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">' + t('nav.weather') + ':</div>';
@@ -3244,18 +3240,6 @@ const _HomePage = {
                         },
                         z: 6,
                     },
-                    // TFS prediction line (toggleable via legend)
-                    {
-                        name: 'TFS',
-                        type: 'line',
-                        data: forecastData.tfs,
-                        lineStyle: { color: '#a78bfa', width: 2, type: 'dashed', shadowColor: 'rgba(167,139,250,0.15)', shadowBlur: 6 },
-                        itemStyle: { color: '#a78bfa' },
-                        symbol: 'none',
-                        smooth: true,
-                        connectNulls: false,
-                        z: 4,
-                    },
                     // Now marker
                     ...(isSelectedToday.value && forecastData.hours.includes(nowHour) ? [{
                         type: 'line',
@@ -3277,13 +3261,12 @@ const _HomePage = {
                     // Series names are stable internal identifiers ("Prognose"/"IST"/…)
                     // so legend selection state survives across locale changes;
                     // formatter renders the localized label.
-                    data: ['Prognose', ...(hasConservativeForecast.value ? ['P10'] : []), ...(hasHybridForecast.value ? ['Hybrid'] : []), 'IST', 'TFS', 'Unsicherheit'],
+                    data: ['Prognose', ...(hasConservativeForecast.value ? ['P10'] : []), ...(hasHybridForecast.value ? ['Hybrid'] : []), 'IST', 'Unsicherheit'],
                     formatter: (name) => ({
                         Prognose: t('common.forecast'),
                         P10: t('home.p10'),
                         Hybrid: t('home.hybrid'),
                         IST: t('common.actual'),
-                        TFS: 'TFS',
                         Unsicherheit: t('home.uncertainty'),
                     }[name] || name),
                     selected: {
@@ -3291,7 +3274,6 @@ const _HomePage = {
                         P10: forecastLegendSelected.P10,
                         Hybrid: forecastLegendSelected.Hybrid,
                         IST: forecastLegendSelected.IST,
-                        TFS: forecastLegendSelected.TFS,
                         Unsicherheit: forecastLegendSelected.Unsicherheit,
                     },
                 },
@@ -3582,7 +3564,7 @@ const _HomePage = {
             window.addEventListener('resize', resizeHandler);
 
             // Load all data
-            await Promise.all([
+            await Promise.allSettled([
                 loadEnergyFlow(),
                 loadForecastData(),
                 loadPowerHistory(),
@@ -3658,7 +3640,7 @@ const _HomePage = {
             panelDayProgressTitle, panelGroupMetaLine, panelGroupMetaTitle,
             weatherTrace, hasWeatherTrace,
             currentTime, lastPowerUpdate,
-            isNightTime, forecastTotal, restOfDayForecastTotal, hybridForecastTotal, conservativeForecastTotal, hasHybridForecast,
+            isNightTime, forecastTotal, restOfDayForecastTotal, hybridForecastTotal, conservativeForecastTotal, hasHybridForecast, devOn, quality30Sentence,
             hasConservativeForecast,
             actualTotal, deviationPercent, deviationLabel, hybridDeviationPercent,
             hybridDeviationLabel, cleanEvalStats, todayLearningBasisLabel,
@@ -3677,7 +3659,8 @@ const _HomePage = {
             gridStateColorClass, localText,
             hasBatteryChart, batteryChartStats,
             getConsumerName,
-            smartChargingLine, setupIncomplete, smartChargingAmpel,
+            smartChargingLine, smartChargingHeadline, smartChargingWhy, smartChargingNext,
+            setupIncomplete, smartChargingAmpel,
             handbookUrl,
         };
     }
@@ -4914,7 +4897,7 @@ const _HomePage = {
 
         .weather-trace-labels {
             display: grid;
-            grid-template-rows: 16px 28px 28px 20px;
+            grid-template-rows: 16px 28px 28px;
             gap: 6px;
             color: var(--text-muted);
             font-size: 0.75rem;
@@ -4943,15 +4926,23 @@ const _HomePage = {
             grid-row: 4;
         }
 
+        .weather-trace.has-match-row .weather-trace-labels {
+            grid-template-rows: 16px 28px 28px 20px;
+        }
+
         .weather-trace-grid {
             display: grid;
             grid-auto-flow: column;
             grid-auto-columns: minmax(28px, 1fr);
-            grid-template-rows: 16px 28px 28px 20px;
+            grid-template-rows: 16px 28px 28px;
             gap: 6px 4px;
             overflow-x: auto;
             padding-bottom: 2px;
             scrollbar-width: none; /* Hide scrollbar for clean look */
+        }
+
+        .weather-trace.has-match-row .weather-trace-grid {
+            grid-template-rows: 16px 28px 28px 20px;
         }
 
         .weather-trace-grid::-webkit-scrollbar {

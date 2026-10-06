@@ -34,7 +34,7 @@
           "sensor_inverter_ac_output": "Gesamte AC-Ausgangsleistung des Wechselrichters. Nicht den PV-DC-Eingang und nicht die Smartmeter-Einspeisung auswählen. (Optional)",
           "sensor_solar_to_battery": "Solarleistung, die den Akku lädt. (Optional)",
           "sensor_battery_to_house": "Leistung, die der Akku an den Haushalt abgibt. (Optional)",
-          "sensor_grid_to_house": "Netzleistung, die direkt den Haushalt versorgt. (Optional)",
+          "sensor_grid_to_house": "Netzleistung direkt ins Haus in Watt, ohne Akkuladung aus dem Netz. Gesamtbezug (Haus plus Akku) nur zusammen mit Smartmeter-Bezug eintragen: STATS zieht die Akkuladung dann automatisch ab. Ohne Smartmeter-Bezug bleibt der Wert unverändert. (Optional)",
           "sensor_grid_to_battery": "Netzleistung, die den Akku lädt. (Optional)",
           "sensor_house_to_grid": "Leistung, die vom Haus ins öffentliche Netz fließt. (Optional)",
           "sensor_smartmeter_import": "Aktueller Bezug am Smartmeter. Wird verwendet, wenn kein eigener Sensor für Netz → Haus vorhanden ist. (Optional)",
@@ -116,7 +116,7 @@
           "sensor_inverter_ac_output": "Gesamte AC-Ausgangsleistung des Wechselrichters. Nicht den PV-DC-Eingang und nicht die Smartmeter-Einspeisung auswählen. Leer lassen, wenn der Wert nicht vorhanden ist. (Optional)",
           "sensor_solar_to_battery": "Solarleistung, die den Akku lädt. (Optional)",
           "sensor_battery_to_house": "Leistung, die der Akku an den Haushalt abgibt. (Optional)",
-          "sensor_grid_to_house": "Netzleistung, die direkt den Haushalt versorgt. (Optional)",
+          "sensor_grid_to_house": "Netzleistung direkt ins Haus in Watt, ohne Akkuladung aus dem Netz. Gesamtbezug (Haus plus Akku) nur zusammen mit Smartmeter-Bezug eintragen: STATS zieht die Akkuladung dann automatisch ab. Ohne Smartmeter-Bezug bleibt der Wert unverändert. (Optional)",
           "sensor_grid_to_battery": "Netzleistung, die den Akku lädt. (Optional)",
           "sensor_house_to_grid": "Leistung, die vom Haus ins öffentliche Netz fließt. (Optional)",
           "sensor_smartmeter_import": "Aktueller Bezug am Smartmeter. Wird verwendet, wenn kein eigener Sensor für Netz → Haus vorhanden ist. (Optional)",
@@ -185,7 +185,6 @@
           "pricing": "Strompreis",
           "amortization": "Amortisation",
           "smart_charging": "Batterie",
-          "appearance": "Oberfläche",
           "advanced": "Erweitert"
         },
         "data_description": {}
@@ -224,7 +223,7 @@
           "sensor_battery_power": "Lade- und Entladeleistung der Batterie in Watt. Positiv = Laden, Negativ = Entladen. (Optional)",
           "sensor_solar_to_battery": "Solarleistung, die in die Batterie fließt, in Watt. (Optional)",
           "sensor_battery_to_house": "Leistung, die aus der Batterie ins Haus fließt, in Watt. (Optional)",
-          "sensor_grid_to_house": "Aktueller Bezug direkt aus dem Netz ins Haus in Watt. (Optional)",
+          "sensor_grid_to_house": "Netzleistung direkt ins Haus in Watt, ohne Akkuladung aus dem Netz. Gesamtbezug (Haus plus Akku) nur zusammen mit Smartmeter-Bezug eintragen: STATS zieht die Akkuladung dann automatisch ab. Ohne Smartmeter-Bezug bleibt der Wert unverändert. (Optional)",
           "sensor_grid_to_battery": "Aktuelle Batterieladung direkt aus dem Netz in Watt. (Optional)",
           "sensor_house_to_grid": "Aktuelle Einspeisung ins öffentliche Netz in Watt. (Optional)",
           "sensor_smartmeter_import": "Aktueller Bezug am Smartmeter in Watt. (Optional)",
@@ -263,7 +262,7 @@
         "data_description": {
           "battery_capacity": "Pflichtangabe, 0 bedeutet: nicht eingerichtet. Nutzbare Batteriekapazitaet. Wird benoetigt, um Solar-kWh in SOC-Prozent umzurechnen.",
           "max_charge_power_kw": "Netz-Ladeleistung in kW. 0 = unbegrenzt (keine Fensterbegrenzung).",
-          "battery_soc_sensor": "Batterie-Ladezustand-Sensor (0-100%). Ohne Sensor arbeitet die Logik im Preis-Fallback.",
+          "battery_soc_sensor": "Batterie-Ladezustand-Sensor (0-100%). Ohne ihn gibt es keine Netzladung.",
           "smart_charging_switch": "Schalter-Entität in Home Assistant zur Steuerung der Netzladung.",
           "ems_surplus_switch": "Optionaler Schalter für einen flexiblen Verbraucher. EMS schaltet ihn nur bei stabiler S-Plus-Freigabe.",
           "ems_wallbox_switch": "Optionaler, sicher abschaltbarer Freigabeschalter der Wallbox. Nicht den Hauptschalter verwenden.",
@@ -294,16 +293,6 @@
           "amortization_annual_running_costs_eur": "Wartung, Versicherung, Zählerkosten oder ähnliche jährliche Kosten.",
           "amortization_price_increase_percent": "Annahme für steigende Strompreise in der Projektion.",
           "amortization_degradation_percent": "Jährlicher Leistungsverlust der PV-Anlage in der Projektion."
-        }
-      },
-      "appearance": {
-        "title": "Dashboard-Oberfläche",
-        "description": "Wähle, welches Dashboard geöffnet wird. Die klassische Oberfläche bleibt erhalten und ist der sichere Standard.",
-        "data": {
-          "ui_mode": "Oberfläche"
-        },
-        "data_description": {
-          "ui_mode": "Klassisch behält das bestehende Dashboard bei. Modern aktiviert die neu gestaltete responsive Oberfläche. Lade das Dashboard nach einer Änderung neu."
         }
       },
       "advanced": {
@@ -431,21 +420,21 @@
       "smart_charging_mode": {
         "name": "Smart-Charging-Modus",
         "state": {
-          "forecast": "Nur die Lücke füllen",
-          "price_band_soc": "Bei günstigem Strom bis zum Ziel laden",
-          "combined": "Beides – der höhere Bedarf gilt"
+          "forecast": "Nur die Lücke",
+          "price_band_soc": "Bis zum Zielstand",
+          "combined": "Beides"
         }
       }
     },
     "number": {
       "smart_charging_target_soc": {
-        "name": "Ziel-SoC"
+        "name": "Zielstand"
       },
       "smart_charging_min_soc": {
-        "name": "Mindest-SoC"
+        "name": "Untergrenze"
       },
       "smart_charging_max_soc": {
-        "name": "Maximal-SoC"
+        "name": "Obergrenze"
       }
     }
   }

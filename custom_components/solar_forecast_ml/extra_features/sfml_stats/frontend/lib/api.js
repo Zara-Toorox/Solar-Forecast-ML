@@ -8,6 +8,24 @@ const SFML_EXTERNAL_AUTH_CALLBACK = "externalAuthSetToken";
 const SFML_EXTERNAL_AUTH_TIMEOUT_MS = 10000;
 // Authenticated writes may trigger longer server work (log collection, upstream calls).
 const SFML_API_BRIDGE_POST_TIMEOUT_MS = 60000;
+const SFML_DEV_MODE_TTL_MS = 30000;
+const SFML_DEV_GATED_PATHS = new Set([
+    "/api/sfml_stats/forecast_comparison",
+    "/api/sfml_stats/weather_comparison",
+    "/api/sfml_stats/ai_status",
+    "/api/sfml_stats/solar/shadow_fingerprint",
+    "/api/sfml_stats/solar/shadow_movement",
+    "/api/sfml_stats/modern/replay",
+    "/api/sfml_stats/modern/models",
+    "/api/sfml_stats/modern/heatmap",
+    "/api/sfml_stats/modern/milestones",
+    "/api/sfml_stats/modern/trends",
+    "/api/sfml_stats/modern/weather-energy/day",
+    "/api/sfml_stats/modern/weather-energy/impact",
+    "/api/sfml_stats/modern/weather-energy/comparable-days",
+    "/api/sfml_stats/modern/eai/building",
+    "/api/sfml_stats/modern/eai/diagnostics",
+]);
 
 const sfmlApiRandomId = () => {
     if (typeof crypto.randomUUID === "function") return crypto.randomUUID().replaceAll("-", "");
@@ -540,12 +558,53 @@ const SFMLApi = {
         }
     },
 
+    devGatedPath(endpoint) {
+        const path = String(endpoint || "").split("?")[0];
+        return SFML_DEV_GATED_PATHS.has(path);
+    },
+
+    _publishDevMode(active, expiresAt) {
+        const state = { active: active === true, expires_at: expiresAt || null };
+        this._devModeCached = { state, at: Date.now() };
+        const target = window.sfmlDevState;
+        if (target) {
+            target.active = state.active;
+            target.expires_at = state.expires_at;
+            target.loaded = true;
+        }
+        return state;
+    },
+
+    async ensureDevMode(forceRefresh = false) {
+        if (!forceRefresh && this._devModeCached && (Date.now() - this._devModeCached.at) < SFML_DEV_MODE_TTL_MS) {
+            return this._devModeCached.state;
+        }
+        if (this._devModePromise) return this._devModePromise;
+        const run = (async () => {
+            try {
+                const payload = await this.fetch("/api/sfml_stats/dev_mode", { forceRefresh: true, ttl: 0 });
+                const data = payload && payload.data ? payload.data : (payload || {});
+                return this._publishDevMode(data?.active === true, data?.expires_at || null);
+            } catch (_error) {
+                return this._publishDevMode(false, null);
+            } finally {
+                this._devModePromise = null;
+            }
+        })();
+        this._devModePromise = run;
+        return run;
+    },
+
     async fetch(endpoint, options = {}) {
         const {
             ttl = this.defaultTTL,
             forceRefresh = false,
             authenticated = false,
         } = options;
+        if (this.devGatedPath(endpoint)) {
+            const state = await this.ensureDevMode(false);
+            if (!state.active) return null;
+        }
         if (authenticated && !sfmlAuthenticatedEndpoint(endpoint)) {
             throw new Error("Authenticated endpoint rejected");
         }

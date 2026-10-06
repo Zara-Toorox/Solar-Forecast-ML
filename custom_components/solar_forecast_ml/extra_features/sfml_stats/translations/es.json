@@ -257,7 +257,7 @@
         "data_description": {
           "battery_capacity": "Dato obligatorio, 0 significa: no configurado. Capacidad útil de la batería. Se utiliza para convertir la previsión solar en kWh a porcentaje de SOC.",
           "max_charge_power_kw": "Potencia de carga de red en kW. 0 = ilimitado (0 = unbegrenzt).",
-          "battery_soc_sensor": "Sensor del estado de carga de la batería (0-100%). Sin él, la lógica vuelve al modo de solo precio.",
+          "battery_soc_sensor": "Sensor del estado de carga de la batería (0-100%). Sin él no hay carga desde la red.",
           "smart_charging_switch": "Entidad de interruptor para activar/desactivar la carga desde la red en Home Assistant.",
           "ems_surplus_switch": "Interruptor opcional para una carga flexible, habilitado solo tras la señal estable S-Plus.",
           "ems_wallbox_switch": "Interruptor opcional y seguro de habilitación de carga. No selecciones el interruptor principal.",
@@ -288,16 +288,6 @@
           "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
           "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
           "amortization_degradation_percent": "Annual PV output degradation in the projection."
-        }
-      },
-      "appearance": {
-        "title": "Interfaz del panel",
-        "description": "Elige qué panel se abre. La interfaz clásica sigue disponible y es la opción predeterminada segura.",
-        "data": {
-          "ui_mode": "Interfaz"
-        },
-        "data_description": {
-          "ui_mode": "Clásica conserva el panel existente. Moderna activa la nueva interfaz adaptable. Recarga el panel después de cambiar esta opción."
         }
       },
       "advanced": {

@@ -257,7 +257,7 @@
         "data_description": {
           "battery_capacity": "Обязательное поле, 0 означает: не настроено. Полезная ёмкость. Нужна, чтобы перевести прогноз кВт·ч в процент SOC.",
           "max_charge_power_kw": "Мощность сетевой зарядки в кВт. 0 = unbegrenzt.",
-          "battery_soc_sensor": "Датчик заряда (0-100%). Без него логика работает только по цене.",
+          "battery_soc_sensor": "Датчик заряда (0-100%). Без него зарядки из сети нет.",
           "smart_charging_switch": "Сущность выключателя сетевой зарядки в Home Assistant.",
           "ems_surplus_switch": "Опциональный выключатель гибкой нагрузки после сигнала S-Plus.",
           "ems_wallbox_switch": "Опциональный безопасный выключатель wallbox. Не главный выключатель.",
@@ -288,16 +288,6 @@
           "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
           "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
           "amortization_degradation_percent": "Annual PV output degradation in the projection."
-        }
-      },
-      "appearance": {
-        "title": "Интерфейс панели",
-        "description": "Выберите открываемую панель. Классический интерфейс остаётся доступным и используется по умолчанию.",
-        "data": {
-          "ui_mode": "Интерфейс"
-        },
-        "data_description": {
-          "ui_mode": "Классический режим сохраняет существующую панель. Современный включает новый адаптивный интерфейс. После изменения обновите страницу панели."
         }
       },
       "advanced": {

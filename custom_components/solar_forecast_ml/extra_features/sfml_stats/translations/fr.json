@@ -257,7 +257,7 @@
         "data_description": {
           "battery_capacity": "Champ obligatoire, 0 signifie : non configuré. Capacité utile. Sert à convertir le kWh solaire prévu en pourcentage de SOC.",
           "max_charge_power_kw": "Puissance de charge réseau en kW. 0 = illimité (0 = unbegrenzt).",
-          "battery_soc_sensor": "Capteur d'état de charge (0-100%). Sans lui, repli sur le prix.",
+          "battery_soc_sensor": "Capteur d'état de charge (0-100%). Sans lui, il n'y a pas de charge depuis le réseau.",
           "smart_charging_switch": "Entité interrupteur pour la charge réseau dans Home Assistant.",
           "ems_surplus_switch": "Interrupteur optionnel pour une charge flexible après le signal S-Plus.",
           "ems_wallbox_switch": "Interrupteur de sécurité wallbox. Pas l'interrupteur principal.",
@@ -288,16 +288,6 @@
           "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
           "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
           "amortization_degradation_percent": "Annual PV output degradation in the projection."
-        }
-      },
-      "appearance": {
-        "title": "Interface du tableau de bord",
-        "description": "Choisissez le tableau de bord à ouvrir. L'interface classique reste disponible et constitue la valeur par défaut sûre.",
-        "data": {
-          "ui_mode": "Interface"
-        },
-        "data_description": {
-          "ui_mode": "Classique conserve le tableau de bord existant. Moderne active la nouvelle interface adaptative. Rechargez le tableau de bord après ce changement."
         }
       },
       "advanced": {

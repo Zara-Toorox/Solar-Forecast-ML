@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 
 from ..const import (
     DOMAIN,
@@ -35,6 +36,7 @@ from ..const import (
     SERVICE_RUN_WEATHER_CORRECTION,
     SERVICE_REFRESH_MULTI_WEATHER,
     SERVICE_RESET_AI_MODEL,
+    SERVICE_RESET_CONSUMPTION_MODEL,
     SERVICE_RETRAIN_AI_MODEL,
     SERVICE_RUN_ADAPTIVE_FORECAST,
     SERVICE_RUN_ALL_DAY_END_TASKS,
@@ -62,15 +64,79 @@ class ServiceRegistry:
     """Central service registry for Solar Forecast Energy AI. @zara"""
 
     def __init__(
-        self, hass: HomeAssistant, entry: ConfigEntry, coordinator: "SolarForecastEAICoordinator"
+        self,
+        hass: HomeAssistant,
+        entry: Optional[ConfigEntry] = None,
+        coordinator: Optional["SolarForecastEAICoordinator"] = None,
     ):
         """Initialize service registry. @zara"""
         self.hass = hass
         self.entry = entry
-        self.coordinator = coordinator
+        self._bound_coordinator = coordinator
+        self._entry_ids: set[str] = set()
+        self._call_coordinator = None
+        self._call_entry_id: Optional[str] = None
         self._registered_services: List[str] = []
 
         self._daily_briefing_handler = None
+
+    def bind_entry(self, entry_id: str) -> None:
+        """Count one loaded config entry against the domain services."""
+        self._entry_ids.add(entry_id)
+
+    def release_entry(self, entry_id: str) -> bool:
+        """Drop one entry. True when no loaded entry remains."""
+        self._entry_ids.discard(entry_id)
+        return not self._entry_ids
+
+    @property
+    def coordinator(self):
+        """Coordinator for the service call that is running now."""
+        if self._call_coordinator is not None:
+            return self._call_coordinator
+        if self._bound_coordinator is not None and not self._entry_ids:
+            return self._bound_coordinator
+        coordinator, entry_id = self._lookup_coordinator()
+        if coordinator is None:
+            raise ServiceValidationError("Heat-pump coordinator is not running")
+        self._call_entry_id = entry_id
+        return coordinator
+
+    def _lookup_coordinator(self):
+        """Resolve the live heat-pump coordinator. None when weather-only."""
+        domain = self.hass.data.get(DOMAIN, {})
+        if not isinstance(domain, dict):
+            return None, None
+        for entry_id in self._entry_ids:
+            runtime = domain.get(entry_id)
+            coordinator = getattr(runtime, "coordinator", None)
+            if coordinator is not None:
+                return coordinator, entry_id
+        return None, None
+
+    def _guard(self, name: str, handler: Callable[[ServiceCall], Awaitable[None]]):
+        """Resolve the coordinator at call time and abort without a traceback."""
+
+        async def _call(call: ServiceCall) -> None:
+            coordinator, entry_id = self._lookup_coordinator()
+            if coordinator is None and self._bound_coordinator is not None and not self._entry_ids:
+                coordinator = self._bound_coordinator
+                entry_id = getattr(self.entry, "entry_id", None)
+            if coordinator is None:
+                _LOGGER.warning(
+                    "Service %s aborted: heat-pump coordinator is not running",
+                    name,
+                )
+                raise ServiceValidationError("Heat-pump coordinator is not running")
+            self._call_coordinator = coordinator
+            self._call_entry_id = entry_id
+            try:
+                await handler(call)
+            finally:
+                self._call_coordinator = None
+                self._call_entry_id = None
+
+        return _call
 
     @property
     def db_manager(self) -> Optional[DatabaseManager]:
@@ -84,12 +150,14 @@ class ServiceRegistry:
         """Register all services. @zara"""
         from ..services.service_daily_briefing import DailyBriefingService
 
-        self._daily_briefing_handler = DailyBriefingService(self.hass, self.coordinator)
+        self._daily_briefing_handler = DailyBriefingService(self.hass, None)
 
         services = self._build_service_definitions()
 
         for service in services:
-            self.hass.services.async_register(DOMAIN, service.name, service.handler)
+            self.hass.services.async_register(
+                DOMAIN, service.name, self._guard(service.name, service.handler)
+            )
             self._registered_services.append(service.name)
 
         _LOGGER.debug(f"Registered {len(services)} services")
@@ -123,6 +191,11 @@ class ServiceRegistry:
                 name=SERVICE_RESET_AI_MODEL,
                 handler=self._handle_reset_ai_model,
                 description=_WD + "Reset TinyLSTM AI model to untrained state",
+            ),
+            ServiceDefinition(
+                name=SERVICE_RESET_CONSUMPTION_MODEL,
+                handler=self._handle_reset_consumption_model,
+                description=_W + "Reset learned consumption factors, U samples and the heating-limit latch",
             ),
             ServiceDefinition(
                 name=SERVICE_RUN_GRID_SEARCH,
@@ -206,6 +279,40 @@ class ServiceRegistry:
                 _LOGGER.warning("AI predictor not available")
         except Exception as e:
             _LOGGER.error(f"Error in reset_ai_model: {e}")
+
+    async def _handle_reset_consumption_model(self, call: ServiceCall) -> None:
+        """Return the consumption model to delivery without touching history.
+
+        ``reset_ai_model`` is a different service and stays as it is.
+        The one-time migration marker stays set.
+        """
+        try:
+            calibrator = getattr(self.coordinator, "thermodynamics_calibrator", None)
+            if calibrator is not None and hasattr(calibrator, "reset_consumption_delivery"):
+                await calibrator.reset_consumption_delivery()
+            orchestrator = getattr(self.coordinator, "forecast_orchestrator", None)
+            strategy = getattr(orchestrator, "rule_based_strategy", None)
+            engine = getattr(strategy, "_thermodynamics_engine", None)
+            capacity = getattr(strategy, "heating_capacity_kw", None)
+            if engine is not None and capacity is not None:
+                try:
+                    engine.u_factor = float(capacity) / 25.0
+                except (TypeError, ValueError):
+                    pass
+            self._rebase_consumption_counters()
+            _LOGGER.info("Service: reset_consumption_model - consumption model restored")
+        except Exception as e:
+            _LOGGER.error(f"Error in reset_consumption_model: {e}")
+
+    def _rebase_consumption_counters(self) -> None:
+        domain_data = self.hass.data.get(DOMAIN, {})
+        entry_id = self._call_entry_id or getattr(self.entry, "entry_id", None)
+        runtime = domain_data.get(entry_id) if isinstance(domain_data, dict) else None
+        provider = getattr(runtime, "provider", None)
+        rebase = getattr(provider, "rebase_energy_counters", None)
+        if rebase is None:
+            return
+        rebase(dt_util.now().date())
 
     async def _handle_run_grid_search(self, call: ServiceCall) -> None:
         """Handle run_grid_search service - Run hyperparameter optimization. @zara
@@ -405,10 +512,11 @@ class ServiceRegistry:
             from ..data.data_weather_corrector import WeatherForecastCorrector
 
             winter_mode = DEFAULT_WINTER_MODE
-            if self.coordinator.config_entry:
-                winter_mode = self.coordinator.config_entry.options.get(
-                    CONF_WINTER_MODE, DEFAULT_WINTER_MODE
-                )
+            entry = getattr(self.coordinator, "config_entry", None) or getattr(
+                self.coordinator, "entry", None
+            )
+            if entry is not None:
+                winter_mode = entry.options.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE)
 
             corrector = WeatherForecastCorrector(
                 self.hass,
@@ -465,6 +573,7 @@ class ServiceRegistry:
                 _LOGGER.error("Daily briefing handler not initialized")
                 return
 
+            self._daily_briefing_handler.coordinator = self.coordinator
             notify_service = call.data.get("notify_service", "persistent_notification")
             language = call.data.get("language", "de")
 

@@ -26,13 +26,12 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
-    CONF_DIAGNOSTIC,
     CONF_EVCC_FORECAST,
     CONF_HOURLY,
     DOMAIN,
     VERSION,
 )
-
+from .core.core_dev_mode import get_dev_mode, unique_id_requires_dev_mode
 from .sensors.sensor_base import (
     AverageAccuracy30DaysSensor,
     AverageYield7DaysSensor,
@@ -111,24 +110,24 @@ async def async_setup_entry(
     Creates all sensor entities based on configuration options.
     - Essential production sensors (always created)
     - Statistics sensors (always created)
-    - Diagnostic sensors (if diagnostic mode enabled)
+    - Pipeline sensors only while DEV mode is active
     - Shadow detection sensors (always created)
     """
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    diagnostic_mode_enabled = entry.options.get(CONF_DIAGNOSTIC, True)
+    dev_active = bool(get_dev_mode(hass).get("active"))
     enable_hourly = entry.options.get(CONF_HOURLY, False)
     enable_evcc = entry.options.get(CONF_EVCC_FORECAST, False)
 
     _LOGGER.info(
         f"Setting up sensors V{VERSION}: "
-        f"Diagnostic Mode={'Enabled' if diagnostic_mode_enabled else 'Disabled'}, "
+        f"DEV Mode={'Active' if dev_active else 'Inactive'}, "
         f"Hourly Sensor={'Enabled' if enable_hourly else 'Disabled'}, "
         f"evcc Forecast={'Enabled' if enable_evcc else 'Disabled'}"
     )
 
     # Clean up orphaned entities @zara
-    await _cleanup_orphaned_entities(hass, entry, diagnostic_mode_enabled, enable_evcc)
+    await _cleanup_orphaned_entities(hass, entry, dev_active, enable_evcc)
 
     # Create system status sensor and connect to coordinator @zara
     system_status_sensor = SystemStatusSensor(coordinator, entry.entry_id)
@@ -155,7 +154,6 @@ async def async_setup_entry(
         system_status_sensor,
         ExpectedDailyProductionSensor(coordinator, entry),
         ConservativePlanningForecastSensor(coordinator, entry),
-        HybridForecastStatusSensor(coordinator, entry),
         OperationalHybridForecastSensor(coordinator, entry),
         SolarForecastSensor(coordinator, entry, "remaining"),
         SolarForecastSensor(coordinator, entry, "tomorrow"),
@@ -182,28 +180,27 @@ async def async_setup_entry(
         WeeklyConsumptionSensor(coordinator, entry),
         MonthlyYieldSensor(coordinator, entry),
         MonthlyConsumptionSensor(coordinator, entry),
-        AverageAccuracy30DaysSensor(coordinator, entry),
-        EvaluationCoverage7DaysSensor(coordinator, entry),
-        EvaluationCoverage30DaysSensor(coordinator, entry),
-        ExcludedMpptHours7DaysSensor(coordinator, entry),
-        ExcludedMpptHours30DaysSensor(coordinator, entry),
     ]
     entities_to_add.extend(statistics_entities)
-
-    # Essential diagnostic entities (always created) @zara
-    essential_diagnostic_entities = [
-        DataFilesStatusSensor(coordinator, entry),
-        WorkflowStatusSensor(coordinator, entry),
-    ]
-    entities_to_add.extend(essential_diagnostic_entities)
-
-    # Advanced diagnostic sensors (only if diagnostic mode enabled) @zara
-    if diagnostic_mode_enabled:
-        diagnostic_entities = [
-            ExternalSensorsStatusSensor(hass, entry),
+    entities_to_add.extend(
+        [
             NextProductionStartSensor(coordinator, entry),
             MLMetricsSensor(coordinator, entry),
             AIGateStatusSensor(coordinator, entry),
+        ]
+    )
+
+    if dev_active:
+        dev_entities = [
+            HybridForecastStatusSensor(coordinator, entry),
+            AverageAccuracy30DaysSensor(coordinator, entry),
+            EvaluationCoverage7DaysSensor(coordinator, entry),
+            EvaluationCoverage30DaysSensor(coordinator, entry),
+            ExcludedMpptHours7DaysSensor(coordinator, entry),
+            ExcludedMpptHours30DaysSensor(coordinator, entry),
+            DataFilesStatusSensor(coordinator, entry),
+            WorkflowStatusSensor(coordinator, entry),
+            ExternalSensorsStatusSensor(hass, entry),
             AIRmseSensor(coordinator, entry),
             ActivePredictionModelSensor(coordinator, entry),
             PhysicsSamplesSensor(coordinator, entry),
@@ -217,10 +214,7 @@ async def async_setup_entry(
             CoordinatorHealthSensor(coordinator, entry),
             EodDurationSensor(coordinator, entry),
         ]
-        entities_to_add.extend(diagnostic_entities)
-        _LOGGER.debug(
-            f"Diagnostic mode enabled - Adding {len(diagnostic_entities)} advanced diagnostic sensors."
-        )
+        entities_to_add.extend(dev_entities)
 
     # evcc forecast sensor (optional) @zara
     if enable_evcc:
@@ -237,14 +231,11 @@ async def async_setup_entry(
         f"Shadow Detection enabled - Adding {len(shadow_detection_entities)} shadow detection sensors"
     )
 
-    # V17.0.0: Drift detection sensor (diagnostic, always created) @zara
-    drift_detection_entities = [
-        sensor_class(coordinator, entry) for sensor_class in DRIFT_DETECTION_SENSORS
-    ]
-    entities_to_add.extend(drift_detection_entities)
-    _LOGGER.debug(
-        f"Drift Detection enabled - Adding {len(drift_detection_entities)} drift detection sensors"
-    )
+    if dev_active:
+        drift_detection_entities = [
+            sensor_class(coordinator, entry) for sensor_class in DRIFT_DETECTION_SENSORS
+        ]
+        entities_to_add.extend(drift_detection_entities)
 
     async_add_entities(entities_to_add, True)
     coordinator.sensor_entity_count = len(entities_to_add)
@@ -275,43 +266,18 @@ async def async_setup_entry(
 async def _cleanup_orphaned_entities(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    diagnostic_enabled: bool,
+    dev_active: bool,
     evcc_enabled: bool = False,
 ) -> None:
-    """Remove entities from registry that should no longer exist based on config. @zara
+    """Remove entities from registry that should no longer exist. @zara
 
-    Ensures that when a user disables diagnostic mode or evcc forecast,
-    the sensors are properly removed and don't reappear after restart.
+    Pipeline sensors stay out of the registry while DEV mode is inactive.
     """
     ent_reg = er.async_get(hass)
 
     legacy_entity_patterns = [
         "power_sensor_state",
         "yield_sensor_state",
-    ]
-
-    # Patterns for diagnostic entities to remove when diagnostic mode is disabled @zara
-    diagnostic_patterns = [
-        "diagnostic_status",
-        "external_sensors_status",
-        "next_production_start",
-        "ml_service_status",
-        "ml_metrics",
-        "ai_gate_status",
-        "ml_training_readiness",
-        "active_prediction_model",
-        "physics_samples",
-        "yesterday_deviation",
-        "cloudiness_trend_1h",
-        "cloudiness_trend_3h",
-        "cloudiness_volatility",
-        "last_coordinator_update",
-        "last_ai_training",
-        "next_scheduled_update",
-        "coordinator_health",
-        "ai_rmse",
-        "eod_duration",
-        "workflow_status",
     ]
 
     entities_removed = 0
@@ -331,16 +297,13 @@ async def _cleanup_orphaned_entities(
             entities_removed += 1
             continue
 
-        if not diagnostic_enabled:
-            # Remove diagnostic entities when diagnostic mode is disabled @zara
-            for pattern in diagnostic_patterns:
-                if pattern in unique_id_lower:
-                    _LOGGER.debug(
-                        f"Removing disabled diagnostic entity: {entity_entry.entity_id}"
-                    )
-                    ent_reg.async_remove(entity_entry.entity_id)
-                    entities_removed += 1
-                    break
+        if not dev_active and unique_id_requires_dev_mode(unique_id_lower):
+            _LOGGER.debug(
+                f"Removing DEV-only entity: {entity_entry.entity_id}"
+            )
+            ent_reg.async_remove(entity_entry.entity_id)
+            entities_removed += 1
+            continue
 
         if not evcc_enabled and "evcc_forecast" in unique_id_lower:
             _LOGGER.debug(

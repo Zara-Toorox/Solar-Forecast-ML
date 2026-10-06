@@ -1,6 +1,6 @@
 // Scoped so its Vue bindings do not collide with other page scripts.
 (() => {
-const { ref, watch, nextTick, onMounted } = Vue;
+const { ref, watch, nextTick, onMounted, computed } = Vue;
 
 const WEATHER_SHELL_TABS = ["now", "overview", "story", "impact", "compare"];
 
@@ -100,8 +100,16 @@ window.ModernWeatherPage = {
     setup(props, { emit }) {
         const locale = weatherShellLocale();
         const copy = WEATHER_SHELL_COPY[locale] || WEATHER_SHELL_COPY.en;
-        const tabs = WEATHER_SHELL_TABS;
-        const activeTab = ref(normalizeWeatherTab(props.initialSection));
+        const devOn = computed(() => window.sfmlDevState?.active === true);
+        const tabs = computed(() => WEATHER_SHELL_TABS.filter((tab) => (
+            devOn.value || !["story", "impact", "compare"].includes(tab)
+        )));
+        const activeTab = ref(
+            ["story", "impact", "compare"].includes(normalizeWeatherTab(props.initialSection))
+            && window.sfmlDevState?.active !== true
+                ? "overview"
+                : normalizeWeatherTab(props.initialSection)
+        );
         const weatherPage = window.WeatherPage;
         const energyPage = window.ModernWeatherEnergyPage;
 

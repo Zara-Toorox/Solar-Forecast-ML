@@ -36,6 +36,8 @@
     --accent-glow: rgba(96, 197, 255, 0.16);
     --premium: #ffbf2f;
     --premium-soft: rgba(255, 191, 47, 0.1);
+    --dev-tint: #9b6cff;
+    --dev-ink: #d9c8ff;
     --price-cheap: #5bd8a6;
     --price-normal: #e9a94b;
     --price-expensive: #f27676;
@@ -103,6 +105,8 @@
     --accent-glow: rgba(8, 120, 178, 0.12);
     --premium: #9c6500;
     --premium-soft: rgba(156, 101, 0, 0.09);
+    --dev-tint: #7c3aed;
+    --dev-ink: #5b21b6;
     --price-cheap: #237d46;
     --price-normal: #9a6b00;
     --price-expensive: #b33b3b;
@@ -421,6 +425,36 @@ textarea:focus-visible,
     margin-top: 2px;
     color: var(--text-muted);
     font-size: 0.68rem;
+}
+
+.modern-app.dev-mode .sidebar {
+    background:
+        linear-gradient(180deg, transparent 40%, color-mix(in srgb, var(--dev-tint) 30%, transparent) 100%),
+        var(--surface-shell);
+}
+
+.dev-tag {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--dev-tint) 45%, var(--border-default));
+    background: color-mix(in srgb, var(--dev-tint) 14%, var(--surface-data));
+    cursor: help;
+}
+
+.dev-tag strong {
+    color: var(--dev-ink);
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+}
+
+.dev-tag span:not(.sr-only) {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    overflow-wrap: anywhere;
 }
 
 .topbar {
@@ -1227,6 +1261,15 @@ textarea:focus-visible,
         transform: translateX(0);
     }
 
+    .modern-app.dev-mode .topbar::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto;
+        height: 3px;
+        background: linear-gradient(90deg, var(--dev-tint), var(--accent));
+        pointer-events: none;
+    }
+
     .drawer-backdrop {
         position: fixed;
         inset: 0;
@@ -1449,5 +1492,9 @@ textarea:focus-visible,
     .connection-dot,
     .brand-mark {
         border: 1px solid CanvasText;
+    }
+
+    .dev-tag {
+        border: 2px solid Highlight;
     }
 }

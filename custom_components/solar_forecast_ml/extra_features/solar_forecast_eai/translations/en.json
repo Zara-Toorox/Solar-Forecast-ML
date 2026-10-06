@@ -109,8 +109,8 @@
           "heating_element_power_entity": "Backup heater power (W)",
           "heating_element_energy_today_entity": "Backup heater daily energy (kWh)",
           "dhw_temp_entity": "Domestic hot water temperature (°C)",
-          "flow_temp_entity": "Flow temperature (°C)",
-          "return_temp_entity": "Return temperature (°C)",
+          "flow_temp_entity": "Generator circuit flow temperature (°C)",
+          "return_temp_entity": "Generator circuit return temperature (°C)",
           "starts_entity": "Compressor-start counter",
           "runtime_entity": "Total compressor operating-hours meter",
           "runtime_heating_entity": "Space-heating operating-hours meter",
@@ -128,8 +128,8 @@
           "heating_element_power_entity": "Expected: current backup-heater electrical power. Unit: W. Optional.",
           "heating_element_energy_today_entity": "Expected: backup-heater energy accumulated since midnight. Unit: kWh. Optional.",
           "dhw_temp_entity": "Expected: temperature sensor in the domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
-          "flow_temp_entity": "Expected: sensor for the current heating circuit flow temperature. Unit: °C. Optional.",
-          "return_temp_entity": "Expected: sensor for the current return temperature of the same heating circuit. Unit: °C. Optional.",
+          "flow_temp_entity": "Expected: flow sensor on the heat pump generator circuit. In domestic hot water mode it must show the charging temperature. Not the heating circuit behind a buffer, low-loss header or mixer, and not circulation. Unit: °C. Optional.",
+          "return_temp_entity": "Expected: return sensor on the same heat pump generator circuit. Not the heating circuit behind a buffer, low-loss header or mixer, and not circulation. Unit: °C. Optional.",
           "starts_entity": "Expected: current compressor-start counter reading; counter resets must be detectable. Unit: count. Optional.",
           "runtime_entity": "Expected: operating-hours meter for total compressor runtime. Unit: h. Optional.",
           "runtime_heating_entity": "Expected: operating-hours meter for space heating only. Unit: h. Optional; combined with domestic hot water when no total meter exists.",
@@ -145,22 +145,22 @@
         "data": {
           "thermal_energy_entity": "Thermal daily consumption meter (kWh)",
           "jaz_entity": "Annual / measured performance factor",
-          "volume_flow_entity": "Volume flow",
+          "volume_flow_entity": "Generator circuit volume flow",
           "source_temp_entity": "Heat source temperature (°C)",
-          "storage_temp_entity": "Storage temperature (°C)",
+          "storage_temp_entity": "Domestic hot water tank (°C)",
           "storage_ambient_temp_entity": "Temperature at storage / plant room (°C)",
-          "circulation_pump_entity": "Circulation pump active",
-          "circulation_return_temp_entity": "Circulation return temperature (°C)"
+          "circulation_pump_entity": "DHW circulation pump active",
+          "circulation_return_temp_entity": "DHW circulation return temperature (°C)"
         },
         "data_description": {
           "thermal_energy_entity": "Expected: thermal consumption meter covering the same daily period and system boundary as the electrical daily consumption meter. Unit: thermal kWh. Optional; enables today's performance factor.",
           "jaz_entity": "Expected: an annual or measured performance factor already calculated by the system or a verified source. Unit: none. Optional; EAI does not invent one without matching heat and electricity meters.",
-          "volume_flow_entity": "Expected: current heating-circuit volume flow with known fluid and measured circuit. Unit: l/min or m³/h. Optional; needed only for instantaneous COP calculation.",
+          "volume_flow_entity": "Expected: volume flow in the heat pump generator circuit; the fluid must be known. Not the heating circuit behind a buffer, low-loss header or mixer, and not circulation. Unit: l/min or m³/h. Optional; needed only for instantaneous COP.",
           "source_temp_entity": "Expected: heat-source temperature sensor for outdoor air, brine, or groundwater. Unit: °C. Optional.",
-          "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
-          "storage_ambient_temp_entity": "Expected: temperature sensor directly at the storage tank or in the plant room, not in a living room. Unit: °C. Optional; with storage temperature and volume it enables loss analysis.",
-          "circulation_pump_entity": "Expected: switch, binary sensor, or numeric state for the domestic-hot-water circulation pump. Unit: none. Optional; a smart plug is suitable and enables circulation-loss separation.",
-          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; used only as plausibility evidence."
+          "storage_temp_entity": "Expected: temperature sensor in the domestic hot water tank. Not the heating buffer and not the tap temperature. The domestic hot water temperature may use the same entity. Unit: °C. Optional.",
+          "storage_ambient_temp_entity": "Expected: temperature sensor directly at the domestic hot water tank or in the plant room, not in a living room. Unit: °C. Optional; with the domestic hot water tank temperature and volume it enables loss analysis.",
+          "circulation_pump_entity": "Expected: switch, binary sensor, or numeric state for the domestic hot water circulation pump, not a heating or cooling circuit pump. Unit: none. Optional; a smart plug is suitable and enables circulation-loss separation.",
+          "circulation_return_temp_entity": "Expected: temperature sensor on the domestic hot water circulation return close to the storage tank, not on a heating or cooling circuit. Unit: °C. Optional; used only as plausibility evidence."
         }
       },
       "wallbox_choice": {
@@ -292,8 +292,8 @@
           "heating_element_power_entity": "Backup heater power (W)",
           "heating_element_energy_today_entity": "Backup heater daily energy (kWh)",
           "dhw_temp_entity": "Domestic hot water temperature",
-          "flow_temp_entity": "Flow temperature",
-          "return_temp_entity": "Return temperature",
+          "flow_temp_entity": "Generator circuit flow temperature",
+          "return_temp_entity": "Generator circuit return temperature",
           "starts_entity": "Compressor starts",
           "runtime_entity": "Total compressor operating hours",
           "runtime_heating_entity": "Space-heating operating hours",
@@ -303,12 +303,12 @@
           "energy_counter_mode": "Energy counter type",
           "thermal_energy_entity": "Thermal daily energy",
           "jaz_entity": "Measured performance factor",
-          "volume_flow_entity": "Volume flow",
+          "volume_flow_entity": "Generator circuit volume flow",
           "source_temp_entity": "Heat source temperature",
-          "storage_temp_entity": "Storage temperature",
+          "storage_temp_entity": "Domestic hot water tank",
           "storage_ambient_temp_entity": "Storage ambient temperature",
-          "circulation_pump_entity": "Circulation pump active",
-          "circulation_return_temp_entity": "Circulation return temperature"
+          "circulation_pump_entity": "DHW circulation pump active",
+          "circulation_return_temp_entity": "DHW circulation return temperature"
         }
       },
       "hydraulics": {
@@ -332,7 +332,7 @@
           "has_heating_buffer": "Enable this if a heating buffer, hydraulic separator or low-loss header sits between the heat pump and the heating circuits.",
           "heating_buffer_volume_l": "Expected: usable heating-buffer volume. Unit: L. Optional.",
           "dhw_topology": "Register cylinder, fresh-water station, combined store, or no DHW. Fresh-water uses tap temperature; register and combined use storage temperature.",
-          "has_circulation": "Enable this if a DHW circulation loop is installed.",
+          "has_circulation": "Enable this if a domestic hot water circulation loop is installed. This is not a heating or cooling circuit pump.",
           "dhw_daily_draw_l": "Expected: household tap volume per day, not the cylinder size. Unit: L. Required when DHW is enabled. Typical four-person homes use about 150-250 L/day.",
           "heating_circuit_control": "Choose heat pump if EAI should read the heat-pump controller, or external if another controller such as UVR runs the circuits.",
           "heating_element_in_wp_meter": "Enable this only if backup-heater electricity is already included in the heat-pump power and daily-energy sensors.",
@@ -491,8 +491,8 @@
           "heating_element_power_entity": "Backup heater power (W)",
           "heating_element_energy_today_entity": "Backup heater daily energy (kWh)",
           "dhw_temp_entity": "Domestic hot water temperature (°C)",
-          "flow_temp_entity": "Flow temperature (°C)",
-          "return_temp_entity": "Return temperature (°C)",
+          "flow_temp_entity": "Generator circuit flow temperature (°C)",
+          "return_temp_entity": "Generator circuit return temperature (°C)",
           "starts_entity": "Compressor starts",
           "runtime_entity": "Total compressor operating-hours meter",
           "runtime_heating_entity": "Space-heating operating-hours meter",
@@ -502,12 +502,12 @@
           "energy_counter_mode": "Energy counter type",
           "thermal_energy_entity": "Thermal daily consumption meter (kWh)",
           "jaz_entity": "Annual / measured performance factor",
-          "volume_flow_entity": "Volume flow",
+          "volume_flow_entity": "Generator circuit volume flow",
           "source_temp_entity": "Heat source temperature (°C)",
-          "storage_temp_entity": "Storage temperature (°C)",
+          "storage_temp_entity": "Domestic hot water tank (°C)",
           "storage_ambient_temp_entity": "Temperature at storage / plant room (°C)",
-          "circulation_pump_entity": "Circulation pump active",
-          "circulation_return_temp_entity": "Circulation return temperature (°C)"
+          "circulation_pump_entity": "DHW circulation pump active",
+          "circulation_return_temp_entity": "DHW circulation return temperature (°C)"
         },
         "data_description": {
           "wp_power_entity": "Expected: sensor for the heat pump's current total electrical power input. Unit: W. Required during initial setup.",
@@ -521,20 +521,20 @@
           "heating_element_power_entity": "Expected: current backup-heater electrical power. Unit: W. Optional.",
           "heating_element_energy_today_entity": "Expected: backup-heater energy accumulated since midnight. Unit: kWh. Optional.",
           "dhw_temp_entity": "Expected: temperature sensor in the domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
-          "flow_temp_entity": "Expected: sensor for the current heating circuit flow temperature. Unit: °C. Optional.",
-          "return_temp_entity": "Expected: sensor for the current return temperature of the same heating circuit. Unit: °C. Optional.",
+          "flow_temp_entity": "Expected: flow sensor on the heat pump generator circuit. In domestic hot water mode it must show the charging temperature. Not the heating circuit behind a buffer, low-loss header or mixer, and not circulation. Unit: °C. Optional.",
+          "return_temp_entity": "Expected: return sensor on the same heat pump generator circuit. Not the heating circuit behind a buffer, low-loss header or mixer, and not circulation. Unit: °C. Optional.",
           "starts_entity": "Expected: current compressor-start counter reading; counter resets must be detectable. Unit: count. Optional.",
           "runtime_entity": "Expected: operating-hours meter for total compressor runtime. Unit: h. Optional.",
           "runtime_heating_entity": "Expected: operating-hours meter for space heating only. Unit: h. Optional.",
           "runtime_dhw_entity": "Expected: operating-hours meter for domestic hot water only. Unit: h. Optional.",
           "thermal_energy_entity": "Expected: thermal consumption meter for the same daily period and system boundary as the electrical daily meter. Unit: thermal kWh. Optional.",
           "jaz_entity": "Expected: an annual or measured performance factor already calculated by the system or a verified source. Unit: none. Optional.",
-          "volume_flow_entity": "Expected: current heating-circuit volume flow with known fluid and circuit. Unit: l/min or m³/h. Optional; needed only for instantaneous COP.",
+          "volume_flow_entity": "Expected: volume flow in the heat pump generator circuit; the fluid must be known. Not the heating circuit behind a buffer, low-loss header or mixer, and not circulation. Unit: l/min or m³/h. Optional; needed only for instantaneous COP.",
           "source_temp_entity": "Expected: heat-source temperature sensor for outdoor air, brine, or groundwater. Unit: °C. Optional.",
-          "storage_temp_entity": "Expected: temperature sensor in the buffer or domestic hot water tank; the probe position should be known. Unit: °C. Optional.",
-          "storage_ambient_temp_entity": "Expected: temperature sensor directly at the storage tank or in the plant room. Unit: °C. Optional.",
-          "circulation_pump_entity": "Expected: switch, binary sensor, or numeric state for the circulation pump. Unit: none. Optional; a smart plug is suitable.",
-          "circulation_return_temp_entity": "Expected: temperature sensor at the circulation return close to the storage tank. Unit: °C. Optional; plausibility evidence only.",
+          "storage_temp_entity": "Expected: temperature sensor in the domestic hot water tank. Not the heating buffer and not the tap temperature. The domestic hot water temperature may use the same entity. Unit: °C. Optional.",
+          "storage_ambient_temp_entity": "Expected: temperature sensor directly at the domestic hot water tank or in the plant room. Unit: °C. Optional.",
+          "circulation_pump_entity": "Expected: switch, binary sensor, or numeric state for the domestic hot water circulation pump, not a heating or cooling circuit pump. Unit: none. Optional; a smart plug is suitable and enables circulation-loss separation.",
+          "circulation_return_temp_entity": "Expected: temperature sensor on the domestic hot water circulation return close to the storage tank, not on a heating or cooling circuit. Unit: °C. Optional; used only as plausibility evidence.",
           "runtime_counter_scope": "Select the period covered by the operating-hours counter. The average runtime per start is calculated only when both counter periods match.",
           "starts_counter_scope": "Select the period covered by the start counter. Do not combine starts since midnight with lifetime operating hours.",
           "energy_counter_mode": "Expected: a choice of how the assigned energy entities have to be read. Unit: none. Automatic recognises a lifetime counter from the state class total or total_increasing (for example an EMS-ESP meter total) and converts it into a daily value against a midnight baseline. Override this only when a source reports a misleading state class."
@@ -641,7 +641,7 @@
           "has_heating_buffer": "Enable this if a heating buffer, hydraulic separator or low-loss header sits between the heat pump and the heating circuits.",
           "heating_buffer_volume_l": "Expected: usable heating-buffer volume. Unit: L. Optional.",
           "dhw_topology": "Register cylinder, fresh-water station, combined store, or no DHW. Fresh-water uses tap temperature; register and combined use storage temperature.",
-          "has_circulation": "Enable this if a DHW circulation loop is installed.",
+          "has_circulation": "Enable this if a domestic hot water circulation loop is installed. This is not a heating or cooling circuit pump.",
           "dhw_daily_draw_l": "Expected: household tap volume per day, not the cylinder size. Unit: L. Required when DHW is enabled. Typical four-person homes use about 150-250 L/day.",
           "heating_circuit_control": "Choose heat pump if EAI should read the heat-pump controller, or external if another controller such as UVR runs the circuits.",
           "heating_element_in_wp_meter": "Enable this only if backup-heater electricity is already included in the heat-pump power and daily-energy sensors.",
@@ -1148,6 +1148,10 @@
     }
   },
   "issues": {
+    "generator_circuit_flow_implausible": {
+      "title": "The flow sensor is probably not on the generator circuit",
+      "description": "The flow sensor is probably not on the generator circuit – assign the heat pump flow."
+    },
     "hydraulics_setup_incomplete": {
       "title": "Heat-pump setup is incomplete",
       "description": "This installation was migrated without an explicit hydraulics answer. COP, savings and DHW recommendations stay locked until you reconfigure the heat pump. Rated COP 4.0 and 10 kW from the previous default are treated as unconfirmed.",
@@ -1162,6 +1166,12 @@
           "reconfigure_started": "The reconfiguration dialog is open. This notice stays until the hydraulics answers are complete, and disappears on its own afterwards."
         }
       }
+    }
+  },
+  "services": {
+    "reset_consumption_model": {
+      "name": "Reset Consumption Model",
+      "description": "DEVELOPER ONLY or on ADVICE"
     }
   }
 }
