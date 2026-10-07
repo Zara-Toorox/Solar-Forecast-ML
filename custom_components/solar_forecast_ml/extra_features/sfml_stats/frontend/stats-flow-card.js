@@ -541,8 +541,9 @@ class StatsFlowCard extends HTMLElement {
 
     // Grid: separate import and export like the HA energy card
     const gridImport = gridToHouse + gridToBattery;
-    this._el("val-import").textContent = `← ${this._power(gridImport)}`;
-    this._el("val-export").textContent = `→ ${this._power(houseToGrid)}`;
+    // Arrows follow the flow in the diagram: import runs right towards the house, export left into the grid
+    this._el("val-import").textContent = `→ ${this._power(gridImport)}`;
+    this._el("val-export").textContent = `← ${this._power(houseToGrid)}`;
 
     // Home: live consumption and self-sufficiency
     this._el("val-home").textContent = this._power(homePower);
