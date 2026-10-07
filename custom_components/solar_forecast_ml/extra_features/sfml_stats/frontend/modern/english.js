@@ -443,7 +443,7 @@
         ["Beobachten schaltet nicht.", "Observe never switches."],
         ["Stopp zum Stundenende.", "Stops at the end of the hour."],
         ["Bis der Bedarf gedeckt ist, gibt es keine günstigere Stunde.", "Until the demand is covered, there is no cheaper hour."],
-        ["Eine spätere günstige Stunde reicht für den Bedarf.", "A later cheap hour covers the demand."],
+        ["Später aus dem Netz zu beziehen ist billiger als jetzt zu speichern.", "Buying from the grid later is cheaper than storing now."],
         ["Akku und Sonne reichen für die nächsten anderthalb Tage.", "Battery and sun cover the next day and a half."],
         ["Für die Ladeentscheidung fehlen Angaben.", "Some figures for the charging decision are missing."],
         ["Der aktuelle Strompreis ist für eine Netzladung zu hoch.", "The current electricity price is too high for a grid charge."],

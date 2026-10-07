@@ -1,6 +1,58 @@
 // STATS Flow Lovelace Card
 // (C) 2026 Zara-Toorox
 
+const STATS_FLOW_TEXT = {
+  de: {
+    title: "Energiefluss",
+    tagline: "KI-gestützte Solarprognose",
+    solar: "PV",
+    grid: "Netz",
+    home: "Zuhause",
+    battery: "Batterie",
+    autarky: "autark",
+    pvToday: "PV heute",
+    importToday: "Bezug heute",
+    batteryToday: "Akku geladen",
+    error: "Energiefluss nicht erreichbar.",
+  },
+  en: {
+    title: "Energy flow",
+    tagline: "AI-powered solar forecasting",
+    solar: "Solar",
+    grid: "Grid",
+    home: "Home",
+    battery: "Battery",
+    autarky: "self-powered",
+    pvToday: "Solar today",
+    importToday: "Import today",
+    batteryToday: "Battery charged",
+    error: "Energy flow unavailable.",
+  },
+};
+
+// Solar Forecast ML brand mark (96 px WebP of brand/icon@2x.png), inlined so the card needs no extra asset
+const FLOW_BRAND_ICON = "data:image/webp;base64,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";
+const FLOW_BRAND_URL = { de: "https://www.solarforecastml.com/de/", en: "https://www.solarforecastml.com/en/" };
+
+const STATS_FLOW_REFRESH_MS = 10000;
+const STATS_FLOW_MIN_W = 10;
+
+// Node centres and connection paths in a 100×100 viewBox; node radius 12
+const STATS_FLOW_NODES = {
+  solar: [50, 20],
+  grid: [14, 49],
+  home: [86, 49],
+  battery: [50, 78],
+};
+const STATS_FLOW_PATHS = {
+  solarHome: { d: "M 53,32 V 41 Q 53,47 59,47 H 74", color: "solar" },
+  solarGrid: { d: "M 47,32 V 41 Q 47,47 41,47 H 26", color: "export" },
+  solarBattery: { d: "M 50,32 V 66", color: "charge", battery: true },
+  gridHome: { d: "M 26,49 H 74", color: "import" },
+  gridBattery: { d: "M 26,51 H 41 Q 47,51 47,57 V 66", color: "import", battery: true },
+  batteryHome: { d: "M 53,66 V 57 Q 53,51 59,51 H 74", color: "discharge", battery: true },
+};
+
 class StatsFlowCard extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
@@ -11,305 +63,444 @@ class StatsFlowCard extends HTMLElement {
     if (!this._initialized) {
       this.initCard();
     }
-    
+
     // Throttle API calls to 10 seconds for real-time flows
     const now = Date.now();
-    if (!this._lastUpdate || (now - this._lastUpdate > 10000)) {
+    if (!this._lastUpdate || now - this._lastUpdate > STATS_FLOW_REFRESH_MS) {
       this._lastUpdate = now;
       this.updateData();
     }
   }
 
+  get _locale() {
+    return this._hass?.locale?.language || this._hass?.language || "en";
+  }
+
+  get _lang() {
+    return this._locale.toLowerCase().startsWith("de") ? "de" : "en";
+  }
+
+  _t(key, vars = {}) {
+    const text = STATS_FLOW_TEXT[this._lang][key] ?? STATS_FLOW_TEXT.en[key] ?? key;
+    return text.replace(/\{(\w+)\}/g, (_, name) => vars[name] ?? "");
+  }
+
+  _num(value, digits) {
+    return new Intl.NumberFormat(this._locale, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(Number(value) || 0);
+  }
+
+  _power(watts) {
+    const w = Math.abs(Number(watts) || 0);
+    return w >= 1000 ? `${this._num(w / 1000, w >= 10000 ? 1 : 2)} kW` : `${Math.round(w)} W`;
+  }
+
+  _kwh(value) {
+    const v = Number(value) || 0;
+    return `${this._num(v, v >= 100 ? 0 : v >= 10 ? 1 : 2)} kWh`;
+  }
+
   initCard() {
     this._initialized = true;
-    this.attachShadow({ mode: 'open' });
+    this.attachShadow({ mode: "open" });
+
+    const pathsSvg = Object.entries(STATS_FLOW_PATHS)
+      .map(([id, p]) => `<path id="line-${id}" class="line c-${p.color}" d="${p.d}"/>`)
+      .join("");
+
     this.shadowRoot.innerHTML = `
       <style>
+        .brand-stripe {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: 3px;
+          background: linear-gradient(90deg, #2a90e0, #f5902f);
+        }
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+        .brand-icon {
+          flex: none;
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          box-shadow: 0 2px 10px rgba(20, 33, 68, 0.28);
+        }
+        .brand-copy {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .title-text {
+          font-size: 20px;
+          font-weight: 500;
+          line-height: 1.2;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .wordmark {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 1.3px;
+          line-height: 1.4;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+        .wm-solar { color: #2a90e0; }
+        .wm-forecast { color: #f5902f; }
+        .brand-footer {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+          margin-top: 14px;
+          padding-top: 10px;
+          border-top: 1px solid var(--c-divider);
+          font-size: 11px;
+          color: var(--c-muted);
+        }
+        .brand-footer a {
+          color: inherit;
+          text-decoration: none;
+          white-space: nowrap;
+          transition: color 0.2s ease;
+        }
+        .brand-footer a:hover {
+          color: #f5902f;
+        }
         :host {
           display: block;
+          --c-solar: var(--energy-solar-color, #ff9800);
+          --c-import: var(--energy-grid-consumption-color, #488fc2);
+          --c-export: var(--energy-grid-return-color, #8353d1);
+          --c-charge: var(--energy-battery-in-color, #f06292);
+          --c-discharge: var(--energy-battery-out-color, #4db6ac);
+          --c-text: var(--primary-text-color, #212121);
+          --c-muted: var(--secondary-text-color, #727272);
+          --c-divider: var(--divider-color, rgba(127, 127, 127, 0.2));
+          --c-bg: var(--ha-card-background, var(--card-background-color, #fff));
         }
-        .stats-card-wrapper {
-          backdrop-filter: blur(12px) saturate(120%);
-          -webkit-backdrop-filter: blur(12px) saturate(120%);
-          background: rgba(14, 18, 30, 0.75);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 16px;
+        ha-card {
+          position: relative;
+          overflow: hidden;
+          container-type: inline-size;
+        }
+        .content {
           padding: 16px;
-          color: #f5f5fa;
-          font-family: 'Outfit', -apple-system, system-ui, BlinkMacSystemFont, sans-serif;
-          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+          color: var(--c-text);
         }
         .header {
           display: flex;
+          align-items: center;
           justify-content: space-between;
+          gap: 8px;
+        }
+        .price {
+          display: inline-flex;
           align-items: center;
-          margin-bottom: 12px;
+          gap: 4px;
+          padding: 4px 10px;
+          border-radius: 999px;
+          font-size: 13px;
+          font-weight: 500;
+          white-space: nowrap;
+          color: var(--c-import);
+          background: color-mix(in srgb, var(--c-import) 14%, transparent);
         }
-        .header-brand {
-          display: flex;
-          align-items: center;
-          gap: 6px;
+        .price[hidden] {
+          display: none;
         }
-        .header-icon {
-          color: #00ffcc;
-          font-size: 18px;
+        .price ha-icon {
+          --mdc-icon-size: 16px;
         }
-        .header-title {
-          font-size: 15px;
-          font-weight: 600;
-          letter-spacing: 0.5px;
-          background: linear-gradient(135deg, #00ffcc, #00aaff);
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
-        .header-price {
-          font-size: 11px;
-          color: #a0a0b0;
-          background: rgba(255, 255, 255, 0.04);
-          padding: 3px 8px;
-          border-radius: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-        
-        /* Flow Area Styles */
-        .flow-container {
+
+        .flow {
           position: relative;
           width: 100%;
-          height: 280px;
+          max-width: 460px;
+          margin: 4px auto 0;
+          aspect-ratio: 1;
+          container: flow / inline-size;
         }
-        svg {
+        .flow svg {
+          position: absolute;
+          inset: 0;
           width: 100%;
           height: 100%;
+          overflow: visible;
         }
-        
-        /* SVG Connection Lines */
-        .conn-line-bg {
+        .line {
           fill: none;
-          stroke: rgba(255, 255, 255, 0.06);
-          stroke-width: 4px;
+          stroke-width: 0.45;
+          opacity: 0.22;
+          transition: opacity 0.6s ease;
         }
-        .conn-line-active {
+        .line.active {
+          opacity: 0.85;
+        }
+        .c-solar { stroke: var(--c-solar); fill: var(--c-solar); color: var(--c-solar); }
+        .c-import { stroke: var(--c-import); fill: var(--c-import); color: var(--c-import); }
+        .c-export { stroke: var(--c-export); fill: var(--c-export); color: var(--c-export); }
+        .c-charge { stroke: var(--c-charge); fill: var(--c-charge); color: var(--c-charge); }
+        .c-discharge { stroke: var(--c-discharge); fill: var(--c-discharge); color: var(--c-discharge); }
+        .line.c-solar, .line.c-import, .line.c-export, .line.c-charge, .line.c-discharge { fill: none; }
+        .dot {
+          stroke: none;
+          filter: drop-shadow(0 0 1.2px currentColor);
+        }
+        .ring {
+          fill: var(--c-bg);
+          stroke-width: 0.9;
+        }
+        .ring-track {
           fill: none;
-          stroke-width: 4px;
-          stroke-linecap: round;
-          stroke-dasharray: 0, 16;
-          animation: flow-dash 10s linear infinite;
+          stroke: var(--c-divider);
+          stroke-width: 0.9;
         }
-        
-        /* Active line directions */
-        .flow-to-inverter {
-          animation-direction: reverse;
+        .ring-seg {
+          fill: none;
+          stroke-width: 1.5;
+          transition: stroke-dasharray 0.8s ease, stroke-dashoffset 0.8s ease;
         }
-        .flow-from-inverter {
-          animation-direction: normal;
+        .solar-halo {
+          fill: none;
+          stroke: var(--c-solar);
+          stroke-width: 0.6;
+          opacity: 0;
+          transform-origin: 50px 20px;
         }
-        .flow-stopped {
-          animation: none !important;
-          stroke: transparent !important;
+        .producing .solar-halo {
+          animation: halo 3s ease-out infinite;
         }
-        
-        @keyframes flow-dash {
-          to {
-            stroke-dashoffset: -128;
-          }
-        }
-        
-        /* Node Card Layouts */
-        .node-card {
+
+        .node {
           position: absolute;
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 12px;
-          width: 110px;
-          padding: 8px 10px;
-          box-sizing: border-box;
+          width: 24%;
+          aspect-ratio: 1;
+          transform: translate(-50%, -50%);
           display: flex;
           flex-direction: column;
           align-items: center;
+          justify-content: center;
           text-align: center;
-          transition: all 0.3s ease;
+          line-height: 1.15;
+          font-variant-numeric: tabular-nums;
         }
-        .node-card:hover {
-          background: rgba(255, 255, 255, 0.05);
-          border-color: rgba(255, 255, 255, 0.1);
-          transform: translateY(-2px);
+        .node ha-icon {
+          --mdc-icon-size: clamp(14px, 6.5cqw, 28px);
+          margin-bottom: 1px;
         }
-        .node-title {
-          font-size: 10px;
-          color: #a0a0b0;
-          text-transform: uppercase;
-          letter-spacing: 0.3px;
-          margin-bottom: 4px;
+        .val {
+          font-size: clamp(9px, 4.2cqw, 16px);
+          font-weight: 500;
+          white-space: nowrap;
         }
-        .node-icon {
-          font-size: 20px;
-          margin-bottom: 2px;
+        .sub {
+          font-size: clamp(8px, 3.1cqw, 12px);
+          color: var(--c-muted);
+          white-space: nowrap;
         }
-        .node-val {
-          font-size: 13px;
-          font-weight: 600;
-          margin-bottom: 2px;
-        }
-        .node-sub {
-          font-size: 10px;
-          color: #a0a0b0;
-        }
-        
-        /* Specific Nodes Placement */
-        #node-solar { left: 10px; top: 10px; border-color: rgba(255, 170, 0, 0.15); }
-        #node-grid { right: 10px; top: 10px; }
-        #node-battery { left: 10px; bottom: 10px; border-color: rgba(76, 175, 80, 0.15); }
-        #node-load { right: 10px; bottom: 10px; border-color: rgba(0, 170, 255, 0.15); }
-        
-        /* Central Inverter Node */
-        .node-inverter {
+        .label {
           position: absolute;
           left: 50%;
-          top: 50%;
-          transform: translate(-50%, -50%);
-          width: 74px;
-          height: 74px;
-          border-radius: 50%;
-          background: radial-gradient(circle, rgba(20, 24, 46, 0.9) 0%, rgba(10, 12, 26, 0.95) 100%);
-          border: 2px solid rgba(255, 255, 255, 0.08);
+          transform: translateX(-50%);
+          font-size: clamp(11px, 3.6cqw, 14px);
+          color: var(--c-muted);
+          white-space: nowrap;
+        }
+        .label.below { top: calc(100% + 1.5cqw); }
+        .label.above { bottom: calc(100% + 3.6cqw); }
+        #node-solar ha-icon { color: var(--c-solar); }
+        #node-grid ha-icon { color: var(--c-import); }
+        #node-battery ha-icon { color: var(--c-discharge); }
+        .t-import { color: var(--c-import); }
+        .t-export { color: var(--c-export); }
+        .t-charge { color: var(--c-charge); }
+        .t-discharge { color: var(--c-discharge); }
+        .no-battery .battery-only { display: none; }
+
+        .totals {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          margin-top: 18px;
+        }
+        .total {
           display: flex;
-          flex-direction: column;
-          justify-content: center;
+          gap: 8px;
           align-items: center;
-          box-shadow: 0 0 16px rgba(0, 255, 204, 0.1);
+          padding: 8px 10px;
+          border-radius: 12px;
+          background: color-mix(in srgb, var(--c-text) 4%, transparent);
+          border: 1px solid var(--c-divider);
+          min-width: 0;
         }
-        .inverter-logo {
-          font-size: 24px;
-          color: #00ffcc;
-        }
-        .inverter-sub {
-          font-size: 8px;
-          color: #a0a0b0;
-          text-transform: uppercase;
-          margin-top: 2px;
-          font-weight: 600;
-        }
-        
-        /* Colors for Flow Dots */
-        .stroke-solar { stroke: #ffaa00; }
-        .stroke-load { stroke: #00aaff; }
-        .stroke-battery { stroke: #4caf50; }
-        .stroke-grid-import { stroke: #ff5555; }
-        .stroke-grid-export { stroke: stroke: #00ff66; }
-        
-        /* Battery level bar inside battery node */
-        .bat-bar-bg {
-          width: 80%;
-          height: 4px;
-          background: rgba(255, 255, 255, 0.1);
+        .total i {
+          flex: none;
+          width: 4px;
+          align-self: stretch;
           border-radius: 2px;
-          margin-top: 4px;
+        }
+        .total div {
+          min-width: 0;
+        }
+        .total-label {
+          font-size: 11px;
+          color: var(--c-muted);
+          white-space: nowrap;
           overflow: hidden;
+          text-overflow: ellipsis;
         }
-        .bat-bar-fill {
-          height: 100%;
-          background: #4caf50;
-          border-radius: 2px;
-          width: 0%;
-          transition: width 0.5s ease;
+        .total-val {
+          font-size: 15px;
+          font-weight: 600;
+          white-space: nowrap;
+          font-variant-numeric: tabular-nums;
         }
-        
-        /* Layout without battery */
-        .no-battery #node-battery { display: none !important; }
-        .no-battery #path-battery { display: none !important; }
-        .no-battery #path-battery-bg { display: none !important; }
-        
-        .loading-state {
+        .error {
+          padding: 24px 0;
           text-align: center;
-          padding: 40px;
-          color: #a0a0b0;
-          font-size: 13px;
+          color: var(--c-muted);
+          font-size: 14px;
+        }
+        .error[hidden] {
+          display: none;
+        }
+
+        @container (max-width: 420px) {
+          .header { flex-wrap: wrap; row-gap: 8px; }
+          .price { margin-left: 52px; }
+        }
+        @container (max-width: 400px) {
+          .totals { grid-template-columns: 1fr; gap: 6px; }
+          .total { padding: 6px 10px; }
+          .total > div { display: flex; flex: 1; align-items: baseline; justify-content: space-between; gap: 8px; }
+        }
+        @container flow (max-width: 300px) {
+          .autarky-word, #sub-solar { display: none; }
+        }
+        @keyframes halo {
+          0% { transform: scale(1); opacity: 0.6; }
+          100% { transform: scale(1.2); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .producing .solar-halo { animation: none; }
+          .dots { display: none; }
+          .line.active { opacity: 1; }
         }
       </style>
-      <div class="stats-card-wrapper">
-        <div class="header">
-          <div class="header-brand">
-            <span class="header-icon">⚡</span>
-            <span class="header-title">STATS Energiefluss</span>
+      <ha-card>
+        <div class="brand-stripe"></div>
+        <div class="content">
+          <div class="header">
+            <div class="brand">
+              <img class="brand-icon" alt="Solar Forecast ML">
+              <div class="brand-copy">
+                <span class="title-text"></span>
+                <span class="wordmark"><span class="wm-solar">Solar </span><span class="wm-forecast">Forecast ML</span></span>
+              </div>
+            </div>
+            <div class="price" hidden><ha-icon icon="mdi:cash"></ha-icon><span class="price-val"></span></div>
           </div>
-          <div class="header-price" id="price-display">-- ct</div>
-        </div>
-        
-        <div class="flow-container">
-          <svg viewBox="0 0 440 280">
-            <!-- Background Static Lines -->
-            <!-- Solar -> Inverter -->
-            <path id="path-solar-bg" class="conn-line-bg" d="M 65,85 L 65,140 L 180,140" />
-            <!-- Battery -> Inverter -->
-            <path id="path-battery-bg" class="conn-line-bg" d="M 65,195 L 65,140 L 180,140" />
-            <!-- Inverter -> Grid -->
-            <path id="path-grid-bg" class="conn-line-bg" d="M 260,140 L 375,140 L 375,85" />
-            <!-- Inverter -> Load -->
-            <path id="path-load-bg" class="conn-line-bg" d="M 260,140 L 375,140 L 375,195" />
-            
-            <!-- Active Animated Flow Dots -->
-            <path id="path-solar" class="conn-line-active stroke-solar" d="M 65,85 L 65,140 L 180,140" />
-            <path id="path-battery" class="conn-line-active stroke-battery" d="M 65,195 L 65,140 L 180,140" />
-            <path id="path-grid" class="conn-line-active" d="M 260,140 L 375,140 L 375,85" />
-            <path id="path-load" class="conn-line-active stroke-load" d="M 260,140 L 375,140 L 375,195" />
-          </svg>
-          
-          <!-- Node: Solar -->
-          <div class="node-card" id="node-solar">
-            <span class="node-title">Solar</span>
-            <span class="node-icon">☀️</span>
-            <span class="node-val" id="val-solar">-- W</span>
-            <span class="node-sub" id="sub-solar">-- kWh</span>
-          </div>
-          
-          <!-- Node: Grid -->
-          <div class="node-card" id="node-grid">
-            <span class="node-title">Netz</span>
-            <span class="node-icon" id="icon-grid">🔌</span>
-            <span class="node-val" id="val-grid">-- W</span>
-            <span class="node-sub" id="sub-grid">-- kWh</span>
-          </div>
-          
-          <!-- Central Inverter -->
-          <div class="node-inverter">
-            <span class="inverter-logo">STATS</span>
-            <span class="inverter-sub">Core</span>
-          </div>
-          
-          <!-- Node: Battery -->
-          <div class="node-card" id="node-battery">
-            <span class="node-title">Akku</span>
-            <span class="node-icon">🔋</span>
-            <span class="node-val" id="val-battery">-- W</span>
-            <span class="node-sub" id="sub-battery">--%</span>
-            <div class="bat-bar-bg">
-              <div class="bat-bar-fill" id="bar-battery"></div>
+          <div class="error" hidden></div>
+          <div class="flow">
+            <svg viewBox="0 0 100 100">
+              ${pathsSvg}
+              <g class="dots"></g>
+              <circle class="solar-halo" cx="50" cy="20" r="12"/>
+              <circle class="ring c-solar" cx="50" cy="20" r="12" style="fill: var(--c-bg)"/>
+              <circle class="ring c-import" cx="14" cy="49" r="12" style="fill: var(--c-bg)"/>
+              <circle class="ring-track" cx="86" cy="49" r="12" style="fill: var(--c-bg)"/>
+              <g transform="rotate(-90 86 49)">
+                <circle id="seg-solar" class="ring-seg c-solar" cx="86" cy="49" r="12" pathLength="100" style="fill: none"/>
+                <circle id="seg-battery" class="ring-seg c-discharge" cx="86" cy="49" r="12" pathLength="100" style="fill: none"/>
+                <circle id="seg-grid" class="ring-seg c-import" cx="86" cy="49" r="12" pathLength="100" style="fill: none"/>
+              </g>
+              <g class="battery-only">
+                <circle class="ring-track" cx="50" cy="78" r="12" style="fill: var(--c-bg)"/>
+                <circle id="soc-ring" class="ring-seg c-discharge" cx="50" cy="78" r="12" pathLength="100"
+                  transform="rotate(-90 50 78)" style="fill: none"/>
+              </g>
+            </svg>
+
+            <div class="node" id="node-solar" style="left:50%;top:20%">
+              <span class="label above">${this._t("solar")}</span>
+              <ha-icon icon="mdi:solar-power-variant"></ha-icon>
+              <span class="val" id="val-solar">–</span>
+              <span class="sub" id="sub-solar"></span>
+            </div>
+            <div class="node" id="node-grid" style="left:14%;top:49%">
+              <ha-icon icon="mdi:transmission-tower"></ha-icon>
+              <span class="val t-import" id="val-import"></span>
+              <span class="val t-export" id="val-export"></span>
+              <span class="label below">${this._t("grid")}</span>
+            </div>
+            <div class="node" id="node-home" style="left:86%;top:49%">
+              <ha-icon icon="mdi:home-variant"></ha-icon>
+              <span class="val" id="val-home">–</span>
+              <span class="sub" id="sub-home"></span>
+              <span class="label below">${this._t("home")}</span>
+            </div>
+            <div class="node battery-only" id="node-battery" style="left:50%;top:78%">
+              <ha-icon id="icon-battery" icon="mdi:battery"></ha-icon>
+              <span class="val" id="val-soc">–</span>
+              <span class="sub" id="val-battery"></span>
+              <span class="label below">${this._t("battery")}</span>
             </div>
           </div>
-          
-          <!-- Node: Load -->
-          <div class="node-card" id="node-load">
-            <span class="node-title">Verbrauch</span>
-            <span class="node-icon">🏠</span>
-            <span class="node-val" id="val-load">-- W</span>
-            <span class="node-sub" id="sub-load">-- kWh</span>
+
+          <div class="totals">
+            <div class="total"><i style="background: var(--c-solar)"></i><div>
+              <div class="total-label">${this._t("pvToday")}</div><div class="total-val" id="tot-solar">–</div></div></div>
+            <div class="total"><i style="background: var(--c-import)"></i><div>
+              <div class="total-label">${this._t("importToday")}</div><div class="total-val" id="tot-import">–</div></div></div>
+            <div class="total battery-only"><i style="background: var(--c-charge)"></i><div>
+              <div class="total-label">${this._t("batteryToday")}</div><div class="total-val" id="tot-battery">–</div></div></div>
+          </div>
+          <div class="brand-footer">
+            <span class="tagline"></span>
+            <a class="brand-link" target="_blank" rel="noopener">solarforecastml.com ↗</a>
           </div>
         </div>
-      </div>
+      </ha-card>
     `;
-    this.wrapper = this.shadowRoot.querySelector('.stats-card-wrapper');
-    this.priceDisplay = this.shadowRoot.querySelector('#price-display');
+    this.shadowRoot.querySelector(".title-text").textContent = this._config.title || this._t("title");
+    this.shadowRoot.querySelector(".brand-icon").src = FLOW_BRAND_ICON;
+    this.shadowRoot.querySelector(".tagline").textContent = this._t("tagline");
+    this.shadowRoot.querySelector(".brand-link").href = FLOW_BRAND_URL[this._lang];
+    this.wrapper = this.shadowRoot.querySelector(".content");
+    this.dotsLayer = this.shadowRoot.querySelector(".dots");
+  }
+
+  _el(id) {
+    return this.shadowRoot.getElementById(id);
   }
 
   async updateData() {
     if (!this._hass || !this.wrapper) return;
-    
+
     try {
-      const data = await this._hass.callApi('GET', 'sfml_stats/energy_flow');
+      const data = await this._hass.callApi("GET", "sfml_stats/energy_flow");
       if (!data || !data.success) return;
+      this.wrapper.querySelector(".error").hidden = true;
       this.render(data);
     } catch (err) {
       console.error("STATS Flow Card fetch error:", err);
+      if (!this._rendered) {
+        const error = this.wrapper.querySelector(".error");
+        error.textContent = this._t("error");
+        error.hidden = false;
+      }
     }
   }
 
@@ -317,150 +508,169 @@ class StatsFlowCard extends HTMLElement {
     const f = data.flows || {};
     const b = data.battery || {};
     const stats = data.statistics || {};
-    const home = data.home || {};
-    
-    const hasBattery = b.soc !== null;
-    if (!hasBattery) {
-      this.wrapper.classList.add('no-battery');
+    const pos = (v) => Math.max(0, Number(v) || 0);
+
+    const hasBattery = b.soc !== null && b.soc !== undefined;
+    this.wrapper.classList.toggle("no-battery", !hasBattery);
+
+    // Price chip
+    const price = data.current_price?.total_price;
+    const priceEl = this.wrapper.querySelector(".price");
+    if (price != null) {
+      this.wrapper.querySelector(".price-val").textContent = `${this._num(price, 1)} ct/kWh`;
+      priceEl.hidden = false;
     } else {
-      this.wrapper.classList.remove('no-battery');
+      priceEl.hidden = true;
     }
-    
-    // 1. Update Price
-    if (data.current_price?.total_price != null) {
-      this.priceDisplay.textContent = `${data.current_price.total_price.toFixed(2)} ct`;
-      this.priceDisplay.style.display = 'block';
-    } else {
-      this.priceDisplay.style.display = 'none';
-    }
-    
-    // Format helpers
-    const formatW = (w) => {
-      if (w == null) return '0 W';
-      return w >= 1000 ? (w / 1000).toFixed(2) + ' kW' : Math.round(w) + ' W';
-    };
-    
-    // --- NODES RENDER ---
-    
-    // Solar Node
-    const solarPower = f.solar_power || 0;
-    this.shadowRoot.querySelector('#val-solar').textContent = formatW(solarPower);
-    this.shadowRoot.querySelector('#sub-solar').textContent = `${(stats.solar_yield_daily || 0).toFixed(2)} kWh`;
-    
-    // Load Node
-    const loadPower = home.consumption || 0;
-    this.shadowRoot.querySelector('#val-load').textContent = formatW(loadPower);
-    // Dynamic calculate daily consumption if not sent explicitly
-    const solarToHouseKwh = stats.solar_yield_daily || 0; // fallback calculation
-    this.shadowRoot.querySelector('#sub-load').textContent = `${(stats.grid_import_daily || 0 + solarToHouseKwh).toFixed(2)} kWh`;
-    
-    // Grid Node
-    const gridImport = f.grid_to_house || 0 + (f.grid_to_battery || 0);
-    const gridExport = f.house_to_grid || 0;
-    const gridNetPower = gridImport - gridExport;
-    
-    const gridValEl = this.shadowRoot.querySelector('#val-grid');
-    const gridSubEl = this.shadowRoot.querySelector('#sub-grid');
-    const gridIconEl = this.shadowRoot.querySelector('#icon-grid');
-    
-    if (gridNetPower > 0) {
-      gridValEl.textContent = formatW(gridNetPower);
-      gridValEl.style.color = '#ff5555';
-      gridIconEl.textContent = '🔌';
-    } else if (gridNetPower < 0) {
-      gridValEl.textContent = formatW(Math.abs(gridNetPower));
-      gridValEl.style.color = '#00ff66';
-      gridIconEl.textContent = '☀️';
-    } else {
-      gridValEl.textContent = '0 W';
-      gridValEl.style.color = 'inherit';
-      gridIconEl.textContent = '🔌';
-    }
-    gridSubEl.textContent = `${(stats.grid_import_daily || 0).toFixed(2)} kWh`;
-    
-    // Battery Node (optional)
+
+    const solarPower = pos(f.solar_power);
+    const solarToHouse = pos(f.solar_to_house);
+    const solarToBattery = pos(f.solar_to_battery);
+    const batteryToHouse = pos(f.battery_to_house);
+    const gridToHouse = pos(f.grid_to_house);
+    const gridToBattery = pos(f.grid_to_battery);
+    const houseToGrid = pos(f.house_to_grid);
+    const homePower = data.home?.consumption != null
+      ? pos(data.home.consumption)
+      : solarToHouse + batteryToHouse + gridToHouse;
+
+    // Solar
+    this._el("val-solar").textContent = this._power(solarPower);
+    this._el("sub-solar").textContent = this._kwh(stats.solar_yield_daily);
+    this.wrapper.classList.toggle("producing", solarPower >= STATS_FLOW_MIN_W);
+
+    // Grid: separate import and export like the HA energy card
+    const gridImport = gridToHouse + gridToBattery;
+    this._el("val-import").textContent = `← ${this._power(gridImport)}`;
+    this._el("val-export").textContent = `→ ${this._power(houseToGrid)}`;
+
+    // Home: live consumption and self-sufficiency
+    this._el("val-home").textContent = this._power(homePower);
+    const autarky = homePower >= STATS_FLOW_MIN_W && f.grid_to_house != null
+      ? Math.max(0, Math.min(100, Math.round((1 - gridToHouse / homePower) * 100)))
+      : null;
+    this._el("sub-home").innerHTML = autarky != null
+      ? `${autarky} %<span class="autarky-word"> ${this._t("autarky")}</span>`
+      : "";
+
+    // Home ring: share of each source in the live supply
+    const supply = solarToHouse + batteryToHouse + gridToHouse;
+    const shares = supply > 0
+      ? [solarToHouse / supply, batteryToHouse / supply, gridToHouse / supply].map((s) => s * 100)
+      : [0, 0, 0];
+    let offset = 0;
+    ["seg-solar", "seg-battery", "seg-grid"].forEach((id, i) => {
+      const seg = this._el(id);
+      seg.setAttribute("stroke-dasharray", `${shares[i].toFixed(2)} 100`);
+      seg.setAttribute("stroke-dashoffset", (-offset).toFixed(2));
+      offset += shares[i];
+    });
+
+    // Battery: positive power = charging
     if (hasBattery) {
-      const batPower = b.power || 0; // Positive = charging, negative = discharging
-      const batValEl = this.shadowRoot.querySelector('#val-battery');
-      
-      if (batPower > 0) {
-        batValEl.textContent = `+${formatW(batPower)}`;
-        batValEl.style.color = '#4caf50';
-      } else if (batPower < 0) {
-        batValEl.textContent = `-${formatW(Math.abs(batPower))}`;
-        batValEl.style.color = '#ffaa00';
+      const soc = Math.max(0, Math.min(100, Number(b.soc) || 0));
+      const batPower = Number(b.power) || 0;
+      this._el("val-soc").textContent = `${Math.round(soc)} %`;
+      this._el("soc-ring").setAttribute("stroke-dasharray", `${soc} 100`);
+      const level = Math.min(100, Math.max(10, Math.round(soc / 10) * 10));
+      const charging = batPower >= STATS_FLOW_MIN_W;
+      this._el("icon-battery").setAttribute(
+        "icon",
+        charging ? `mdi:battery-charging-${level}` : level === 100 ? "mdi:battery" : `mdi:battery-${level}`,
+      );
+      const batEl = this._el("val-battery");
+      if (Math.abs(batPower) < STATS_FLOW_MIN_W) {
+        batEl.textContent = this._power(0);
+        batEl.className = "sub";
       } else {
-        batValEl.textContent = '0 W';
-        batValEl.style.color = 'inherit';
-      }
-      
-      this.shadowRoot.querySelector('#sub-battery').textContent = `${b.soc}%`;
-      this.shadowRoot.querySelector('#bar-battery').style.width = `${b.soc}%`;
-    }
-    
-    // --- FLOWS ANIMATION & SPEED ---
-    
-    const updateFlowLine = (pathId, power, direction) => {
-      const path = this.shadowRoot.querySelector(`#${pathId}`);
-      if (!path) return;
-      
-      if (Math.abs(power) < 10) {
-        path.className.baseVal = "conn-line-active flow-stopped";
-        return;
-      }
-      
-      // Calculate speed: higher power = faster animation duration
-      const duration = Math.max(0.6, Math.min(10, 12 - (Math.abs(power) / 1000) * 2));
-      path.style.animationDuration = `${duration}s`;
-      
-      let dirClass = direction === "in" ? "flow-to-inverter" : "flow-from-inverter";
-      path.className.baseVal = `conn-line-active ${dirClass} ${pathId === 'path-solar' ? 'stroke-solar' : pathId === 'path-load' ? 'stroke-load' : ''}`;
-    };
-    
-    // Solar: always to inverter
-    updateFlowLine('path-solar', solarPower, 'in');
-    
-    // Load: always from inverter
-    updateFlowLine('path-load', loadPower, 'out');
-    
-    // Battery: dynamic direction
-    if (hasBattery) {
-      const batPower = b.power || 0;
-      const batDirection = batPower > 0 ? 'out' : 'in'; // charging = flow from inverter out to battery
-      updateFlowLine('path-battery', batPower, batDirection);
-    }
-    
-    // Grid: dynamic direction & colors
-    const gridPath = this.shadowRoot.querySelector('#path-grid');
-    if (gridPath) {
-      if (Math.abs(gridNetPower) < 10) {
-        gridPath.className.baseVal = "conn-line-active flow-stopped";
-      } else {
-        const duration = Math.max(0.6, Math.min(10, 12 - (Math.abs(gridNetPower) / 1000) * 2));
-        gridPath.style.animationDuration = `${duration}s`;
-        
-        if (gridNetPower > 0) {
-          // Import: flow from grid to inverter (in)
-          gridPath.className.baseVal = "conn-line-active flow-to-inverter stroke-grid-import";
-        } else {
-          // Export: flow from inverter to grid (out)
-          gridPath.className.baseVal = "conn-line-active flow-from-inverter stroke-grid-export";
-        }
+        batEl.textContent = `${charging ? "↓" : "↑"} ${this._power(batPower)}`;
+        batEl.className = `sub ${charging ? "t-charge" : "t-discharge"}`;
       }
     }
+
+    // Daily totals
+    this._el("tot-solar").textContent = this._kwh(stats.solar_yield_daily);
+    this._el("tot-import").textContent = this._kwh(stats.grid_import_daily);
+    this._el("tot-battery").textContent = this._kwh(
+      pos(stats.battery_charge_solar_daily) + pos(stats.battery_charge_grid_daily),
+    );
+
+    this._renderFlows({
+      solarHome: solarToHouse,
+      solarGrid: houseToGrid,
+      solarBattery: hasBattery ? solarToBattery : 0,
+      gridHome: gridToHouse,
+      gridBattery: hasBattery ? gridToBattery : 0,
+      batteryHome: hasBattery ? batteryToHouse : 0,
+    }, hasBattery);
+    this._rendered = true;
+  }
+
+  _renderFlows(powers, hasBattery) {
+    const parts = [];
+    const signature = [];
+
+    Object.entries(STATS_FLOW_PATHS).forEach(([id, path]) => {
+      const line = this._el(`line-${id}`);
+      const visible = !path.battery || hasBattery;
+      line.style.display = visible ? "" : "none";
+      const watts = visible ? powers[id] : 0;
+      const active = watts >= STATS_FLOW_MIN_W;
+      line.classList.toggle("active", active);
+      if (!active) return;
+
+      // More power → faster and denser dots; sqrt keeps small flows visibly alive
+      const kw = watts / 1000;
+      const dur = Math.max(1.2, Math.min(6, 3.2 / Math.sqrt(kw + 0.15)));
+      const durKey = Math.round(dur * 4) / 4;
+      const count = 1 + (kw > 1.5 ? 1 : 0) + (kw > 4 ? 1 : 0);
+      signature.push(`${id}:${durKey}:${count}`);
+      for (let i = 0; i < count; i += 1) {
+        parts.push(`
+          <circle class="dot c-${path.color}" r="1.25">
+            <animateMotion dur="${durKey}s" begin="${(-(durKey / count) * i).toFixed(2)}s"
+              repeatCount="indefinite" calcMode="linear" path="${path.d}"/>
+          </circle>`);
+      }
+    });
+
+    // Only rebuild dots when the flow pattern changes, so running animations do not restart every refresh
+    const key = signature.join("|");
+    if (key !== this._dotsKey) {
+      this._dotsKey = key;
+      this.dotsLayer.innerHTML = parts.join("");
+    }
+  }
+
+  // Sections view: always span the full section width, height follows the content
+  getGridOptions() {
+    return { columns: 12, min_columns: 12, rows: "auto" };
   }
 
   getCardSize() {
-    return 4;
+    return 7;
+  }
+
+  static getStubConfig() {
+    return {};
   }
 }
 
-customElements.define('stats-flow-card', StatsFlowCard);
+// "sfml-energy-flow-card" is the branded type; "stats-flow-card" stays registered for existing dashboards
+class SfmlEnergyFlowCard extends StatsFlowCard {}
+if (!customElements.get("sfml-energy-flow-card")) customElements.define("sfml-energy-flow-card", SfmlEnergyFlowCard);
+if (!customElements.get("stats-flow-card")) customElements.define("stats-flow-card", StatsFlowCard);
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "stats-flow-card",
-  name: "STATS Flow Card",
-  preview: true,
-  description: "Ein animiertes Flussdiagramm der STATS Live-Energiedaten (PV, Inverter, Grid, Batterie, Haus)."
-});
+if (!window.customCards.some((c) => c.type === "sfml-energy-flow-card")) {
+  const de = (document.documentElement.lang || navigator.language || "").toLowerCase().startsWith("de");
+  window.customCards.push({
+    type: "sfml-energy-flow-card",
+    name: de ? "Solar Forecast ML – Energiefluss" : "Solar Forecast ML – Energy Flow",
+    preview: true,
+    description: de
+      ? "Animierter Live-Energiefluss zwischen PV, Netz, Batterie und Haus – von Solar Forecast ML."
+      : "Animated live energy flow between solar, grid, battery and home – by Solar Forecast ML.",
+    documentationURL: "https://www.solarforecastml.com/",
+  });
+}
