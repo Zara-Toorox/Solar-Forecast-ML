@@ -1,8 +1,9 @@
 (() => {
     const PROTOCOL = "sfml-heating-bridge-v1";
     const BRIDGE_PATH = "/sfml-stats-heating-bridge";
-    const OPERATIONS = new Set(["status", "saveSettings", "addRoom", "updateRoom", "deleteRoom", "setActive", "resume"]);
-    const REASONS = ["locked", "disabled", "no_persons", "presence_home", "presence_unknown", "presence_pending", "presence_away", "window_open", "away_setback", "schedule_setback", "comfort", "preheat", "room_inactive", "thermostat_unavailable", "hvac_off", "hvac_switched", "mixed_reasons", "range_setpoint", "setpoint_unreadable", "within_band", "same_value", "decrease_limited", "increase_limited", "manual_override", "startup_hold", "write_failed", "awaiting_device", "device_not_responding", "outdoor_unavailable", "outdoor_missing", "forecast_unavailable"];
+    const OPERATIONS = new Set(["status", "saveSettings", "addRoom", "updateRoom", "deleteRoom", "setActive", "resume", "setBoost", "clearBoost"]);
+    const REASONS = ["locked", "disabled", "no_persons", "presence_home", "presence_unknown", "presence_pending", "presence_away", "window_open", "window_detected", "away_setback", "schedule_setback", "comfort", "preheat", "boost", "vacation", "pv_lift", "price_lift", "room_inactive", "thermostat_unavailable", "hvac_off", "hvac_switched", "mixed_reasons", "range_setpoint", "setpoint_unreadable", "within_band", "same_value", "decrease_limited", "increase_limited", "manual_override", "startup_hold", "write_failed", "awaiting_device", "device_not_responding", "outdoor_unavailable", "outdoor_missing", "forecast_unavailable"];
+    const BOOST_MINUTES = [30, 60, 120, 240, 480, 1440];
     const HIDDEN_REASONS = ["same_value", "within_band", "startup_hold"];
     const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
     const UI_PHRASE = {
@@ -133,6 +134,8 @@
                 deleteRoom: ["DELETE", `rooms/${payload.id}`],
                 setActive: ["POST", `rooms/${payload.id}/active`],
                 resume: ["POST", `rooms/${payload.id}/resume`],
+                setBoost: ["POST", `rooms/${payload.id}/boost`],
+                clearBoost: ["DELETE", `rooms/${payload.id}/boost`],
             };
             const route = routes[operation];
             const body = heatingWriteBody(operation, payload);
@@ -171,12 +174,13 @@
         }
     }
 
-    const ROOM_FIELDS = ["name", "climate_entities", "temp_sensor", "window_sensor", "comfort_temp_c", "setback_temp_c", "mode", "schedule", "auto_hvac"];
-    const SETTINGS_FIELDS = ["base_temp_c", "frost_floor_c", "presence_entities", "away_delay_min", "outdoor_entity", "heating_limit_c"];
+    const ROOM_FIELDS = ["name", "climate_entities", "temp_sensor", "window_sensor", "comfort_temp_c", "setback_temp_c", "presence_enabled", "schedule_enabled", "presence_persons", "window_detect", "lift_enabled", "schedule", "auto_hvac"];
+    const SETTINGS_FIELDS = ["base_temp_c", "frost_floor_c", "presence_entities", "away_delay_min", "outdoor_entity", "heating_limit_c", "vacation_start", "vacation_end", "lift_k", "lift_on_pv", "lift_on_cheap"];
 
     function heatingWriteBody(operation, payload) {
         if (operation === "setActive") return { active: payload.active === true };
-        if (operation === "status" || operation === "deleteRoom" || operation === "resume") return undefined;
+        if (operation === "setBoost") return { temp_c: payload.temp_c, minutes: payload.minutes };
+        if (operation === "status" || operation === "deleteRoom" || operation === "resume" || operation === "clearBoost") return undefined;
         const fields = operation === "saveSettings" ? SETTINGS_FIELDS : ROOM_FIELDS;
         const body = {};
         for (const key of fields) {
@@ -207,7 +211,11 @@
         window_sensor: "",
         comfort_temp_c: 21,
         setback_temp_c: "",
-        mode: "auto",
+        presence_enabled: true,
+        schedule_enabled: false,
+        presence_persons: [],
+        window_detect: false,
+        lift_enabled: false,
         auto_hvac: true,
         schedule: [],
     });
@@ -249,6 +257,21 @@
                                 <span class="heating-pill">{{ keplerChip() }}</span>
                                 <span class="heating-pill" :class="status.outdoor && status.outdoor.forecast_min_next_12h == null ? 'warn' : ''">{{ hubbleChip() }}</span>
                             </div>
+                            <details class="heating-guide">
+                                <summary>{{ text('heating.guide.title') }}</summary>
+                                <section v-for="part in guideParts" :key="part">
+                                    <h4>{{ text('heating.guide.' + part + 'Title') }}</h4>
+                                    <p>{{ text('heating.guide.' + part) }}</p>
+                                </section>
+                            </details>
+                            <details class="heating-guide">
+                                <summary>{{ text('heating.advice.title') }}</summary>
+                                <section v-for="part in adviceParts" :key="part">
+                                    <h4>{{ text('heating.advice.' + part + 'Title') }}</h4>
+                                    <p><strong>{{ text('heating.advice.does') }}</strong> {{ text('heating.advice.' + part + 'Does') }}</p>
+                                    <p><strong>{{ text('heating.advice.recommend') }}</strong> {{ text('heating.advice.' + part + 'Recommend') }}</p>
+                                </section>
+                            </details>
                         </header>
                         <div v-if="status.outdoor" class="heating-kpis">
                             <article>
@@ -285,6 +308,13 @@
                                     </div>
                                     <div>
                                         <p v-if="showReason(room.reason)" class="heating-reason" :class="reasonTone(room.reason)">{{ room.reason === 'preheat' ? text('heating.preheatFor', { time: formatTime(room.preheat_for) }) : reasonText(room.reason) }}</p>
+                                        <ul class="heating-facts">
+                                            <li v-if="room.boost_until">{{ text('heating.boostUntil', { temp: formatNumber(room.boost_temp_c, 1), time: formatTime(room.boost_until) }) }}</li>
+                                            <li v-if="vacationActive() || room.reason === 'vacation'">{{ text('heating.vacationActive') }}</li>
+                                            <li v-if="room.window_detected">{{ text('heating.windowDetected') }}</li>
+                                            <li v-if="room.lift === 'pv_lift' || room.lift === 'price_lift'">{{ reasonText(room.lift) }}</li>
+                                            <li v-if="room.presence">{{ text('heating.groupPresence', { state: presenceText(room.presence) }) }}</li>
+                                        </ul>
                                         <p class="heating-kepler">{{ keplerLine(room) }}</p>
                                         <ul class="heating-facts">
                                             <li v-if="room.window_sensor"><ui-icon name="home" :size="16"></ui-icon>{{ room.window_open ? text('heating.windowOpen') : text('heating.windowClosed') }}</li>
@@ -322,6 +352,18 @@
                                 <div class="heating-actions">
                                     <button type="button" @click="toggleRoom(room)">{{ room.active ? text('heating.switchObserve') : text('heating.switchActive') }}</button>
                                     <button v-if="room.reason === 'manual_override'" type="button" @click="resumeRoom(room)">{{ text('heating.resume') }}</button>
+                                    <template v-if="room.boost_until">
+                                        <button type="button" @click="clearBoost(room)">{{ text('heating.boostStop') }}</button>
+                                    </template>
+                                    <template v-else>
+                                        <label>{{ text('heating.boostTemp') }}<input v-model.number="boostDraft(room).temp_c" type="number" min="5" max="30" step="0.5"></label>
+                                        <label>{{ text('heating.boostMinutes') }}
+                                            <select v-model.number="boostDraft(room).minutes">
+                                                <option v-for="minutes in boostChoices" :key="minutes" :value="minutes">{{ text('heating.boost' + minutes) }}</option>
+                                            </select>
+                                        </label>
+                                        <button type="button" @click="startBoost(room)">{{ text('heating.boostStart') }}</button>
+                                    </template>
                                 </div>
                             </article>
                         </div>
@@ -369,14 +411,38 @@
                                     <label>{{ text('heating.roomName') }}<input v-model="draft.name" type="text" required maxlength="80"></label>
                                     <label>{{ text('heating.comfort') }}<input v-model.number="draft.comfort_temp_c" type="number" min="5" max="30" step="0.5" required></label>
                                     <label>{{ text('heating.setback') }}<input v-model="draft.setback_temp_c" type="number" min="5" max="30" step="0.5" :placeholder="text('heating.setbackPlaceholder', { temp: formatNumber(settings.base_temp_c, 1) })"></label>
-                                    <label>{{ text('heating.roomMode') }}
-                                        <select v-model="draft.mode">
-                                            <option value="auto">{{ text('heating.modeAuto') }}</option>
-                                            <option value="schedule">{{ text('heating.modeSchedule') }}</option>
-                                            <option value="combined">{{ text('heating.roomModeCombined') }}</option>
-                                        </select>
-                                    </label>
                                 </div>
+                                <label class="heating-switch">
+                                    <input type="checkbox" role="switch" v-model="draft.schedule_enabled" :aria-checked="draft.schedule_enabled ? 'true' : 'false'">
+                                    <span class="heating-switch-track" aria-hidden="true"><span></span></span>
+                                    <span class="heating-switch-copy"><strong>{{ text('heating.useSchedule') }}</strong></span>
+                                </label>
+                                <label class="heating-switch">
+                                    <input type="checkbox" role="switch" v-model="draft.presence_enabled" :aria-checked="draft.presence_enabled ? 'true' : 'false'">
+                                    <span class="heating-switch-track" aria-hidden="true"><span></span></span>
+                                    <span class="heating-switch-copy"><strong>{{ text('heating.usePresence') }}</strong></span>
+                                </label>
+                                <div v-if="draft.presence_enabled" class="heating-section">
+                                    <h4>{{ text('heating.presencePersons') }}</h4>
+                                    <p>{{ text('heating.presencePersonsHint') }}</p>
+                                    <div class="heating-tiles" role="group" :aria-label="text('heating.presencePersons')">
+                                        <label v-for="entity in persons" :key="'room-' + entity.id" class="heating-tile" :class="{ on: draft.presence_persons.includes(entity.id) }">
+                                            <input type="checkbox" :value="entity.id" v-model="draft.presence_persons">
+                                            <span class="heating-tile-mark" aria-hidden="true"></span>
+                                            <span class="heating-tile-name" :title="entity.id">{{ entity.name }}</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <label class="heating-switch">
+                                    <input type="checkbox" role="switch" v-model="draft.window_detect" :aria-checked="draft.window_detect ? 'true' : 'false'">
+                                    <span class="heating-switch-track" aria-hidden="true"><span></span></span>
+                                    <span class="heating-switch-copy"><strong>{{ text('heating.windowDetect') }}</strong><small>{{ text('heating.windowDetectHelp') }}</small></span>
+                                </label>
+                                <label class="heating-switch">
+                                    <input type="checkbox" role="switch" v-model="draft.lift_enabled" :aria-checked="draft.lift_enabled ? 'true' : 'false'">
+                                    <span class="heating-switch-track" aria-hidden="true"><span></span></span>
+                                    <span class="heating-switch-copy"><strong>{{ text('heating.liftRoom') }}</strong><small>{{ text('heating.liftRoomHelp') }}</small></span>
+                                </label>
                             </section>
                             <section class="heating-section">
                                 <h4>{{ uiPhrase('sectionDevices') }}</h4>
@@ -416,6 +482,7 @@
                                     <div class="heating-fields">
                                         <label>{{ text('heating.start') }}<input v-model="window.start" type="time" required></label>
                                         <label>{{ text('heating.end') }}<input v-model="window.end" type="time" required></label>
+                                        <label>{{ text('heating.windowTemp') }}<input v-model="window.temp_c" type="number" min="5" max="30" step="0.5" :placeholder="text('heating.windowTempPlaceholder')"></label>
                                     </div>
                                     <div class="heating-form-actions">
                                         <button type="button" class="heating-danger" @click="draft.schedule.splice(index, 1)">{{ text('heating.removeWindow') }}</button>
@@ -466,6 +533,30 @@
                                 </label>
                                 <label>{{ text('heating.heatingLimit') }}<input v-model.number="settings.heating_limit_c" type="number" min="5" max="25" step="0.5" required></label>
                             </div>
+                            <section class="heating-section">
+                                <h4>{{ text('heating.vacation') }}</h4>
+                                <div class="heating-fields">
+                                    <label>{{ text('heating.vacationStart') }}<input v-model="settings.vacation_start" type="datetime-local"></label>
+                                    <label>{{ text('heating.vacationEnd') }}<input v-model="settings.vacation_end" type="datetime-local"></label>
+                                </div>
+                                <button type="button" @click="clearVacation">{{ text('heating.vacationClear') }}</button>
+                            </section>
+                            <section class="heating-section">
+                                <h4>{{ text('heating.liftTitle') }}</h4>
+                                <div class="heating-fields">
+                                    <label>{{ text('heating.liftK') }}<input v-model.number="settings.lift_k" type="number" min="0.5" max="2" step="0.5" required></label>
+                                </div>
+                                <label class="heating-switch">
+                                    <input type="checkbox" role="switch" v-model="settings.lift_on_pv" :aria-checked="settings.lift_on_pv ? 'true' : 'false'">
+                                    <span class="heating-switch-track" aria-hidden="true"><span></span></span>
+                                    <span class="heating-switch-copy"><strong>{{ text('heating.liftPv') }}</strong></span>
+                                </label>
+                                <label class="heating-switch">
+                                    <input type="checkbox" role="switch" v-model="settings.lift_on_cheap" :aria-checked="settings.lift_on_cheap ? 'true' : 'false'">
+                                    <span class="heating-switch-track" aria-hidden="true"><span></span></span>
+                                    <span class="heating-switch-copy"><strong>{{ text('heating.liftCheap') }}</strong></span>
+                                </label>
+                            </section>
                             <div class="heating-form-actions">
                                 <button type="submit" class="primary">{{ text('heating.save') }}</button>
                             </div>
@@ -481,7 +572,15 @@
             const status = Vue.ref(null);
             const activeTab = Vue.ref("rooms");
             const draft = Vue.reactive(blankRoom());
-            const settings = Vue.reactive({ base_temp_c: 17, frost_floor_c: 7, presence_entities: [], away_delay_min: 15, outdoor_entity: "", heating_limit_c: 15 });
+            const settings = Vue.reactive({
+                base_temp_c: 17, frost_floor_c: 7, presence_entities: [], away_delay_min: 15,
+                outdoor_entity: "", heating_limit_c: 15, vacation_start: "", vacation_end: "",
+                lift_k: 1, lift_on_pv: false, lift_on_cheap: false,
+            });
+            const boostDrafts = Vue.reactive({});
+            const guideParts = ["watching", "temps", "schedule", "presence", "order", "boost", "vacation", "window", "lift", "season", "preheat", "manual"];
+            const adviceParts = ["watching", "comfort", "setback", "frost", "schedule", "presence", "delay", "boost", "vacation", "window", "lift", "limit"];
+            const boostChoices = BOOST_MINUTES;
             const pendingDelete = Vue.ref(null);
             const editorOpen = Vue.ref(false);
             const climateQuery = Vue.ref("");
@@ -534,6 +633,11 @@
                     settings.away_delay_min = body.settings.away_delay_min;
                     settings.outdoor_entity = body.settings.outdoor_entity || "";
                     settings.heating_limit_c = body.settings.heating_limit_c ?? 15;
+                    settings.vacation_start = body.settings.vacation_start || "";
+                    settings.vacation_end = body.settings.vacation_end || "";
+                    settings.lift_k = body.settings.lift_k ?? 1;
+                    settings.lift_on_pv = body.settings.lift_on_pv === true;
+                    settings.lift_on_cheap = body.settings.lift_on_cheap === true;
                 }
             }
 
@@ -557,12 +661,17 @@
                     window_sensor: draft.window_sensor || null,
                     comfort_temp_c: draft.comfort_temp_c,
                     setback_temp_c: setbackValue(draft.setback_temp_c),
-                    mode: draft.mode || "auto",
+                    presence_enabled: draft.presence_enabled === true,
+                    schedule_enabled: draft.schedule_enabled === true,
+                    presence_persons: [...(draft.presence_persons || [])],
+                    window_detect: draft.window_detect === true,
+                    lift_enabled: draft.lift_enabled === true,
                     auto_hvac: draft.auto_hvac !== false,
                     schedule: (draft.schedule || []).map((window) => ({
                         days: [...window.days].sort((left, right) => left - right),
                         start: String(window.start || "").slice(0, 5),
                         end: String(window.end || "").slice(0, 5),
+                        temp_c: setbackValue(window.temp_c),
                     })),
                 };
             }
@@ -604,6 +713,7 @@
             function roomModeChip(room) {
                 if (room.mode === "schedule") return text("heating.modeScheduleShort");
                 if (room.mode === "combined") return text("heating.modeCombinedShort");
+                if (room.mode === "fixed") return text("heating.modeFixedShort");
                 return text("heating.modeAutoShort");
             }
 
@@ -617,12 +727,17 @@
                     window_sensor: room.window_sensor || "",
                     comfort_temp_c: room.comfort_temp_c,
                     setback_temp_c: room.setback_temp_c == null ? "" : room.setback_temp_c,
-                    mode: room.mode || "auto",
+                    presence_enabled: room.presence_enabled !== false && room.mode !== "schedule" && room.mode !== "fixed",
+                    schedule_enabled: room.schedule_enabled === true || room.mode === "schedule" || room.mode === "combined",
+                    presence_persons: [...(room.presence_persons || [])],
+                    window_detect: room.window_detect === true,
+                    lift_enabled: room.lift_enabled === true,
                     auto_hvac: room.auto_hvac !== false,
                     schedule: (room.schedule || []).map((window) => ({
                         days: [...(window.days || [])],
                         start: window.start,
                         end: window.end,
+                        temp_c: window.temp_c == null ? "" : window.temp_c,
                     })),
                 } : blankRoom();
                 Object.assign(draft, next);
@@ -685,6 +800,11 @@
                         away_delay_min: settings.away_delay_min,
                         outdoor_entity: settings.outdoor_entity || null,
                         heating_limit_c: settings.heating_limit_c,
+                        vacation_start: settings.vacation_start || null,
+                        vacation_end: settings.vacation_end || null,
+                        lift_k: settings.lift_k,
+                        lift_on_pv: settings.lift_on_pv === true,
+                        lift_on_cheap: settings.lift_on_cheap === true,
                     }));
                 } catch (error) {
                     message.value = failureText(error);
@@ -707,6 +827,48 @@
                 } catch (error) {
                     message.value = failureText(error);
                 }
+            }
+
+            function boostDraft(room) {
+                if (!boostDrafts[room.id]) {
+                    boostDrafts[room.id] = { temp_c: Number(room.comfort_temp_c) || 21, minutes: 60 };
+                }
+                return boostDrafts[room.id];
+            }
+
+            async function startBoost(room) {
+                const draftBoost = boostDraft(room);
+                try {
+                    await bridge.request("setBoost", {
+                        id: room.id,
+                        temp_c: Number(draftBoost.temp_c),
+                        minutes: Number(draftBoost.minutes),
+                    });
+                    await refresh();
+                } catch (error) {
+                    message.value = failureText(error);
+                }
+            }
+
+            async function clearBoost(room) {
+                try {
+                    await bridge.request("clearBoost", { id: room.id });
+                    await refresh();
+                } catch (error) {
+                    message.value = failureText(error);
+                }
+            }
+
+            function clearVacation() {
+                settings.vacation_start = "";
+                settings.vacation_end = "";
+            }
+
+            function vacationActive() {
+                const start = Date.parse(settings.vacation_start);
+                const end = Date.parse(settings.vacation_end);
+                const now = Date.now();
+                return Number.isFinite(start) && Number.isFinite(end) && now >= start && now < end;
             }
 
             function actualOf(room) {
@@ -863,11 +1025,12 @@
                 }
                 if (room.mode === "schedule") return { icon: "calendar", label: text("heating.modeScheduleShort"), tone: "" };
                 if (room.mode === "combined") return { icon: "target", label: text("heating.modeCombinedShort"), tone: "" };
+                if (room.mode === "fixed") return { icon: "heating", label: text("heating.modeFixedShort"), tone: "" };
                 return { icon: "heating", label: text("heating.modeAutoShort"), tone: "" };
             }
 
             function reasonTone(code) {
-                if (["comfort", "same_value", "within_band", "presence_home"].includes(code)) return "ok";
+                if (["comfort", "same_value", "within_band", "presence_home", "boost", "pv_lift", "price_lift"].includes(code)) return "ok";
                 if (["manual_override", "write_failed", "thermostat_unavailable", "device_not_responding", "locked", "disabled"].includes(code)) return "bad";
                 return "warn";
             }
@@ -979,10 +1142,11 @@
             });
 
             return {
-                text, tabs, activeTab, loading, message, status, rooms, draft, settings,
+                text, tabs, activeTab, loading, message, status, rooms, draft, settings, guideParts, adviceParts, boostChoices,
                 climates, visibleClimates, climateQuery, sensors, windows, persons, outdoors, weekdays: WEEKDAYS, pendingDelete, editorOpen, editorTitle, bridgeHost,
                 labelOf, entityLabels, displayName, uiPhrase, roomModeChip,
                 editRoom, beginAdd, beginEdit, cancelEditor, openManageAdd, saveRoom, askDelete, confirmDelete, saveSettings, toggleRoom, resumeRoom,
+                boostDraft, startBoost, clearBoost, clearVacation, vacationActive,
                 actualOf, setpointOf, lastWriteOf, formatTemp, formatNumber, formatTime, reasonText, onTabKey,
                 addWindow, toggleDay, seasonText, seasonTone, hvacText, presenceText, presenceKind,
                 initials, personTitle, modePill, reasonTone, ringOf, ringPath, sparkOf, weekBand, lowBattery, activeOffset, batteryGlyph, effectiveSetback,

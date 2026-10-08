@@ -25,17 +25,17 @@ const HEATING_OPERATIONS = Object.freeze({
   saveSettings: {
     method: "POST",
     path: () => "settings",
-    payload: (value) => heatingPick(value, ["base_temp_c", "frost_floor_c", "presence_entities", "away_delay_min", "outdoor_entity", "heating_limit_c"]),
+    payload: (value) => heatingPick(value, ["base_temp_c", "frost_floor_c", "presence_entities", "away_delay_min", "outdoor_entity", "heating_limit_c", "vacation_start", "vacation_end", "lift_k", "lift_on_pv", "lift_on_cheap"]),
   },
   addRoom: {
     method: "POST",
     path: () => "rooms",
-    payload: (value) => heatingPick(value, ["name", "climate_entities", "temp_sensor", "window_sensor", "comfort_temp_c", "setback_temp_c", "mode", "schedule", "auto_hvac"]),
+    payload: (value) => heatingPick(value, ["name", "climate_entities", "temp_sensor", "window_sensor", "comfort_temp_c", "setback_temp_c", "presence_enabled", "schedule_enabled", "presence_persons", "window_detect", "lift_enabled", "schedule", "auto_hvac"]),
   },
   updateRoom: {
     method: "PUT",
     path: (value) => `rooms/${heatingRoomId(value)}`,
-    payload: (value) => heatingPick(value, ["name", "climate_entities", "temp_sensor", "window_sensor", "comfort_temp_c", "setback_temp_c", "mode", "schedule", "auto_hvac"]),
+    payload: (value) => heatingPick(value, ["name", "climate_entities", "temp_sensor", "window_sensor", "comfort_temp_c", "setback_temp_c", "presence_enabled", "schedule_enabled", "presence_persons", "window_detect", "lift_enabled", "schedule", "auto_hvac"]),
   },
   deleteRoom: {
     method: "DELETE",
@@ -50,6 +50,16 @@ const HEATING_OPERATIONS = Object.freeze({
   resume: {
     method: "POST",
     path: (value) => `rooms/${heatingRoomId(value)}/resume`,
+    payload: () => undefined,
+  },
+  setBoost: {
+    method: "POST",
+    path: (value) => `rooms/${heatingRoomId(value)}/boost`,
+    payload: (value) => heatingPick(value, ["temp_c", "minutes"]),
+  },
+  clearBoost: {
+    method: "DELETE",
+    path: (value) => `rooms/${heatingRoomId(value)}/boost`,
     payload: () => undefined,
   },
 });

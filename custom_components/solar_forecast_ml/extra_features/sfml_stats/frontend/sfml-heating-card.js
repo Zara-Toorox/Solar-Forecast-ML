@@ -17,7 +17,12 @@ const HEATING_PAGE_TEXT = {
       "presence_pending": "Abwesenheit noch nicht lange genug",
       "presence_away": "Niemand zu Hause",
       "window_open": "Fenster offen",
+      "window_detected": "Offenes Fenster erkannt",
       "away_setback": "Absenkung wegen Abwesenheit",
+      "vacation": "Urlaub",
+      "boost": "Boost",
+      "pv_lift": "Anhebung wegen PV-Überschuss",
+      "price_lift": "Anhebung wegen günstigem Strom",
       "comfort": "Wunschtemperatur",
       "room_inactive": "Raum wird nur beobachtet",
       "thermostat_unavailable": "Thermostat nicht erreichbar",
@@ -78,7 +83,12 @@ const HEATING_PAGE_TEXT = {
       "presence_pending": "Away time is still too short",
       "presence_away": "Nobody is home",
       "window_open": "Window is open",
+      "window_detected": "Open window detected",
       "away_setback": "Setback because nobody is home",
+      "vacation": "Vacation",
+      "boost": "Boost",
+      "pv_lift": "Raised because of PV surplus",
+      "price_lift": "Raised because power is cheap",
       "comfort": "Comfort temperature",
       "room_inactive": "Room is only observed",
       "thermostat_unavailable": "Thermostat is unavailable",
@@ -147,6 +157,17 @@ const HEATING_TEXT = {
     premiumLead: "Jeder Raum heizt nur, wenn jemand da ist – mit Vorheizen, Fenster-Erkennung und Lernmodell.",
     saveFailed: "Konnte nicht gespeichert werden.",
     noPermission: "Keine Berechtigung für diesen Raum.",
+    boostTemp: "Boost",
+    boostMinutes: "Dauer",
+    boostStart: "Boost starten",
+    boostStop: "Boost beenden",
+    boostUntil: "Boost {temp} °C bis {time}",
+    boost30: "30 min",
+    boost60: "1 h",
+    boost120: "2 h",
+    boost240: "4 h",
+    boost480: "8 h",
+    boost1440: "24 h",
     loading: "Lade Heizung …",
     error: "Heizungsdaten nicht erreichbar.",
     at: "{time}",
@@ -166,6 +187,17 @@ const HEATING_TEXT = {
     premiumLead: "Every room only heats when someone is there – with preheating, window detection and a learning model.",
     saveFailed: "Could not be saved.",
     noPermission: "No permission for this room.",
+    boostTemp: "Boost",
+    boostMinutes: "Duration",
+    boostStart: "Start Boost",
+    boostStop: "Stop Boost",
+    boostUntil: "Boost {temp} °C until {time}",
+    boost30: "30 min",
+    boost60: "1 h",
+    boost120: "2 h",
+    boost240: "4 h",
+    boost480: "8 h",
+    boost1440: "24 h",
     loading: "Loading heating …",
     error: "Heating data unavailable.",
     at: "{time}",
@@ -563,6 +595,34 @@ class SfmlHeatingCard extends HTMLElement {
           font-size: 11px;
           color: var(--error-color, #db4437);
         }
+        .boost {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: end;
+          gap: 6px;
+          margin-top: 8px;
+          font-size: 12px;
+        }
+        .boost label {
+          display: grid;
+          gap: 2px;
+        }
+        .boost input, .boost select, .boost button {
+          font: inherit;
+          color: inherit;
+          background: color-mix(in srgb, var(--h-bg) 70%, transparent);
+          border: 1px solid color-mix(in srgb, var(--tone) 45%, transparent);
+          border-radius: 8px;
+          min-height: 28px;
+          padding: 2px 6px;
+        }
+        .boost button {
+          cursor: pointer;
+          font-weight: 600;
+        }
+        .boost button:focus-visible, .boost input:focus-visible, .boost select:focus-visible {
+          outline: 2px solid var(--tone);
+        }
         .resume {
           all: unset;
           display: inline-flex;
@@ -909,6 +969,7 @@ class SfmlHeatingCard extends HTMLElement {
         ${room.reason === "manual_override"
           ? `<button class="resume" data-resume="${id}"><ha-icon icon="mdi:play"></ha-icon>${this._escape(this._p("resume"))}</button>`
           : ""}
+        ${this._boostHtml(room)}
         ${this._sparkHtml(room)}
         ${valve != null ? `<div class="valve"><div style="width:${Math.min(100, Math.max(0, valve))}%"></div></div>` : ""}
         ${meta ? `<div class="meta">${meta}</div>` : ""}
@@ -964,7 +1025,37 @@ class SfmlHeatingCard extends HTMLElement {
       </div>`;
   }
 
+  _boostHtml(room) {
+    const id = this._escape(room.id);
+    if (room.boost_until != null && this._finite(room.boost_temp_c) != null) {
+      return `<div class="boost"><span>${this._escape(this._t("boostUntil", {
+        temp: this._num(room.boost_temp_c),
+        time: this._time(room.boost_until),
+      }))}</span><button type="button" data-boost-stop="${id}">${this._escape(this._t("boostStop"))}</button></div>`;
+    }
+    const temp = this._boostTemp?.[room.id] ?? this._finite(room.comfort_temp_c) ?? 21;
+    const minutes = Number(this._boostMinutes?.[room.id] ?? 60);
+    const options = [30, 60, 120, 240, 480, 1440].map((value) => (
+      `<option value="${value}"${value === minutes ? " selected" : ""}>${this._escape(this._t(`boost${value}`))}</option>`
+    )).join("");
+    return `<div class="boost">
+      <label>${this._escape(this._t("boostTemp"))}<input data-boost-temp="${id}" type="number" min="${HEATING_MIN_C}" max="${HEATING_MAX_C}" step="${HEATING_STEP_C}" value="${temp}"></label>
+      <label>${this._escape(this._t("boostMinutes"))}<select data-boost-minutes="${id}">${options}</select></label>
+      <button type="button" data-boost="${id}">${this._escape(this._t("boostStart"))}</button>
+    </div>`;
+  }
+
   _onClick(event) {
+    const stop = event.target.closest("[data-boost-stop]");
+    if (stop) {
+      this._clearBoost(stop.dataset.boostStop);
+      return;
+    }
+    const start = event.target.closest("[data-boost]");
+    if (start) {
+      this._startBoost(start.dataset.boost);
+      return;
+    }
     const resume = event.target.closest("[data-resume]");
     if (resume) {
       this._resume(resume.dataset.resume);
@@ -1021,6 +1112,39 @@ class SfmlHeatingCard extends HTMLElement {
     if (this._pending[roomId] === value && !this._timers[roomId] && !this._inflight[roomId]) {
       delete this._pending[roomId];
     }
+    this.render();
+  }
+
+  async _startBoost(roomId) {
+    const temp = this.container?.querySelector(`[data-boost-temp="${CSS.escape(roomId)}"]`);
+    const minutes = this.container?.querySelector(`[data-boost-minutes="${CSS.escape(roomId)}"]`);
+    const tempC = Number(temp?.value);
+    const duration = Number(minutes?.value);
+    this._boostTemp = { ...(this._boostTemp || {}), [roomId]: tempC };
+    this._boostMinutes = { ...(this._boostMinutes || {}), [roomId]: duration };
+    try {
+      await this._hass.callApi("POST", `sfml_stats/heating/rooms/${encodeURIComponent(roomId)}/boost`, {
+        temp_c: tempC,
+        minutes: duration,
+      });
+      if (this._errors) delete this._errors[roomId];
+    } catch (err) {
+      console.error("SFML Heating Card boost error:", err);
+      this._errors = { ...(this._errors || {}), [roomId]: this._errorKey(err) };
+    }
+    await this.updateData();
+    this.render();
+  }
+
+  async _clearBoost(roomId) {
+    try {
+      await this._hass.callApi("DELETE", `sfml_stats/heating/rooms/${encodeURIComponent(roomId)}/boost`);
+      if (this._errors) delete this._errors[roomId];
+    } catch (err) {
+      console.error("SFML Heating Card boost error:", err);
+      this._errors = { ...(this._errors || {}), [roomId]: this._errorKey(err) };
+    }
+    await this.updateData();
     this.render();
   }
 
