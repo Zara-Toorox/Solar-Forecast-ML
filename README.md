@@ -169,7 +169,7 @@ SFML works standalone. These build on top of it and are installed through the `i
 | Module | What it adds | Platform |
 |---|---|---|
 | **Solar Forecast STATS** | The complete energy workspace: live flows, forecast evaluation, weather history, energy balance, costs, battery and smart charging, room heating and six dashboard cards | x86_64 |
-| **Solar Forecast Energy AI** | Explainable recommendations for heat pump, storage and wallbox. Advisory only — it never switches a device (licensed) | x86_64, ARM64 |
+| **Solar Forecast Energy AI** | Explainable recommendations for heat pump, storage and wallbox. Advisory only — it never switches a device | x86_64, ARM64 |
 | **Grid Price Monitor** | Dynamic electricity prices, time-of-use tariffs, real total price per kWh | all |
 
 Details and screenshots: [solarforecastml.com](https://solarforecastml.com/en/product/)
@@ -191,14 +191,6 @@ Details and screenshots: [solarforecastml.com](https://solarforecastml.com/en/pr
 During setup you provide the power sensor, orientation, tilt and capacity for each panel group, plus your total system capacity. Daily-reset energy helpers are not required — SFML derives hourly and daily energy from the configured power sensors and keeps its own validated state.
 
 The [installation guide](https://solarforecastml.com/en/installation/) walks through every step, including the optional modules.
-
----
-
-## Licence for Energy AI
-
-Solar Forecast Energy AI ships with SFML and is unlocked with a signed offline key. Information on obtaining a licence is available **inside Solar Forecast STATS via the "Licence" entry in the sidebar**.
-
-The key is entered once at the start of the EAI configuration flow. Validation happens entirely offline inside Home Assistant: no licence server is contacted, and neither the key nor any household data is transmitted. Keep your key private and never post it publicly.
 
 ---
 
@@ -224,7 +216,7 @@ Protection does not change behaviour — the integration works exactly like an u
 
 ## Licence and credits
 
-Proprietary Non-Commercial — free for personal and educational use. See [LICENSE](LICENSE). The repository licence is separate from the EAI activation key.
+Proprietary Non-Commercial — free for personal and educational use. See [LICENSE](LICENSE).
 
 **Developer:** [Zara-Toorox](https://github.com/Zara-Toorox)
 
