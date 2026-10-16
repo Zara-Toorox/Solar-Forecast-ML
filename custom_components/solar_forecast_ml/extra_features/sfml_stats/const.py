@@ -17,7 +17,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "50.0.2"
+VERSION: Final = "50.0.6"
 RUNTIME_READY_KEY: Final = "_runtime_ready"
 RUNTIME_READY_TIMEOUT_SECONDS: Final = 15.0
 
