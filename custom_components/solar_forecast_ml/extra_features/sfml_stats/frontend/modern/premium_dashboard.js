@@ -68,6 +68,93 @@ const PremiumDashboardPage = ((Vue) => {
             price: "Strompreis",
             autarky: "Autarkie heute",
             solarToday: "Solar heute",
+            premiumDemo: "Premium-Demo",
+            homeFlow: "Zuhause im Energiefluss",
+            energy: "Energie",
+            currentFlow: "Aktueller Energiefluss",
+            activeFlows: "Aktive Energieflüsse",
+            dayProfile: "TAGESVERLAUF",
+            todaySuffix: "heute",
+            flows: {
+                solarToHome: "PV zu Haus",
+                solarToBattery: "PV zu Akku",
+                gridToBattery: "Netz zu Akku",
+                batteryToHome: "Akku zu Haus",
+                solarToGrid: "PV zu Netz",
+                gridToHome: "Netz zu Haus",
+            },
+            weatherNow: "WETTER JETZT",
+            wind: "Wind",
+            radiation: "Strahlung",
+            solarForecast: "SOLARPROGNOSE",
+            ofDayForecast: "von {value} Tagesprognose",
+            autarkyShort: "Autarkie",
+            horizonKicker: "HEUTE · SFML-STUNDENPROFIL",
+            horizonTitle: "Solarverlauf, Forecast und konservativer Tagesplan",
+            openForecast: "Forecast öffnen →",
+            p10Short: "P10 konservativ",
+            progressShort: "Stand",
+            chartLabel: "Stündlicher Solar-Istwert, Forecast, Modellkorridor und proportional abgeleiteter konservativer Planverlauf",
+            kwhPerHour: "kWh je Stunde",
+            noHourlyValues: "Noch keine Stundenwerte für heute vorhanden.",
+            legendActual: "Ist",
+            legendForecast: "Forecast",
+            legendCorridor: "Modellkorridor",
+            legendP10: "Konservativer Planverlauf",
+            detailsArrow: "Details →",
+            sampleData: "Beispieldaten",
+            learningPhase: "Lernphase",
+            systemLearning: "SYSTEM & LERNEN",
+            cleanLearningHours: "{value} saubere Lernstunden heute",
+            dataStates: { mock: "MOCK", live: "LIVE", stale: "VERALTET", unavailable: "KEINE DATEN" },
+            temperatureSources: { sensor: "Außensensor", weather_entity: "Wetter-App", mock: "Demo" },
+            temperature: "Temperatur",
+            weatherWarningActive: "Wetterwarnung aktiv",
+            demoWeatherSummary: "Gute Solarbedingungen, später zunehmende Bewölkung",
+            currentWeather: "Wetter aktuell",
+            conditions: {
+                "clear-night": "Klare Nacht",
+                sunny: "Sonnig",
+                partlycloudy: "Teilweise bewölkt",
+                cloudy: "Bewölkt",
+                rainy: "Regen",
+                pouring: "Starkregen",
+                snowy: "Schnee",
+                fog: "Nebel",
+                lightning: "Gewitter",
+                "lightning-rainy": "Gewitterregen",
+                windy: "Windig",
+                hail: "Hagel",
+            },
+            heatPumpModes: { heating: "Heizen", dhw: "Warmwasser", defrost: "Abtauen" },
+            vehicleConnected: "Fahrzeug verbunden",
+            progressPending: "Tagesfortschritt wird ermittelt.",
+            progressRemaining: "Noch {value} kWh bis zur Tagesprognose.",
+            progressAbove: "{value} kWh über der Tagesprognose.",
+            reasons: {
+                demand_limited_zero_export: "Nullexport/Basislast",
+                suspected_battery_curtailment: "Vermutete Akku-Abregelung",
+                mppt_throttled: "MPPT",
+                inverter_clipped: "Clipping",
+            },
+            warnings: {
+                high_precipitation_probability: "Hohe Regenwahrscheinlichkeit",
+                heavy_precipitation: "Starkregen",
+                heat_stress: "Hitzebelastung",
+                freeze_risk: "Frostgefahr",
+                strong_wind: "Starker Wind",
+                storm_wind: "Sturmböen",
+                thunderstorm: "Gewitter erwartet",
+                hail: "Hagel erwartet",
+                snow_or_ice: "Schnee oder Glätte erwartet",
+                dense_fog: "Dichter Nebel erwartet",
+                severe_weather: "Unwetter erwartet",
+                forecast_stale: "Wetterprognose veraltet",
+            },
+            weatherNotice: "Wetterhinweis",
+            officialWarning: "Amtliche Warnung",
+            modelWarning: "Modellprognose · nicht amtlich",
+            moreWarnings: "+{count} weitere",
         },
         en: {
             demoTitle: "Premium demo · Sample data",
@@ -106,6 +193,93 @@ const PremiumDashboardPage = ((Vue) => {
             price: "Electricity price",
             autarky: "Autarky today",
             solarToday: "Solar today",
+            premiumDemo: "Premium demo",
+            homeFlow: "Home energy flow",
+            energy: "Energy",
+            currentFlow: "Current energy flow",
+            activeFlows: "Active energy flows",
+            dayProfile: "DAILY PROFILE",
+            todaySuffix: "today",
+            flows: {
+                solarToHome: "PV to home",
+                solarToBattery: "PV to battery",
+                gridToBattery: "Grid to battery",
+                batteryToHome: "Battery to home",
+                solarToGrid: "PV to grid",
+                gridToHome: "Grid to home",
+            },
+            weatherNow: "WEATHER NOW",
+            wind: "Wind",
+            radiation: "Radiation",
+            solarForecast: "SOLAR FORECAST",
+            ofDayForecast: "of {value} daily forecast",
+            autarkyShort: "Autarky",
+            horizonKicker: "TODAY · SFML HOURLY PROFILE",
+            horizonTitle: "Solar profile, forecast and conservative daily plan",
+            openForecast: "Open forecast →",
+            p10Short: "P10 conservative",
+            progressShort: "Progress",
+            chartLabel: "Hourly solar actuals, forecast, model range and proportionally derived conservative plan",
+            kwhPerHour: "kWh per hour",
+            noHourlyValues: "No hourly values are available for today yet.",
+            legendActual: "Actual",
+            legendForecast: "Forecast",
+            legendCorridor: "Model range",
+            legendP10: "Conservative plan",
+            detailsArrow: "Details →",
+            sampleData: "Sample data",
+            learningPhase: "Learning phase",
+            systemLearning: "SYSTEM & LEARNING",
+            cleanLearningHours: "{value} clean learning hours today",
+            dataStates: { mock: "MOCK", live: "LIVE", stale: "STALE", unavailable: "NO DATA" },
+            temperatureSources: { sensor: "Outdoor sensor", weather_entity: "Weather app", mock: "Demo" },
+            temperature: "Temperature",
+            weatherWarningActive: "Weather warning active",
+            demoWeatherSummary: "Good solar conditions, clouds increasing later",
+            currentWeather: "Current weather",
+            conditions: {
+                "clear-night": "Clear night",
+                sunny: "Sunny",
+                partlycloudy: "Partly cloudy",
+                cloudy: "Cloudy",
+                rainy: "Rain",
+                pouring: "Heavy rain",
+                snowy: "Snow",
+                fog: "Fog",
+                lightning: "Thunderstorm",
+                "lightning-rainy": "Thunderstorm with rain",
+                windy: "Windy",
+                hail: "Hail",
+            },
+            heatPumpModes: { heating: "Heating", dhw: "Hot water", defrost: "Defrosting" },
+            vehicleConnected: "Vehicle connected",
+            progressPending: "Determining daily progress.",
+            progressRemaining: "{value} kWh remaining to the daily forecast.",
+            progressAbove: "{value} kWh above the daily forecast.",
+            reasons: {
+                demand_limited_zero_export: "Zero export/base load",
+                suspected_battery_curtailment: "Suspected battery curtailment",
+                mppt_throttled: "MPPT",
+                inverter_clipped: "Clipping",
+            },
+            warnings: {
+                high_precipitation_probability: "High chance of rain",
+                heavy_precipitation: "Heavy rain",
+                heat_stress: "Heat stress",
+                freeze_risk: "Frost risk",
+                strong_wind: "Strong wind",
+                storm_wind: "Storm gusts",
+                thunderstorm: "Thunderstorms expected",
+                hail: "Hail expected",
+                snow_or_ice: "Snow or ice expected",
+                dense_fog: "Dense fog expected",
+                severe_weather: "Severe weather expected",
+                forecast_stale: "Weather forecast outdated",
+            },
+            weatherNotice: "Weather notice",
+            officialWarning: "Official warning",
+            modelWarning: "Model forecast · not official",
+            moreWarnings: "+{count} more",
         },
         pl: {
             demoTitle: "Demo Premium · Dane przykładowe",
@@ -144,6 +318,93 @@ const PremiumDashboardPage = ((Vue) => {
             price: "Cena energii",
             autarky: "Autarkia dzisiaj",
             solarToday: "Solar dzisiaj",
+            premiumDemo: "Demo Premium",
+            homeFlow: "Przepływ energii w domu",
+            energy: "Energia",
+            currentFlow: "Bieżący przepływ energii",
+            activeFlows: "Aktywne przepływy energii",
+            dayProfile: "PRZEBIEG DNIA",
+            todaySuffix: "dzisiaj",
+            flows: {
+                solarToHome: "PV do domu",
+                solarToBattery: "PV do akumulatora",
+                gridToBattery: "Sieć do akumulatora",
+                batteryToHome: "Akumulator do domu",
+                solarToGrid: "PV do sieci",
+                gridToHome: "Sieć do domu",
+            },
+            weatherNow: "POGODA TERAZ",
+            wind: "Wiatr",
+            radiation: "Promieniowanie",
+            solarForecast: "PROGNOZA SOLARNA",
+            ofDayForecast: "z {value} prognozy dziennej",
+            autarkyShort: "Autarkia",
+            horizonKicker: "DZISIAJ · PROFIL GODZINOWY SFML",
+            horizonTitle: "Przebieg PV, prognoza i konserwatywny plan dnia",
+            openForecast: "Otwórz prognozę →",
+            p10Short: "P10 konserwatywnie",
+            progressShort: "Stan",
+            chartLabel: "Godzinowa produkcja PV, prognoza, korytarz modelu i proporcjonalnie wyznaczony plan konserwatywny",
+            kwhPerHour: "kWh na godzinę",
+            noHourlyValues: "Brak jeszcze wartości godzinowych na dzisiaj.",
+            legendActual: "Wynik",
+            legendForecast: "Prognoza",
+            legendCorridor: "Korytarz modelu",
+            legendP10: "Plan konserwatywny",
+            detailsArrow: "Szczegóły →",
+            sampleData: "Dane przykładowe",
+            learningPhase: "Faza uczenia",
+            systemLearning: "SYSTEM I UCZENIE",
+            cleanLearningHours: "{value} czystych godzin uczenia dzisiaj",
+            dataStates: { mock: "MOCK", live: "LIVE", stale: "NIEAKTUALNE", unavailable: "BRAK DANYCH" },
+            temperatureSources: { sensor: "Czujnik zewnętrzny", weather_entity: "Aplikacja pogodowa", mock: "Demo" },
+            temperature: "Temperatura",
+            weatherWarningActive: "Aktywne ostrzeżenie pogodowe",
+            demoWeatherSummary: "Dobre warunki solarne, później rosnące zachmurzenie",
+            currentWeather: "Bieżąca pogoda",
+            conditions: {
+                "clear-night": "Bezchmurna noc",
+                sunny: "Słonecznie",
+                partlycloudy: "Częściowe zachmurzenie",
+                cloudy: "Pochmurno",
+                rainy: "Deszcz",
+                pouring: "Ulewa",
+                snowy: "Śnieg",
+                fog: "Mgła",
+                lightning: "Burza",
+                "lightning-rainy": "Burza z deszczem",
+                windy: "Wietrznie",
+                hail: "Grad",
+            },
+            heatPumpModes: { heating: "Grzanie", dhw: "Ciepła woda", defrost: "Odszranianie" },
+            vehicleConnected: "Pojazd podłączony",
+            progressPending: "Trwa ustalanie postępu dnia.",
+            progressRemaining: "Jeszcze {value} kWh do prognozy dziennej.",
+            progressAbove: "{value} kWh powyżej prognozy dziennej.",
+            reasons: {
+                demand_limited_zero_export: "Zerowy eksport/obciążenie bazowe",
+                suspected_battery_curtailment: "Podejrzenie ograniczenia przez akumulator",
+                mppt_throttled: "MPPT",
+                inverter_clipped: "Clipping",
+            },
+            warnings: {
+                high_precipitation_probability: "Wysokie prawdopodobieństwo opadów",
+                heavy_precipitation: "Intensywne opady",
+                heat_stress: "Obciążenie upałem",
+                freeze_risk: "Ryzyko przymrozku",
+                strong_wind: "Silny wiatr",
+                storm_wind: "Porywy sztormowe",
+                thunderstorm: "Spodziewane burze",
+                hail: "Spodziewany grad",
+                snow_or_ice: "Spodziewany śnieg lub gołoledź",
+                dense_fog: "Spodziewana gęsta mgła",
+                severe_weather: "Spodziewane gwałtowne zjawiska",
+                forecast_stale: "Prognoza pogody nieaktualna",
+            },
+            weatherNotice: "Komunikat pogodowy",
+            officialWarning: "Oficjalne ostrzeżenie",
+            modelWarning: "Prognoza modelu · nieoficjalna",
+            moreWarnings: "+{count} kolejne",
         },
     };
 
@@ -173,19 +434,19 @@ const PremiumDashboardPage = ((Vue) => {
                         <header class="orbit-status-rail">
                             <div class="orbit-status-copy">
                                 <span class="orbit-kicker">SFML · HOME ENERGY</span>
-                                <strong>{{ dashboard.is_demo ? "Premium-Demo" : "Zuhause im Energiefluss" }}</strong>
+                                <strong>{{ dashboard.is_demo ? copy.premiumDemo : copy.homeFlow }}</strong>
                             </div>
                             <div class="orbit-status-meta">
                                 <span :class="['premium-mode-chip', dataState]">
                                     <i aria-hidden="true"></i>{{ dataStateLabel }}
                                 </span>
-                                <span>{{ isEnglish ? "Energy" : "Energie" }} {{ updatedTime }}</span>
+                                <span>{{ copy.energy }} {{ updatedTime }}</span>
                                 <span>{{ weatherSymbol }} {{ temperature(weather.temperature_c) }}</span>
                             </div>
                         </header>
 
                         <div class="orbit-main-grid">
-                            <article class="orbit-stage" aria-label="Aktueller Energiefluss">
+                            <article class="orbit-stage" :aria-label="copy.currentFlow">
                                 <div class="orbit-ambient" aria-hidden="true"></div>
                                 <div class="orbit-landscape" aria-hidden="true"></div>
                                 <div class="orbit-flow-scene">
@@ -202,7 +463,7 @@ const PremiumDashboardPage = ((Vue) => {
                                         <circle r="7"></circle>
                                     </g>
                                     <text x="60" y="462">06:00</text>
-                                    <text class="orbit-day-title" x="500" y="72">TAGESVERLAUF</text>
+                                    <text class="orbit-day-title" x="500" y="72">{{ copy.dayProfile }}</text>
                                     <text x="940" y="462">21:00</text>
                                 </svg>
 
@@ -270,19 +531,19 @@ const PremiumDashboardPage = ((Vue) => {
                                 </svg>
 
                                 <p class="sr-only">
-                                    <span v-if="positive(energy.solar_to_house_w)">{{ isEnglish ? "PV to home:" : "PV zu Haus:" }} {{ power(energy.solar_to_house_w) }}. </span>
-                                    <span v-if="positive(energy.solar_to_battery_w)">{{ isEnglish ? "PV to battery:" : "PV zu Akku:" }} {{ power(energy.solar_to_battery_w) }}. </span>
-                                    <span v-if="positive(energy.grid_to_battery_w)">{{ isEnglish ? "Grid to battery:" : "Netz zu Akku:" }} {{ power(energy.grid_to_battery_w) }}. </span>
-                                    <span v-else-if="positive(energy.battery_to_house_w)">{{ isEnglish ? "Battery to home:" : "Akku zu Haus:" }} {{ power(energy.battery_to_house_w) }}. </span>
-                                    <span v-if="positive(energy.grid_export_w)">{{ isEnglish ? "PV to grid:" : "PV zu Netz:" }} {{ power(energy.grid_export_w) }}. </span>
-                                    <span v-else-if="positive(energy.grid_to_house_w)">{{ isEnglish ? "Grid to home:" : "Netz zu Haus:" }} {{ power(energy.grid_to_house_w) }}. </span>
+                                    <span v-if="positive(energy.solar_to_house_w)">{{ copy.flows.solarToHome }}: {{ power(energy.solar_to_house_w) }}. </span>
+                                    <span v-if="positive(energy.solar_to_battery_w)">{{ copy.flows.solarToBattery }}: {{ power(energy.solar_to_battery_w) }}. </span>
+                                    <span v-if="positive(energy.grid_to_battery_w)">{{ copy.flows.gridToBattery }}: {{ power(energy.grid_to_battery_w) }}. </span>
+                                    <span v-else-if="positive(energy.battery_to_house_w)">{{ copy.flows.batteryToHome }}: {{ power(energy.battery_to_house_w) }}. </span>
+                                    <span v-if="positive(energy.grid_export_w)">{{ copy.flows.solarToGrid }}: {{ power(energy.grid_export_w) }}. </span>
+                                    <span v-else-if="positive(energy.grid_to_house_w)">{{ copy.flows.gridToHome }}: {{ power(energy.grid_to_house_w) }}. </span>
                                 </p>
 
                                 <button type="button" class="orbit-anchor solar" @click="navigate('solar')">
                                     <span class="orbit-anchor-icon" aria-hidden="true">☀</span>
                                     <small>{{ copy.solar }}</small>
                                     <strong>{{ power(energy.solar_power_w) }}</strong>
-                                    <span>{{ energyValue(energy.solar_yield_today_kwh) }} heute</span>
+                                    <span>{{ energyValue(energy.solar_yield_today_kwh) }} {{ copy.todaySuffix }}</span>
                                 </button>
 
                                 <button type="button" class="orbit-anchor battery" @click="navigate('energy')">
@@ -302,16 +563,16 @@ const PremiumDashboardPage = ((Vue) => {
                                 <button type="button" class="orbit-core" @click="navigate('energy')">
                                     <span class="orbit-core-label">{{ copy.home }}</span>
                                     <strong>{{ power(energy.home_consumption_w) }}</strong>
-                                    <span>{{ energyValue(energy.home_consumption_today_kwh) }} heute</span>
+                                    <span>{{ energyValue(energy.home_consumption_today_kwh) }} {{ copy.todaySuffix }}</span>
                                 </button>
 
-                                <div class="orbit-mobile-flows" aria-label="Aktive Energieflüsse">
-                                    <span v-if="positive(energy.solar_to_house_w)">PV → Haus {{ power(energy.solar_to_house_w) }}</span>
-                                    <span v-if="positive(energy.solar_to_battery_w)">PV → Akku {{ power(energy.solar_to_battery_w) }}</span>
-                                    <span v-if="positive(energy.grid_to_battery_w)">Netz → Akku {{ power(energy.grid_to_battery_w) }}</span>
-                                    <span v-else-if="positive(energy.battery_to_house_w)">Akku → Haus {{ power(energy.battery_to_house_w) }}</span>
-                                    <span v-if="positive(energy.grid_export_w)">PV → Netz {{ power(energy.grid_export_w) }}</span>
-                                    <span v-else-if="positive(energy.grid_to_house_w)">Netz → Haus {{ power(energy.grid_to_house_w) }}</span>
+                                <div class="orbit-mobile-flows" :aria-label="copy.activeFlows">
+                                    <span v-if="positive(energy.solar_to_house_w)">PV → {{ copy.home }} {{ power(energy.solar_to_house_w) }}</span>
+                                    <span v-if="positive(energy.solar_to_battery_w)">PV → {{ copy.battery }} {{ power(energy.solar_to_battery_w) }}</span>
+                                    <span v-if="positive(energy.grid_to_battery_w)">{{ copy.grid }} → {{ copy.battery }} {{ power(energy.grid_to_battery_w) }}</span>
+                                    <span v-else-if="positive(energy.battery_to_house_w)">{{ copy.battery }} → {{ copy.home }} {{ power(energy.battery_to_house_w) }}</span>
+                                    <span v-if="positive(energy.grid_export_w)">PV → {{ copy.grid }} {{ power(energy.grid_export_w) }}</span>
+                                    <span v-else-if="positive(energy.grid_to_house_w)">{{ copy.grid }} → {{ copy.home }} {{ power(energy.grid_to_house_w) }}</span>
                                 </div>
                                 </div>
 
@@ -323,7 +584,7 @@ const PremiumDashboardPage = ((Vue) => {
                             <aside class="orbit-decision-rail">
                                 <button type="button" class="orbit-decision weather" @click="navigate(weatherTarget)">
                                     <div class="orbit-decision-heading">
-                                        <small>WETTER JETZT</small>
+                                        <small>{{ copy.weatherNow }}</small>
                                         <span>{{ temperatureSourceLabel }}</span>
                                     </div>
                                     <div class="orbit-weather-main">
@@ -337,8 +598,8 @@ const PremiumDashboardPage = ((Vue) => {
                                         </div>
                                     </div>
                                     <div class="orbit-decision-metrics">
-                                        <span><small>Wind</small><strong>{{ speed(weather.wind_speed_kmh) }}</strong></span>
-                                        <span><small>Strahlung</small><strong>{{ radiation(weather.solar_radiation_wm2) }}</strong></span>
+                                        <span><small>{{ copy.wind }}</small><strong>{{ speed(weather.wind_speed_kmh) }}</strong></span>
+                                        <span><small>{{ copy.radiation }}</small><strong>{{ radiation(weather.solar_radiation_wm2) }}</strong></span>
                                     </div>
                                     <div v-if="primaryWarning" class="orbit-weather-warning">
                                         <b aria-hidden="true">{{ warningIcon(primaryWarning) }}</b>
@@ -349,17 +610,17 @@ const PremiumDashboardPage = ((Vue) => {
 
                                 <button type="button" class="orbit-decision solar-overview" @click="navigate('solar')">
                                     <div class="orbit-decision-heading">
-                                        <small>SOLARPROGNOSE</small>
+                                        <small>{{ copy.solarForecast }}</small>
                                         <span>{{ updatedTime }}</span>
                                     </div>
                                     <div class="orbit-solar-overview-main">
                                         <div class="orbit-solar-yield">
                                             <strong>{{ energyValue(forecast.actual_kwh) }}</strong>
-                                            <span>von {{ energyValue(forecast.forecast_kwh) }} Tagesprognose</span>
+                                            <span>{{ fill(copy.ofDayForecast, { value: energyValue(forecast.forecast_kwh) }) }}</span>
                                         </div>
                                         <div class="orbit-forecast-quality">
                                             <strong>{{ percent(overviewAccuracy, 1) }}</strong>
-                                            <small>Prognosegüte</small>
+                                            <small>{{ copy.accuracy }}</small>
                                         </div>
                                     </div>
                                     <div v-if="hasForecastProgress" class="orbit-solar-progress" aria-hidden="true">
@@ -367,8 +628,8 @@ const PremiumDashboardPage = ((Vue) => {
                                     </div>
                                     <span class="orbit-solar-progress-text">{{ progressText }}</span>
                                     <div class="orbit-decision-metrics">
-                                        <span><small>Autarkie</small><strong>{{ percent(energy.autarky_percent) }}</strong></span>
-                                        <span><small>Strompreis</small><strong>{{ priceValue(price.current_ct_per_kwh) }}</strong></span>
+                                        <span><small>{{ copy.autarkyShort }}</small><strong>{{ percent(energy.autarky_percent) }}</strong></span>
+                                        <span><small>{{ copy.price }}</small><strong>{{ priceValue(price.current_ct_per_kwh) }}</strong></span>
                                     </div>
                                     <i aria-hidden="true">→</i>
                                 </button>
@@ -379,26 +640,26 @@ const PremiumDashboardPage = ((Vue) => {
                             <article class="orbit-horizon">
                                 <header>
                                     <div>
-                                        <span class="orbit-kicker">HEUTE · SFML-STUNDENPROFIL</span>
-                                        <h3>Solarverlauf, Forecast und konservativer Tagesplan</h3>
+                                        <span class="orbit-kicker">{{ copy.horizonKicker }}</span>
+                                        <h3>{{ copy.horizonTitle }}</h3>
                                     </div>
-                                    <button type="button" @click="navigate('solar')">Forecast öffnen →</button>
+                                    <button type="button" @click="navigate('solar')">{{ copy.openForecast }}</button>
                                 </header>
 
                                 <div class="orbit-horizon-body">
                                     <div class="orbit-horizon-values">
-                                        <button type="button" @click="navigate('solar')"><small>Ist bisher</small><strong>{{ energyValue(forecast.actual_kwh) }}</strong></button>
-                                        <button type="button" @click="navigate('solar')"><small>Tagesprognose</small><strong>{{ energyValue(forecast.forecast_kwh) }}</strong></button>
-                                        <button type="button" @click="navigate('solar')"><small>P10 konservativ</small><strong>{{ energyValue(forecast.conservative_kwh) }}</strong></button>
-                                        <button type="button" @click="navigate('solar')"><small>Stand</small><strong>{{ signed(forecast.deviation_kwh, " kWh") }}</strong></button>
+                                        <button type="button" @click="navigate('solar')"><small>{{ copy.actualSoFar }}</small><strong>{{ energyValue(forecast.actual_kwh) }}</strong></button>
+                                        <button type="button" @click="navigate('solar')"><small>{{ copy.dayForecast }}</small><strong>{{ energyValue(forecast.forecast_kwh) }}</strong></button>
+                                        <button type="button" @click="navigate('solar')"><small>{{ copy.p10Short }}</small><strong>{{ energyValue(forecast.conservative_kwh) }}</strong></button>
+                                        <button type="button" @click="navigate('solar')"><small>{{ copy.progressShort }}</small><strong>{{ signed(forecast.deviation_kwh, " kWh") }}</strong></button>
                                     </div>
 
                                     <div class="orbit-chart-wrap">
                                         <svg v-if="chartModel.hasData" class="orbit-forecast-chart"
                                              viewBox="0 0 1000 280" role="img"
-                                             aria-label="Stündlicher Solar-Istwert, Forecast, Modellkorridor und proportional abgeleiteter konservativer Planverlauf">
+                                             :aria-label="copy.chartLabel">
                                             <g class="orbit-chart-grid">
-                                                <text class="orbit-chart-unit" x="64" y="18">kWh je Stunde</text>
+                                                <text class="orbit-chart-unit" x="64" y="18">{{ copy.kwhPerHour }}</text>
                                                 <line v-for="tick in chartModel.yTicks" :key="'y-' + tick.label"
                                                       x1="64" x2="980" :y1="tick.y" :y2="tick.y"></line>
                                                 <text v-for="(tick, index) in chartModel.yTicks" :key="'yl-' + tick.label"
@@ -418,12 +679,12 @@ const PremiumDashboardPage = ((Vue) => {
                                             <circle v-if="chartModel.actualPoint" class="orbit-chart-point"
                                                     :cx="chartModel.actualPoint.x" :cy="chartModel.actualPoint.y" r="6"></circle>
                                         </svg>
-                                        <div v-else class="orbit-chart-empty">Noch keine Stundenwerte für heute vorhanden.</div>
+                                        <div v-else class="orbit-chart-empty">{{ copy.noHourlyValues }}</div>
                                         <div class="orbit-chart-legend">
-                                            <span class="actual">Ist</span>
-                                            <span class="forecast">Forecast</span>
-                                            <span v-if="chartModel.hasCorridor" class="corridor">Modellkorridor</span>
-                                            <span class="p10">Konservativer Planverlauf</span>
+                                            <span class="actual">{{ copy.legendActual }}</span>
+                                            <span class="forecast">{{ copy.legendForecast }}</span>
+                                            <span v-if="chartModel.hasCorridor" class="corridor">{{ copy.legendCorridor }}</span>
+                                            <span class="p10">{{ copy.legendP10 }}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -433,7 +694,7 @@ const PremiumDashboardPage = ((Vue) => {
                                     <span><small>{{ copy.forecastError }}</small><strong>{{ signed(forecast.forecast_error_percent, " %") }}</strong></span>
                                     <span><small>{{ copy.learningBasis }}</small><strong>{{ forecast.learning_hours ?? "—" }}/{{ forecast.learning_candidates ?? "—" }} h</strong></span>
                                     <span><small>{{ copy.discarded }}</small><strong>{{ forecast.discarded_hours ?? 0 }} h · {{ reasonLabel(forecast.discarded_reason) }}</strong></span>
-                                    <i>Details →</i>
+                                    <i>{{ copy.detailsArrow }}</i>
                                 </button>
                             </article>
 
@@ -445,7 +706,7 @@ const PremiumDashboardPage = ((Vue) => {
                                     <div>
                                         <small>ENERGY AI</small>
                                         <strong>{{ copy.heatPump }}</strong>
-                                        <span>{{ tileReason(heatPump) === "feature_off" ? "Beispieldaten" : tileReason(heatPump) === "learning" ? "Lernphase" : tileReason(heatPump) === "no_license" ? "Premium-Demo" : (heatPump.configured ? (heatPump.recommendation || heatPumpMode) : copy.notConfigured) }}</span>
+                                        <span>{{ tileReason(heatPump) === "feature_off" ? copy.sampleData : tileReason(heatPump) === "learning" ? copy.learningPhase : tileReason(heatPump) === "no_license" ? copy.premiumDemo : (heatPump.configured ? (heatPump.recommendation || heatPumpMode) : copy.notConfigured) }}</span>
                                     </div>
                                     <b>{{ (heatPump.configured || heatPump.is_demo) ? powerKw(heatPump.power_kw) : "→" }}</b>
                                 </button>
@@ -457,7 +718,7 @@ const PremiumDashboardPage = ((Vue) => {
                                     <div>
                                         <small>ENERGY AI</small>
                                         <strong>{{ copy.wallbox }}</strong>
-                                        <span>{{ tileReason(wallbox) === "feature_off" ? "Beispieldaten" : tileReason(wallbox) === "learning" ? "Lernphase" : tileReason(wallbox) === "no_license" ? "Premium-Demo" : (wallbox.configured ? (wallbox.recommendation || wallboxState) : copy.notConfigured) }}</span>
+                                        <span>{{ tileReason(wallbox) === "feature_off" ? copy.sampleData : tileReason(wallbox) === "learning" ? copy.learningPhase : tileReason(wallbox) === "no_license" ? copy.premiumDemo : (wallbox.configured ? (wallbox.recommendation || wallboxState) : copy.notConfigured) }}</span>
                                     </div>
                                     <b>{{ (wallbox.configured || wallbox.is_demo) ? powerKw(wallbox.power_kw) : "→" }}</b>
                                 </button>
@@ -465,9 +726,9 @@ const PremiumDashboardPage = ((Vue) => {
                                 <button type="button" class="orbit-device quality" @click="navigate('weather_energy')">
                                     <span class="orbit-device-icon" aria-hidden="true">◎</span>
                                     <div>
-                                        <small>SYSTEM & LERNEN</small>
-                                        <strong>{{ percent(forecast.accuracy_percent, 1) }} Prognosegüte</strong>
-                                        <span>{{ forecast.learning_hours ?? "—" }} saubere Lernstunden heute</span>
+                                        <small>{{ copy.systemLearning }}</small>
+                                        <strong>{{ percent(forecast.accuracy_percent, 1) }} {{ copy.accuracy }}</strong>
+                                        <span>{{ fill(copy.cleanLearningHours, { value: forecast.learning_hours ?? "—" }) }}</span>
                                     </div>
                                     <b>→</b>
                                 </button>
@@ -480,9 +741,9 @@ const PremiumDashboardPage = ((Vue) => {
             </section>
         `,
         setup(_props, { emit }) {
-            const locale = window.SFMLI18n?.current || "de";
-            const isEnglish = locale === "en";
-            const copy = COPY[locale] || COPY.de;
+            const locale = window.SFMLI18n?.current || "en";
+            const copy = COPY[locale] || COPY.en;
+            const fill = (text, params) => text.replace(/\{(\w+)\}/g, (_, key) => params[key] ?? "");
             const loaded = ref(false);
             const error = ref(null);
             const dashboard = reactive({
@@ -658,12 +919,7 @@ const PremiumDashboardPage = ((Vue) => {
             const dataState = computed(
                 () => PremiumDashboardLogic.dataState(dashboard, relevantFreshness.value),
             );
-            const dataStateLabel = computed(() => ({
-                mock: "MOCK",
-                live: "LIVE",
-                stale: "VERALTET",
-                unavailable: "KEINE DATEN",
-            }[dataState.value]));
+            const dataStateLabel = computed(() => copy.dataStates[dataState.value]);
             const batteryChargeW = computed(() => {
                 const solar = positive(energy.solar_to_battery_w) ? numeric(energy.solar_to_battery_w) : 0;
                 const grid = positive(energy.grid_to_battery_w) ? numeric(energy.grid_to_battery_w) : 0;
@@ -698,40 +954,29 @@ const PremiumDashboardPage = ((Vue) => {
                 if (condition.includes("cloud")) return "☁️";
                 return "☀️";
             });
-            const temperatureSourceLabel = computed(() => ({
-                sensor: "Außensensor",
-                weather_entity: "Wetter-App",
-                mock: "Demo",
-            }[weather.temperature_source] || "Temperatur"));
-            const weatherText = computed(() => weather.summary && weather.summary !== "ready"
-                ? weather.summary
-                : (warnings.value.length ? "Wetterwarnung aktiv" : copy.noWarnings));
+            const temperatureSourceLabel = computed(
+                () => copy.temperatureSources[weather.temperature_source] || copy.temperature,
+            );
+            const weatherText = computed(() => {
+                // The demo payload carries a fixed German summary; show the localized sample instead.
+                if (weather.is_demo) return copy.demoWeatherSummary;
+                return weather.summary && weather.summary !== "ready"
+                    ? weather.summary
+                    : (warnings.value.length ? copy.weatherWarningActive : copy.noWarnings);
+            });
             const weatherConditionText = computed(() => {
                 const condition = String(weather.condition || "").toLowerCase();
-                return {
-                    "clear-night": "Klare Nacht",
-                    sunny: "Sonnig",
-                    partlycloudy: "Teilweise bewölkt",
-                    cloudy: "Bewölkt",
-                    rainy: "Regen",
-                    pouring: "Starkregen",
-                    snowy: "Schnee",
-                    fog: "Nebel",
-                    lightning: "Gewitter",
-                    "lightning-rainy": "Gewitterregen",
-                    windy: "Windig",
-                    hail: "Hagel",
-                }[condition] || weather.condition || (weather.available ? "Wetter aktuell" : copy.unavailable);
+                return copy.conditions[condition]
+                    || weather.condition
+                    || (weather.available ? copy.currentWeather : copy.unavailable);
             });
             const heatPumpMode = computed(() => ({
-                heating: "Heizen",
-                dhw: "Warmwasser",
-                defrost: "Abtauen",
+                ...copy.heatPumpModes,
                 idle: copy.standby,
             }[heatPump.mode] || heatPump.mode || (heatPump.configured ? copy.unavailable : copy.standby)));
             const wallboxState = computed(() => ({
-                connected: "Fahrzeug verbunden",
-                charging: "Lädt",
+                connected: copy.vehicleConnected,
+                charging: copy.charging,
                 idle: copy.standby,
             }[wallbox.state] || wallbox.state || (wallbox.configured ? copy.unavailable : copy.standby)));
             const progressPercent = computed(() => {
@@ -743,10 +988,10 @@ const PremiumDashboardPage = ((Vue) => {
             });
             const progressText = computed(() => {
                 const value = numeric(forecast.deviation_kwh);
-                if (value === null) return "Tagesfortschritt wird ermittelt.";
+                if (value === null) return copy.progressPending;
                 return value < 0
-                    ? `Noch ${formatNumber(Math.abs(value))} kWh bis zur Tagesprognose.`
-                    : `${formatNumber(value)} kWh über der Tagesprognose.`;
+                    ? fill(copy.progressRemaining, { value: formatNumber(Math.abs(value)) })
+                    : fill(copy.progressAbove, { value: formatNumber(value) });
             });
             const dayArc = computed(() => {
                 const parsed = Date.parse(dashboard.generated_at);
@@ -772,27 +1017,12 @@ const PremiumDashboardPage = ((Vue) => {
                     ).toFixed(1),
                 };
             });
-            const reasonLabel = (reason) => ({
-                demand_limited_zero_export: "Nullexport/Basislast",
-                suspected_battery_curtailment: "Vermutete Akku-Abregelung",
-                mppt_throttled: "MPPT",
-                inverter_clipped: "Clipping",
-            }[reason] || reason || "—");
+            const reasonLabel = (reason) => copy.reasons[reason] || reason || "—";
 
-            const warningLabel = (warning) => warning?.title || ({
-                high_precipitation_probability: "Hohe Regenwahrscheinlichkeit",
-                heavy_precipitation: "Starkregen",
-                heat_stress: "Hitzebelastung",
-                freeze_risk: "Frostgefahr",
-                strong_wind: "Starker Wind",
-                storm_wind: "Sturmböen",
-                thunderstorm: "Gewitter erwartet",
-                hail: "Hagel erwartet",
-                snow_or_ice: "Schnee oder Glätte erwartet",
-                dense_fog: "Dichter Nebel erwartet",
-                severe_weather: "Unwetter erwartet",
-                forecast_stale: "Wetterprognose veraltet",
-            }[warning?.code] || warning?.label || "Wetterhinweis");
+            const warningLabel = (warning) => warning?.title
+                || copy.warnings[warning?.code]
+                || warning?.label
+                || copy.weatherNotice;
             const warningIcon = (warning) => ({
                 frost: "❄️", heat: "🌡️", heavy_rain: "🌧️", rain_likely: "🌦️",
                 strong_wind: "💨", storm: "⛈️", thunderstorm: "⛈️", hail: "🧊",
@@ -813,12 +1043,12 @@ const PremiumDashboardPage = ((Vue) => {
                 }).format(new Date(warning.start))
                 : "";
             const warningSourceLabel = (warning) => warning?.official_alert === true
-                ? "Amtliche Warnung"
-                : "Modellprognose · nicht amtlich";
+                ? copy.officialWarning
+                : copy.modelWarning;
             const warningKey = (warning) => `${warning?.code || "warning"}-${warning?.start || ""}`;
             const primaryWarning = computed(() => warnings.value[0] || null);
             const additionalWarningText = computed(() => warnings.value.length > 1
-                ? ` · +${warnings.value.length - 1} weitere`
+                ? ` · ${fill(copy.moreWarnings, { count: warnings.value.length - 1 })}`
                 : "");
             const overviewAccuracy = computed(() => numeric(forecast.last_completed_accuracy_percent));
             const hasForecastProgress = computed(() => {
@@ -946,7 +1176,7 @@ const PremiumDashboardPage = ((Vue) => {
             });
 
             return {
-                copy, isEnglish, loaded, error, dashboard, pageReason, tileReason, energy, forecast, price, heatPump, wallbox,
+                copy, fill, loaded, error, dashboard, pageReason, tileReason, energy, forecast, price, heatPump, wallbox,
                 weather, warnings, weatherTarget, updatedTime, batteryChargeW, batteryState, gridState, gridPower,
                 weatherSymbol, weatherText, weatherConditionText, temperatureSourceLabel, heatPumpMode, wallboxState,
                 progressPercent, progressText, dayArc,

@@ -1,0 +1,20 @@
+{
+  "domain": "solar_forecast_sinv",
+  "name": "Solar Forecast S-INV",
+  "after_dependencies": [],
+  "codeowners": [
+    "@Zara-Toorox"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://www.solarforecastml.com/en/docs",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://www.solarforecastml.com/en/bugs",
+  "requirements": [
+    "aiofiles>=25.1.0",
+    "paho-mqtt>=2.1.0",
+    "hoymiles-wifi>=0.5.6,<0.6"
+  ],
+  "version": "2.0.8"
+}

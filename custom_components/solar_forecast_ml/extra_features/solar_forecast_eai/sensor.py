@@ -427,6 +427,7 @@ async def async_setup_entry(
 
 class EAISensor(SensorEntity):
     _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset({"intent_id"})
 
     def __init__(
         self,
@@ -459,6 +460,11 @@ class EAIWeatherIntelligenceSensor(SensorEntity):
     """Expose bounded, explainable weather-intelligence results."""
 
     _attr_has_entity_name = True
+    # Diagnostic payloads change with every forecast/actual pair; keep them
+    # live on the entity but out of the recorder history.
+    _unrecorded_attributes = frozenset(
+        {"accuracy_by_horizon", "data_quality", "history", "pairs", "events"}
+    )
 
     def __init__(
         self,

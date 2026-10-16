@@ -1,0 +1,545 @@
+# Service description for Solar Forecast S-INV custom integration
+
+# Service to query system info from Api
+get_system_info:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: sensor
+      # solar_forecast_sinv.AnkerSolixEntityFeature.SYSTEM_INFO is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - calendar.CalendarEntityFeature.UPDATE_EVENT
+  fields:
+    include_cache:
+      required: true
+      example: true
+      default: false
+      selector:
+        boolean:
+
+# Service to get cached device info
+get_device_info:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: button
+      # solar_forecast_sinv.AnkerSolixEntityFeature.SYSTEM_INFO is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - calendar.CalendarEntityFeature.UPDATE_EVENT
+  fields:
+    include_mqtt_cache:
+      required: true
+      example: true
+      default: false
+      selector:
+        boolean:
+
+# Service to export all systems data from account
+export_systems:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: switch
+      # solar_forecast_sinv.AnkerSolixEntityFeature.ACCOUNT_INFO is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - update.UpdateEntityFeature.SPECIFIC_VERSION
+  fields:
+    include_mqtt:
+      required: true
+      example: true
+      default: true
+      selector:
+        boolean:
+
+# Service to query solarbank schedule from Api
+get_solarbank_schedule:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: sensor
+      # solar_forecast_sinv.AnkerSolixEntityFeature.SOLARBANK_SCHEDULE is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - calendar.CalendarEntityFeature.CREATE_EVENT
+
+# Service to clear a plan in the solarbank schedule
+clear_solarbank_schedule:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: sensor
+      # solar_forecast_sinv.AnkerSolixEntityFeature.SOLARBANK_SCHEDULE is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - calendar.CalendarEntityFeature.CREATE_EVENT
+  fields:
+    sb2_fields:
+      # Following section is used only for Solarbank 2 or later schedule types
+      collapsed: true
+      fields:
+        plan:
+          required: false
+          example:
+            - blend_plan
+          selector:
+            select:
+              mode: list
+              multiple: false
+              translation_key: plan
+              options:
+                - custom_rate_plan
+                - blend_plan
+                - manual_backup
+                - use_time
+        week_days:
+          required: false
+          example:
+            - sun
+          selector:
+            select:
+              mode: list
+              multiple: true
+              translation_key: weekday
+              options:
+                - sun
+                - mon
+                - tue
+                - wed
+                - thu
+                - fri
+                - sat
+
+# Service to set a new solarbank schedule
+set_solarbank_schedule:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: sensor
+      # solar_forecast_sinv.AnkerSolixEntityFeature.SOLARBANK_SCHEDULE is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - calendar.CalendarEntityFeature.CREATE_EVENT
+  fields:
+    start_time:
+      required: true
+      example: "00:00:00"
+      default: "00:00:00"
+      selector:
+        time:
+    end_time:
+      required: true
+      example: "23:59:00"
+      default: "23:59:00"
+      selector:
+        time:
+    sb2_fields:
+      # Following section is used only for Solarbank 2 or later schedule types
+      collapsed: true
+      fields:
+        plan:
+          required: false
+          example:
+            - blend_plan
+          selector:
+            select:
+              mode: list
+              multiple: false
+              translation_key: plan
+              options:
+                - custom_rate_plan
+                - blend_plan
+        week_days:
+          required: false
+          example:
+            - sun
+          selector:
+            select:
+              mode: list
+              multiple: true
+              translation_key: weekday
+              options:
+                - sun
+                - mon
+                - tue
+                - wed
+                - thu
+                - fri
+                - sat
+    appliance_load:
+      required: false
+      example: 100
+      default: 100
+      selector:
+        number:
+          min: 0
+          max: 4800
+          step: 10
+          unit_of_measurement: "W"
+    sb3_fields:
+      # Following section is used only for Solarbank 3 or later schedule types
+      collapsed: true
+      fields:
+        load_type:
+          required: false
+          example: ac_charge
+          selector:
+            select:
+              mode: list
+              multiple: false
+              translation_key: load_type
+              options:
+                - supply
+                - ac_charge
+    sb1_fields:
+      # Following section is used only for Solarbank 1 schedule types
+      collapsed: true
+      fields:
+        device_load:
+          required: false
+          example: 50
+          selector:
+            number:
+              min: 50
+              max: 800
+              step: 5
+              unit_of_measurement: "W"
+        allow_export:
+          required: false
+          example: true
+          selector:
+            boolean:
+        discharge_priority:
+          required: false
+          example: false
+          selector:
+            boolean:
+        charge_priority_limit:
+          required: false
+          example: 80
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 5
+              unit_of_measurement: "%"
+
+# Service to update the solarbank schedule
+update_solarbank_schedule:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: sensor
+      # solar_forecast_sinv.AnkerSolixEntityFeature.SOLARBANK_SCHEDULE is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - calendar.CalendarEntityFeature.CREATE_EVENT
+  fields:
+    start_time:
+      required: true
+      example: "00:00:00"
+      default: "00:00:00"
+      selector:
+        time:
+    end_time:
+      required: true
+      example: "23:59:00"
+      default: "23:59:00"
+      selector:
+        time:
+    sb2_fields:
+      # Following section is used only for Solarbank 2 schedule types
+      collapsed: true
+      fields:
+        plan:
+          required: false
+          example:
+            - blend_plan
+          selector:
+            select:
+              mode: list
+              multiple: false
+              translation_key: plan
+              options:
+                - custom_rate_plan
+                - blend_plan
+        week_days:
+          required: false
+          example:
+            - sun
+          selector:
+            select:
+              mode: list
+              multiple: true
+              translation_key: weekday
+              options:
+                - sun
+                - mon
+                - tue
+                - wed
+                - thu
+                - fri
+                - sat
+    appliance_load:
+      required: false
+      example: 100
+      default: 100
+      selector:
+        number:
+          min: 0
+          max: 4800
+          step: 10
+          unit_of_measurement: "W"
+    sb3_fields:
+      # Following section is used only for Solarbank 3 or later schedule types
+      collapsed: true
+      fields:
+        load_type:
+          required: false
+          example: ac_charge
+          selector:
+            select:
+              mode: list
+              multiple: false
+              translation_key: load_type
+              options:
+                - supply
+                - ac_charge
+    sb1_fields:
+      # Following section is used only for Solarbank 1 schedule types
+      collapsed: true
+      fields:
+        device_load:
+          required: false
+          example: 50
+          selector:
+            number:
+              min: 50
+              max: 800
+              step: 5
+              unit_of_measurement: "W"
+        allow_export:
+          required: false
+          example: true
+          selector:
+            boolean:
+        discharge_priority:
+          required: false
+          example: false
+          selector:
+            boolean:
+        charge_priority_limit:
+          required: false
+          example: 80
+          selector:
+            number:
+              min: 0
+              max: 100
+              step: 5
+              unit_of_measurement: "%"
+
+# Service to define backup charge timeframe for devices supporting AC charge
+modify_solix_backup_charge:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: switch
+      # solar_forecast_sinv.AnkerSolixEntityFeature.AC_CHARGE is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - update.UpdateEntityFeature.BACKUP
+  fields:
+    backup_start:
+      required: false
+      example: "2025-02-24 13:00:00"
+      selector:
+        datetime:
+    backup_end:
+      required: false
+      example: "2025-02-24 17:00:00"
+      selector:
+        datetime:
+    backup_duration:
+      required: false
+      example: "04:00:00"
+      selector:
+        duration:
+    enable_backup:
+      required: false
+      example: true
+      selector:
+        boolean:
+
+# Service to modify or clear usage time plan in the schedule for devices supporting AC charge
+modify_solix_use_time:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: select
+      # solar_forecast_sinv.AnkerSolixEntityFeature.AC_CHARGE is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - update.UpdateEntityFeature.BACKUP
+  fields:
+    sb_fields:
+      # Following section is used only for Solarbank 2 or later schedule types
+      collapsed: true
+      fields:
+        start_month:
+          required: false
+          example: "jan"
+          default: "jan"
+          selector:
+            select:
+              mode: dropdown
+              multiple: false
+              translation_key: month
+              options:
+                - jan
+                - feb
+                - mar
+                - apr
+                - may
+                - jun
+                - jul
+                - aug
+                - sep
+                - oct
+                - nov
+                - dec
+        end_month:
+          required: false
+          example: "dec"
+          default: "dec"
+          selector:
+            select:
+              mode: dropdown
+              multiple: false
+              translation_key: month
+              options:
+                - jan
+                - feb
+                - mar
+                - apr
+                - may
+                - jun
+                - jul
+                - aug
+                - sep
+                - oct
+                - nov
+                - dec
+        day_type:
+          required: false
+          example: "all"
+          selector:
+            select:
+              mode: dropdown
+              multiple: false
+              translation_key: daytype
+              options:
+                - weekday
+                - weekend
+                - all
+    start_hour:
+      required: false
+      example: "00:00:00"
+      default: "00:00:00"
+      selector:
+        time:
+    end_hour:
+      required: false
+      example: "23:59:00"
+      default: "23:59:00"
+      selector:
+        time:
+    tariff:
+      required: false
+      example: "off_peak"
+      selector:
+        select:
+          mode: dropdown
+          multiple: false
+          translation_key: tariff
+          options:
+            - peak
+            - mid_peak
+            - off_peak
+            - valley
+    tariff_price:
+      required: false
+      example: 0.27
+      default: 0.00
+      selector:
+        number:
+          min: 0
+          max: 1000
+          step: 0.01
+          mode: box
+          unit_of_measurement: "per kWh"
+    pps_fields:
+      # Following section is used only for PPS schedule types
+      collapsed: true
+      fields:
+        backup_soc:
+          required: false
+          example: 20
+          selector:
+            number:
+              min: 6
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+    delete:
+      required: false
+      example: false
+      selector:
+        boolean:
+
+# Service to issue any Api request for the connected account to explore Api capabilities
+api_request:
+  target:
+    entity:
+      integration: solar_forecast_sinv
+      domain: switch
+      # solar_forecast_sinv.AnkerSolixEntityFeature.ACCOUNT_INFO is not resolved by HA core when frontend is loaded and does not work as filter
+      # therefore a proper core domain feature is used as filter that resolves to same IntFlag as used in AnkerSolixEntityFeature
+      supported_features:
+        - update.UpdateEntityFeature.SPECIFIC_VERSION
+  fields:
+    method:
+      required: true
+      example: "post"
+      default: "post"
+      selector:
+        select:
+          mode: dropdown
+          multiple: false
+          translation_key: request_method
+          options:
+            - post
+            - get
+    endpoint:
+      required: true
+      example: "power_service/v1/site/get_site_list"
+      selector:
+        select:
+          mode: dropdown
+          multiple: false
+          custom_value: true
+          translation_key: endpoint
+          options:
+            - power_service/v1/site/get_site_list
+            - power_service/v1/site/get_scen_info
+            - power_service/v1/site/get_site_price
+            - power_service/v1/app/get_relate_and_bind_devices
+            - charging_energy_service/get_system_running_info
+            - charging_hes_svc/get_system_running_info
+            - charging_hes_svc/get_hes_dev_info
+    payload:
+      required: false
+      example: "site_id: \"{{device_attr('sensor.system_bkw_yield_total','serial_number')}}\""
+      selector:
+        object:

@@ -1,0 +1,742 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""MQTT device control methods for Anker Solix Portable Power Stations. @thomas
+
+This module contains control methods specific to portable power stations (PPS).
+These methods provide comprehensive device control via MQTT commands.
+"""
+
+from __future__ import annotations  # noqa: TID251
+
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
+
+from .mqtt_device import SolixMqttDevice
+from .mqttcmdmap import SolixMqttCommands
+
+if TYPE_CHECKING:
+    from .api import AnkerSolixApi
+
+# Define supported Models for this class
+MODELS = {
+    "A1722",  # SOLIX C300 AC
+    "A1723",  # SOLIX C300X AC
+    "A1725",  # SOLIX C200(X)
+    "A1726",  # SOLIX C300 DC
+    "A1727",  # SOLIX C200 DC
+    "A1728",  # SOLIX C300X DC
+    "A1729",  # SOLIX C200X DC
+    "A1753",  # SOLIX C800
+    "A1754",  # SOLIX C800 Plus
+    "A1755",  # SOLIX C800X
+    "A1761",  # SOLIX C1000(X)
+    "A1762",  # Portable Power Station 1000
+    "A1763",  # SOLIX C1000 Gen 2
+    "A1765",  # SOLIX C1000X Gen 2
+    "A1770",  # F1200 (Bluetooth)
+    "A1771",  # F1200 (Bluetooth and WLAN)
+    "A1772",  # SOLIX F1500
+    "A1780",  # 767 PowerHouse (SOLIX F2000)
+    "A1780P",  # 767 Power House (SOLIX F2000) with WLAN
+    "A1781",  # SOLIX F2600
+    "A1782",  # SOLIX F3000 Solarbank PPS
+    "A1783",  # SOLIX C2000 Gen 2
+    "A1785",  # SOLIX C2000X Gen 2
+    "A1790",  # SOLIX F3800 Power Panel PPS
+    "A1790P",  # SOLIX F3800 Plus Power Panel PPS
+    "AS220",  # SOLIX S2000
+}
+
+# Define possible controls per Model
+# Those commands are only supported once also described for a message type in the model mapping (except realtime trigger)
+# Models can be removed from a feature to block command usage even if message type is described in the mapping
+FEATURES = {
+    SolixMqttCommands.status_request: MODELS,
+    SolixMqttCommands.realtime_trigger: MODELS,
+    SolixMqttCommands.temp_unit_switch: MODELS,
+    SolixMqttCommands.device_max_load: MODELS,
+    SolixMqttCommands.device_timeout_minutes: MODELS,
+    SolixMqttCommands.ac_charge_limit: MODELS,
+    SolixMqttCommands.ac_output_switch: MODELS,
+    SolixMqttCommands.ac_fast_charge_switch: MODELS,
+    SolixMqttCommands.ac_output_mode_select: MODELS,
+    SolixMqttCommands.ac_output_timeout_seconds: MODELS,
+    SolixMqttCommands.ac_output_timeout_minutes: MODELS,
+    SolixMqttCommands.ac_output_timer: MODELS,
+    SolixMqttCommands.dc_output_switch: MODELS,
+    SolixMqttCommands.dc_12v_output_mode_select: MODELS,
+    SolixMqttCommands.dc_output_timeout_seconds: MODELS,
+    SolixMqttCommands.energy_saving_switch: MODELS,
+    SolixMqttCommands.display_switch: MODELS,
+    SolixMqttCommands.display_mode_select: MODELS,
+    SolixMqttCommands.display_timeout_seconds: MODELS,
+    SolixMqttCommands.light_switch: MODELS,
+    SolixMqttCommands.light_mode_select: MODELS,
+    SolixMqttCommands.port_memory_switch: MODELS,
+    SolixMqttCommands.soc_limits: MODELS,
+    SolixMqttCommands.pps_usage_mode: MODELS,
+    SolixMqttCommands.silent_schedule: MODELS,
+    # SolixMqttCommands.pps_custom_schedule: MODELS,  # TODO: Enable once fully supported
+    # SolixMqttCommands.pps_tou_schedule: MODELS,  # TODO: Enable once fully supported
+    # SolixMqttCommands.pps_output_schedule: MODELS,  # TODO: Enable once fully supported
+    SolixMqttCommands.backup_soc: MODELS,
+    SolixMqttCommands.backup_charge_storm_guard: MODELS,
+    SolixMqttCommands.backup_charge_plan: MODELS,
+    SolixMqttCommands.backup_charge_timestamps: MODELS,
+}
+
+
+class SolixMqttDevicePps(SolixMqttDevice):
+    """Define the class to handle an Anker Solix MQTT device for PPS controls. @thomas"""
+
+    def __init__(self, api_instance: AnkerSolixApi, device_sn: str) -> None:
+        """Initialize. @thomas"""
+        self.models = MODELS
+        self.features = FEATURES
+        super().__init__(api_instance=api_instance, device_sn=device_sn)
+
+    def update_device(
+        self, device: dict, dynamic_descriptions: dict | None = None
+    ) -> None:
+        """Define callback for Api device updates. @thomas"""
+        super().update_device(device=device, dynamic_descriptions=dynamic_descriptions)
+        # TODO: Call methods to extract actual presets from plans if available
+
+    def update_custom_plan_presets(
+        self,
+        fromFile: bool = False,
+    ) -> dict | None:
+        """Update the presets from actual custom plan based on time. @thomas
+
+        Args:
+            fromFile: If True, consider the mocked cache
+
+        Returns:
+            dict: Custom plan presets as updated in mqttdata. None will be returned upon error.
+
+        Example output:
+            {"preset_load_mode": 1}
+
+        """
+
+        cache = self.get_status(fromFile=fromFile)
+        presets = {}
+        schedule = cache.get("custom_mode_schedule") or {}  # noqa: F841
+        # TODO: Add code to extract active preset
+        return presets
+
+    def update_tou_plan_presets(
+        self,
+        fromFile: bool = False,
+    ) -> dict | None:
+        """Update the presets from actual time of use plan based on time. @thomas
+
+        Args:
+            fromFile: If True, consider the mocked cache
+
+        Returns:
+            dict: TOU plan presets as updated in mqttdata. None will be returned upon error.
+
+        Example output:
+            {"preset_tariff": 1}
+
+        """
+        cache = self.get_status(fromFile=fromFile)
+        presets = {}
+        schedule = cache.get("tou_mode_schedule") or {}  # noqa: F841
+        # TODO: Add code to extract active preset
+        return presets
+
+    async def set_backup_charge_plan(
+        self,
+        backup_start: datetime | float | None = None,
+        backup_end: datetime | float | None = None,
+        backup_duration: timedelta | None = None,
+        backup_switch: bool | None = None,
+        toFile: bool = False,  # used for testing with files
+    ) -> dict | None:
+        """Set PPS manual backup charge parameters. Times will be rounded to minute granularity, and end time must be larger than start time. @thomas
+
+        If duration is specified, the start time will be set <= now and the end time will reflect the duration to ensure immediate start for
+        given duration if the switch will be enabled. If only the switch is enabled without future backup window, a default immediate duration
+        of 1h will be applied.
+
+        Args:
+            backup_start: Optional datetime or timestamp to update the manual backup start time.
+            backup_end: Optional datetime or timestamp to update the manual backup start time. M
+            backup_duration: Set backup window being active from at least now for given duration.
+            backup_switch: Enable or disable the manual backup option
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            await mydevice.set_backup_charge_plan(backup_duration=timedelta(hours=2), backup_switch=True)
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.backup_charge_timestamps
+        parm_map = {}
+        # validate parameters
+        def_duration = timedelta(hours=1)
+        backup_start = (
+            backup_start.astimezone()
+            if isinstance(backup_start, datetime)
+            else datetime.fromtimestamp(round(backup_start / 60) * 60).astimezone()
+            if isinstance(backup_start, float | int)
+            else None
+        )
+        backup_end = (
+            backup_end.astimezone()
+            if isinstance(backup_end, datetime)
+            else datetime.fromtimestamp(round(backup_end / 60) * 60).astimezone()
+            if isinstance(backup_end, float | int)
+            else None
+        )
+        backup_duration = (
+            max(backup_duration, timedelta(minutes=1))
+            if isinstance(backup_duration, timedelta)
+            else None
+        )
+        backup_switch = backup_switch if isinstance(backup_switch, bool) else None
+        # fast quit if nothing to change
+        if (
+            backup_start is None
+            and backup_end is None
+            and backup_duration is None
+            and backup_switch is None
+        ):
+            self._logger.error(
+                "No valid AC charge options provided for device %s (%s)",
+                self.sn,
+                self.pn,
+            )
+            return False
+        # Consider time zone shifts of device, timestamp conversion is absolute and timezone aware
+        now = datetime.now().replace(second=0, microsecond=0).astimezone()
+        cache = self.get_status(fromFile=toFile)
+        if not backup_start:
+            backup_start = datetime.fromtimestamp(
+                cache.get("backup_start_timestamp") or 0
+            ).astimezone()
+        if not backup_end:
+            backup_end = datetime.fromtimestamp(
+                cache.get("backup_end_timestamp") or 0
+            ).astimezone()
+        if backup_switch is None:
+            backup_switch = bool(cache.get("backup_switch"))
+        else:
+            # switch provided as parameter, first ensure start time is set correctly if backup range will be activated
+            if backup_switch:
+                backup_start = backup_start or now
+                if not cache.get("backup_switch") and (backup_end or now) <= now:
+                    # switch will be changed to enabled, ensure start time is at least now if now passed a previous interval
+                    backup_start = now
+            parm_map["set_backup_option_switch"] = int(backup_switch)
+        # make sure backup start and end time are valid and merged with optional parameters before applying them
+        if backup_start or backup_end:
+            backup_end = max(backup_start or backup_end, backup_end or backup_start)
+            backup_start = min(backup_start or backup_end, backup_end or backup_start)
+            if backup_start == backup_end or backup_duration:
+                backup_end = backup_start + (backup_duration or def_duration)
+            parm_map["set_backup_start_timestamp"] = round(backup_start.timestamp() / 60) * 60
+            parm_map["set_backup_end_timestamp"] = round(backup_end.timestamp() / 60) * 60
+        # Send command if any parameters to update
+        if parm_map:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    parm_map=parm_map,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_ac_output(
+        self,
+        enabled: bool | None = None,
+        mode: int | str | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Control AC output power via MQTT. @thomas
+
+        Args:
+            enabled: True to enable AC output, False to disable
+            mode: AC output mode - 1=Normal, 0=Smart
+                Can also be string: "normal", "smart"
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            await mydevice.set_ac_output(enabled=True)
+            await mydevice.set_ac_output(mode=1)  # Normal
+            await mydevice.set_ac_output(mode="smart")
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.ac_output_switch
+        cmd2 = SolixMqttCommands.ac_output_mode_select
+        # First validate all parameters
+        if (
+            enabled is not None
+            and self.validate_cmd_value(cmd=cmd1, value=enabled) is None
+        ):
+            return None
+        if mode is not None and self.validate_cmd_value(cmd=cmd2, value=mode) is None:
+            return None
+        # Validate and run AC switch enable command
+        if enabled is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=enabled,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        # Validate and run AC output mode command
+        if mode is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd2,
+                    value=mode,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_dc_output(
+        self,
+        enabled: bool | None = None,
+        mode: int | str | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Control DC output power via MQTT. @thomas
+
+        Args:
+            enabled: True to enable DC output, False to disable
+            mode: DC output mode - 1=Normal, 0=Smart
+                Can also be string: "normal", "smart"
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            await mydevice.set_dc_output(enabled=True)
+            await mydevice.set_dc_output(mode=0)  # Smart
+            await mydevice.set_dc_output(mode="normal")
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.dc_output_switch
+        cmd2 = SolixMqttCommands.dc_12v_output_mode_select
+        # First validate all parameters
+        if (
+            enabled is not None
+            and self.validate_cmd_value(cmd=cmd1, value=enabled) is None
+        ):
+            return None
+        if mode is not None and self.validate_cmd_value(cmd=cmd2, value=mode) is None:
+            return None
+        # Validate and run DC switch enable command
+        if enabled is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=enabled,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        # Validate and run DC output mode command
+        if mode is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd2,
+                    value=mode,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or False
+
+    async def set_display(
+        self,
+        enabled: bool | None = None,
+        mode: int | str | None = None,
+        timeout_seconds: int | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Control display settings via MQTT. @thomas
+
+        Args:
+            enabled: True to turn display on, False to turn off
+            mode: Display mode - 0=Off, 1=Low, 2=Medium, 3=High
+                Can also be string: "off", "low", "medium", "high"
+            timeout_seconds: Seconds before display goes off again
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            await mydevice.set_display(enabled=True)
+            await mydevice.set_display(mode=2)  # Medium
+            await mydevice.set_display(mode="high")
+            await mydevice.set_display(timeout_seconds=20)
+
+        """
+        # response
+        resp = {}
+        cmd1 = SolixMqttCommands.display_switch
+        cmd2 = SolixMqttCommands.display_mode_select
+        cmd3 = SolixMqttCommands.display_timeout_seconds
+        # First validate all parameters
+        if (
+            enabled is not None
+            and self.validate_cmd_value(cmd=cmd1, value=enabled) is None
+        ):
+            return None
+        if mode is not None and self.validate_cmd_value(cmd=cmd2, value=mode) is None:
+            return None
+        if (
+            timeout_seconds is not None
+            and self.validate_cmd_value(cmd=cmd3, value=timeout_seconds) is None
+        ):
+            return None
+        # Validate and run enable command
+        if enabled is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=enabled,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        # Validate and run mode command
+        if mode is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd2,
+                    value=mode,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        # Validate and run timeout command
+        if timeout_seconds is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd3,
+                    value=timeout_seconds,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_backup_charge(
+        self,
+        enabled: bool | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Control backup charge / fast charge mode via MQTT. @thomas
+
+        Args:
+            enabled: True to enable backup charge (Fast Charge) mode, False to disable
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            await mydevice.set_backup_charge(enabled=True)
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.ac_fast_charge_switch
+        # Validate and run command
+        if enabled is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=enabled,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_temp_unit(
+        self,
+        unit: str | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Set temperature unit via MQTT. @thomas
+
+        Args:
+            unit: "fahrenheit" | "celsius"
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            await mydevice.set_temp_unit(unit="celsius")  # Celsius
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.temp_unit_switch
+        # Validate and run command
+        if unit is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=unit,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_light(
+        self,
+        mode: int | str | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Set light mode via MQTT. @thomas
+
+        Args:
+            mode: Light mode - 0=Off, 1=Low, 2=Medium, 3=High, 4=Blinking
+                Can also be string: "off", "low", "medium", "high", "blinking"
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            await mydevice.set_light_mode(mode=3)  # High
+            await mydevice.set_light_mode(mode="blinking")
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.light_mode_select
+        # Validate and run command
+        if mode is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=mode,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_device_timeout(
+        self,
+        timeout_minutes: int | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Set device auto-off timeout. @thomas
+
+        Args:
+            timeout_minutes: Timeout in minutes (30-1440)
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            # Set 8 hour timeout
+            result = await device.set_device_timeout(timeout_minutes=480)
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.device_timeout_minutes
+        # Validate and run command
+        if timeout_minutes is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=timeout_minutes,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_max_load(
+        self,
+        max_watts: int | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Set maximum AC output load in Watt. @thomas
+
+        Args:
+            max_watts: Maximum load in watts
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            # Set 800W max load
+            result = await device.set_max_load(max_watts=800)
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.device_max_load
+        # Validate and run command
+        if max_watts is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=max_watts,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_charge_limit(
+        self,
+        max_watts: int | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Set maximum AC charge limit in Watt. @thomas
+
+        Args:
+            max_watts: Maximum load in watts
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            # Set 800W charge limit
+            result = await device.set_max_load(max_watts=800)
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.ac_charge_limit
+        # Validate and run command
+        if max_watts is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=max_watts,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_fast_charging(
+        self,
+        enabled: bool | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Set Fast charging mode (e.g. 1300W max). @thomas
+
+        Args:
+            enabled: True to enable Fast charging, False to disable
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            # Enable Fast charging
+            result = await device.set_fast_charging(enabled=True)
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.ac_fast_charge_switch
+        # Validate and run command
+        if enabled is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=enabled,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None
+
+    async def set_port_memory(
+        self,
+        enabled: bool,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Set port memory switch. @thomas
+
+        Args:
+            enabled: True to enable port memory, False to disable
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: Mocked state if successful, None otherwise
+
+        Example:
+            # Enable port memory switch
+            result = await device.set_port_memory(enabled=True)
+
+        """
+        # response and commands
+        resp = {}
+        cmd1 = SolixMqttCommands.port_memory_switch
+        # Validate and run command
+        if enabled is not None:
+            if (
+                result := await self.run_command(
+                    cmd=cmd1,
+                    value=enabled,
+                    toFile=toFile,
+                )
+            ) is None:
+                return None
+            resp.update(result)
+        return resp or None

@@ -171,6 +171,10 @@
       "reconfigure_successful": "Neukonfiguration erfolgreich.",
       "not_reconfigure": "Dieser Schritt ist nur für die Neukonfiguration verfügbar.",
       "entry_not_found": "Der Konfigurationseintrag wurde nicht gefunden."
+    },
+    "error": {
+      "cannot_connect": "Verbindung fehlgeschlagen",
+      "unknown": "Unbekannter Fehler"
     }
   },
   "options": {
@@ -185,9 +189,54 @@
           "pricing": "Strompreis",
           "amortization": "Amortisation",
           "smart_charging": "Batterie",
-          "advanced": "Erweitert"
+          "advanced": "Erweitert",
+          "sinv": "S-INV"
         },
         "data_description": {}
+      },
+      "sinv": {
+        "title": "Modultemperatur",
+        "description": "STATS schätzt die Modultemperatur ohne Eingaben aus Außentemperatur, Wind und dem Strom jedes MPPT. Ohne eigene Sensoren nutzt STATS die eingestellte Wetter-Entität. Ein Fühler an der Modulrückseite ist optional: Er ersetzt die Schätzung für seinen MPPT und verbessert die übrigen.\n\nWechselrichter: {devices}",
+        "data": {
+          "sinv_outdoor_temperature": "Außentemperatur",
+          "sinv_wind_speed": "Windgeschwindigkeit",
+          "module_temperature_1_1": "MPPT 1 – Fühler Modultemperatur",
+          "module_temperature_1_2": "MPPT 2 – Fühler Modultemperatur",
+          "module_temperature_1_3": "MPPT 3 – Fühler Modultemperatur",
+          "module_temperature_1_4": "MPPT 4 – Fühler Modultemperatur",
+          "module_temperature_2_1": "Gerät 2 · MPPT 1 – Fühler Modultemperatur",
+          "module_temperature_2_2": "Gerät 2 · MPPT 2 – Fühler Modultemperatur",
+          "module_temperature_2_3": "Gerät 2 · MPPT 3 – Fühler Modultemperatur",
+          "module_temperature_2_4": "Gerät 2 · MPPT 4 – Fühler Modultemperatur",
+          "module_temperature_3_1": "Gerät 3 · MPPT 1 – Fühler Modultemperatur",
+          "module_temperature_3_2": "Gerät 3 · MPPT 2 – Fühler Modultemperatur",
+          "module_temperature_3_3": "Gerät 3 · MPPT 3 – Fühler Modultemperatur",
+          "module_temperature_3_4": "Gerät 3 · MPPT 4 – Fühler Modultemperatur",
+          "module_temperature_4_1": "Gerät 4 · MPPT 1 – Fühler Modultemperatur",
+          "module_temperature_4_2": "Gerät 4 · MPPT 2 – Fühler Modultemperatur",
+          "module_temperature_4_3": "Gerät 4 · MPPT 3 – Fühler Modultemperatur",
+          "module_temperature_4_4": "Gerät 4 · MPPT 4 – Fühler Modultemperatur"
+        },
+        "data_description": {
+          "sinv_outdoor_temperature": "Optional. Ohne Sensor wird die Temperatur der Wetter-Entität verwendet.",
+          "sinv_wind_speed": "Optional. Ohne Sensor wird der Wind der Wetter-Entität verwendet.",
+          "module_temperature_1_1": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_1_2": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_1_3": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_1_4": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_2_1": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_2_2": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_2_3": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_2_4": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_3_1": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_3_2": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_3_3": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_3_4": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_4_1": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_4_2": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_4_3": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings.",
+          "module_temperature_4_4": "Optional. Temperaturfühler an der Rückseite eines Moduls dieses Strings."
+        }
       },
       "sensors": {
         "title": "Sensoren",
@@ -249,9 +298,9 @@
       },
       "smart_charging": {
         "title": "Batterie",
-        "description": "Anlagenkonstanten der Batterie. 0 kW Ladeleistung bedeutet unbegrenzt. Die Wechselrichter-Nennleistung kommt aus Solar Forecast ML (0 = unbegrenzt).",
+        "description": "Anlagenkonstanten der Batterie. 0 kW Ladeleistung bedeutet unbegrenzt. Die Wechselrichter-Nennleistung kommt aus Solar Forecast ML.",
         "data": {
-          "battery_capacity": "Batterie-Kapazitaet (kWh)",
+          "battery_capacity": "Batterie-Kapazität (kWh)",
           "max_charge_power_kw": "Maximale Ladeleistung (kW, 0 = unbegrenzt)",
           "battery_soc_sensor": "Batterie-SOC Sensor",
           "smart_charging_switch": "Ladeschalter / Ladesteuerung",
@@ -260,7 +309,7 @@
           "ems_heat_pump_boost_switch": "EMS Wärmepumpen-PV-Boost"
         },
         "data_description": {
-          "battery_capacity": "Pflichtangabe, 0 bedeutet: nicht eingerichtet. Nutzbare Batteriekapazitaet. Wird benoetigt, um Solar-kWh in SOC-Prozent umzurechnen.",
+          "battery_capacity": "Pflichtangabe, 0 bedeutet: nicht eingerichtet. Nutzbare Batteriekapazität. Wird benötigt, um Solar-kWh in SOC-Prozent umzurechnen.",
           "max_charge_power_kw": "Netz-Ladeleistung in kW. 0 = unbegrenzt (keine Fensterbegrenzung).",
           "battery_soc_sensor": "Batterie-Ladezustand-Sensor (0-100%). Ohne ihn gibt es keine Netzladung.",
           "smart_charging_switch": "Schalter-Entität in Home Assistant zur Steuerung der Netzladung.",
@@ -321,6 +370,9 @@
           "cost_tracking_enabled": "Wenn aus, zeigt STATS nur Energiemengen und berechnet keine Kosten."
         }
       }
+    },
+    "error": {
+      "invalid_code": "Ungültiger Zugangscode!"
     }
   },
   "issues": {

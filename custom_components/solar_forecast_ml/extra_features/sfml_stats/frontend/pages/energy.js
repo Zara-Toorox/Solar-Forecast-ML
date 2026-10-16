@@ -146,7 +146,7 @@ const _EnergyPage = {
                         <div class="eb-value" style="color: #ef4444;">{{ formatEuro(billing.finance.grid_cost_eur) }}</div>
                         <div class="eb-label">{{ $t('energy.electricityCosts') }}</div>
                         <div class="eb-sub">
-                            Ø {{ billing.finance.avg_price_ct != null ? billing.finance.avg_price_ct.toFixed(1) : '35.0' }} ct/kWh
+                            Ø {{ billing.finance.avg_price_ct != null ? billing.finance.avg_price_ct.toFixed(1) : '—' }} ct/kWh
                             <template v-if="billing.finance.base_fee_eur"> · +{{ formatEuro(billing.finance.base_fee_eur) }} €</template>
                         </div>
                     </div>
@@ -165,7 +165,7 @@ const _EnergyPage = {
                 </div>
                 <div v-if="billing.grid && billing.grid.import_split" style="margin-top: var(--space-md); font-size: 0.8rem;">
                     <div class="eb-sub" style="margin-bottom: 4px;">{{ $t('energy.importSplitTitle') }}</div>
-                    <div>{{ $t('energy.importOfHouse') }}: {{ fmt(billing.grid.import_split.house.kwh) }} kWh · {{ formatEuro(billing.grid.import_split.house.cost_eur) }} €</div>
+                    <div>{{ $t('energy.importOfHouse') }}<template v-if="billing.grid.import_split.house_derived"> ({{ $t('energy.derived') }})</template>: {{ fmt(billing.grid.import_split.house.kwh) }} kWh · {{ formatEuro(billing.grid.import_split.house.cost_eur) }} €</div>
                     <div>{{ $t('energy.importOfBattery') }}: {{ fmt(billing.grid.import_split.battery.kwh) }} kWh · {{ formatEuro(billing.grid.import_split.battery.cost_eur) }} €</div>
                     <div v-if="billing.grid.import_split.show_unassigned">{{ $t('energy.importUnassigned') }}: {{ fmt(billing.grid.import_split.unassigned_kwh) }} kWh · {{ formatEuro(billing.grid.import_split.unassigned_eur) }} €</div>
                     <div v-if="billing.grid.import_split.house.unpriced_kwh > 0">{{ $t('energy.importOfHouse') }} — {{ $t('energy.noPriceKwh', { kwh: fmt(billing.grid.import_split.house.unpriced_kwh) }) }}</div>
@@ -419,12 +419,13 @@ const _EnergyPage = {
                                 <span v-else>—</span>
                                 <span v-if="m.unpricedImport > 0" style="display:block; color:var(--text-secondary); font-size:0.65rem;">{{ $t('energy.unpriced') }}</span>
                                 <span v-if="m.isDynamic" style="color:#22c55e; font-size:0.6rem;" :title="$t('energy.dynamicTariff')">●</span>
-                                <span v-else style="color:#eab308; font-size:0.6rem;" :title="$t('energy.estimatedAvg')">○</span>
+                                <span v-else-if="m.isEstimated" style="color:#eab308; font-size:0.6rem;" :title="$t('energy.estimatedAvg')">○</span>
+                                <span v-else style="color:#60a5fa; font-size:0.6rem;" :title="$t('energy.configuredTariff')">●</span>
                             </td>
                             <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">
                                 {{ formatEuro(m.cost) }} €
                                 <div v-if="m.importSplit" style="font-weight: 500; font-size: 0.65rem; color: var(--text-secondary);">
-                                    <div>{{ $t('energy.importOfHouse') }} {{ fmt(m.importSplit.house.kwh) }} kWh · {{ formatEuro(m.importSplit.house.cost_eur) }} €</div>
+                                    <div>{{ $t('energy.importOfHouse') }}<template v-if="m.importSplit.house_derived"> ({{ $t('energy.derived') }})</template> {{ fmt(m.importSplit.house.kwh) }} kWh · {{ formatEuro(m.importSplit.house.cost_eur) }} €</div>
                                     <div>{{ $t('energy.importOfBattery') }} {{ fmt(m.importSplit.battery.kwh) }} kWh · {{ formatEuro(m.importSplit.battery.cost_eur) }} €</div>
                                     <div v-if="m.importSplit.show_unassigned">{{ $t('energy.importUnassigned') }} {{ fmt(m.importSplit.unassigned_kwh) }} kWh · {{ formatEuro(m.importSplit.unassigned_eur) }} €</div>
                                 </div>
@@ -1258,7 +1259,10 @@ const _EnergyPage = {
                             + Math.max(0, (m.battery_to_house_kwh ?? 0) - (m.grid_to_battery_kwh ?? 0))
                         );
                         const saved = m.total_savings_eur ?? m.savings_eur ?? (priceUsed == null ? 0 : selfCons * priceUsed / 100);
-                        const isDynamic = m.cost_source === 'dynamic' || m.cost_source === 'hybrid';
+                        const isDynamic = m.price_mode
+                            ? m.price_mode === 'gpm_dynamic'
+                            : m.cost_source === 'dynamic' || m.cost_source === 'hybrid';
+                        const isEstimated = !isDynamic && (m.cost_source === 'estimated' || priceUsed == null);
                         const priceMode = m.price_mode || (isDynamic ? 'dynamic' : null);
 
                         return {
@@ -1282,6 +1286,7 @@ const _EnergyPage = {
                             canEditPrice: m.price_mode === 'legacy_fixed',
                             canReset: m.tariff_source === 'manual',
                             isDynamic,
+                            isEstimated,
                             isCurrent: m.month === nowKey,
                             importSplit: m.import_split || null,
                         };

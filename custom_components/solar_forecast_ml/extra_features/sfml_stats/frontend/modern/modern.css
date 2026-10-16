@@ -792,6 +792,11 @@ textarea:focus-visible,
     margin-top: 16px !important;
 }
 
+/* Side-by-side rows space cards with gap; a stacking margin would push later cards down. */
+.modern-app :is(.eb-grid, .weather-row-2col, .panel-groups-grid, .forecast-days-row) > .chart-card + .chart-card {
+    margin-top: 0 !important;
+}
+
 .modern-app [class$="-card"] {
     border-radius: var(--radius-lg);
 }
@@ -1224,6 +1229,30 @@ textarea:focus-visible,
     background: var(--surface-glass) !important;
     color: var(--text-primary);
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32) !important;
+}
+
+@media (min-width: 961px) {
+    .menu-button {
+        display: grid;
+    }
+
+    .modern-app:not(.orbit-mode) .sidebar {
+        transition: transform var(--transition-slow), visibility 0s;
+    }
+
+    .modern-app:not(.orbit-mode) .app-column {
+        transition: margin-left var(--transition-slow);
+    }
+
+    .modern-app.nav-collapsed .sidebar {
+        transform: translateX(-102%);
+        visibility: hidden;
+        transition: transform var(--transition-slow), visibility 0s linear 220ms;
+    }
+
+    .modern-app.nav-collapsed .app-column {
+        margin-left: 0;
+    }
 }
 
 @media (max-width: 1180px) {

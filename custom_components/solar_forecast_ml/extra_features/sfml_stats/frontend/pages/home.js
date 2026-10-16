@@ -674,7 +674,7 @@ const _HomePage = {
             <div class="chart-header" style="margin-bottom: var(--space-sm);">
                 <span class="chart-title">{{ $t('home.forecastNextDays') }}</span>
             </div>
-            <div style="display:flex; gap:var(--space-md); flex-wrap:wrap;">
+            <div class="forecast-days-row" style="display:flex; gap:var(--space-md); flex-wrap:wrap;">
                 <div v-for="fc in dailyForecasts" :key="fc.type"
                      class="chart-card" style="flex:1; min-width:140px; padding:var(--space-md); text-align:center;">
                     <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">{{ fc.label }}</div>

@@ -5,22 +5,22 @@
         "title": "Solar Forecast STATS - Bienvenue",
         "description": "Bienvenue dans Solar Forecast STATS !\n\nCette intégration suit votre production solaire, batterie, consommation réseau et calcule les coûts.\n\nCliquez sur SUIVANT pour configurer vos capteurs.",
         "data": {
-          "country": "Country",
+          "country": "Pays",
           "sensor_home_consumption": "🏠 Consommation du foyer (W)",
           "weather_entity": "🌤️ Entité météo"
         },
         "data_description": {
-          "country": "Select your country for VAT and electricity price defaults.",
+          "country": "Sélectionnez votre pays pour la TVA et les prix de l'électricité par défaut.",
           "sensor_home_consumption": "Unité : Watt. Consommation électrique totale actuelle du foyer, tous consommateurs inclus. Nécessaire pour le diagramme de flux énergétique en temps réel. (Obligatoire)",
           "weather_entity": "Format : weather.xxx. Intégration météo Home Assistant pour les prévisions dans les graphiques. Pas une entité sensor, mais une entité weather ! (Optionnel)"
         }
       },
       "energy_flows": {
         "title": "Flux d’énergie",
-        "description": "Select the available live power sensors. STATS calculates the corresponding kWh values from midnight automatically. All fields are optional.",
+        "description": "Sélectionnez les capteurs de puissance instantanée disponibles. STATS calcule automatiquement les kWh correspondants depuis minuit. Tous les champs sont optionnels.",
         "data": {
           "sensor_solar_to_house": "☀️ Solaire → Maison (W)",
-          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_inverter_ac_output": "Sortie AC de l'onduleur (W)",
           "sensor_solar_to_battery": "☀️ Solaire → Batterie (W)",
           "sensor_battery_to_house": "🔋 Batterie → Maison (W)",
           "sensor_grid_to_house": "⚡ Réseau → Maison (W)",
@@ -31,7 +31,7 @@
         },
         "data_description": {
           "sensor_solar_to_house": "Unité : Watt. Part de la puissance solaire allant directement vers la maison. Pas la production totale — uniquement la part d'autoconsommation ! (Obligatoire)",
-          "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. (Optional)",
+          "sensor_inverter_ac_output": "Puissance AC totale produite par l'onduleur. Ne sélectionnez pas l'entrée PV en DC ni le capteur d'injection du compteur intelligent. (Optionnel)",
           "sensor_solar_to_battery": "Unité : Watt. Puissance solaire allant directement dans la batterie. Uniquement la part de charge solaire, pas la charge totale ! (Optionnel)",
           "sensor_battery_to_house": "Unité : Watt. Puissance déchargée de la batterie vers la maison. Uniquement la part de décharge vers la maison, pas la décharge totale ! (Optionnel)",
           "sensor_grid_to_house": "Unité : Watt. Puissance du réseau allant directement vers la maison. Sans charge batterie depuis le réseau ! Différence avec Soutirage réseau : uniquement la part de consommation domestique. (Optionnel)",
@@ -43,21 +43,21 @@
       },
       "optional": {
         "title": "Batterie et valeurs optionnelles",
-        "description": "Configure these fields only when the corresponding values are available. Systems without a battery can skip this step.",
+        "description": "Renseignez ces champs seulement si les valeurs existent. Les installations sans batterie peuvent passer cette étape.",
         "data": {
           "sensor_battery_soc": "📊 État de charge batterie (%)",
           "sensor_battery_power": "🔋 Puissance totale batterie (W)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
+          "sensor_grid_import_extra": "Énergie réseau supplémentaire aujourd'hui (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Unité : Pourcentage (0–100). État de charge (SOC) actuel de la batterie. La valeur doit être entre 0 et 100, pas de valeurs décimales comme 0.0–1.0 ! (Optionnel)",
           "sensor_battery_power": "Unité : Watt. Puissance totale de batterie en un seul capteur. Positif = charge, Négatif = décharge. À utiliser uniquement si aucun capteur séparé de charge/décharge disponible ! (Optionnel)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
+          "sensor_grid_import_extra": "Uniquement en cas particulier : énergie réseau supplémentaire non vue par les capteurs de puissance. Doit indiquer la valeur depuis minuit en kWh. (Optionnel)"
         }
       },
       "consumers": {
         "title": "Consommateurs",
-        "description": "Configure live power sensors for additional consumers. STATS calculates their daily energy automatically. All fields are optional.",
+        "description": "Configurez des capteurs de puissance instantanée pour d'autres consommateurs. STATS calcule automatiquement leur énergie journalière. Tous les champs sont optionnels.",
         "data": {
           "sensor_heatpump_power": "🌡️ Pompe à chaleur puissance (W)",
           "sensor_heatingrod_power": "🔥 Résistance chauffante puissance (W)",
@@ -65,7 +65,7 @@
           "sensor_wallbox_state": "🚗 Wallbox état"
         },
         "data_description": {
-          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
+          "sensor_heatpump_power": "Repris automatiquement d'EAI si un capteur de puissance de la pompe à chaleur en W, kW ou MW y est défini. Sinon, le capteur enregistré ici est utilisé. (Optionnel)",
           "sensor_heatingrod_power": "Unité : Watt. Consommation électrique actuelle de la résistance. Affichée comme consommateur séparé dans le flux énergétique. (Optionnel)",
           "sensor_wallbox_power": "Unité : Watt. Puissance de charge actuelle du wallbox/station de charge. Uniquement la puissance de charge réelle, pas la consommation en veille ! (Optionnel)",
           "sensor_wallbox_state": "Format : Texte. Valeurs possibles : 'charging' = véhicule en charge, 'idle' = prêt/pas de charge. Les autres valeurs sont ignorées. (Optionnel)"
@@ -73,36 +73,36 @@
       },
       "consumer_details": {
         "title": "Capteurs détaillés des consommateurs",
-        "description": "Additional values for the heat pump and wallbox detail views. These fields are optional and can be skipped.",
+        "description": "Valeurs supplémentaires pour les vues détaillées de la pompe à chaleur et de la wallbox. Ces champs sont optionnels et peuvent être ignorés.",
         "data": {
-          "sensor_wb_charge_mode": "Wallbox: Charging Mode",
-          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+          "sensor_wb_charge_mode": "Wallbox : mode de charge",
+          "sensor_wb_energy_session": "Wallbox : énergie de la session en cours (kWh)"
         },
         "data_description": {
-          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
-          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+          "sensor_wb_charge_mode": "Entité contenant le mode de charge actuel. (Optionnel)",
+          "sensor_wb_energy_session": "Énergie chargée pendant la session en cours. (Optionnel)"
         }
       },
       "reconfigure": {
         "title": "Mettre à jour la configuration de base",
-        "description": "Update the basic configuration. Empty optional fields remove the currently stored value.\n\nSTATS calculates daily energy from live power sensors. EAI additionally needs a heat-pump daily energy counter.",
+        "description": "Mettez à jour la configuration de base. Les champs optionnels vides effacent la valeur enregistrée.\n\nSTATS calcule l'énergie journalière à partir des capteurs de puissance instantanée. EAI a en plus besoin d'un compteur journalier de la pompe à chaleur.",
         "data": {
-          "country": "Country",
+          "country": "Pays",
           "sensor_home_consumption": "🏠 Consommation du foyer (W)",
           "weather_entity": "🌤️ Entité météo"
         },
         "data_description": {
-          "country": "Select your country for VAT and electricity price defaults.",
+          "country": "Sélectionnez votre pays pour la TVA et les prix de l'électricité par défaut.",
           "sensor_home_consumption": "Unité : Watt. Consommation électrique totale actuelle du foyer, tous consommateurs inclus. Nécessaire pour le diagramme de flux énergétique en temps réel. (Obligatoire)",
           "weather_entity": "Format : weather.xxx. Intégration météo Home Assistant pour les prévisions dans les graphiques. Pas une entité sensor, mais une entité weather ! (Optionnel)"
         }
       },
       "reconfigure_energy_flows": {
         "title": "Mettre à jour les flux d’énergie",
-        "description": "Select the available live power sensors. Empty fields remove the currently stored sensor.",
+        "description": "Sélectionnez les capteurs de puissance instantanée disponibles. Les champs vides effacent le capteur enregistré.",
         "data": {
           "sensor_solar_to_house": "☀️ Solaire → Maison (W)",
-          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_inverter_ac_output": "Sortie AC de l'onduleur (W)",
           "sensor_solar_to_battery": "☀️ Solaire → Batterie (W)",
           "sensor_battery_to_house": "🔋 Batterie → Maison (W)",
           "sensor_grid_to_house": "⚡ Réseau → Maison (W)",
@@ -113,7 +113,7 @@
         },
         "data_description": {
           "sensor_solar_to_house": "Unité : Watt. Part de la puissance solaire allant directement vers la maison. Pas la production totale — uniquement la part d'autoconsommation ! (Obligatoire)",
-          "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. Leave empty if unavailable. (Optional)",
+          "sensor_inverter_ac_output": "Puissance AC totale produite par l'onduleur. Ne sélectionnez pas l'entrée PV en DC ni le capteur d'injection du compteur intelligent. Laissez vide si indisponible. (Optionnel)",
           "sensor_solar_to_battery": "Unité : Watt. Puissance solaire allant directement dans la batterie. Uniquement la part de charge solaire, pas la charge totale ! (Optionnel)",
           "sensor_battery_to_house": "Unité : Watt. Puissance déchargée de la batterie vers la maison. Uniquement la part de décharge vers la maison, pas la décharge totale ! (Optionnel)",
           "sensor_grid_to_house": "Unité : Watt. Puissance du réseau allant directement vers la maison. Sans charge batterie depuis le réseau ! Différence avec Soutirage réseau : uniquement la part de consommation domestique. (Optionnel)",
@@ -125,21 +125,21 @@
       },
       "reconfigure_optional": {
         "title": "Mettre à jour la batterie et les valeurs optionnelles",
-        "description": "Systems without a battery can leave these fields empty. Empty fields remove the currently stored sensor.",
+        "description": "Les installations sans batterie peuvent laisser ces champs vides. Les champs vides effacent le capteur enregistré.",
         "data": {
           "sensor_battery_soc": "📊 État de charge batterie (%)",
           "sensor_battery_power": "🔋 Puissance totale batterie (W)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
+          "sensor_grid_import_extra": "Énergie réseau supplémentaire aujourd'hui (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Unité : Pourcentage (0–100). État de charge (SOC) actuel de la batterie. La valeur doit être entre 0 et 100, pas de valeurs décimales comme 0.0–1.0 ! (Optionnel)",
           "sensor_battery_power": "Unité : Watt. Puissance totale de batterie en un seul capteur. Positif = charge, Négatif = décharge. À utiliser uniquement si aucun capteur séparé de charge/décharge disponible ! (Optionnel)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
+          "sensor_grid_import_extra": "Uniquement en cas particulier : énergie réseau supplémentaire non vue par les capteurs de puissance. Doit indiquer la valeur depuis minuit en kWh. (Optionnel)"
         }
       },
       "reconfigure_consumers": {
         "title": "Mettre à jour les consommateurs",
-        "description": "Configure live power sensors for additional consumers. Empty fields remove the currently stored sensor.",
+        "description": "Configurez des capteurs de puissance instantanée pour d'autres consommateurs. Les champs vides effacent le capteur enregistré.",
         "data": {
           "sensor_heatpump_power": "🌡️ Pompe à chaleur puissance (W)",
           "sensor_heatingrod_power": "🔥 Résistance chauffante puissance (W)",
@@ -147,7 +147,7 @@
           "sensor_wallbox_state": "🚗 Wallbox état"
         },
         "data_description": {
-          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
+          "sensor_heatpump_power": "Repris automatiquement d'EAI si un capteur de puissance de la pompe à chaleur en W, kW ou MW y est défini. Sinon, le capteur enregistré ici est utilisé. (Optionnel)",
           "sensor_heatingrod_power": "Unité : Watt. Consommation électrique actuelle de la résistance. Affichée comme consommateur séparé dans le flux énergétique. (Optionnel)",
           "sensor_wallbox_power": "Unité : Watt. Puissance de charge actuelle du wallbox/station de charge. Uniquement la puissance de charge réelle, pas la consommation en veille ! (Optionnel)",
           "sensor_wallbox_state": "Format : Texte. Valeurs possibles : 'charging' = véhicule en charge, 'idle' = prêt/pas de charge. Les autres valeurs sont ignorées. (Optionnel)"
@@ -155,21 +155,22 @@
       },
       "reconfigure_consumer_details": {
         "title": "Mettre à jour les capteurs détaillés",
-        "description": "Additional values for the heat pump and wallbox detail views. Empty fields remove the currently stored sensor.",
+        "description": "Valeurs supplémentaires pour les vues détaillées de la pompe à chaleur et de la wallbox. Les champs vides effacent le capteur enregistré.",
         "data": {
-          "sensor_wb_charge_mode": "Wallbox: Charging Mode",
-          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+          "sensor_wb_charge_mode": "Wallbox : mode de charge",
+          "sensor_wb_energy_session": "Wallbox : énergie de la session en cours (kWh)"
         },
         "data_description": {
-          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
-          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+          "sensor_wb_charge_mode": "Entité contenant le mode de charge actuel. (Optionnel)",
+          "sensor_wb_energy_session": "Énergie chargée pendant la session en cours. (Optionnel)"
         }
       }
     },
     "abort": {
       "single_instance_allowed": "Solar Forecast STATS est déjà configuré.",
-      "raspberry_pi_not_supported": "L'installation sur Raspberry Pi n'est pas supportée. L'intégration utilise matplotlib pour la génération de graphiques, ce qui cause des problèmes de performance sur Raspberry Pi. Veuillez utiliser un système plus puissant.",
-      "proxmox_not_recommended": "Installation sur hôte Proxmox VE détectée. Home Assistant devrait fonctionner dans une VM ou un conteneur LXC, pas directement sur l'hôte Proxmox."
+      "reconfigure_successful": "Reconfiguration réussie.",
+      "not_reconfigure": "Cette étape n'est disponible que pour la reconfiguration.",
+      "entry_not_found": "L'entrée de configuration est introuvable."
     },
     "error": {
       "cannot_connect": "Échec de connexion",
@@ -182,16 +183,69 @@
         "title": "Options Solar Forecast STATS",
         "description": "Sélectionnez une catégorie à configurer.",
         "data": {},
+        "menu_options": {
+          "sensors": "Capteurs",
+          "consumers": "Détails du consommateur (wallbox)",
+          "pricing": "Prix",
+          "amortization": "Amortissement",
+          "smart_charging": "Batterie",
+          "advanced": "Avancé",
+          "sinv": "S-INV"
+        },
         "data_description": {}
+      },
+      "sinv": {
+        "title": "Température du module",
+        "description": "STATS estime la température des modules sans aucune saisie, à partir de la température extérieure, du vent et du courant de chaque MPPT. Sans capteurs propres, STATS utilise l'entité météo configurée. Un capteur au dos d'un module est facultatif : il remplace l'estimation pour son MPPT et améliore les autres.\n\nOnduleurs : {devices}",
+        "data": {
+          "sinv_outdoor_temperature": "Température extérieure",
+          "sinv_wind_speed": "Vitesse du vent",
+          "module_temperature_1_1": "MPPT 1 – capteur de température du module",
+          "module_temperature_1_2": "MPPT 2 – capteur de température du module",
+          "module_temperature_1_3": "MPPT 3 – capteur de température du module",
+          "module_temperature_1_4": "MPPT 4 – capteur de température du module",
+          "module_temperature_2_1": "Appareil 2 · MPPT 1 – capteur de température du module",
+          "module_temperature_2_2": "Appareil 2 · MPPT 2 – capteur de température du module",
+          "module_temperature_2_3": "Appareil 2 · MPPT 3 – capteur de température du module",
+          "module_temperature_2_4": "Appareil 2 · MPPT 4 – capteur de température du module",
+          "module_temperature_3_1": "Appareil 3 · MPPT 1 – capteur de température du module",
+          "module_temperature_3_2": "Appareil 3 · MPPT 2 – capteur de température du module",
+          "module_temperature_3_3": "Appareil 3 · MPPT 3 – capteur de température du module",
+          "module_temperature_3_4": "Appareil 3 · MPPT 4 – capteur de température du module",
+          "module_temperature_4_1": "Appareil 4 · MPPT 1 – capteur de température du module",
+          "module_temperature_4_2": "Appareil 4 · MPPT 2 – capteur de température du module",
+          "module_temperature_4_3": "Appareil 4 · MPPT 3 – capteur de température du module",
+          "module_temperature_4_4": "Appareil 4 · MPPT 4 – capteur de température du module"
+        },
+        "data_description": {
+          "sinv_outdoor_temperature": "Facultatif. Sans capteur, la température de l'entité météo est utilisée.",
+          "sinv_wind_speed": "Facultatif. Sans capteur, le vent de l'entité météo est utilisé.",
+          "module_temperature_1_1": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_1_2": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_1_3": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_1_4": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_2_1": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_2_2": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_2_3": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_2_4": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_3_1": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_3_2": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_3_3": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_3_4": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_4_1": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_4_2": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_4_3": "Facultatif. Capteur de température au dos d'un module de cette chaîne.",
+          "module_temperature_4_4": "Facultatif. Capteur de température au dos d'un module de cette chaîne."
+        }
       },
       "sensors": {
         "title": "Tous les capteurs",
         "description": "Configurez tous les capteurs.\n\n**Les capteurs de puissance** fournissent les valeurs en direct et sont automatiquement convertis en totaux énergétiques quotidiens.",
         "data": {
-          "country": "Country",
+          "country": "Pays",
           "sensor_home_consumption": "🏠 Consommation du foyer (W)",
           "sensor_solar_to_house": "☀️ Solaire → Maison (W)",
-          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_inverter_ac_output": "Sortie AC de l'onduleur (W)",
           "weather_entity": "🌤️ Entité météo",
           "sensor_battery_soc": "📊 État de charge batterie (%)",
           "sensor_battery_power": "🔋 Puissance totale batterie (W)",
@@ -202,17 +256,17 @@
           "sensor_house_to_grid": "📤 Injection surplus (W)",
           "sensor_smartmeter_import": "📥 Soutirage réseau (W)",
           "sensor_smartmeter_export": "📤 Injection réseau (W)",
-          "sensor_grid_import_extra": "Additional Grid Import (kWh)",
+          "sensor_grid_import_extra": "Soutirage supplémentaire (kWh)",
           "sensor_heatpump_power": "🌡️ Pompe à chaleur puissance (W)",
           "sensor_heatingrod_power": "🔥 Résistance chauffante puissance (W)",
           "sensor_wallbox_power": "🚗 Wallbox puissance (W)",
           "sensor_wallbox_state": "🚗 Wallbox état"
         },
         "data_description": {
-          "country": "Select country for VAT and price defaults.",
+          "country": "Sélectionnez le pays pour la TVA et les prix par défaut.",
           "sensor_home_consumption": "Unité : Watt. Consommation électrique totale actuelle du foyer, tous consommateurs inclus. Nécessaire pour le diagramme de flux énergétique en temps réel. (Obligatoire)",
           "sensor_solar_to_house": "Unité : Watt. Part de la puissance solaire allant directement vers la maison. Pas la production totale — uniquement la part d'autoconsommation ! (Obligatoire)",
-          "sensor_inverter_ac_output": "Total AC output power of the inverter in Watt. Do not select PV DC power or grid export. (Optional)",
+          "sensor_inverter_ac_output": "Puissance de sortie AC totale de l'onduleur en W. Ne sélectionnez pas la puissance PV en DC ni l'injection. (Optionnel)",
           "weather_entity": "Format : weather.xxx. Intégration météo Home Assistant pour les prévisions dans les graphiques. Pas une entité sensor, mais une entité weather ! (Optionnel)",
           "sensor_battery_soc": "Unité : Pourcentage (0–100). État de charge (SOC) actuel de la batterie. La valeur doit être entre 0 et 100, pas de valeurs décimales comme 0.0–1.0 ! (Optionnel)",
           "sensor_battery_power": "Unité : Watt. Puissance totale de batterie en un seul capteur. Positif = charge, Négatif = décharge. À utiliser uniquement si aucun capteur séparé de charge/décharge disponible ! (Optionnel)",
@@ -223,8 +277,8 @@
           "sensor_house_to_grid": "Unité : Watt. Puissance excédentaire injectée dans le réseau. Uniquement surplus solaire, pas injection batterie ! Différence avec Injection réseau : uniquement la part de surplus. (Optionnel)",
           "sensor_smartmeter_import": "Unité : Watt. Soutirage réseau total au point de comptage. Inclut TOUTE la puissance du réseau — y compris la charge batterie depuis le réseau ! (Optionnel)",
           "sensor_smartmeter_export": "Unité : Watt. Injection totale au point de comptage. Inclut TOUTE l'injection — y compris l'injection batterie vers le réseau ! (Optionnel)",
-          "sensor_grid_import_extra": "Additional grid import not measured by smartmeter in kWh. (Optional)",
-          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
+          "sensor_grid_import_extra": "Soutirage supplémentaire non mesuré par le compteur intelligent, en kWh. (Optionnel)",
+          "sensor_heatpump_power": "Repris automatiquement d'EAI si un capteur de puissance de la pompe à chaleur en W, kW ou MW y est défini. Sinon, le capteur enregistré ici est utilisé. (Optionnel)",
           "sensor_heatingrod_power": "Unité : Watt. Consommation électrique actuelle de la résistance. Affichée comme consommateur séparé dans le flux énergétique. (Optionnel)",
           "sensor_wallbox_power": "Unité : Watt. Puissance de charge actuelle du wallbox/station de charge. Uniquement la puissance de charge réelle, pas la consommation en veille ! (Optionnel)",
           "sensor_wallbox_state": "Format : Texte. Valeurs possibles : 'charging' = véhicule en charge, 'idle' = prêt/pas de charge. Les autres valeurs sont ignorées. (Optionnel)"
@@ -234,12 +288,12 @@
         "title": "Capteurs de consommateurs (Optionnel)",
         "description": "Configurez les capteurs pour les consommateurs supplémentaires.\n\nCeux-ci sont OPTIONNELS — configurez uniquement si vous avez ces appareils.\n\n**Unités requises :**\n- Puissance : Watt (W)\n- Énergie : kWh (avec remise à zéro quotidienne)\n- COP : Nombre décimal (p. ex. 3.5)\n- État : Texte (charging/idle)",
         "data": {
-          "sensor_wb_charge_mode": "Wallbox: Charging Mode (select entity)",
-          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+          "sensor_wb_charge_mode": "Wallbox : mode de charge (entité select)",
+          "sensor_wb_energy_session": "Wallbox : énergie de la session en cours (kWh)"
         },
         "data_description": {
-          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
-          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+          "sensor_wb_charge_mode": "Entité contenant le mode de charge actuel. (Optionnel)",
+          "sensor_wb_energy_session": "Énergie chargée pendant la session en cours. (Optionnel)"
         }
       },
       "smart_charging": {
@@ -272,22 +326,22 @@
       },
       "amortization": {
         "title": "Amortissement",
-        "description": "PV investment, subsidies and running costs for the payback projection.",
+        "description": "Investissement PV, aides et coûts de fonctionnement pour la projection d'amortissement.",
         "data": {
-          "amortization_investment_eur": "Investment (EUR)",
-          "amortization_subsidy_eur": "Subsidy (EUR)",
-          "amortization_commissioning_date": "Commissioning date (YYYY-MM-DD)",
-          "amortization_annual_running_costs_eur": "Running costs per year (EUR)",
-          "amortization_price_increase_percent": "Electricity price increase per year (%)",
-          "amortization_degradation_percent": "PV degradation per year (%)"
+          "amortization_investment_eur": "Investissement (EUR)",
+          "amortization_subsidy_eur": "Aide (EUR)",
+          "amortization_commissioning_date": "Date de mise en service (YYYY-MM-DD)",
+          "amortization_annual_running_costs_eur": "Coûts annuels (EUR)",
+          "amortization_price_increase_percent": "Hausse du prix de l'électricité par an (%)",
+          "amortization_degradation_percent": "Dégradation PV par an (%)"
         },
         "data_description": {
-          "amortization_investment_eur": "Total system cost before subsidies.",
-          "amortization_subsidy_eur": "One-time subsidies or grants reducing the investment.",
-          "amortization_commissioning_date": "Historical cashflows are counted from this month. Format: YYYY-MM-DD.",
-          "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
-          "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
-          "amortization_degradation_percent": "Annual PV output degradation in the projection."
+          "amortization_investment_eur": "Coût total de l'installation avant aides.",
+          "amortization_subsidy_eur": "Aides uniques qui réduisent l'investissement.",
+          "amortization_commissioning_date": "Les flux historiques sont comptés à partir de ce mois. Format : YYYY-MM-DD.",
+          "amortization_annual_running_costs_eur": "Entretien, assurance, comptage ou coûts annuels similaires.",
+          "amortization_price_increase_percent": "Hypothèse de hausse des prix de l'électricité dans la projection.",
+          "amortization_degradation_percent": "Baisse annuelle de production PV dans la projection."
         }
       },
       "advanced": {
@@ -351,7 +405,65 @@
     }
   },
   "entity": {
+    "sensor": {
+      "heating_target": {
+        "name": "Consigne cible",
+        "state_attributes": {
+          "mode": {
+            "state": {
+              "observe": "Observation",
+              "comfort": "Confort",
+              "away": "Absent",
+              "frost": "Protection hors gel",
+              "locked": "Verrouillé",
+              "disabled": "Désactivé",
+              "override": "En pause"
+            }
+          },
+          "reason": {
+            "state": {
+              "locked": "La licence n'est pas active",
+              "disabled": "Le chauffage de la pièce est arrêté",
+              "no_persons": "Aucune personne sélectionnée",
+              "presence_home": "Quelqu'un est à la maison",
+              "presence_unknown": "La présence est inconnue",
+              "presence_pending": "Le délai d'absence est encore en cours",
+              "presence_away": "Tout le monde est absent",
+              "window_open": "La fenêtre est ouverte",
+              "away_setback": "Abaissement en absence",
+              "comfort": "Température de confort",
+              "room_inactive": "La régulation est arrêtée pour cette pièce",
+              "thermostat_unavailable": "Le thermostat est indisponible",
+              "hvac_off": "Le thermostat est arrêté",
+              "range_setpoint": "Le thermostat utilise une plage de température",
+              "setpoint_unreadable": "La consigne est illisible",
+              "within_band": "Déjà proche de la cible",
+              "same_value": "Cette consigne a déjà été envoyée",
+              "decrease_limited": "La baisse est limitée à une fois par heure",
+              "increase_limited": "La hausse attend après la dernière écriture",
+              "manual_override": "En pause après une modification manuelle",
+              "startup_hold": "Attente après le redémarrage",
+              "write_failed": "Le thermostat n'a pas accepté la consigne",
+              "schedule_setback": "En dehors de la plage horaire",
+              "hvac_switched": "Le mode vient de changer",
+              "mixed_reasons": "Plusieurs raisons",
+              "outdoor_unavailable": "La température extérieure est indisponible",
+              "outdoor_missing": "Aucune température extérieure sélectionnée"
+            }
+          },
+          "presence": {
+            "state": {
+              "home": "À la maison",
+              "away": "Absent"
+            }
+          }
+        }
+      }
+    },
     "switch": {
+      "heating_active": {
+        "name": "Régulation du chauffage"
+      },
       "smart_charging_enabled": {
         "name": "Charge intelligente"
       }

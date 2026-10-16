@@ -1,0 +1,673 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""Switch platform for solar_forecast_sinv. @thomas"""
+
+import json
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+from homeassistant.components.button import (
+    ButtonDeviceClass,
+    ButtonEntity,
+    ButtonEntityDescription,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_EXCLUDE, EntityCategory
+from homeassistant.core import HomeAssistant, ServiceResponse
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import (
+    ALLOW_TESTMODE,
+    ATTRIBUTION,
+    CREATE_ALL_ENTITIES,
+    DOMAIN,
+    INCLUDE_MQTT_CACHE,
+    LOGGER,
+    SERVICE_GET_DEVICE_INFO,
+)
+from .coordinator import AnkerSolixDataUpdateCoordinator, Command
+from .entity import (
+    AnkerSolixEntityFeature,
+    AnkerSolixEntityRequiredKeyMixin,
+    AnkerSolixEntityType,
+    AnkerSolixPicturePath,
+    SinvEntity,
+    get_AnkerSolixAccountInfo,
+    get_AnkerSolixDeviceInfo,
+    get_AnkerSolixSubdeviceInfo,
+    get_AnkerSolixSystemInfo,
+    get_AnkerSolixVehicleInfo,
+)
+from .solixapi.apitypes import SolixDeviceType, SolixVehicle
+from .solixapi.mqtt_device import SolixMqttDevice
+from .solixapi.mqttcmdmap import SolixMqttCommands
+
+
+@dataclass(frozen=True)
+class AnkerSolixButtonDescription(
+    ButtonEntityDescription, AnkerSolixEntityRequiredKeyMixin
+):
+    """Button entity description with optional keys. @thomas"""
+
+    force_creation_fn: Callable[[dict, str], bool] = lambda d, jk: False
+    picture_path: str = None
+    feature: AnkerSolixEntityFeature | None = None
+    mqtt: bool = False
+    mqtt_cmd: str | None = None
+    mqtt_cmd_parm: str | None = None
+    # Use optionally to provide function for value calculation or lookup of nested values
+    value_fn: Callable[[dict, str], bool | None] = lambda d, jk: d.get(jk)
+    exclude_fn: Callable[[set, dict], bool] = lambda s, d: False
+
+
+DEVICE_BUTTONS = [
+    AnkerSolixButtonDescription(
+        key=Command.REFRESH_DEVICE.value,
+        translation_key=Command.REFRESH_DEVICE.value,
+        json_key="",
+        force_creation_fn=lambda d, jk: True,
+        feature=AnkerSolixEntityFeature.SYSTEM_INFO,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+    AnkerSolixButtonDescription(
+        key="mqtt_realtime_trigger",
+        translation_key="mqtt_realtime_trigger",
+        json_key="",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not (({d.get("type")} - s) and "mqtt_data" in d),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.realtime_trigger,
+    ),
+    AnkerSolixButtonDescription(
+        # Status request button should only be created if no realtime triggers are supported
+        key="mqtt_status_request",
+        translation_key="mqtt_status_request",
+        json_key="",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not (({d.get("type")} - s) and "mqtt_data" in d),
+        mqtt=True,
+        # Note: Enforce creation together with realtime trigger since cmd not defined for each device
+        force_creation_fn=lambda d, jk: "mqtt_data" in d,
+        mqtt_cmd=SolixMqttCommands.status_request,
+    ),
+    AnkerSolixButtonDescription(
+        key="restart_device",
+        translation_key="restart_device",
+        # json key must be available in MQTT cmd options to create and use the button
+        json_key="restart",
+        device_class=ButtonDeviceClass.RESTART,
+        entity_category=EntityCategory.CONFIG,
+        # create button only after MQTT data is available
+        exclude_fn=lambda s, d: not (({d.get("type")} - s) and d.get("mqtt_data")),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.device_power_mode,
+        mqtt_cmd_parm="set_device_power_mode",
+    ),
+    # NOTE: Shutdown requires physical device access afterwards
+    AnkerSolixButtonDescription(
+        key="shutdown_device",
+        translation_key="shutdown_device",
+        # json key must be available in MQTT cmd options to create and use the button
+        json_key="shutdown",
+        entity_category=EntityCategory.CONFIG,
+        # create button only after MQTT data is available
+        exclude_fn=lambda s, d: not (({d.get("type")} - s) and d.get("mqtt_data")),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.device_power_mode,
+        mqtt_cmd_parm="set_device_power_mode",
+    ),
+]
+
+SITE_BUTTONS = []
+
+ACCOUNT_BUTTONS = [
+    AnkerSolixButtonDescription(
+        key=Command.REFRESH_VEHICLES.value,
+        translation_key=Command.REFRESH_VEHICLES.value,
+        json_key="",
+        force_creation_fn=lambda d, jk: True,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        picture_path=getattr(
+            AnkerSolixPicturePath, SolixDeviceType.VEHICLE.value.upper(), None
+        ),
+        exclude_fn=lambda s, d: not ({SolixDeviceType.VEHICLE.value} - s),
+    ),
+]
+
+VEHICLE_BUTTONS = [
+    # Restore button is actually not needed since restore is done via model_id selection
+    # AnkerSolixButtonDescription(
+    #     key="restore_attributes",
+    #     translation_key="restore_attributes",
+    #     json_key="restore_attributes",
+    #     force_creation_fn=lambda d, jk: True,
+    #     exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    # ),
+]
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up button platform. @thomas"""
+
+    coordinator: AnkerSolixDataUpdateCoordinator = hass.data[DOMAIN].get(entry.entry_id)
+    entities = []
+    mdev: SolixMqttDevice | None = None
+    if coordinator and hasattr(coordinator, "data") and coordinator.data:
+        # create entity based on type of entry in coordinator data, which consolidates the api.sites, api.devices and api.account dictionaries
+        # the coordinator.data dict key is either account nickname, a site_id or device_sn and used as context for the entity to lookup its data
+        for context, data in coordinator.data.items():
+            mdev = None
+            if (data_type := data.get("type")) == SolixDeviceType.SYSTEM.value:
+                # Unique key for site_id entry in data
+                entity_type = AnkerSolixEntityType.SITE
+                entity_list = SITE_BUTTONS
+            elif data_type == SolixDeviceType.ACCOUNT.value:
+                # Unique key for account entry in data
+                entity_type = AnkerSolixEntityType.ACCOUNT
+                entity_list = ACCOUNT_BUTTONS
+            elif data_type == SolixDeviceType.VEHICLE.value:
+                # vehicle entry in data
+                entity_type = AnkerSolixEntityType.VEHICLE
+                entity_list = VEHICLE_BUTTONS
+            else:
+                # device_sn entry in data
+                entity_type = AnkerSolixEntityType.DEVICE
+                entity_list = DEVICE_BUTTONS
+                # get MQTT device
+                mdev = coordinator.client.get_mqtt_device(sn=context)
+
+            for description in (
+                desc
+                for desc in entity_list
+                if bool(CREATE_ALL_ENTITIES)
+                or (
+                    not desc.exclude_fn(set(entry.options.get(CONF_EXCLUDE, [])), data)
+                    and (
+                        desc.force_creation_fn(data, desc.json_key)
+                        # filter MQTT entities and provide combined or only api cache
+                        # Entities that should not be created without MQTT data need to use exclude option
+                        or (
+                            desc.mqtt
+                            and mdev
+                            # Buttons with an MQTT command should only be created if the json key is in the control options
+                            # or the command and optional parameter is in the control
+                            and (
+                                not desc.mqtt_cmd
+                                or (
+                                    desc.json_key
+                                    and desc.json_key
+                                    in mdev.get_cmd_parm_option_map(
+                                        cmd=desc.mqtt_cmd, parm=desc.mqtt_cmd_parm
+                                    )
+                                )
+                                or (
+                                    not desc.json_key
+                                    and desc.mqtt_cmd in mdev.controls
+                                    and (
+                                        not desc.mqtt_cmd_parm
+                                        or desc.mqtt_cmd_parm
+                                        in mdev.get_cmd_parms(
+                                            cmd=desc.mqtt_cmd, defaults=True
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                        # filter API only entities
+                        or (
+                            not desc.mqtt
+                            and desc.value_fn(data, desc.json_key) is not None
+                        )
+                    )
+                )
+            ):
+                entity = AnkerSolixButton(
+                    coordinator, description, context, entity_type
+                )
+                entities.append(entity)
+
+    # create the buttons from the list
+    async_add_entities(entities)
+
+
+class AnkerSolixButton(SinvEntity, CoordinatorEntity, ButtonEntity):
+    """solar_forecast_sinv button class. @thomas"""
+
+    coordinator: AnkerSolixDataUpdateCoordinator
+    entity_description: AnkerSolixButtonDescription
+    _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset({})
+
+    def __init__(
+        self,
+        coordinator: AnkerSolixDataUpdateCoordinator,
+        description: AnkerSolixButtonDescription,
+        context: str,
+        entity_type: str,
+    ) -> None:
+        """Initialize the button class. @thomas"""
+        super().__init__(coordinator, context)
+
+        self._attribute_name = description.key
+        self._attr_attribution = f"{ATTRIBUTION}{' + MQTT' if description.mqtt else ''}"
+        self._attr_unique_id = (f"{context}_{description.key}").lower()
+        wwwroot = str(Path(self.coordinator.hass.config.config_dir) / "www")
+        if (
+            description.picture_path
+            and Path(
+                description.picture_path.replace(
+                    AnkerSolixPicturePath.LOCALPATH, wwwroot
+                )
+            ).is_file()
+        ):
+            self._attr_entity_picture = description.picture_path
+        self.entity_description = description
+        self.entity_type = entity_type
+        self._attr_extra_state_attributes = None
+        if self.entity_type == AnkerSolixEntityType.DEVICE:
+            # get the device data from device context entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            if data.get("is_subdevice"):
+                self._attr_device_info = get_AnkerSolixSubdeviceInfo(data, context)
+            else:
+                self._attr_device_info = get_AnkerSolixDeviceInfo(data, context)
+                # add service attribute for device entities
+                self._attr_supported_features: AnkerSolixEntityFeature = (
+                    description.feature
+                )
+            if self._attribute_name == Command.REFRESH_DEVICE.value:
+                # set the correct device type picture for the device refresh entity, which is available for any device and account type
+                if (pn := str(data.get("device_pn") or "").upper()) and hasattr(
+                    AnkerSolixPicturePath, pn
+                ):
+                    self._attr_entity_picture = getattr(AnkerSolixPicturePath, pn)
+                elif (dev_type := str(data.get("type") or "").upper()) and hasattr(
+                    AnkerSolixPicturePath, dev_type
+                ):
+                    self._attr_entity_picture = getattr(AnkerSolixPicturePath, dev_type)
+                # replace picture with web image or None if no local file available
+                if (
+                    self._attr_entity_picture
+                    and not Path(
+                        self._attr_entity_picture.replace(
+                            AnkerSolixPicturePath.LOCALPATH, wwwroot
+                        )
+                    ).is_file()
+                ):
+                    self._attr_entity_picture = data.get("img_url") or None
+        elif self.entity_type == AnkerSolixEntityType.ACCOUNT:
+            # get the account data from account context entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            self._attr_device_info = get_AnkerSolixAccountInfo(data, context)
+        elif self.entity_type == AnkerSolixEntityType.VEHICLE:
+            # get the vehicle info data from vehicle entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            self._attr_device_info = get_AnkerSolixVehicleInfo(data, context)
+        else:
+            # get the site info data from site context entry of coordinator data
+            data = (coordinator.data.get(context, {})).get("site_info", {})
+            self._attr_device_info = get_AnkerSolixSystemInfo(data, context)
+
+    @property
+    def supported_features(self) -> AnkerSolixEntityFeature:
+        """Flag supported features. @thomas"""
+        return self._attr_supported_features
+
+    async def async_press(self) -> None:
+        """Handle the button press. @thomas"""
+        # Wait until client cache is valid before running any api action
+        await self.coordinator.client.validate_cache()
+        mdev = self.coordinator.client.get_mqtt_device(self.coordinator_context)
+        # raise error if MQTT control but device is passive
+        if self.entity_description.mqtt_cmd and mdev and mdev.is_passive():
+            raise ServiceValidationError(
+                f"'{self.entity_id}' cannot be used while device is running in local mode",
+                translation_domain=DOMAIN,
+                translation_key="local_mode",
+                translation_placeholders={"entity_id": self.entity_id},
+            )
+        if self._attribute_name == Command.REFRESH_DEVICE.value:
+            if (
+                self.coordinator.client.last_device_refresh
+                and (
+                    datetime.now().astimezone()
+                    - self.coordinator.client.last_device_refresh
+                ).total_seconds()
+                < self.coordinator.client.min_device_refresh
+            ):
+                raise ServiceValidationError(
+                    f"Devices for {self.coordinator.client.api.apisession.nickname} cannot be updated within less than {self.coordinator.client.min_device_refresh} seconds",
+                    translation_domain=DOMAIN,
+                    translation_key="device_refresh",
+                    translation_placeholders={
+                        "coordinator": self.coordinator.client.api.apisession.nickname,
+                        "min_dev_refresh": str(
+                            self.coordinator.client.min_device_refresh
+                        ),
+                    },
+                )
+            if (
+                self.coordinator.client.active_device_refresh
+                or self.coordinator.client.startup
+            ):
+                raise ServiceValidationError(
+                    f"Devices for {self.coordinator.client.api.apisession.nickname} cannot be updated while another update is still running",
+                    translation_domain=DOMAIN,
+                    translation_key="device_refresh_active",
+                    translation_placeholders={
+                        "coordinator": self.coordinator.client.api.apisession.nickname,
+                    },
+                )
+            LOGGER.debug(
+                "%s triggered device refresh",
+                self.entity_id,
+            )
+            await self.coordinator.async_execute_command(self.entity_description.key)
+        elif self._attribute_name == "mqtt_realtime_trigger":
+            if not (
+                mdev
+                and await mdev.realtime_trigger(
+                    timeout=self.coordinator.client.trigger_timeout(),
+                    toFile=self.coordinator.client.testmode(),
+                )
+                is not None
+            ):
+                dev = self.coordinator.data.get(self.coordinator_context) or {}
+                alias = dev.get("alias") or ""
+                raise ServiceValidationError(
+                    f"'{self._attribute_name}' for {self.coordinator.client.api.apisession.nickname} device "
+                    f"{alias} ({self.coordinator_context}) failed",
+                    translation_domain=DOMAIN,
+                    translation_key="mqtt_command_failed",
+                    translation_placeholders={
+                        "command": self._attribute_name,
+                        "coordinator": self.coordinator.client.api.apisession.nickname,
+                        "device_alias": alias,
+                        "device_sn": self.coordinator_context,
+                    },
+                )
+            LOGGER.info(
+                "'%s' triggered MQTT real time data refresh for device, timeout %s seconds",
+                self.entity_id,
+                self.coordinator.client.trigger_timeout(),
+            )
+        elif self._attribute_name == "mqtt_status_request":
+            if not (
+                mdev
+                and await mdev.status_request(
+                    toFile=self.coordinator.client.testmode(),
+                )
+                is not None
+            ):
+                dev = self.coordinator.data.get(self.coordinator_context) or {}
+                alias = dev.get("alias") or ""
+                raise ServiceValidationError(
+                    f"'{self._attribute_name}' for {self.coordinator.client.api.apisession.nickname} device "
+                    f"{alias} ({self.coordinator_context}) failed",
+                    translation_domain=DOMAIN,
+                    translation_key="mqtt_command_failed",
+                    translation_placeholders={
+                        "command": self._attribute_name,
+                        "coordinator": self.coordinator.client.api.apisession.nickname,
+                        "device_alias": alias,
+                        "device_sn": self.coordinator_context,
+                    },
+                )
+            LOGGER.info(
+                "'%s' triggered an MQTT status request for device",
+                self.entity_id,
+            )
+        elif self._attribute_name == Command.REFRESH_VEHICLES.value:
+            if (
+                self.coordinator.client.active_device_refresh
+                or self.coordinator.client.startup
+            ):
+                raise ServiceValidationError(
+                    f"Devices for {self.coordinator.client.api.apisession.nickname} cannot be updated while another update is still running",
+                    translation_domain=DOMAIN,
+                    translation_key="device_refresh_active",
+                    translation_placeholders={
+                        "coordinator": self.coordinator.client.api.apisession.nickname,
+                    },
+                )
+            LOGGER.debug(
+                "%s triggered vehicles refresh",
+                self.entity_id,
+            )
+            await self.coordinator.async_execute_command(self.entity_description.key)
+        elif self._attribute_name == "restore_attributes":
+            LOGGER.debug(
+                "%s triggered restore of vehicle attributes",
+                self.entity_id,
+            )
+            data = (self.coordinator.data or {}).get(self.coordinator_context) or {}
+            # keep the existing capacity as selection critera for multiple attribute versions
+            vehicle = SolixVehicle(
+                brand=data.get("brand"),
+                model=data.get("model"),
+                productive_year=data.get("productive_year"),
+                model_id=data.get("id"),
+                battery_capacity=data.get("battery_capacity"),
+            )
+            resp = await self.coordinator.client.api.manage_vehicle(
+                vehicleId=self.coordinator_context,
+                action="restore",
+                vehicle=vehicle,
+                toFile=self.coordinator.client.testmode(),
+            )
+            if isinstance(resp, dict):
+                LOGGER.log(
+                    logging.INFO if ALLOW_TESTMODE else logging.DEBUG,
+                    "%s: '%s' Restored vehicle attributes from '%s':\n%s",
+                    "TESTMODE" if self.coordinator.client.testmode() else "LIVEMODE",
+                    self.entity_id,
+                    str(vehicle),
+                    json.dumps(resp, indent=2 if len(json.dumps(resp)) < 200 else None),
+                )
+                # trigger cache update for selected vehicle option
+                await self.coordinator.client.api.update_vehicle_options(
+                    vehicle=vehicle
+                )
+                # trigger coordinator update with api dictionary data
+                await self.coordinator.async_refresh_data_from_apidict()
+            else:
+                LOGGER.log(
+                    logging.INFO if ALLOW_TESTMODE else logging.DEBUG,
+                    "%s: '%s' Restore of vehicle attributes from '%s' could not be applied",
+                    "TESTMODE" if self.coordinator.client.testmode() else "LIVEMODE",
+                    self.entity_id,
+                    str(vehicle),
+                )
+        # Trigger MQTT commands depending on changed entity
+        elif self.entity_description.mqtt_cmd and mdev:
+            LOGGER.debug(
+                "'%s' press will be applied via MQTT command '%s'",
+                self.entity_id,
+                self.entity_description.mqtt_cmd,
+            )
+            # use json_key as value option for mqtt command if provided
+            await self._async_mqtt_command(
+                mdev=mdev, value=self.entity_description.json_key or None
+            )
+
+    async def get_device_info(self, **kwargs: Any) -> ServiceResponse:
+        """Get the actual device info from the cache. @thomas"""
+        return await self._solix_device_service(
+            service_name=SERVICE_GET_DEVICE_INFO, **kwargs
+        )
+
+    async def _async_mqtt_command(
+        self,
+        mdev: SolixMqttDevice,
+        value: Any | None = None,
+        cmd: str | None = None,
+        parm: str | None = None,
+        parm_map: dict | None = None,
+    ) -> dict | None:
+        """Use MQTT device control to issue command. @thomas"""
+        resp = None
+        if mdev:
+            if not isinstance(cmd, str):
+                cmd = self.entity_description.mqtt_cmd
+            if not isinstance(parm, str):
+                parm = self.entity_description.mqtt_cmd_parm
+            try:
+                cmdvalue = (
+                    mdev.get_cmd_parm_option_map(
+                        cmd=cmd,
+                        parm=parm,
+                    ).get(value)
+                    if value is not None
+                    else None
+                )
+                resp = await mdev.run_command(
+                    cmd=cmd,
+                    parm=parm,
+                    value=value if cmdvalue is None else cmdvalue,
+                    parm_map=parm_map,
+                    toFile=self.coordinator.client.testmode(),
+                )
+                if isinstance(resp, dict):
+                    if ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied MQTT command '%s' for '%s' with value '%s':\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            cmd,
+                            self.entity_id,
+                            value or "",
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+                    # trigger status request to get updated MQTT message
+                    await mdev.status_request(toFile=self.coordinator.client.testmode())
+                else:
+                    LOGGER.error(
+                        "'%s' could not issue MQTT command '%s'",
+                        self.entity_id,
+                        cmd,
+                    )
+            except (ValueError, TypeError) as err:
+                LOGGER.error(
+                    "'%s' could not issue MQTT command '%s':\n%s",
+                    self.entity_id,
+                    cmd,
+                    str(err),
+                )
+        if not isinstance(resp, dict):
+            cmd_parm = f"{cmd!s}{(' with parm ' + str(parm)) if parm else ''}"
+            alias = (
+                self.coordinator.data.get(self.coordinator_context, {}).get("alias")
+                or ""
+            )
+            raise ServiceValidationError(
+                f"'{cmd_parm}' for {self.coordinator.client.api.apisession.nickname} device "
+                f"{alias} ({self.coordinator_context}) failed",
+                translation_domain=DOMAIN,
+                translation_key="mqtt_command_failed",
+                translation_placeholders={
+                    "command": cmd_parm,
+                    "coordinator": self.coordinator.client.api.apisession.nickname,
+                    "device_alias": alias,
+                    "device_sn": self.coordinator_context,
+                },
+            )
+        return resp
+
+    async def _solix_device_service(
+        self, service_name: str, **kwargs: Any
+    ) -> ServiceResponse:
+        """Execute the defined device action. @thomas"""
+        # Raise alerts to frontend
+        if not (self.supported_features & AnkerSolixEntityFeature.SYSTEM_INFO):
+            raise ServiceValidationError(
+                f"The entity {self.entity_id} does not support the action {service_name}",
+                translation_domain=DOMAIN,
+                translation_key="service_not_supported",
+                translation_placeholders={
+                    "entity": self.entity_id,
+                    "service": service_name,
+                },
+            )
+        # When running in Test mode do not run services that are not supporting a testmode
+        if (
+            self.coordinator.client.testmode()
+            and service_name != SERVICE_GET_DEVICE_INFO
+        ):
+            raise ServiceValidationError(
+                f"{self.entity_id} cannot be used while configuration is running in testmode",
+                translation_domain=DOMAIN,
+                translation_key="active_testmode",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                },
+            )
+        # When Api refresh is deactivated, do not run action to avoid kicking off other client Api token
+        if not self.coordinator.client.allow_refresh():
+            raise ServiceValidationError(
+                f"{self.entity_id} cannot be used for requested action {service_name} while Api usage is deactivated",
+                translation_domain=DOMAIN,
+                translation_key="apiusage_deactivated",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                    "action_name": service_name,
+                },
+            )
+        if (
+            self.coordinator
+            and hasattr(self.coordinator, "data")
+            and self.coordinator_context in self.coordinator.data
+        ):
+            if service_name == SERVICE_GET_DEVICE_INFO:
+                LOGGER.debug("%s action will be applied", service_name)
+                # Wait until client cache is valid
+                await self.coordinator.client.validate_cache()
+                result = {
+                    "device_info": self.coordinator.data.get(
+                        self.coordinator_context, {}
+                    )
+                }
+                if kwargs.get(INCLUDE_MQTT_CACHE):
+                    result.update(
+                        {
+                            "mqtt_cache": self.coordinator.client.api.mqttsession.mqtt_data.get(
+                                self.coordinator_context, {}
+                            )
+                            if self.coordinator.client.api.mqttsession
+                            else {}
+                        }
+                    )
+                return result
+
+            raise ServiceValidationError(
+                f"The entity {self.entity_id} does not support the action {service_name}",
+                translation_domain=DOMAIN,
+                translation_key="service_not_supported",
+                translation_placeholders={
+                    "entity": self.entity_id,
+                    "service": service_name,
+                },
+            )
+        return None

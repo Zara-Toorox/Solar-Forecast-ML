@@ -1,0 +1,608 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""DataUpdateCoordinator for Anker Solix. @thomas"""
+
+import logging
+from asyncio import sleep
+from datetime import datetime, timedelta
+from enum import StrEnum
+from functools import partial
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.event import async_call_later, async_track_time_interval
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from .api_client import (
+    AnkerSolixApiClient,
+    AnkerSolixApiClientAuthenticationError,
+    AnkerSolixApiClientCommunicationError,
+    AnkerSolixApiClientError,
+    AnkerSolixApiClientRetryExceededError,
+)
+from .const import ALLOW_TESTMODE, DOMAIN, LOGGER, MQTT_STATUS_INTERVAL, PLATFORMS
+from .solixapi.apitypes import SolixDeviceType
+
+
+class Command(StrEnum):
+    """Enumeration for usable coordinator commands. @thomas"""
+
+    ALLOW_REFRESH = "allow_refresh"
+    REFRESH_DEVICE = "refresh_device"
+    REFRESH_VEHICLES = "refresh_vehicles"
+    MQTT_STATUS_INTERVAL = MQTT_STATUS_INTERVAL
+    REMOVE_VEHICLE = "remove_vehicle"
+
+
+# https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
+class AnkerSolixDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to coordinate fetching of all data from the API. @thomas"""
+
+    config_entry: ConfigEntry
+    client: AnkerSolixApiClient
+    details_delayed: datetime | None
+    update_handler: CALLBACK_TYPE | None
+    registered_devices: set
+    mqtt_values: int
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: AnkerSolixApiClient,
+        config_entry: ConfigEntry,
+        update_interval: int,
+    ) -> None:
+        """Initialize. @thomas"""
+        self.config_entry = config_entry
+        self.client = client
+        self.details_delayed = None
+        self.update_handler = None
+        self.registered_devices = set()
+        self.mqtt_values = 0
+        self._scheduled_mqtt_status = {}
+
+        super().__init__(
+            hass=hass,
+            logger=LOGGER,
+            config_entry=config_entry,
+            name=f"{DOMAIN}_{config_entry.title}",
+            update_interval=timedelta(seconds=update_interval),
+        )
+
+    async def _async_update_data(self) -> dict:
+        """Update data via library. @thomas"""
+        try:
+            if (
+                not await self.client.validate_cache()
+                or self.client.active_device_refresh
+            ):
+                # return existing data if cache stays invalid during systems export randomization or manual update still active
+                return self.data
+            # stagger non-initial updates if required
+            if not self.client.startup:
+                await self.async_refresh_delay()
+                await self.async_details_delay()
+            # register callback for MQTT updates if not existing
+            if self.client.mqtt_usage and not self.client.api.mqtt_update_callback():
+                self.client.api.mqtt_update_callback(self.update_callback)
+            data = await self.client.async_get_data()
+            # get device IDs for dynamic entity and device creation
+            ids = set(data.keys())
+            mcount = self.client.get_mqtt_valuecount()
+            # make sure deferred data will create additional entities
+            if self.client.deferred_data and self.config_entry:
+                # trigger reload and register all current devices
+                if await self.async_reload_config(register_devices=data):
+                    self.client.deferred_data = False
+            # initial device registration
+            elif self.client.startup:
+                self.registered_devices = ids
+                self.mqtt_values = mcount
+                # start scheduled status requests for devices with a defined interval
+                await self._async_init_status_request_schedule()
+            # trigger reload if additional devices are found
+            elif ids - self.registered_devices or mcount > self.mqtt_values:
+                LOGGER.log(
+                    logging.INFO if ALLOW_TESTMODE else logging.DEBUG,
+                    "Coordinator %s found additional %s, reloading platforms to setup entities",
+                    self.client.api.apisession.nickname,
+                    f"MQTT values ({diff})"
+                    if (diff := max(0, mcount - self.mqtt_values))
+                    else f"devices ({len(ids - self.registered_devices)})",
+                )
+                await self.async_reload_config(register_devices=data)
+            # trigger device removal if not found anymore
+            elif (
+                ids
+                and self.registered_devices
+                and (removed := self.registered_devices - ids)
+            ):
+                await self.async_remove_device(devices=removed)
+            # adjust mqtt count to recognize new values
+            elif mcount < self.mqtt_values:
+                LOGGER.log(
+                    logging.INFO if ALLOW_TESTMODE else logging.DEBUG,
+                    "Coordinator %s found only %s of %s registered MQTT values, adjusting registered MQTT counter",
+                    self.client.api.apisession.nickname,
+                    str(mcount),
+                    str(self.mqtt_values),
+                )
+                self.mqtt_values = mcount
+        except (
+            AnkerSolixApiClientAuthenticationError,
+            AnkerSolixApiClientRetryExceededError,
+        ) as exception:
+            raise ConfigEntryAuthFailed(exception) from exception
+        except AnkerSolixApiClientCommunicationError as exception:
+            # If the API is providing backoff signals, these can be honored via the retry_after parameter
+            # This parameter will be ignored on first refresh during config entry setup
+            raise UpdateFailed(retry_after=60) from exception
+        except AnkerSolixApiClientError as exception:
+            raise UpdateFailed(exception) from exception
+        else:
+            return data
+
+    async def async_refresh_data_from_apidict(self, delayed: bool = False) -> None:
+        """Update data from client api dictionaries without resetting update interval. @thomas
+
+        The delayed option will wait 2 seconds before listeners are notified to allow
+        consolidating parallel update requests during the state restore processing or MQTT data updates.
+        """
+        self.data = await self.client.async_get_data(from_cache=True)
+        if delayed:
+            # Call later and keep the cancelation callback in the update_handler
+            if self.update_handler is None:
+                self.update_handler = async_call_later(
+                    self.hass,
+                    2.0,
+                    self._delayed_listener_update,
+                )
+                LOGGER.debug(
+                    "Coordinator %s delayed listener update for 2 seconds during MQTT data or entity restore processing",
+                    self.client.api.apisession.nickname,
+                )
+            else:
+                LOGGER.debug(
+                    "Coordinator %s skipped listener update due to active delayed processing",
+                    self.client.api.apisession.nickname,
+                )
+            return
+        # inform listeners about changed data
+        self.async_update_listeners()
+
+    @callback
+    def _delayed_listener_update(self, _now) -> None:
+        """Execute delayed listener update. @thomas"""
+        self.update_handler = None
+        self.async_update_listeners()
+
+    async def _async_init_status_request_schedule(
+        self, cancel_sn: str | None = None
+    ) -> None:
+        """Start request schedule for MQTT devices with defined interval or cancel the provided device schedule. @thomas"""
+        if isinstance(cancel_sn, str):
+            # just cancel existing schedule for provided sn
+            await self._async_schedule_status_request(cancel_sn)
+            return
+        if self.data and self.client:
+            for sn in self.registered_devices:
+                if (
+                    sn not in self._scheduled_mqtt_status
+                    and (interval := self.data.get(sn, {}).get(MQTT_STATUS_INTERVAL))
+                    and (mdev := self.client.get_mqtt_device(sn=sn))
+                    and not mdev.is_passive()
+                ):
+                    await self._async_schedule_status_request(sn, interval)
+
+    async def _async_schedule_status_request(
+        self, device_sn: str, interval: str | float | None = None
+    ) -> None:
+        """Schedule status requests for an MQTT device or stop active schedule if interval is 0. @thomas"""
+        if isinstance(interval, str) and interval.replace(".", "", 1).isdigit():
+            interval = float(interval)
+        elif not isinstance(interval, float | int):
+            interval = 0
+        # get existing schedule
+        dev_schedule = self._scheduled_mqtt_status.pop(device_sn, {})
+        # stop any orphaned schedule
+        if (
+            cancel_cb := dev_schedule.get("callback")
+        ) and device_sn not in self.registered_devices:
+            cancel_cb()
+            LOGGER.info(
+                "Api Coordinator %s stopped MQTT status requests for removed device %s",
+                self.config_entry.title,
+                device_sn,
+            )
+            return
+        changed = False
+        if dev_schedule.get("interval", -1) == int(interval):
+            # no change, add schedule back if callback exists
+            if cancel_cb:
+                self._scheduled_mqtt_status[device_sn] = dev_schedule
+                return
+        elif cancel_cb:
+            # existing schedule is modified, stop old callback
+            cancel_cb()
+            if interval > 0:
+                # Clear old callback to create new schedule
+                cancel_cb = None
+                changed = True
+            else:
+                LOGGER.info(
+                    "Api Coordinator %s stopped MQTT status requests for device %s",
+                    self.config_entry.title,
+                    device_sn,
+                )
+        if interval and not cancel_cb:
+            # run immediate request and start new schedule
+            await self.scheduled_mqtt_status_request(device_sn)
+            dev_schedule = {"interval": int(interval)}
+            # Send request every interval
+            dev_schedule["callback"] = async_track_time_interval(
+                self.hass,
+                partial(self.scheduled_mqtt_status_request, device_sn),
+                timedelta(seconds=interval),
+                name=f"Scheduled MQTT status {device_sn}",
+                cancel_on_shutdown=True,
+            )
+            self._scheduled_mqtt_status[device_sn] = dev_schedule
+            LOGGER.info(
+                "Api Coordinator %s %s regular MQTT status requests for device %s %s %s seconds interval",
+                self.config_entry.title,
+                "changed" if changed else "started",
+                device_sn,
+                "to" if changed else "with",
+                int(interval),
+            )
+
+    async def scheduled_mqtt_status_request(
+        self, device_sn: str, _now: datetime | None = None
+    ) -> None:
+        """Execute a scheduled MQTT status request for the provided device if MQTT connection exists. @thomas"""
+        testmode = self.client.testmode()
+        if (
+            self.client.cache_valid
+            and (mdev := self.client.get_mqtt_device(sn=device_sn))
+            and not mdev.is_passive()
+            and (mdev.is_subscribed() or testmode)
+        ):
+            await mdev.status_request(toFile=testmode)
+
+    async def async_refresh_device_details(
+        self, reset_cache: bool = False, categories: set | str | None = None
+    ) -> None:
+        """Update data including device details or dedicated categories only and reset update interval. @thomas"""
+        categories = (
+            categories
+            if isinstance(categories, set)
+            else {categories}
+            if isinstance(categories, str)
+            else None
+        )
+        if categories:
+            if SolixDeviceType.VEHICLE.value in categories:
+                # Refresh only device details for user account
+                data = await self.client.async_get_data(vehicle_details=True)
+        else:
+            data = await self.client.async_get_data(
+                device_details=True, reset_cache=reset_cache
+            )
+        if reset_cache:
+            # ensure to refresh entity setup when cache was reset to unload all entities and reload remaining entities
+            # This will also restore states from previous state in state machine if required
+            self.data = data
+            self.mqtt_values = self.client.get_mqtt_valuecount()
+            await self.async_reload_config(register_devices=data)
+        else:
+            # update coordinator data and notify listeners
+            self.async_set_updated_data(data)
+            # get device IDs for dynamic entity and device creation
+            ids = set(data.keys())
+            mcount = self.client.get_mqtt_valuecount()
+            # trigger reload if additional devices are found
+            if ids - self.registered_devices or mcount > self.mqtt_values:
+                LOGGER.log(
+                    logging.INFO if ALLOW_TESTMODE else logging.DEBUG,
+                    "Coordinator %s found additional %s, reloading platforms to setup entities",
+                    self.client.api.apisession.nickname,
+                    f"{mcount - self.mqtt_values} MQTT values"
+                    if mcount > self.mqtt_values
+                    else f"devices {(ids - self.registered_devices)!s}",
+                )
+                await self.async_reload_config(register_devices=data)
+            # trigger device removal if not found anymore
+            elif (
+                ids
+                and self.registered_devices
+                and (removed := self.registered_devices - ids)
+            ):
+                await self.async_remove_device(devices=removed)
+
+    def update_callback(self, sn: str | None = None, **args) -> None:
+        """Define callback for coordinator updates upon MQTT value changes. @thomas"""
+        LOGGER.debug(
+            "Coordinator %s received new MQTT data for device %s:\n%s",
+            self.client.api.apisession.nickname,
+            sn,
+            str(
+                self.client.get_mqtt_device(sn).mqttdata
+                if sn in self.client.mqtt_devices
+                else {}
+            ),
+        )
+        # wrap the async method to refresh coordinator from cache
+        self.hass.add_job(self.async_refresh_data_from_apidict(delayed=True))
+
+    async def async_shutdown(self) -> None:
+        """Clear Api cache to close any active MQTT loop and then call super method. @thomas"""
+        # Ensue any MQTT connection is closed by clearing cache upon shutdown
+        if self and self.client and self.client.api:
+            # cancel any scheduled MQTT status requests
+            for dev_schedule in self._scheduled_mqtt_status.values():
+                if cancel_cb := dev_schedule.get("callback"):
+                    cancel_cb()
+            self._scheduled_mqtt_status = {}
+            self.client.api.clearCaches()
+        await super().async_shutdown()
+
+    async def async_reload_config(
+        self, register_devices: set | dict | None = None
+    ) -> bool:
+        """Reload the configuration entry for all platforms to add missing entities and devices and register found devices. @thomas"""
+        # Wait until client cache is valid before running api action
+        await self.client.validate_cache()
+        # ensure to refresh entity setup to unload all entities and reload found entities
+        loaded_entry = bool(
+            [
+                e
+                for e in self.hass.config_entries.async_loaded_entries(DOMAIN)
+                if e.entry_id == self.config_entry.entry_id
+            ]
+        )
+        if loaded_entry and await self.hass.config_entries.async_unload_platforms(
+            self.config_entry, PLATFORMS
+        ):
+            # refresh restore state cache
+            await self.hass.config_entries.async_forward_entry_setups(
+                self.config_entry, PLATFORMS
+            )
+            # register current devices to monitor changes
+            self.registered_devices = (
+                register_devices
+                if isinstance(register_devices, set)
+                else set(register_devices.keys())
+                if isinstance(register_devices, dict)
+                else set()
+            )
+            # save actual mqtt device value count
+            self.mqtt_values = self.client.get_mqtt_valuecount()
+            # start scheduled status requests for devices with a defined interval
+            await self._async_init_status_request_schedule()
+            return True
+        return False
+
+    async def async_remove_device(self, devices: set) -> None:
+        """Remove given devices if they have no active data. @thomas"""
+        device_entries = dr.async_entries_for_config_entry(
+            dr.async_get(self.hass), self.config_entry.entry_id
+        )
+        for dev_entry in [
+            dev for dev in device_entries if dev.serial_number in devices
+        ]:
+            # check that device has no active entity
+            if not any(
+                identifier
+                for identifier in dev_entry.identifiers
+                if identifier[0] == DOMAIN
+                for device_serial in self.data
+                if device_serial == identifier[1]
+            ):
+                # remove the orphaned device; remove_config_entry_id is deprecated since
+                # HA 2026.10 because a device belongs to exactly one config entry
+                dr.async_get(self.hass).async_remove_device(dev_entry.id)
+                self.registered_devices.discard(dev_entry.serial_number)
+                # update MQTT devices and stop scheduled status requests
+                if mdev := self.client.mqtt_devices.pop(dev_entry.serial_number, None):
+                    await self._async_init_status_request_schedule(cancel_sn=mdev.sn)
+                self.mqtt_values = self.client.get_mqtt_valuecount()
+                LOGGER.warning(
+                    "Api Coordinator %s removed orphaned %s device %s, ID %s",
+                    self.config_entry.title,
+                    dev_entry.model,
+                    dev_entry.name,
+                    dev_entry.serial_number,
+                )
+
+    async def async_execute_command(
+        self, command: str, option: Any = None, **kwargs: Any
+    ) -> bool | None:
+        """Execute the given command. @thomas"""
+        match command:
+            case Command.REFRESH_DEVICE:
+                await self.async_refresh_device_details()
+            case Command.REFRESH_VEHICLES:
+                await self.async_refresh_device_details(
+                    categories=SolixDeviceType.VEHICLE.value
+                )
+            case Command.ALLOW_REFRESH:
+                if isinstance(option, bool):
+                    self.client.allow_refresh(allow=option)
+                    if option:
+                        # first restore previous states from cache in state machine to have valid restore state during reload
+                        await self.async_refresh_data_from_apidict()
+                        # refresh states from recreated cache, which will do the reload
+                        await self.async_refresh_device_details(reset_cache=True)
+                    else:
+                        # refresh states from cache that is virtually empty while refresh not allowed
+                        await self.async_refresh_data_from_apidict()
+            case Command.MQTT_STATUS_INTERVAL:
+                if isinstance(option, str):
+                    await self._async_schedule_status_request(
+                        device_sn=option, interval=kwargs.get("interval")
+                    )
+            case Command.REMOVE_VEHICLE:
+                # Wait until client cache is valid before running api action
+                await self.client.validate_cache()
+                if option in self.data and isinstance(
+                    await self.client.api.manage_vehicle(
+                        vehicleId=option,
+                        action="delete",
+                        toFile=self.client.testmode(),
+                    ),
+                    dict,
+                ):
+                    vehicle = self.data.pop(option)
+                    self.registered_devices.discard(option)
+                    LOGGER.info(
+                        "Api Coordinator %s removed vehicle %s device %s",
+                        self.config_entry.title,
+                        vehicle.get("model") or "",
+                        option,
+                    )
+        return None
+
+    async def async_refresh_delay(self) -> None:
+        """Introduce a refresh delay for staggered data collection. @thomas"""
+
+        # stagger interval for sites update cycle
+        sites_shift = timedelta(
+            seconds=5
+        )  # if self.client.startup else timedelta(seconds=10)
+        # get all defined config entries which are not disabled
+        cfg_ids: list[str] = [
+            cfg.entry_id
+            for cfg in self.hass.config_entries.async_entries(
+                domain=DOMAIN, include_disabled=False
+            )
+        ]
+        # hass data contains only completely loaded configuration IDs (with coordinators)
+        # exclude own coordinator if active already
+        active_crds: list[AnkerSolixDataUpdateCoordinator] = [
+            c
+            for c in (self.hass.data.get(DOMAIN) or {}).values()
+            if c.config_entry.entry_id != self.config_entry.entry_id
+        ]
+        # determine a staggered delay based on last data collections of active coordinators or configuration index if none active yet
+        next_refreshes: list[datetime] = [
+            c.client.last_site_refresh + c.update_interval + timedelta(seconds=5)
+            for c in active_crds
+        ]
+        next_refreshes.sort()
+        # find next gap in active clients
+        delay = None
+        time_now = datetime.now().astimezone()
+        start_time = time_now
+        for x in next_refreshes:
+            LOGGER.log(
+                logging.INFO if ALLOW_TESTMODE else logging.DEBUG,
+                "Api Coordinator %s: Other client data refresh expected by %s (in %s seconds)%s",
+                self.client.api.apisession.nickname,
+                x.strftime("%H:%M:%S"),
+                f"{(diff := round((x - time_now).total_seconds()))!s:>3s}",
+                " => THROTTLED?"
+                if diff < -10
+                else " => ACTIVE?"
+                if diff < 0
+                else " => IN RANGE"
+                if diff < sites_shift.total_seconds()
+                else "",
+            )
+            if x - start_time >= sites_shift:
+                # existing gap, break with required delay
+                delay = round(max(0, (start_time - time_now).total_seconds()))
+                break
+            # next gap at least site shift from now
+            start_time = max(x, time_now) + sites_shift
+        if delay is None:
+            # set delay according config index or next possible start time
+            delay = (
+                int(
+                    sites_shift.total_seconds()
+                    * cfg_ids.index(self.config_entry.entry_id)
+                )
+                if start_time <= time_now
+                else int((start_time - time_now).total_seconds())
+            )
+        # set client last sites refresh to previous interval for initial run
+        if not self.client.last_site_refresh:
+            self.client.last_site_refresh = time_now - self.update_interval
+        if delay:
+            LOGGER.info(
+                "Delaying coordinator %s for %s seconds to stagger data refresh",
+                self.client.api.apisession.nickname,
+                int(delay),
+            )
+            # delay also last refresh to allow other clients proper next refresh check
+            self.client.last_site_refresh = (
+                time_now - self.update_interval + timedelta(seconds=delay)
+            )
+            await sleep(delay)
+
+    async def async_details_delay(self) -> None:
+        """Delay next details refresh for staggered data collection. @thomas"""
+
+        if self.client.intervalcount() >= self.client.deviceintervals():
+            # reset delayed time once device details refresh was done
+            self.details_delayed = None
+        elif self.details_delayed:
+            # Adjust projected starttime
+            self.details_delayed = (
+                datetime.now().astimezone()
+                + (self.client.intervalcount() - 1) * self.update_interval
+            )
+        # return if delay should be skipped
+        if (
+            (count := self.client.intervalcount()) > 1
+            or self.client.deviceintervals() <= 2
+            or self.details_delayed
+        ):
+            return
+        # ignore own and short interval coordinators for active coordinators
+        active_crds: list[AnkerSolixDataUpdateCoordinator] = [
+            c
+            for c in (self.hass.data.get(DOMAIN) or {}).values()
+            if c.config_entry.entry_id != self.config_entry.entry_id
+            and c.client.deviceintervals() > 2
+        ]
+        # determine a staggered delay based on running or delayed clients that cannot be delayed further
+        durations: list[timedelta] = [
+            c.details_delayed - datetime.now().astimezone()
+            if c.details_delayed
+            else max(0, c.client.intervalcount() - 1) * c.update_interval
+            for c in active_crds
+            if c.client.active_device_refresh or c.details_delayed
+        ]
+        if durations and min(durations) < timedelta(seconds=70):
+            # stagger interval for details update cycle, delay at least 2 min and 1 minute of largest delay remaining
+            details_shift = round(
+                max(
+                    timedelta(seconds=110),
+                    max(durations) + timedelta(seconds=110),
+                )
+                / self.update_interval
+                + 0.5
+            )
+            LOGGER.info(
+                "Delaying coordinator %s for %s intervals to stagger device details update",
+                self.client.api.apisession.nickname,
+                int(details_shift),
+            )
+            self.client.intervalcount(count + details_shift)
+            # calculate projected start time
+            self.details_delayed = (
+                datetime.now().astimezone()
+                + (count + details_shift - 1) * self.update_interval
+            )

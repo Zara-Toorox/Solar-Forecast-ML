@@ -1,0 +1,493 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Konfiguracja podstawowa",
+        "description": "STATS liczy energię dzienną z czujników mocy chwilowej. EAI potrzebuje dodatkowo licznika dobowego pompy ciepła.\n\nWymagany jest czujnik aktualnej mocy domu.",
+        "data": {
+          "country": "Kraj",
+          "sensor_home_consumption": "Aktualna moc domu (W)",
+          "weather_entity": "Pogoda (opcjonalnie)"
+        },
+        "data_description": {
+          "country": "Wybierz kraj dla VAT i domyślnych cen energii.",
+          "sensor_home_consumption": "Jednostka: W. Aktualne całkowite zapotrzebowanie domu. STATS liczy z tego czujnika energię od północy. (Wymagane)",
+          "weather_entity": "Encja pogody do nakładek na wykresach. (Opcjonalnie)"
+        }
+      },
+      "energy_flows": {
+        "title": "Przepływy energii",
+        "description": "Wybierz dostępne czujniki mocy chwilowej. STATS sam liczy odpowiadające kWh od północy. Wszystkie pola są opcjonalne.",
+        "data": {
+          "sensor_solar_to_house": "Solar → dom (W)",
+          "sensor_inverter_ac_output": "Wyjście AC falownika (W)",
+          "sensor_solar_to_battery": "Solar → akumulator (W)",
+          "sensor_battery_to_house": "Akumulator → dom (W)",
+          "sensor_grid_to_house": "Sieć → dom (W)",
+          "sensor_grid_to_battery": "Sieć → akumulator (W)",
+          "sensor_house_to_grid": "Dom → sieć (W)",
+          "sensor_smartmeter_import": "Pobór licznika inteligentnego (W)",
+          "sensor_smartmeter_export": "Oddawanie licznika inteligentnego (W)"
+        },
+        "data_description": {
+          "sensor_solar_to_house": "Moc PV dostarczana bezpośrednio do domu. (Opcjonalnie)",
+          "sensor_inverter_ac_output": "Całkowita moc AC falownika. Nie wybieraj wejścia PV po DC ani czujnika oddawania licznika inteligentnego. (Opcjonalnie)",
+          "sensor_solar_to_battery": "Moc PV ładująca akumulator. (Opcjonalnie)",
+          "sensor_battery_to_house": "Moc, którą akumulator oddaje do domu. (Opcjonalnie)",
+          "sensor_grid_to_house": "Moc z sieci do domu w W, bez ładowania akumulatora z sieci. Pełny pobór z sieci podawaj tylko razem z czujnikiem poboru licznika inteligentnego: STATS odejmuje wtedy ładowanie akumulatora. Bez tego czujnika wartość się nie zmienia. (Opcjonalnie)",
+          "sensor_grid_to_battery": "Moc z sieci ładująca akumulator. (Opcjonalnie)",
+          "sensor_house_to_grid": "Moc oddawana z domu do sieci. (Opcjonalnie)",
+          "sensor_smartmeter_import": "Aktualny pobór mierzony przez licznik inteligentny. Używane, gdy nie ma osobnego czujnika sieć → dom. (Opcjonalnie)",
+          "sensor_smartmeter_export": "Aktualne oddawanie mierzone przez licznik inteligentny. Używane, gdy nie ma osobnego czujnika dom → sieć. (Opcjonalnie)"
+        }
+      },
+      "optional": {
+        "title": "Akumulator i dane dodatkowe",
+        "description": "Wypełnij te pola tylko wtedy, gdy wartości są dostępne. Instalacje bez akumulatora mogą pominąć ten krok.",
+        "data": {
+          "sensor_battery_soc": "Poziom naładowania akumulatora (%)",
+          "sensor_battery_power": "Moc akumulatora (W)",
+          "sensor_grid_import_extra": "Dodatkowa energia z sieci dziś (kWh)"
+        },
+        "data_description": {
+          "sensor_battery_soc": "Jednostka: procent (0-100). Aktualny poziom naładowania. (Opcjonalnie)",
+          "sensor_battery_power": "Jednostka: W. Dodatnia = ładowanie, ujemna = rozładowanie. (Opcjonalnie)",
+          "sensor_grid_import_extra": "Tylko przypadek szczególny: dodatkowa energia z sieci, której czujniki mocy nie widzą. Musi podawać wartość od północy w kWh. (Opcjonalnie)"
+        }
+      },
+      "consumers": {
+        "title": "Odbiorniki",
+        "description": "Ustaw czujniki mocy chwilowej dla dodatkowych odbiorników. STATS sam liczy ich energię dzienną. Wszystkie pola są opcjonalne.",
+        "data": {
+          "sensor_heatpump_power": "Moc pompy ciepła (W)",
+          "sensor_heatingrod_power": "Moc grzałki (W)",
+          "sensor_wallbox_power": "Moc wallboxa (W)",
+          "sensor_wallbox_state": "Stan wallboxa"
+        },
+        "data_description": {
+          "sensor_heatpump_power": "Pobierane automatycznie z EAI, gdy ustawiono tam czujnik mocy pompy ciepła w W, kW lub MW. W przeciwnym razie używany jest czujnik zapisany tutaj. (Opcjonalnie)",
+          "sensor_heatingrod_power": "Aktualny pobór elektryczny grzałki. (Opcjonalnie)",
+          "sensor_wallbox_power": "Aktualna moc ładowania wallboxa. (Opcjonalnie)",
+          "sensor_wallbox_state": "Aktualny stan wallboxa, na przykład ładowanie, podłączony lub gotowy. (Opcjonalnie)"
+        }
+      },
+      "consumer_details": {
+        "title": "Szczegóły odbiorników",
+        "description": "Dodatkowe wartości dla widoków szczegółów pompy ciepła i wallboxa. Te pola są opcjonalne i można je pominąć.",
+        "data": {
+          "sensor_wb_charge_mode": "Wallbox: tryb ładowania",
+          "sensor_wb_energy_session": "Wallbox: energia bieżącej sesji (kWh)"
+        },
+        "data_description": {
+          "sensor_wb_charge_mode": "Encja z aktualnym trybem ładowania. (Opcjonalnie)",
+          "sensor_wb_energy_session": "Energia naładowana w bieżącej sesji. (Opcjonalnie)"
+        }
+      },
+      "reconfigure": {
+        "title": "Skonfiguruj ponownie Solar Forecast STATS",
+        "description": "Zaktualizuj konfigurację podstawową. Puste pola opcjonalne usuwają zapisane wartości.\n\nSTATS liczy energię dzienną z czujników mocy chwilowej. EAI potrzebuje dodatkowo licznika dobowego pompy ciepła.",
+        "data": {
+          "country": "Kraj",
+          "sensor_home_consumption": "Aktualna moc domu (W)",
+          "weather_entity": "Pogoda (opcjonalnie)"
+        },
+        "data_description": {
+          "country": "Wybierz kraj dla VAT i domyślnych cen energii.",
+          "sensor_home_consumption": "Jednostka: W. Aktualne całkowite zapotrzebowanie domu. STATS liczy z tego czujnika energię od północy. (Wymagane)",
+          "weather_entity": "Encja pogody do nakładek na wykresach. Zostaw puste, aby usunąć dotychczasowy wybór. (Opcjonalnie)"
+        }
+      },
+      "reconfigure_energy_flows": {
+        "title": "Skonfiguruj przepływy energii ponownie",
+        "description": "Wybierz dostępne czujniki mocy chwilowej. Puste pola usuwają zapisany czujnik.",
+        "data": {
+          "sensor_solar_to_house": "Solar → dom (W)",
+          "sensor_inverter_ac_output": "Wyjście AC falownika (W)",
+          "sensor_solar_to_battery": "Solar → akumulator (W)",
+          "sensor_battery_to_house": "Akumulator → dom (W)",
+          "sensor_grid_to_house": "Sieć → dom (W)",
+          "sensor_grid_to_battery": "Sieć → akumulator (W)",
+          "sensor_house_to_grid": "Dom → sieć (W)",
+          "sensor_smartmeter_import": "Pobór licznika inteligentnego (W)",
+          "sensor_smartmeter_export": "Oddawanie licznika inteligentnego (W)"
+        },
+        "data_description": {
+          "sensor_solar_to_house": "Moc PV dostarczana bezpośrednio do domu. (Opcjonalnie)",
+          "sensor_inverter_ac_output": "Całkowita moc AC falownika. Nie wybieraj wejścia PV po DC ani czujnika oddawania licznika inteligentnego. Zostaw puste, jeśli wartości nie ma. (Opcjonalnie)",
+          "sensor_solar_to_battery": "Moc PV ładująca akumulator. (Opcjonalnie)",
+          "sensor_battery_to_house": "Moc, którą akumulator oddaje do domu. (Opcjonalnie)",
+          "sensor_grid_to_house": "Moc z sieci do domu w W, bez ładowania akumulatora z sieci. Pełny pobór z sieci podawaj tylko razem z czujnikiem poboru licznika inteligentnego: STATS odejmuje wtedy ładowanie akumulatora. Bez tego czujnika wartość się nie zmienia. (Opcjonalnie)",
+          "sensor_grid_to_battery": "Moc z sieci ładująca akumulator. (Opcjonalnie)",
+          "sensor_house_to_grid": "Moc oddawana z domu do sieci. (Opcjonalnie)",
+          "sensor_smartmeter_import": "Aktualny pobór mierzony przez licznik inteligentny. Używane, gdy nie ma osobnego czujnika sieć → dom. (Opcjonalnie)",
+          "sensor_smartmeter_export": "Aktualne oddawanie mierzone przez licznik inteligentny. Używane, gdy nie ma osobnego czujnika dom → sieć. (Opcjonalnie)"
+        }
+      },
+      "reconfigure_optional": {
+        "title": "Skonfiguruj ponownie akumulator i dane dodatkowe",
+        "description": "Instalacje bez akumulatora mogą zostawić te pola puste. Puste pola usuwają zapisany czujnik.",
+        "data": {
+          "sensor_battery_soc": "Poziom naładowania akumulatora (%)",
+          "sensor_battery_power": "Moc akumulatora (W)",
+          "sensor_grid_import_extra": "Dodatkowa energia z sieci dziś (kWh)"
+        },
+        "data_description": {
+          "sensor_battery_soc": "Jednostka: procent (0-100). Aktualny poziom naładowania. (Opcjonalnie)",
+          "sensor_battery_power": "Jednostka: W. Dodatnia = ładowanie, ujemna = rozładowanie. (Opcjonalnie)",
+          "sensor_grid_import_extra": "Tylko przypadek szczególny: dodatkowa energia z sieci, której czujniki mocy nie widzą. Musi podawać wartość od północy w kWh. (Opcjonalnie)"
+        }
+      },
+      "reconfigure_consumers": {
+        "title": "Skonfiguruj odbiorniki ponownie",
+        "description": "Ustaw czujniki mocy chwilowej dla dodatkowych odbiorników. Puste pola usuwają zapisany czujnik.",
+        "data": {
+          "sensor_heatpump_power": "Moc pompy ciepła (W)",
+          "sensor_heatingrod_power": "Moc grzałki (W)",
+          "sensor_wallbox_power": "Moc wallboxa (W)",
+          "sensor_wallbox_state": "Stan wallboxa"
+        },
+        "data_description": {
+          "sensor_heatpump_power": "Pobierane automatycznie z EAI, gdy ustawiono tam czujnik mocy pompy ciepła w W, kW lub MW. W przeciwnym razie używany jest czujnik zapisany tutaj. (Opcjonalnie)",
+          "sensor_heatingrod_power": "Aktualny pobór elektryczny grzałki. (Opcjonalnie)",
+          "sensor_wallbox_power": "Aktualna moc ładowania wallboxa. (Opcjonalnie)",
+          "sensor_wallbox_state": "Aktualny stan wallboxa, na przykład ładowanie, podłączony lub gotowy. (Opcjonalnie)"
+        }
+      },
+      "reconfigure_consumer_details": {
+        "title": "Skonfiguruj szczegóły odbiorników ponownie",
+        "description": "Dodatkowe wartości dla widoków szczegółów pompy ciepła i wallboxa. Puste pola usuwają zapisany czujnik.",
+        "data": {
+          "sensor_wb_charge_mode": "Wallbox: tryb ładowania",
+          "sensor_wb_energy_session": "Wallbox: energia bieżącej sesji (kWh)"
+        },
+        "data_description": {
+          "sensor_wb_charge_mode": "Encja z aktualnym trybem ładowania. (Opcjonalnie)",
+          "sensor_wb_energy_session": "Energia naładowana w bieżącej sesji. (Opcjonalnie)"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Solar Forecast STATS jest już skonfigurowane.",
+      "reconfigure_successful": "Rekonfiguracja zakończona.",
+      "not_reconfigure": "Ten krok jest dostępny tylko przy rekonfiguracji.",
+      "entry_not_found": "Nie znaleziono wpisu konfiguracji."
+    },
+    "error": {
+      "cannot_connect": "Połączenie nie powiodło się",
+      "unknown": "Nieznany błąd"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje Solar Forecast STATS",
+        "description": "Wybierz kategorię do konfiguracji.",
+        "data": {},
+        "menu_options": {
+          "sensors": "Czujniki",
+          "consumers": "Szczegóły odbiornika (wallbox)",
+          "pricing": "Ceny",
+          "amortization": "Amortyzacja",
+          "smart_charging": "Akumulator",
+          "advanced": "Zaawansowane",
+          "sinv": "S-INV"
+        },
+        "data_description": {}
+      },
+      "sinv": {
+        "title": "Temperatura modułu",
+        "description": "STATS szacuje temperaturę modułów bez żadnych danych na podstawie temperatury zewnętrznej, wiatru i prądu każdego MPPT. Bez własnych czujników STATS korzysta z ustawionej encji pogody. Czujnik z tyłu modułu jest opcjonalny: zastępuje szacunek dla swojego MPPT i poprawia pozostałe.\n\nFalowniki: {devices}",
+        "data": {
+          "sinv_outdoor_temperature": "Temperatura zewnętrzna",
+          "sinv_wind_speed": "Prędkość wiatru",
+          "module_temperature_1_1": "MPPT 1 – czujnik temperatury modułu",
+          "module_temperature_1_2": "MPPT 2 – czujnik temperatury modułu",
+          "module_temperature_1_3": "MPPT 3 – czujnik temperatury modułu",
+          "module_temperature_1_4": "MPPT 4 – czujnik temperatury modułu",
+          "module_temperature_2_1": "Urządzenie 2 · MPPT 1 – czujnik temperatury modułu",
+          "module_temperature_2_2": "Urządzenie 2 · MPPT 2 – czujnik temperatury modułu",
+          "module_temperature_2_3": "Urządzenie 2 · MPPT 3 – czujnik temperatury modułu",
+          "module_temperature_2_4": "Urządzenie 2 · MPPT 4 – czujnik temperatury modułu",
+          "module_temperature_3_1": "Urządzenie 3 · MPPT 1 – czujnik temperatury modułu",
+          "module_temperature_3_2": "Urządzenie 3 · MPPT 2 – czujnik temperatury modułu",
+          "module_temperature_3_3": "Urządzenie 3 · MPPT 3 – czujnik temperatury modułu",
+          "module_temperature_3_4": "Urządzenie 3 · MPPT 4 – czujnik temperatury modułu",
+          "module_temperature_4_1": "Urządzenie 4 · MPPT 1 – czujnik temperatury modułu",
+          "module_temperature_4_2": "Urządzenie 4 · MPPT 2 – czujnik temperatury modułu",
+          "module_temperature_4_3": "Urządzenie 4 · MPPT 3 – czujnik temperatury modułu",
+          "module_temperature_4_4": "Urządzenie 4 · MPPT 4 – czujnik temperatury modułu"
+        },
+        "data_description": {
+          "sinv_outdoor_temperature": "Opcjonalnie. Bez czujnika używana jest temperatura z encji pogody.",
+          "sinv_wind_speed": "Opcjonalnie. Bez czujnika używany jest wiatr z encji pogody.",
+          "module_temperature_1_1": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_1_2": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_1_3": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_1_4": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_2_1": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_2_2": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_2_3": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_2_4": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_3_1": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_3_2": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_3_3": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_3_4": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_4_1": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_4_2": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_4_3": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha.",
+          "module_temperature_4_4": "Opcjonalnie. Czujnik temperatury z tyłu modułu tego łańcucha."
+        }
+      },
+      "sensors": {
+        "title": "Wszystkie czujniki",
+        "description": "Ustaw wszystkie przypisania czujników.\n\n**Czujniki mocy** podają wartości chwilowe i są automatycznie przeliczane na energię dzienną.",
+        "data": {
+          "country": "Kraj",
+          "sensor_home_consumption": "Zużycie domu (W)",
+          "sensor_solar_to_house": "Solar → dom (W)",
+          "sensor_inverter_ac_output": "Wyjście AC falownika (W)",
+          "weather_entity": "Encja pogody",
+          "sensor_battery_soc": "SOC akumulatora (%)",
+          "sensor_battery_power": "Moc akumulatora (W)",
+          "sensor_solar_to_battery": "Solar → akumulator (W)",
+          "sensor_battery_to_house": "Akumulator → dom (W)",
+          "sensor_grid_to_house": "Sieć → dom (W)",
+          "sensor_grid_to_battery": "Sieć → akumulator (W)",
+          "sensor_house_to_grid": "Oddawanie do sieci (W)",
+          "sensor_smartmeter_import": "Licznik: pobór (W)",
+          "sensor_smartmeter_export": "Licznik: oddawanie (W)",
+          "sensor_grid_import_extra": "Dodatkowy pobór z sieci (kWh)",
+          "sensor_heatpump_power": "Moc pompy ciepła (W)",
+          "sensor_heatingrod_power": "Moc grzałki (W)",
+          "sensor_wallbox_power": "Moc wallboxa (W)",
+          "sensor_wallbox_state": "Stan wallboxa"
+        },
+        "data_description": {
+          "country": "Wybierz kraj dla VAT i domyślnych cen.",
+          "sensor_home_consumption": "Aktualne zużycie mocy domu w W. (Wymagane)",
+          "sensor_solar_to_house": "Bezpośredni przepływ mocy PV do domu, w W. (Opcjonalnie)",
+          "sensor_inverter_ac_output": "Całkowita moc wyjściowa AC falownika w W. Nie wybieraj mocy PV po DC ani oddawania do sieci. (Opcjonalnie)",
+          "weather_entity": "Encja pogody do nakładek na wykresie prognozy. (Opcjonalnie)",
+          "sensor_battery_soc": "Poziom naładowania akumulatora w procentach (0-100). (Opcjonalnie)",
+          "sensor_battery_power": "Moc ładowania i rozładowania akumulatora w W. Dodatnia = ładowanie, ujemna = rozładowanie. (Opcjonalnie)",
+          "sensor_solar_to_battery": "Moc PV płynąca do akumulatora, w W. (Opcjonalnie)",
+          "sensor_battery_to_house": "Moc płynąca z akumulatora do domu, w W. (Opcjonalnie)",
+          "sensor_grid_to_house": "Moc z sieci do domu w W, bez ładowania akumulatora z sieci. Pełny pobór z sieci podawaj tylko razem z czujnikiem poboru licznika inteligentnego: STATS odejmuje wtedy ładowanie akumulatora. Bez tego czujnika wartość się nie zmienia. (Opcjonalnie)",
+          "sensor_grid_to_battery": "Moc płynąca bezpośrednio z sieci do akumulatora, w W. (Opcjonalnie)",
+          "sensor_house_to_grid": "Całkowita moc PV oddawana do sieci, w W. (Opcjonalnie)",
+          "sensor_smartmeter_import": "Aktualny pobór licznika inteligentnego w W. (Opcjonalnie)",
+          "sensor_smartmeter_export": "Aktualne oddawanie licznika inteligentnego w W. (Opcjonalnie)",
+          "sensor_grid_import_extra": "Dodatkowy pobór z sieci, którego licznik inteligentny nie mierzy, w kWh. (Opcjonalnie)",
+          "sensor_heatpump_power": "Pobierane automatycznie z EAI, gdy ustawiono tam czujnik mocy pompy ciepła w W, kW lub MW. W przeciwnym razie używany jest czujnik zapisany tutaj. (Opcjonalnie)",
+          "sensor_heatingrod_power": "Aktualny pobór elektryczny grzałki w W. (Opcjonalnie)",
+          "sensor_wallbox_power": "Aktualna moc ładowania wallboxa w W. (Opcjonalnie)",
+          "sensor_wallbox_state": "Czujnik stanu wallboxa (np. ładowanie, podłączony, gotowy). (Opcjonalnie)"
+        }
+      },
+      "consumers": {
+        "title": "Czujniki szczegółów odbiorników",
+        "description": "Dodatkowe czujniki dla widoków szczegółów pompy ciepła, grzałki i wallboxa. Wszystkie pola są opcjonalne.",
+        "data": {
+          "sensor_wb_charge_mode": "Wallbox: tryb ładowania (encja select)",
+          "sensor_wb_energy_session": "Wallbox: energia bieżącej sesji (kWh)"
+        },
+        "data_description": {
+          "sensor_wb_charge_mode": "Encja z aktualnym trybem ładowania. (Opcjonalnie)",
+          "sensor_wb_energy_session": "Energia naładowana w bieżącej sesji. (Opcjonalnie)"
+        }
+      },
+      "smart_charging": {
+        "title": "Akumulator",
+        "description": "Stałe instalacji akumulatora. Moc ładowania 0 kW oznacza brak limitu. Moc znamionowa falownika pochodzi z Solar Forecast ML (0 = brak limitu).",
+        "data": {
+          "battery_capacity": "Pojemność akumulatora (kWh)",
+          "max_charge_power_kw": "Maksymalna moc ładowania (kW, 0 = bez limitu)",
+          "battery_soc_sensor": "Czujnik SOC akumulatora",
+          "smart_charging_switch": "Przełącznik sterowania ładowaniem",
+          "ems_surplus_switch": "Zezwolenie odbiornika elastycznego S-Plus",
+          "ems_wallbox_switch": "Zezwolenie ładowania wallboxa EMS",
+          "ems_heat_pump_boost_switch": "Boost PV pompy ciepła EMS"
+        },
+        "data_description": {
+          "battery_capacity": "Wymagane. 0 oznacza: nieskonfigurowane. Użyteczna pojemność akumulatora. Służy do przeliczenia prognozy kWh na procent SOC.",
+          "max_charge_power_kw": "Moc ładowania z sieci w kW. 0 = bez limitu (bez ograniczenia okna).",
+          "battery_soc_sensor": "Czujnik poziomu naładowania akumulatora (0-100%). Bez niego nie ma ładowania z sieci.",
+          "smart_charging_switch": "Encja przełącznika, która włącza i wyłącza ładowanie z sieci w Home Assistant.",
+          "ems_surplus_switch": "Opcjonalny przełącznik odbiornika elastycznego. EMS włącza go dopiero po stabilnej zgodzie nadwyżki S-Plus.",
+          "ems_wallbox_switch": "Opcjonalny, bezpiecznie wyłączany przełącznik zezwolenia ładowania wallboxa. Nie wybieraj jego głównego wyłącznika.",
+          "ems_heat_pump_boost_switch": "Opcjonalny, bezpiecznie wyłączany przełącznik boosta PV lub SG-Ready. Nigdy nie wybieraj zasilania pompy ciepła."
+        }
+      },
+      "pricing": {
+        "title": "Ceny energii",
+        "description": "Ceny ustawia się w Solar Forecast GPM.\n\nAktualny tryb: **{price_mode}**\nTaryfa: **{tariff_label}**\nAktualna cena: **{current_price}**",
+        "data": {},
+        "data_description": {}
+      },
+      "amortization": {
+        "title": "Amortyzacja",
+        "description": "Inwestycja PV, dotacje i koszty bieżące do prognozy amortyzacji.",
+        "data": {
+          "amortization_investment_eur": "Inwestycja (EUR)",
+          "amortization_subsidy_eur": "Dotacja (EUR)",
+          "amortization_commissioning_date": "Data uruchomienia (YYYY-MM-DD)",
+          "amortization_annual_running_costs_eur": "Koszty roczne (EUR)",
+          "amortization_price_increase_percent": "Wzrost ceny energii w roku (%)",
+          "amortization_degradation_percent": "Degradacja PV w roku (%)"
+        },
+        "data_description": {
+          "amortization_investment_eur": "Całkowity koszt instalacji przed dotacjami.",
+          "amortization_subsidy_eur": "Jednorazowe dotacje lub dopłaty zmniejszające inwestycję.",
+          "amortization_commissioning_date": "Historyczne przepływy liczone są od tego miesiąca. Format: YYYY-MM-DD.",
+          "amortization_annual_running_costs_eur": "Serwis, ubezpieczenie, pomiar lub podobne koszty roczne.",
+          "amortization_price_increase_percent": "Założenie wzrostu cen energii w prognozie.",
+          "amortization_degradation_percent": "Roczny spadek uzysku PV w prognozie."
+        }
+      },
+      "advanced": {
+        "title": "Opcje zaawansowane",
+        "description": "Inteligentne ładowanie, raporty, moduły i porównanie prognoz.",
+        "data": {
+          "billing_start_month": "Miesiąc początku rozliczenia",
+          "billing_start_day": "Dzień początku rozliczenia",
+          "show_panel_groups": "Pokaż grupy modułów",
+          "panel_group_names_input": "Mapowanie nazw grup modułów",
+          "forecast_entity_1": "Prognoza 1 (ID encji)",
+          "forecast_entity_1_name": "Nazwa prognozy 1",
+          "forecast_entity_2": "Prognoza 2 (ID encji)",
+          "forecast_entity_2_name": "Nazwa prognozy 2",
+          "cost_tracking_enabled": "Zapisuj koszty energii"
+        },
+        "data_description": {
+          "billing_start_month": "Miesiąc, w którym zaczyna się rok rozliczeniowy.",
+          "billing_start_day": "Dzień, w którym zaczyna się rok rozliczeniowy.",
+          "show_panel_groups": "Pokazuj wykresy i szczegóły poszczególnych grup modułów na stronie głównej.",
+          "panel_group_names_input": "Zmień nazwy grup modułów. Format: Old=New, Old2=New2",
+          "forecast_entity_1": "Czujnik z prognozą uzysku dziennego w kWh (np. sensor.solcast_forecast_today). (Opcjonalnie)",
+          "forecast_entity_1_name": "Nazwa na wykresie porównawczym (np. 'Solcast'). (Opcjonalnie)",
+          "forecast_entity_2": "Czujnik z prognozą uzysku dziennego w kWh. (Opcjonalnie)",
+          "forecast_entity_2_name": "Nazwa na wykresie porównawczym. (Opcjonalnie)",
+          "cost_tracking_enabled": "Gdy wyłączone, STATS pokazuje tylko energię i nie liczy kosztów."
+        }
+      }
+    },
+    "error": {
+      "invalid_code": "Nieprawidłowy kod dostępu!"
+    }
+  },
+  "issues": {
+    "price_config_moved_to_gpm": {
+      "title": "Ceny energii przeniesione do GPM",
+      "description": "Dotychczasowa cena stała STATS ({legacy_price} ct/kWh) zostaje, aż potwierdzisz taryfę GPM.",
+      "fix_flow": {
+        "step": {
+          "menu": {
+            "title": "Jak STATS ma odtąd rozliczać?",
+            "description": "Dotychczasowa cena stała STATS: **{legacy_price} ct/kWh**.",
+            "menu_options": {
+              "use_gpm_fixed": "GPM używa mojej ceny stałej",
+              "use_gpm_dynamic": "Przejdź na ceny dynamiczne GPM"
+            }
+          },
+          "use_gpm_fixed": {
+            "title": "Użyj taryfy stałej GPM",
+            "description": "Wpisz {legacy_price} ct/kWh jako stałą taryfę GPM i potwierdź tutaj."
+          },
+          "use_gpm_dynamic": {
+            "title": "Użyj cen dynamicznych GPM",
+            "description": "STATS odrzuci pozostałą cenę stałą {legacy_price} ct/kWh i przejdzie na GPM."
+          }
+        }
+      },
+      "error": {
+        "gpm_not_fixed": "GPM nie jest jeszcze ustawione na taryfę stałą."
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "heating_target": {
+        "name": "Nastawa docelowa",
+        "state_attributes": {
+          "mode": {
+            "state": {
+              "observe": "Obserwacja",
+              "comfort": "Komfort",
+              "away": "Nieobecność",
+              "frost": "Ochrona przed mrozem",
+              "locked": "Zablokowane",
+              "disabled": "Wyłączone",
+              "override": "Wstrzymane"
+            }
+          },
+          "reason": {
+            "state": {
+              "locked": "Licencja nie jest aktywna",
+              "disabled": "Ogrzewanie pomieszczenia jest wyłączone",
+              "no_persons": "Nie wybrano osoby",
+              "presence_home": "Ktoś jest w domu",
+              "presence_unknown": "Obecność jest nieznana",
+              "presence_pending": "Opóźnienie nieobecności jeszcze trwa",
+              "presence_away": "Wszyscy są nieobecni",
+              "window_open": "Okno jest otwarte",
+              "away_setback": "Obniżenie przy nieobecności",
+              "comfort": "Temperatura komfortu",
+              "room_inactive": "Regulacja tego pomieszczenia jest wyłączona",
+              "thermostat_unavailable": "Termostat jest niedostępny",
+              "hvac_off": "Termostat jest wyłączony",
+              "range_setpoint": "Termostat używa zakresu temperatury",
+              "setpoint_unreadable": "Nie można odczytać nastawy",
+              "within_band": "Już blisko celu",
+              "same_value": "Ta nastawa została już wysłana",
+              "decrease_limited": "Obniżenie najwyżej raz na godzinę",
+              "increase_limited": "Podniesienie czeka po ostatnim zapisie",
+              "manual_override": "Pauza po ręcznej zmianie",
+              "startup_hold": "Oczekiwanie po restarcie",
+              "write_failed": "Termostat nie przyjął nastawy",
+              "schedule_setback": "Poza oknem czasowym",
+              "hvac_switched": "Tryb właśnie się zmienił",
+              "mixed_reasons": "Kilka powodów",
+              "outdoor_unavailable": "Temperatura zewnętrzna jest niedostępna",
+              "outdoor_missing": "Nie wybrano temperatury zewnętrznej"
+            }
+          },
+          "presence": {
+            "state": {
+              "home": "W domu",
+              "away": "Nieobecność"
+            }
+          }
+        }
+      }
+    },
+    "switch": {
+      "heating_active": {
+        "name": "Regulacja ogrzewania"
+      },
+      "smart_charging_enabled": {
+        "name": "Inteligentne ładowanie"
+      }
+    },
+    "select": {
+      "smart_charging_mode": {
+        "name": "Tryb inteligentnego ładowania",
+        "state": {
+          "forecast": "Tylko luka",
+          "price_band_soc": "Do poziomu docelowego",
+          "combined": "Oba"
+        }
+      }
+    },
+    "number": {
+      "smart_charging_target_soc": {
+        "name": "Poziom docelowy"
+      },
+      "smart_charging_min_soc": {
+        "name": "Dolna granica"
+      },
+      "smart_charging_max_soc": {
+        "name": "Górna granica"
+      }
+    }
+  }
+}

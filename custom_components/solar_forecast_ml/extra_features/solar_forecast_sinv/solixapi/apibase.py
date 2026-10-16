@@ -1,0 +1,2672 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""Base Class for interacting with the Anker Power / Solix API. @thomas"""
+# ruff: noqa: N806
+
+import contextlib
+import json
+import logging
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from aiohttp import ClientError, ClientSession
+
+from .apitypes import (
+    API_ENDPOINTS,
+    API_FILEPREFIXES,
+    API_HES_SVC_ENDPOINTS,
+    SolixDefaults,
+    SolixDeviceCapacity,
+    SolixDeviceCategory,
+    SolixDeviceNames,
+    SolixDeviceType,
+    SolixPortId,
+    SolixPriceProvider,
+    SolixPriceTypes,
+)
+from .errors import AnkerSolixError
+from .helpers import get_enum_name, get_solix_product_code
+from .mqtt import AnkerSolixMqttSession, MessageCallback
+from .mqttcmdmap import EMBEDDED
+from .session import AnkerSolixClientSession
+
+MqttUpdateCallback = Callable[[str], None]
+DeviceCacheCallback = Callable[[dict], None]
+
+
+class AnkerSolixBaseApi:
+    """Define the API base class to handle Anker server communication via AnkerSolixClientSession. @thomas
+
+    It will also build internal cache dictionaries with information collected through the Api, those methods can be overwritten.
+    It also provides some general Api queries and helpers for classes inheriting the base class
+    """
+
+    def __init__(
+        self,
+        email: str | None = None,
+        password: str | None = None,
+        countryId: str | None = None,
+        websession: ClientSession | None = None,
+        logger: logging.Logger | None = None,
+        apisession: AnkerSolixClientSession | None = None,
+    ) -> None:
+        """Initialize. @thomas"""
+        self.apisession: AnkerSolixClientSession
+        if apisession:
+            # reuse provided client
+            self.apisession = apisession
+        else:
+            # init new client
+            self.apisession = AnkerSolixClientSession(
+                email=email,
+                password=password,
+                countryId=countryId,
+                websession=websession,
+                logger=logger,
+            )
+        self._logger: logging.Logger = self.apisession.logger()
+        self.mqttsession: AnkerSolixMqttSession | None = None
+        # callback for device MQTT data update
+        self._mqtt_update_callback: MqttUpdateCallback | None = None
+        # track active devices bound to any site
+        self._site_devices: set = set()
+        # reset class variables for saving the most recent account, site and device data (Api cache)
+        self.account: dict[str, dict] = {}
+        self.sites: dict[str, dict] = {}
+        self.devices: dict[str, dict] = {}
+        self._device_callbacks: dict[str, dict] = {}
+
+    def testDir(self, subfolder: str | None = None) -> str:
+        """Get or set the subfolder for local API test files in the api session. @thomas"""
+        return self.apisession.testDir(subfolder)
+
+    def payloadEncryption(self, enable: bool | None = None) -> bool:
+        """Get or set the api session payload encryption. @thomas"""
+        return self.apisession.payloadEncryption(enable)
+
+    def endpointLimit(self, limit: int | None = None) -> int:
+        """Get or set the api request limit per endpoint per minute. @thomas"""
+        return self.apisession.endpointLimit(limit)
+
+    def logger(self, logger: logging.Logger | None = None) -> logging.Logger:
+        """Get or set the logger for API client. @thomas"""
+        if logger:
+            self._logger = logger
+        return self._logger
+
+    def logLevel(self, level: int | None = None) -> int:
+        """Get or set the logger log level. @thomas"""
+        if level is not None and isinstance(level, int):
+            self._logger.setLevel(level)
+            self._logger.info(
+                "Set api %s log level to: %s", self.apisession.nickname, level
+            )
+        return self._logger.getEffectiveLevel()
+
+    def mqtt_update_callback(
+        self, func: MqttUpdateCallback | None = ""
+    ) -> MqttUpdateCallback | None:
+        """Get or set the MqttUpdateCallback for this session. @thomas"""
+        if callable(func) or func is None:
+            self._mqtt_update_callback = func
+        return self._mqtt_update_callback
+
+    def getCaches(self) -> dict:
+        """Return a merged dictionary with api cache dictionaries. @thomas"""
+        return (
+            self.sites
+            | self.devices
+            | {self.apisession.email: self.account}
+            | (self.account.get("vehicles") or {})
+        )
+
+    def clearCaches(self) -> None:
+        """Clear the api cache dictionaries. @thomas"""
+        # check callbacks and notify registered devices about removal from cache
+        for callbacks in self._device_callbacks.values():
+            for func in callbacks.get("functions", set()):
+                if callable(func):
+                    func(device={})
+        self._device_callbacks = {}
+        self.sites = {}
+        self.devices = {}
+        self.account = {}
+        # check active MQTT session and stop it
+        if self.mqttsession:
+            self.stopMqttSession()
+
+    def customizeCacheId(self, id: str, key: str, value: Any) -> None:
+        """Customize a cache identifier with a key and value pair. @thomas"""
+        if isinstance(id, str) and isinstance(key, str):
+            if id in self.sites:
+                data = self.sites.get(id)
+                customized = data.get("customized") or {}
+                # merge with existing dict if value is dict
+                customized[key] = (
+                    ((customized.get(key) or {}) | value)
+                    if isinstance(value, dict)
+                    else value
+                )
+                data["customized"] = customized
+                # trigger an update of cached data depending on customized value
+                # customized keys that are used as alternate value must be handled separately since they may not exist in cache
+                if (
+                    key in ["dynamic_price_vat", "dynamic_price_fee", "dynamic_price"]
+                    and value
+                ):
+                    # dynamic price related updates should always be triggered if customized, independent of existing keys
+                    if key == "dynamic_price" and isinstance(value, str):
+                        # convert a provider string to dict
+                        customized[key] = SolixPriceProvider(provider=value).asdict()
+                    # update whole dynamic price forecast
+                    self._update_site(
+                        siteId=id,
+                        details={
+                            "dynamic_price_details": self.extractPriceData(
+                                siteId=id, forceCalc=True
+                            )
+                        },
+                    )
+                elif key == "pv_forecast_details" and value:
+                    # update whole solar forecast in energy details
+                    self.extractSolarForecast(siteId=id)
+                elif key in (data.get("site_details") or {}):
+                    # trigger dependent updates by rewriting old value to cache update method
+                    self._update_site(
+                        siteId=id, details={key: data["site_details"][key]}
+                    )
+                elif key in data:
+                    pass
+            elif id in self.devices:
+                data = self.devices.get(id)
+                customized = data.get("customized") or {}
+                customized[key] = value
+                # reset customized keys if required
+                if key == "battery_capacity" and str(value or 0) and float(value) == 0:
+                    customized.pop("battery_capacity", None)
+                data["customized"] = customized
+                # trigger dependent updates by rewriting old value to cache update method
+                # customized keys that are used as alternate value must be handled separately since they may not exist in cache
+                if key in data:
+                    self._update_dev(devData={"device_sn": id, key: data[key]})
+            elif id == self.apisession.email:
+                data = self.account
+                customized = data.get("customized") or {}
+                customized[key] = value
+                data["customized"] = customized
+                # trigger dependent updates by rewriting old value to cache update method
+                # customized keys that are used as alternate value must be handled separately since they may not exist in cache
+                if key in data:
+                    self._update_account(details={key: data.get(key)})
+
+    def recycleDevices(
+        self, extraDevices: set | None = None, activeDevices: set | None = None
+    ) -> None:
+        """Recycle api device list and remove devices no longer used in sites cache or extra devices. @thomas"""
+        if not extraDevices or not isinstance(extraDevices, set):
+            extraDevices = set()
+        if not activeDevices or not isinstance(activeDevices, set):
+            activeDevices = set()
+        # first clear internal site devices cache if active devices are provided
+        if activeDevices:
+            rem_devices = [
+                dev
+                for dev in self._site_devices
+                if dev not in (activeDevices | extraDevices)
+            ]
+            for dev in rem_devices:
+                self._site_devices.discard(dev)
+        # Clear device cache to maintain only active and extra devices
+        rem_devices = [
+            dev
+            for dev in self.devices
+            if dev not in (self._site_devices | extraDevices)
+        ]
+        for dev in rem_devices:
+            self.devices.pop(dev, None)
+            # check callbacks and notify registered devices about removal from cache
+            cbs = self._device_callbacks.pop(dev, {})
+            for func in cbs.get("functions", set()):
+                if callable(func):
+                    func(device={})
+
+    def recycleSites(self, activeSites: set | None = None) -> None:
+        """Recycle api site cache and remove sites no longer active according provided activeSites. @thomas"""
+        if activeSites and isinstance(activeSites, set):
+            rem_sites = [site for site in self.sites if site not in activeSites]
+            for site in rem_sites:
+                self.sites.pop(site, None)
+
+    def register_device_callback(
+        self, deviceSn: str, func: DeviceCacheCallback, dynamic_descriptions: dict
+    ) -> None:
+        """Register a device callback function to notify about Api cache object changes. @thomas"""
+        # register callback if callable
+        if callable(func):
+            cbs = self._device_callbacks.get(deviceSn, {})
+            f = cbs.get("functions", set())
+            f.add(func)
+            cbs["functions"] = f
+            cbs["dynamic_descriptions"] = dynamic_descriptions
+            self._device_callbacks[deviceSn] = cbs
+
+    def notify_device(self, deviceSn: str) -> None:
+        """Notify all callbacks that are registered for a device. @thomas"""
+        for func in self._device_callbacks.get(deviceSn, {}).get("functions", set()):
+            if callable(func):
+                func(device=self.devices.get(deviceSn, {}))
+
+    async def startMqttSession(
+        self, message_callback: MessageCallback | None = None, fromFile: bool = False
+    ) -> AnkerSolixMqttSession | None:
+        """(Re)Start the MQTT session, and if not fromFile also (Re)connect to server. @thomas"""
+        # Initialize the session if required
+        if not self.mqttsession:
+            self.mqttsession = AnkerSolixMqttSession(apisession=self.apisession)
+        # (Re)Connect the MQTT client
+        if not fromFile and not self.mqttsession.is_connected():
+            await self.mqttsession.connect_client_async()
+            if not self.mqttsession.is_connected():
+                self._logger.error(
+                    "Api %s failed connecting to MQTT server %s:%s",
+                    self.apisession.nickname,
+                    self.mqttsession.host,
+                    self.mqttsession.port,
+                )
+                self.mqttsession.cleanup()
+                self.mqttsession = None
+                return self.mqttsession
+            self._logger.debug(
+                "Api %s connected successfully to MQTT server %s:%s",
+                self.apisession.nickname,
+                self.mqttsession.host,
+                self.mqttsession.port,
+            )
+        # register message callback to extract device MQTT data into device Api cache if no custom callback provided and none exists yet
+        self.mqttsession.message_callback(
+            func=message_callback
+            if callable(message_callback)
+            else (self.mqttsession.message_callback() or self.mqtt_received)
+        )
+        # create the mqtt_data field if not existing yet for supported devices
+        for dev in [d for d in self.devices.values() if d.get("mqtt_supported")]:
+            dev["mqtt_data"] = dev.get("mqtt_data") or {}
+        # update mqtt connection in account cache
+        self._update_account()
+        return self.mqttsession
+
+    def stopMqttSession(self) -> None:
+        """Stop and cleanup the MQTT session. @thomas"""
+        if self.mqttsession:
+            self._logger.debug(
+                "Api %s stopping MQTT session to server %s:%s",
+                self.apisession.nickname,
+                self.mqttsession.host,
+                self.mqttsession.port,
+            )
+            self.mqttsession.cleanup()
+            self.mqttsession = None
+            self._mqtt_update_callback = None
+            # clear mqtt data from device cache to prevent stale mqtt data
+            for dev in self.devices.values():
+                dev.pop("mqtt_data", None)
+            # update mqtt state in account cache
+            self._update_account({"mqtt_statistic": None})
+
+    def _update_account(
+        self,
+        details: dict | None = None,
+    ) -> None:
+        """Update the internal account dictionary with data provided in details dictionary. @thomas
+
+        This method is used to consolidate acount related details from various less frequent requests that are not covered with the update_sites method.
+        """
+        if not details or not isinstance(details, dict):
+            details = {}
+        # lookup old account details if any or update account info if nickname is different (e.g. after authentication)
+        if (
+            not (account_details := self.account or {})
+            or account_details.get("nickname") != self.apisession.nickname
+        ):
+            # init or update the account details
+            account_details.update(
+                {
+                    "type": SolixDeviceType.ACCOUNT.value,
+                    "email": self.apisession.email,
+                    "nickname": self.apisession.nickname,
+                    "country": self.apisession.countryId,
+                    "server": self.apisession.server,
+                }
+            )
+        # update extra details and always request counts and mqtt connection state
+        account_details.update(
+            details
+            | {
+                "requests_last_min": self.apisession.request_count.last_minute(),
+                "requests_last_hour": self.apisession.request_count.last_hour(),
+                "mqtt_connection": self.mqttsession.is_connected()
+                if self.mqttsession
+                else False,
+            }
+        )
+        self.account = account_details
+
+    def _update_site(
+        self,
+        siteId: str,
+        details: dict,
+    ) -> None:
+        """Update the internal sites dictionary with data provided for the nested site details dictionary. @thomas
+
+        This method is used to consolidate site details from various less frequent requests that are not covered with the update_sites poller method.
+        """
+        # get existing site details
+        site = self.sites.get(siteId) or {}
+        site_details = site.get("site_details") or {}
+        # Implement site details update code with key filtering, conversion, consolidation, calculation or dependency updates
+        for key, value in details.items():
+            if key == "" and value:
+                pass
+            else:
+                site_details[key] = value
+        site["site_details"] = site_details
+        self.sites[siteId] = site
+
+    def _update_dev(
+        self,
+        devData: dict,
+        devType: str | None = None,
+        siteId: str | None = None,
+        isAdmin: bool | None = None,
+    ) -> str | None:
+        """Update the internal device details dictionary with the given data. The device_sn key must be set in the data dict for the update to be applied. @thomas
+
+        This method should be implemented to consolidate various device related key values from various requests under a common set of device keys.
+        The device SN should be returned if found in devData and an update was done
+        """
+        if sn := devData.get("device_sn"):
+            device: dict = self.devices.get(sn, {})  # lookup old device info if any
+            device.update({"device_sn": str(sn)})
+            if devType:
+                device.update({"type": devType.lower()})
+            if siteId:
+                device.update({"site_id": str(siteId)})
+            if isAdmin is not None:
+                # always update admin flag if passed as parameter
+                device["is_admin"] = isAdmin
+            elif (value := devData.get("ms_device_type")) is not None:
+                # update admin flag if recognizable from provided devData
+                # Update admin based on ms device type for standalone devices
+                device["is_admin"] = value in [0, 1]
+                # member devices should only be listed in bind_device query and return owner_user_id
+                if value := devData.get("owner_user_id"):
+                    device["owner_user_id"] = value
+            for key, value in devData.items():
+                try:
+                    #
+                    # Implement device update code with key filtering, conversion, consolidation, calculation or dependency updates
+                    #
+                    if key == "device_sw_version" and value:
+                        # Example for key name conversion when value is given
+                        device["sw_version"] = str(value).lstrip("v")
+                    elif key in [
+                        # Examples for boolean key values
+                        "wifi_online",
+                        "auto_upgrade",
+                        "is_ota_update",
+                    ]:
+                        device[key] = bool(value)
+                    elif key in [
+                        # Example for key with string values
+                        "wireless_type",
+                        "ota_version",
+                    ] or (
+                        # Example for key with string values that should only be updated if value returned
+                        key == "wifi_name" and value
+                    ):
+                        device[key] = str(value)
+                    else:
+                        # Example for all other keys not filtered or converted
+                        device[key] = value
+
+                except Exception as err:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+                    self._logger.error(
+                        "Api %s error %s occurred when updating device details for key %s with value %s: %s",
+                        self.apisession.nickname,
+                        type(err),
+                        key,
+                        value,
+                        err,
+                    )
+
+            self.devices.update({str(sn): device})
+        return sn
+
+    def mqtt_received(
+        self,
+        session: AnkerSolixMqttSession,
+        topic: str,
+        message: Any,
+        data: bytes,
+        model: str,
+        deviceSn: str,
+        extracted_values: dict,
+        *args,
+        **kwargs,
+    ) -> None:
+        """Define callback for MQTT session to update device MQTT data in cache and trigger MQTT update callback for device if registered. @thomas"""
+        if extracted_values and deviceSn:
+            # handle each device for embedded messages
+            embedded = extracted_values.get(EMBEDDED) or []
+            for device_data in embedded or [extracted_values]:
+                if embedded:
+                    if sn := device_data.get("sn"):
+                        # Note: If files with randomized SNs are used, embedded SNs are not randomized and cannot be mapped to Api cache SNs
+                        # Assign real SN to a random stand alone device that may match for test purposes
+                        if not session.is_connected() and sn not in self.devices:
+                            # try to find previous use of embedded sn
+                            pn = device_data.get("type", "")
+                            code = get_solix_product_code(sn)
+                            edev = (
+                                [
+                                    dev
+                                    for dev in self.devices.values()
+                                    if dev.get("embedded_sn") == sn
+                                ][0:1]
+                                or [""]
+                            )[0] or (
+                                [
+                                    dev
+                                    for dev in self.devices.values()
+                                    if not dev.get("embedded_sn")
+                                    and (
+                                        dev.get("device_code") == code
+                                        or dev.get("device_pn")[:5] == pn
+                                    )
+                                ][0:1]
+                                or [""]
+                            )[0]
+                            if edev:
+                                # switch the serials if mapped device was identified
+                                edev["embedded_sn"] = sn
+                                sn = edev.get("device_sn")
+                        # check if device is in api cache, otherwise create it and set same site id as sending device
+                        main_dev = self.devices.get(deviceSn, {})
+                        if sn not in self.devices:
+                            self._update_dev(
+                                {
+                                    "device_sn": sn,
+                                    "device_pn": (pn := device_data.get("type", "")),
+                                    "alias": (
+                                        (self.account.get("products") or {}).get(pn)
+                                        or {}
+                                    ).get("name")
+                                    or getattr(SolixDeviceNames, pn, ""),
+                                },
+                            )
+                        # Ensure to add/update site id to main device
+                        self._update_dev(
+                            {"device_sn": sn, "is_passive": True},
+                            siteId=main_dev.get("site_id"),
+                        )
+                else:
+                    sn = deviceSn
+                if sn:
+                    new_values = self.update_device_mqtt(
+                        deviceSn=sn,
+                        values=device_data.get(EMBEDDED, {})
+                        if embedded
+                        else device_data,
+                    )
+                    if new_values and callable(self._mqtt_update_callback):
+                        self._mqtt_update_callback(sn)
+
+    def update_device_mqtt(  # noqa: C901
+        self,
+        deviceSn: str | None = None,
+        values: dict | None = None,
+    ) -> bool:
+        """Update the mqtt data cache of the given device or all devices and return whether update was done. @thomas
+
+        This will consolidate various device related mqtt key values under a common set of device keys.
+        """
+        updated = False
+        dyn_desc = False
+        if self.mqttsession:
+            if values and (device := self.devices.get(deviceSn or "")):
+                # update specific device from values
+                devices = [(deviceSn, device)]
+            elif not values and not deviceSn:
+                # update all devices from mqtt session data
+                devices = [(sn, device) for sn, device in self.devices.items()]
+            else:
+                # skip update if either no values or device not found
+                devices = []
+            for sn, device in devices:
+                # get old MQTT data of device
+                device_mqtt = device.get("mqtt_data") or {}
+                oldsize = len(device_mqtt)
+                model = device.get("device_pn", "")
+                # use values or check if newer MQTT data is available from last message timestamp
+                # use copy of MQTT dict for device because it may be modified upon received messages
+                if (
+                    mqtt := (
+                        self.mqttsession.mqtt_data.get(sn)
+                        or self.mqttsession.mqtt_data.get(device.get("embedded_sn"))
+                        or {}
+                    ).copy()
+                ) and (
+                    values
+                    or (device_mqtt.get("last_update") or "")
+                    < (mqtt.get("last_message") or "")
+                ):
+                    # cycle through all items and extract what is needed for the device type
+                    calc_efficiency = False
+                    calc_capacity = False
+                    circuit_groups = {}
+                    # check only received values or all from mqtt session cache
+                    check_values = values or mqtt or {}
+                    for key, value in check_values.items():
+                        # Implement device MQTT merge code with key filtering, conversion, consolidation, calculation or dependency updates
+                        # skip value update marker for static fields that may be extracted from various messages
+                        value_updated = True
+                        if (
+                            (
+                                key
+                                in [
+                                    # keys with value being saved as string
+                                    "sub_device_sn",
+                                    "local_datetime",
+                                    "inverter_brand",
+                                    "inverter_model",
+                                    "wifi_name",
+                                    "power_panel_sn",  # not used in monitor or HA
+                                    "toggle_to_delay_time",  # HA missing, MQTT control not fully described
+                                    "toggle_to_elapsed_time",  # HA missing, MQTT control not fully described
+                                    "light_off_start_time",
+                                    "light_off_end_time",
+                                    "week_start_time",
+                                    "week_end_time",
+                                    "weekend_start_time",
+                                    "weekend_end_time",
+                                    "theme_url",
+                                    "load_balance_monitor_device",  # not used in HA
+                                    "solar_evcharge_monitor_device",  # not used in HA
+                                    "load_balance_setting_d5",  # Unknown control parameter state value
+                                    "load_balance_setting_d6",  # Unknown control parameter state value
+                                ]
+                                or (
+                                    key.startswith(
+                                        ("device_", "exp_", "pps_", "charger_")
+                                    )
+                                    and (key.endswith(("_sn", "_pn", "_type")))
+                                )
+                                or (key.endswith("country_code"))
+                            )
+                            and value is not None
+                        ):
+                            # update expansion size from type byte value if found and different
+                            if (
+                                key.startswith("exp_")
+                                and key.endswith("_type")
+                                and str(value) != device_mqtt.get(key)
+                                and str(value).isdigit()
+                                and (
+                                    size := getattr(
+                                        SolixDeviceCapacity,
+                                        f"_{int(value).to_bytes(byteorder='little').hex().upper()}",
+                                        None,
+                                    )
+                                )
+                                and device.get(key.replace("_type", "_size")) != size
+                            ):
+                                calc_capacity = True
+                                device[key.replace("_type", "_size")] = size
+                            device_mqtt.update({key: str(value)})
+                            value_updated = bool(
+                                key != "wifi_name"
+                                and not key.endswith(("_sn", "_pn", "_type", "?"))
+                            )
+                        elif (
+                            key.startswith("sw_") or key.endswith("version")
+                        ) and value is not None:
+                            # strip v from version strings
+                            device_mqtt.update({key: str(value).lstrip("v").strip()})
+                        elif (
+                            key
+                            in [
+                                # keys with value that should be saved as int string
+                                "battery_soc",
+                                "battery_soc_total",
+                                "main_battery_soc",
+                                "max_soc",
+                                "backup_soc",
+                                "low_backup_soc",
+                                "high_backup_soc",
+                                "active_charge_soc",
+                                "active_discharge_soc",
+                                "backup_charge_soc",
+                                "backup_discharge_soc",
+                                "temperature",
+                                "photovoltaic_power",
+                                "pv_power_3rd_party",
+                                "pv_power_total",
+                                "battery_power_signed",
+                                "battery_power_signed_total",
+                                "bat_charge_power",
+                                "bat_discharge_power",
+                                "battery_to_grid_power",
+                                "battery_to_home_power",
+                                "silent_charge_power",
+                                "device_output_power_signed_total",
+                                "ac_socket_power",
+                                "ac_frequency",
+                                "heating_power",
+                                "grid_to_battery_power",
+                                "generator_to_battery_power",
+                                "generator_to_home_power",
+                                "generator_power",
+                                "ac_input_limit_max",
+                                "min_load",
+                                "max_load",
+                                "max_load_legal",
+                                "max_load_total",
+                                "home_load_preset",
+                                "home_load_default",
+                                "home_load",
+                                "pv_to_grid_power",
+                                "grid_to_home_power",
+                                "system_output_power_signed_l1",
+                                "system_output_power_signed_l2",
+                                "wifi_signal",
+                                "charging_power",
+                                "power_l1",
+                                "power_l2",
+                                "power_l3",
+                                "max_evcharge_current",
+                                "solar_evcharge_min_current",
+                                "light_brightness",
+                                "display_brightness",
+                            ]
+                            or (key.endswith("_limit"))
+                            or (
+                                key.startswith(("device_", "pv_"))
+                                and (
+                                    key.endswith(
+                                        (
+                                            "_power",
+                                            "_power_signed",
+                                            "_soc",
+                                            "_temperature",
+                                        )
+                                    )
+                                )
+                            )
+                            or (
+                                key.startswith(
+                                    (
+                                        "charge_power",
+                                        "reverse_power",
+                                        "grid_power",
+                                        "ac_input_power",
+                                        "ac_output_power",
+                                        "dc_input_power",
+                                        "dc_output_power",
+                                        "input_power",
+                                        "output_power",
+                                        "home_demand",
+                                    )
+                                )
+                                and not key.endswith(("_switch", "_mode"))
+                            )
+                        ) and str(value).replace("-", "", 1).replace(
+                            ".", "", 1
+                        ).isdigit():
+                            device_mqtt[key] = f"{float(value):.0f}"
+                            # trigger device capacity calculation with SOC updates
+                            if key in ["battery_soc", "main_battery_soc"]:
+                                calc_capacity = True
+                            # For alternator charger, invert output power depending on mode
+                            elif key == "output_power" and check_values.get(
+                                "charger_mode"
+                            ):
+                                device_mqtt[key] = f"{float(-1 * value):.0f}"
+                            # Remove circuit power while circuit setup unknown
+                            elif (
+                                key.startswith("home_demand_circuit")
+                                and not circuit_groups
+                                and not device_mqtt.get("circuit_groups", {})
+                            ):
+                                device_mqtt.pop(key, None)
+                            # calculate device PV total if not included in MQTT data
+                            elif any(
+                                key == f"device_{x}_pv_1_power"
+                                and f"device_{x}_pv_power" not in check_values
+                                for x in range(1, 7)
+                            ) and (
+                                str(idx := (key.split("_")[1:2] or ["0"])[0]).isdigit()
+                                and int(idx) > 0
+                            ):
+                                # accumulate all PV channels
+                                pv_power = 0
+                                for i in range(1, 5):
+                                    pv_power += float(
+                                        check_values.get(f"device_{idx}_pv_{i}_power")
+                                        or 0
+                                    )
+                                device_mqtt[f"device_{idx}_pv_power"] = (
+                                    f"{pv_power:.0f}"
+                                )
+                        elif (
+                            key
+                            in [
+                                # keys with value that should be saved as rounded 3 decimal float string
+                                "battery_soh",
+                                "battery_soc_ah",
+                                "voltage",
+                                "power",
+                                "current",
+                                "power_factor",
+                            ]
+                            or str(key).startswith(
+                                (
+                                    "voltage_",
+                                    "charge_voltage_",
+                                    "current_",
+                                    "system_output_current_",
+                                )
+                            )
+                            or str(key).endswith(("_voltage", "_current"))
+                            or (
+                                str(key).startswith(("usb", "dc_12v"))
+                                and str(key).endswith("_power")
+                            )
+                        ) and str(value).replace("-", "", 1).replace(
+                            ".", "", 1
+                        ).isdigit():
+                            if str(key).endswith("_soh"):
+                                if (val := f"{float(value):.3f}") != device_mqtt.get(
+                                    key
+                                ):
+                                    # trigger capacity calculation if SOH is changing
+                                    calc_capacity = True
+                                device_mqtt[key] = val
+                            else:
+                                device_mqtt[key] = f"{float(value):.3f}"
+                            # accumulate overall port power if not in data
+                            if (
+                                key == "usbc_1_power"
+                                and "dc_output_power_total" not in check_values
+                                and getattr(SolixDeviceCategory, model, None)
+                                == SolixDeviceType.CHARGER.value
+                            ):
+                                power = 0
+                                for i in [
+                                    "usbc_1",
+                                    "usbc_2",
+                                    "usbc_3",
+                                    "usbc_4",
+                                    "usba_1",
+                                    "usba_2",
+                                    "dc_12v_1",
+                                    "dc_12v_2",
+                                ]:
+                                    power += float(check_values.get(f"{i}_power") or 0)
+                                device_mqtt["dc_output_power_total"] = (
+                                    f"{float(power):.3f}"
+                                )
+                        elif (
+                            key
+                            in [
+                                # energy keys with value that should be saved as rounded as 3 decimal float string
+                                "pv_yield",  # aggregated
+                                "home_consumption",  # aggregated
+                            ]
+                            or ("_energy" in str(key))
+                            or (
+                                str(key).endswith("_today")
+                            )  # HA missing, how to merge to avoid decrease?
+                        ):
+                            # aggregated energies should never decrease, otherwise weird values are sent or description is wrong
+                            # 0 value should be ignored for aggregated, since that may reset energy counters if 0 values read on startup
+                            if (
+                                str(key).startswith("charging_")
+                                or str(key).endswith("_today")
+                                # remaining aggregated energies must increase to be updated in cache
+                                or 0 < float(value) > float(device_mqtt.get(key, 0))
+                            ):
+                                device_mqtt[key] = f"{float(value):.3f}"
+                                if key in [
+                                    "output_energy",
+                                    "pv_yield",
+                                    "charged_energy",
+                                    "discharged_energy",
+                                    "consumed_energy",
+                                ]:
+                                    calc_efficiency = True
+                        elif (
+                            key
+                            in [
+                                # keys with value being saved unchanged
+                                "topics",
+                                "error_code",
+                                "dc_12v_auto_on",  # missing MQTT control command
+                                "grid_export_disabled",
+                                "temp_unit_fahrenheit",
+                                "tcp_port",
+                                "ip_address",
+                                "mode",  # HA missing, HES meaning not clear
+                                "battery_type",
+                                "car_battery_type",
+                                "car_battery_voltage_type",
+                                "xt60i_cable",
+                                "theme_id",
+                                "custom_profile_number",
+                                "circuit_setup",
+                                "charging_time",
+                                "mtu_size",
+                                "active_plan",
+                            ]
+                            or (
+                                str(key).endswith(
+                                    (
+                                        "_status",
+                                        "_mode",
+                                        "_switch",
+                                        "_seconds",
+                                        "_minutes",
+                                        "_hours",
+                                        "_weekdays",
+                                        "_hour",
+                                        "_minute",
+                                        "_timestamp",
+                                        "_packs",
+                                        "_priority",
+                                        "_tariff",
+                                        "_count",
+                                        "_schedule",
+                                        "_protocols",
+                                        "_settings",
+                                        "_data",
+                                        # "?",  # Add for decoder testing in monitor
+                                    )
+                                )
+                            )
+                            or str(key).startswith("disaster_protection_")
+                        ) and value is not None:
+                            device_mqtt[key] = value
+                            # determine EV charger model 3 phase capability
+                            if key == "charging_duration_seconds":
+                                device_mqtt["installed_phases"] = (
+                                    int(check_values.get("voltage_l1", 0) > 0)
+                                    + int(check_values.get("voltage_l2", 0) > 0)
+                                    + int(check_values.get("voltage_l3", 0) > 0)
+                                )
+                            elif key == "circuit_setup" and isinstance(value, dict):
+                                # assign physical ids to logical groups with same id and priority
+                                for index, circuit in value.items():
+                                    group = f"{circuit.get('priority', 0)!s}:{circuit.get('id', 0)!s}"
+                                    circuit_groups[group] = [
+                                        *circuit_groups.get(group, []),
+                                        index,
+                                    ]
+                                if circuit_groups:
+                                    device_mqtt["circuit_groups"] = circuit_groups
+                            elif (
+                                key == "reverse_remaining_time_hours"
+                                and check_values.get("charger_mode")
+                            ):
+                                # consolidate values depending on active charger mode
+                                device_mqtt["remaining_time_hours"] = value
+                                check_values["remaining_time_hours"] = value
+                            elif key.endswith("_remaining_seconds"):
+                                # add timestamp of remaining seconds
+                                device_mqtt[key.replace("_seconds", "_timestamp")] = (
+                                    int(datetime.now().astimezone().timestamp())
+                                    if value > 0
+                                    else 0
+                                )
+                            elif key == "set_port_priority":
+                                device_mqtt["port_priority"] = value
+                                # update port priority based on bitmask
+                                for bit, idx in enumerate(
+                                    ["usbc_1", "usbc_2", "usbc_3", "usbc_4"]
+                                ):
+                                    device_mqtt[f"{idx}_priority"] = 1 + int(
+                                        bool(1 & (value >> bit))
+                                    )
+                            value_updated = bool(
+                                key not in ["topics", "expansion_packs"]
+                                and "timestamp" not in key
+                                and "_packs" not in key
+                            )
+                        # use expansion values only if installed
+                        elif (
+                            any(
+                                key
+                                in [
+                                    f"exp_{x}_soc",
+                                    f"exp_{x}_temperature",
+                                    f"exp_{x}_soh",
+                                ]
+                                and (
+                                    float(mqtt.get("expansion_packs", 0)) >= x
+                                    or float(mqtt.get(f"exp_{x}_soc", 0)) > 0
+                                )
+                                for x in range(1, 7)
+                            )
+                        ) and str(value).replace("-", "", 1).replace(
+                            ".", "", 1
+                        ).isdigit():
+                            if str(key).endswith("_soh"):
+                                if (val := f"{float(value):.3f}") != device_mqtt.get(
+                                    key
+                                ):
+                                    # trigger capacity calculation if SOH is changing
+                                    calc_capacity = True
+                                device_mqtt[key] = val
+                            else:
+                                # trigger capacity calculation if SOC or type is changing
+                                val = f"{float(value):.0f}"
+                                if str(key).endswith("_soc") and val != device_mqtt.get(
+                                    key
+                                ):
+                                    calc_capacity = True
+                                device_mqtt[key] = val
+                        elif key in ["output_cutoff_data", "min_soc", "power_cutoff"]:
+                            device_mqtt["power_cutoff"] = str(value)
+                        elif key in [
+                            "set_port_switch_select",
+                            "set_ac_port_switch_select",
+                            "set_port_timer_select",
+                        ]:
+                            # update charger port state based on toggle command or confirmation msg for cache update upon passive change
+                            if (
+                                (
+                                    (
+                                        switch_value := check_values.get(
+                                            "set_port_switch"
+                                        )
+                                    )
+                                    is not None
+                                    and (
+                                        port_name := get_enum_name(
+                                            SolixPortId, str(value)
+                                        )
+                                    )
+                                    and (switch_name := f"{port_name}_switch")
+                                )
+                                or (
+                                    (
+                                        switch_value := check_values.get(
+                                            "set_port_timer_switch"
+                                        )
+                                    )
+                                    is not None
+                                    and (
+                                        (
+                                            port_name := get_enum_name(
+                                                SolixPortId, str(value)
+                                            )
+                                        )
+                                        and (switch_name := f"{port_name}_timer_switch")
+                                    )
+                                )
+                                or (
+                                    (
+                                        switch_value := check_values.get(
+                                            "set_ac_port_switch"
+                                        )
+                                    )
+                                    is not None
+                                    and (
+                                        switch_name := {
+                                            0: "ac_1_switch",
+                                            1: "ac_2_switch",
+                                        }.get(value)
+                                    )
+                                )
+                            ):
+                                device_mqtt[switch_name] = switch_value
+                                if key == "set_port_timer_select":
+                                    device_mqtt[f"{port_name}_timer_seconds"] = (
+                                        check_values.get("port_timer_seconds", 0)
+                                    )
+                                    device_mqtt[
+                                        f"{port_name}_timer_remaining_seconds"
+                                    ] = check_values.get(
+                                        "port_timer_remaining_seconds", 0
+                                    )
+                                    device_mqtt[
+                                        f"{port_name}_timer_remaining_timestamp"
+                                    ] = int(datetime.now().astimezone().timestamp())
+                        else:
+                            value_updated = False
+                        updated = updated or value_updated
+                    # update last message timestamp from mqtt cache
+                    device_mqtt["last_update"] = str(mqtt.get("last_message"))
+                    # calculate extra fields if required values were updated
+                    if calc_efficiency:
+                        pv = device_mqtt.get("pv_yield")
+                        out = device_mqtt.get("output_energy")
+                        charge = device_mqtt.get("charged_energy")
+                        if not (discharge := device_mqtt.get("discharged_energy")):
+                            # SB2 does not report discharge, but calculates it as Output + Charged - PV
+                            if pv and out and charge:
+                                discharge = min(
+                                    float(charge),
+                                    max(0, float(out) + float(charge) - float(pv)),
+                                )
+                        elif not charge and pv and out:
+                            # calculate charge if discharge available but charge not
+                            # Out = PV - battery loss, where battery loss = charge - discharge
+                            # charge = PV - Out + discharge
+                            charge = max(
+                                float(discharge),
+                                float(pv) - float(out) + float(discharge),
+                            )
+                        # consider self consumed energy for efficiency, since that probably reduces the reported pv_yield and charge energy
+                        consumed = device_mqtt.get("consumed_energy") or 0
+                        # Consumed = loss + ac socket ?
+                        # Battery loss = charge - discharge
+                        # Out = PV + AC charge - loss - battery loss
+                        # Out = PV + AC charge - (consumed - AC socket) - charge + discharge
+                        # AC charge = Out - PV + consumed - AC socket - discharge + charge
+                        # First calculate optional AC charge
+                        ac_charge = 0
+                        if pv and out and charge and discharge:
+                            ac_charge = max(
+                                0,
+                                float(out)
+                                - float(pv)
+                                + float(consumed)
+                                + float(charge)
+                                - float(discharge),
+                            )
+                        if pv and out and float(pv) > 0:
+                            # Solarbank 3 seem to reduce the reported PV energy by consumed energy (Heating, Socket), so it must be added to input
+                            # Input energy = PV + AC charge + loss
+                            dev_in = (
+                                float(pv)
+                                + ac_charge
+                                + max(0, float(consumed) - float(ac_charge))
+                            )
+                            device_mqtt["device_efficiency"] = (
+                                f"{min(100, float(out) / dev_in * 100):.3f}"
+                            )
+                        if charge and discharge and float(charge) > 0:
+                            # Charge should include PV charge and AC charge if supported by device
+                            # Solarbank 3 seems to reduce the reported charge energy by energy loss
+                            device_mqtt["battery_efficiency"] = (
+                                f"{min(100, float(discharge) / (float(charge) + max(0, float(consumed) - float(ac_charge))) * 100):.3f}"
+                            )
+                    # additional mappings based on keys
+                    if "home_demand_circuit_01" in check_values:
+                        # combine power of paired circuits
+                        # Paired circuits must be consecutive and are limited to 2
+                        for group in [
+                            g
+                            for g in device_mqtt.get("circuit_groups", {}).values()
+                            if len(g) > 1
+                        ]:
+                            combined = 0
+                            with contextlib.suppress(ValueError):
+                                combined = int(
+                                    device_mqtt.get(
+                                        f"home_demand_circuit_{group[0]}", 0
+                                    )
+                                )
+                                for g in group[1:]:
+                                    combined += int(
+                                        device_mqtt.pop(f"home_demand_circuit_{g}", 0)
+                                    )
+                                device_mqtt[f"home_demand_circuit_{group[0]}"] = (
+                                    f"{float(combined):.0f}"
+                                )
+                                device_mqtt[f"peers_circuit_{group[0]}"] = list(
+                                    map(int, group[1:])
+                                )
+                    elif "usbc_1_priority" in check_values:
+                        # update bitmask field for actual priority setting
+                        bitmask = 0
+                        for bit, idx in enumerate(
+                            ["usbc_1", "usbc_2", "usbc_3", "usbc_4"]
+                        ):
+                            bitmask += (
+                                int(check_values.get(f"{idx}_priority", 0) > 1) >> bit
+                            )
+                        device_mqtt["port_priority"] = bitmask
+                    device["mqtt_data"] = device_mqtt
+                    # trigger device cache update for cap calculation with total or main device soc updates
+                    if calc_capacity and (cap := device.get("battery_capacity")):
+                        # calculate total expansions if expansions are available and no number in mqtt cache
+                        if mqtt.get("expansion_packs") is None:
+                            # deterministic code assumes expansion if soc or soh > 0
+                            device_mqtt["expansion_packs"] = len(
+                                [
+                                    k
+                                    for k in [f"exp_{i!s}_soc" for i in range(1, 6)]
+                                    if (
+                                        float(device_mqtt.get(k, 0)) > 0
+                                        or float(
+                                            device_mqtt.get(
+                                                k.replace("_soc", "_soh"), 0
+                                            )
+                                        )
+                                        > 0
+                                    )
+                                ]
+                            )
+                        # determine size of expansion if not done yet and save in api cache
+                        cap_change = False
+                        expansions = device_mqtt.get("expansion_packs", 0)
+                        for i in range(1, expansions + 1):
+                            # One deterministic approach from serial
+                            if (
+                                device.get(f"exp_{i}_size") is None
+                                and (
+                                    exp_sn := device_mqtt.get(f"exp_{i}_sn")
+                                    or device_mqtt.get(f"exp_{i}_controller_sn")
+                                )
+                                is not None
+                            ):
+                                code = get_solix_product_code(exp_sn)
+                                cap_change = True
+                                if (
+                                    not code
+                                    and device.get("type")
+                                    == SolixDeviceType.SOLARBANK.value
+                                ):
+                                    code = "BP1600"
+                                device[f"exp_{i}_size"] = getattr(
+                                    SolixDeviceCapacity,
+                                    code,
+                                    device.get("battery_size") or 0,
+                                )
+                            else:
+                                break
+                        # calculate device overall soc if expansions are available and no overall soc in mqtt cache
+                        size = device.get("battery_size")
+                        if not (tsoc := mqtt.get("battery_soc")) and (
+                            soclist := [
+                                float(device_mqtt.get(k))
+                                for k in (
+                                    ["main_battery_soc"]
+                                    + [f"exp_{i!s}_soc" for i in range(1, 6)]
+                                )
+                                if device_mqtt.get(k)
+                            ]
+                        ):
+                            # calculate overall soc based on expansions
+                            sizelist = [size] if len(soclist) > expansions else []
+                            sizelist.extend(
+                                [
+                                    float(device.get(k))
+                                    for k in (
+                                        [
+                                            f"exp_{i}_size"
+                                            for i in range(1, 1 + expansions)
+                                        ]
+                                    )
+                                    if device.get(k)
+                                ]
+                            )
+                            if len(soclist) == len(sizelist):
+                                # consider different expansion sizes in average, limit to 100 %
+                                tsoc = min(
+                                    100,
+                                    round(
+                                        sum(
+                                            [
+                                                size * soc
+                                                for size, soc in zip(
+                                                    sizelist, soclist, strict=False
+                                                )
+                                            ]
+                                        )
+                                        / sum(sizelist)
+                                    ),
+                                )
+                            else:
+                                # simply take average which ignores different expansion sizes
+                                tsoc = round(sum(soclist) / len(soclist))
+                            device_mqtt["battery_soc"] = f"{float(tsoc):.0f}"
+                        # trigger capacity calculation if no Api SOC available or MQTT overlay or expansion size changed
+                        if tsoc and (
+                            not device.get("battery_soc")
+                            or device.get("mqtt_overlay")
+                            or cap_change
+                        ):
+                            # trigger correct class with old capacity since this will cause capacity recalculation
+                            if self.hesApi and sn in self.hesApi.devices:
+                                api = self.hesApi
+                            elif (
+                                self.powerpanelApi and sn in self.powerpanelApi.devices
+                            ):
+                                api = self.powerpanelApi
+                            else:
+                                api = self
+                            api._update_dev({"device_sn": sn, "battery_capacity": cap})
+                    # For power panels, make additional mappings since PPS MQTT data is limited
+                    if (self.powerpanelApi and model == "A17B1") and (
+                        pp_dev := self.powerpanelApi.devices.get(sn)
+                    ):
+                        for i in range(1, 3):
+                            if (
+                                pps_sn := check_values.get(f"device_{i}_sn")
+                                or pp_dev.get("mqtt_data", {}).get(f"device_{i}_sn", "")
+                            ) and not self.devices.get(pps_sn, {}).get("site_id"):
+                                # Ensure to assign site IDs to PPS as they are not provided in Api data
+                                if pps_sn in self.powerpanelApi.devices:
+                                    # update only the merged device and trigger main device cap update
+                                    pps = self.powerpanelApi.devices.get(pps_sn)
+                                    self._update_dev(
+                                        {
+                                            "device_sn": pps_sn,
+                                            "battery_capacity": pps.get(
+                                                "battery_capacity", 0
+                                            ),
+                                        },
+                                        siteId=pp_dev.get("site_id"),
+                                    )
+                                else:
+                                    # add merged device to powerpanel class
+                                    pps = self.devices.get(
+                                        pps_sn, {"device_sn": pps_sn}
+                                    )
+                                    self.powerpanelApi.devices[pps_sn] = pps
+                                    # trigger initial update of required powerpanel class keys
+                                    self.powerpanelApi._update_dev(  # noqa: SLF001
+                                        {
+                                            "device_sn": pps_sn,
+                                            "device_pn": pps.get("device_pn"),
+                                            "battery_capacity": pps.get(
+                                                "battery_capacity", 0
+                                            ),
+                                        },
+                                        siteId=pp_dev.get("site_id"),
+                                    )
+                            if pps := self.powerpanelApi.devices.get(pps_sn):
+                                pps_mqtt = {}
+                                # Mark power panel PPS as passive MQTT device
+                                pps_update = {"device_sn": pps_sn, "is_passive": True}
+                                for key, value in {
+                                    k: v
+                                    for k, v in check_values.items()
+                                    if str(k).startswith(f"device_{i}")
+                                }.items():
+                                    if key.endswith("_pn"):
+                                        pps_mqtt["device_pn"] = value
+                                        pps_update["device_pn"] = value
+                                    elif key.endswith("_country_code"):
+                                        pps_mqtt["country_code"] = value
+                                    elif key.endswith("_sw_version"):
+                                        pps_mqtt["sw_version"] = (
+                                            str(value).lstrip("v").strip()
+                                        )
+                                    elif key.endswith("_status"):
+                                        pps_mqtt["battery_status"] = value
+                                    elif key.endswith("_soc"):
+                                        pps_mqtt["battery_soc"] = value
+                                        pps_update["battery_soc"] = value
+                                    elif key.endswith("_temperature"):
+                                        pps_mqtt["temperature"] = value
+                                    elif key.endswith("_error"):
+                                        pps_mqtt["err_code"] = value
+                                    elif key.endswith("_data"):
+                                        # and isinstance(value, dict):
+                                        pps_mqtt["battery_soc"] = value.get("soc")
+                                        pps_update["battery_soc"] = value.get("soc")
+                                        pps_mqtt["err_code"] = value.get("error")
+                                        # map signed power to unsigned PPS MQTT keys
+                                        if (
+                                            str(power := value.get("power", ""))
+                                            .replace("-", "", 1)
+                                            .replace(".", "", 1)
+                                            .isdigit()
+                                        ):
+                                            power = float(power)
+                                            if power >= 0:
+                                                pps_mqtt["ac_output_power"] = (
+                                                    f"{abs(power):.0f}"
+                                                )
+                                                pps_mqtt["ac_input_power"] = "0"
+                                                pps_mqtt["bat_charge_power"] = "0"
+                                            else:
+                                                pps_mqtt["ac_input_power"] = (
+                                                    f"{abs(power):.0f}"
+                                                )
+                                                pps_mqtt["bat_charge_power"] = (
+                                                    f"{abs(power):.0f}"
+                                                )
+                                                pps_mqtt["ac_output_power"] = "0"
+                                if pps_m := pps.get("mqtt_data"):
+                                    # update in place
+                                    pps_m.update(pps_mqtt)
+                                else:
+                                    # create mqtt data and notify device
+                                    pps["mqtt_data"] = pps_mqtt
+                                    self.notify_device(deviceSn=pps_sn)
+                                # update device Api cache for capacity calculations
+                                self.powerpanelApi._update_dev(pps_update)  # noqa: SLF001
+                    # trigger device cache update for display theme
+                    if "theme_id" in check_values and str(
+                        check_values.get("theme_id")
+                    ) != device.get("display_theme", {}).get("id"):
+                        # update only if cached value different
+                        self._update_dev(
+                            {
+                                "device_sn": sn,
+                                "theme_id": check_values.get("theme_id"),
+                            }
+                        )
+                    # update marker should also indicate increase in extracted keys
+                    updated = updated or (oldsize != len(device_mqtt))
+                    # notify registered devices if new mqtt data cache was generated or dynamic description state changed
+                    descs = self._device_callbacks.get(deviceSn, {}).get(
+                        "dynamic_descriptions", {}
+                    )
+                    for key, item in descs.items():
+                        # check if key in message values and compare old state with new state
+                        if check_values.get(key) is not None and str(
+                            device_mqtt.get(key)
+                        ) != str(item.get("last_value", "")):
+                            # flag to trigger update if dynamic description value changed
+                            dyn_desc = True
+                            break
+                    # callback registered MQTT device if required
+                    if (
+                        oldsize == 0
+                        or dyn_desc
+                        or any(
+                            key in check_values
+                            for key in ["tou_mode_schedule", "custom_mode_schedule"]
+                        )
+                    ):
+                        self.notify_device(deviceSn=sn)
+            # update MQTT statistic in account cache, convert datetime to json compatible format
+            stats = self.mqttsession.mqtt_stats.asdict()
+            if (start := stats.pop("start_time")) and isinstance(start, datetime):
+                stats["start_time"] = start.strftime("%Y-%m-%d %H:%M")
+            self._update_account({"mqtt_statistic": stats})
+        return updated
+
+    async def update_sites(
+        self,
+        siteId: str | None = None,
+        fromFile: bool = False,
+        exclude: set | None = None,
+    ) -> dict:
+        """Create/Update api sites cache structure. @thomas
+
+        Implement this method to get the latest info for all accessible sites or only the provided siteId and update class cache dictionaries.
+        """
+        # define excluded categories to skip for queries
+        if not exclude or not isinstance(exclude, set):
+            exclude = set()
+        if siteId and (self.sites.get(siteId) or {}):
+            # update only the provided site ID
+            self._logger.debug(
+                "Updating api %s sites data for site ID %s",
+                self.apisession.nickname,
+                siteId,
+            )
+            new_sites = self.sites
+            # prepare the site list dictionary for the update loop by copying the requested site from the cache
+            sites: dict = {"site_list": [self.sites[siteId].get("site_info") or {}]}
+        else:
+            # run normal refresh for all sites
+            self._logger.debug(
+                "Updating api %s sites data",
+                self.apisession.nickname,
+            )
+            new_sites = {}
+            self._logger.debug(
+                "Getting api %s site list",
+                self.apisession.nickname,
+            )
+            sites = await self.get_site_list(fromFile=fromFile)
+            self._site_devices = set()
+        for site in sites.get("site_list", []):
+            if myid := site.get("site_id"):
+                # Update site info
+                mysite: dict = self.sites.get(myid, {})
+                siteInfo: dict = mysite.get("site_info", {})
+                siteInfo.update(site)
+                mysite.update(
+                    {"type": SolixDeviceType.SYSTEM.value, "site_info": siteInfo}
+                )
+                admin = (
+                    siteInfo.get("ms_type", 0) in [0, 1]
+                )  # add boolean key to indicate whether user is site admin (ms_type 1 or not known) and can query device details
+                mysite.update({"site_admin": admin})
+                # Update scene info for site
+                self._logger.debug(
+                    "Getting api %s scene info for site",
+                    self.apisession.nickname,
+                )
+                scene = await self.get_scene_info(myid, fromFile=fromFile)
+                mysite.update(scene)
+                new_sites.update({myid: mysite})
+                #
+                # Implement site dependent device update code as needed for various device types
+                # For each SN found in the site structures, update the internal site_devices set
+                # The update device details routine may also find standalone devices and need to merge all active
+                # devices for cleanup/removal of extra/obsolete devices in the cache structure
+                self._site_devices.add("found_sn")
+
+        # Write back the updated sites
+        self.sites = new_sites
+        # update account dictionary with number of requests
+        self._update_account({"use_files": fromFile})
+        return self.sites
+
+    async def update_site_details(
+        self, fromFile: bool = False, exclude: set | None = None
+    ) -> dict:
+        """Get the latest updates for additional account or site related details updated less frequently. @thomas
+
+        Implement this method for site related queries that should be used less frequently.
+        Most of theses requests return data only when user has admin rights for sites owning the devices.
+        To limit API requests, this update site details method should be called less frequently than update site method,
+        and it updates just the nested site_details dictionary in the sites dictionary as well as the account dictionary
+        """
+        # define excluded categories to skip for queries
+        if not exclude or not isinstance(exclude, set):
+            exclude = set()
+        self._logger.debug(
+            "Updating api %s sites details",
+            self.apisession.nickname,
+        )
+        #
+        # Implement required queries according to exclusion set
+        #
+
+        # update account dictionary with number of requests
+        self._update_account({"use_files": fromFile})
+        return self.sites
+
+    async def update_device_energy(
+        self, fromFile: bool = False, exclude: set | None = None
+    ) -> dict:
+        """Get the site energy statistics for given device types from today and yesterday. @thomas
+
+        Implement this method for the required energy query methods to obtain energy data for today and yesterday.
+        It was found that energy data is tracked only per site, but not individual devices even if a device SN parameter may be mandatory in the Api request.
+        """
+        # check exclusion list, default to all energy data
+        if not exclude or not isinstance(exclude, set):
+            exclude = set()
+        for site_id, site in self.sites.items():
+            self._logger.debug(
+                "Getting api %s energy details for site",
+                self.apisession.nickname,
+            )
+            #
+            # Implement required queries according to exclusion set
+            #
+            # save energy stats with sites dictionary
+            site["energy_details"] = {"energy_key": "energy_value"}
+            self.sites[site_id] = site
+
+        # update account dictionary with number of requests
+        self._update_account({"use_files": fromFile})
+        return self.sites
+
+    async def update_device_details(
+        self, fromFile: bool = False, exclude: set | None = None
+    ) -> dict:
+        """Get the latest updates for additional device info updated less frequently. @thomas
+
+        Implement this method for the required query methods to fetch device related data and update the device cache accordingly.
+        To limit API requests, this update device details method should be called less frequently than update site method,
+        which will also update most device details as found in the site data response.
+        """
+        # define excluded device types or categories to skip for queries
+        if not exclude or not isinstance(exclude, set):
+            exclude = set()
+        self._logger.debug(
+            "Updating api %s device details",
+            self.apisession.nickname,
+        )
+        #
+        # Implement required queries according to exclusion set
+        #
+
+        # update account dictionary with number of requests
+        self._update_account({"use_files": fromFile})
+        return self.devices
+
+    async def get_site_rules(self, fromFile: bool = False) -> dict:
+        """Get the site rules supported by the api. @thomas
+
+        Example data:
+        {'rule_list': [
+            {'power_site_type': 1, 'main_device_models': ['A5143'], 'device_models': ['A5143', 'A1771'], 'can_empty_site': False,
+                'quantity_min_limit_map': {'A1771': 1, 'A5143': 1},'quantity_max_limit_map': {'A1771': 2, 'A5143': 1}},
+            {'power_site_type': 2, 'main_device_models': ['A17C0'], 'device_models': ['A17C0', 'A5143', 'A1771'], 'can_empty_site': False,
+                'quantity_min_limit_map': {'A17C0': 1}, 'quantity_max_limit_map': {'A1771': 2, 'A17C0': 2, 'A5143': 1}},
+            {'power_site_type': 4, 'main_device_models': ['A17B1'], 'device_models': ['A17B1'], 'can_empty_site': True,
+                'quantity_min_limit_map': None, 'quantity_max_limit_map': {'A17B1': 1}},
+            {'power_site_type': 5, 'main_device_models': ['A17C1'], 'device_models': ['A17C1', 'A17X7'], 'can_empty_site': True,
+                'quantity_min_limit_map': None, 'quantity_max_limit_map': {'A17C1': 1}},
+            {'power_site_type': 6, 'main_device_models': ['A5341'], 'device_models': ['A5341', 'A5101', 'A5220'], 'can_empty_site': False,
+                'quantity_min_limit_map': {'A5341': 1}, 'quantity_max_limit_map': {'A5341': 1}},
+            {'power_site_type': 7, 'main_device_models': ['A5101'], 'device_models': ['A5101', 'A5220'], 'can_empty_site': False,
+                'quantity_min_limit_map': {'A5101': 1}, 'quantity_max_limit_map': {'A5101': 6}},
+            {'power_site_type': 8, 'main_device_models': ['A5102'], 'device_models': ['A5102', 'A5220'], 'can_empty_site': False,
+                'quantity_min_limit_map': {'A5102': 1}, 'quantity_max_limit_map': {'A5102': 6}},
+            {'power_site_type': 9, 'main_device_models': ['A5103'], 'device_models': ['A5103', 'A5220'], 'can_empty_site': False,
+                'quantity_min_limit_map': {'A5103': 1}, 'quantity_max_limit_map': {'A5103': 6}}]}
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['site_rules']}.json"
+            )
+        else:
+            resp = await self.apisession.request("post", API_ENDPOINTS["site_rules"])
+        return resp.get("data") or {}
+
+    async def get_site_list(self, fromFile: bool = False) -> dict:
+        """Get the site list for the used account. @thomas
+
+        Example data:
+        {'site_list': [{'site_id': 'efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c', 'site_name': 'BKW', 'site_img': '', 'device_type_list': [3], 'ms_type': 2, 'power_site_type': 2, 'is_allow_delete': True}]}
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['site_list']}.json"
+            )
+        else:
+            resp = await self.apisession.request("post", API_ENDPOINTS["site_list"])
+        return resp.get("data") or {}
+
+    async def get_site_details(self, siteId: str, fromFile: bool = False) -> dict:
+        """Get the site details for the used account. @thomas
+
+        Example data:
+        {'site_list': [{'site_id': 'efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c', 'site_name': 'BKW', 'site_img': '', 'device_type_list': [3], 'ms_type': 2, 'power_site_type': 2, 'is_allow_delete': True}]}
+        """
+        siteId = str(siteId) or ""
+        data = {"site_id": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['site_detail']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["site_detail"], json=data
+            )
+        return resp.get("data") or {}
+
+    async def get_scene_info(self, siteId: str, fromFile: bool = False) -> dict:
+        """Get scene info. It reflects mostly data visible in the Anker App home page for the site. It also works for shared accounts. @thomas
+
+        Example data for provided site_id:
+        {"home_info":{"home_name":"Home","home_img":"","charging_power":"0.00","power_unit":"W"},
+        "solar_list":[],
+        "pps_info":{"pps_list":[],"total_charging_power":"0.00","power_unit":"W","total_battery_power":"0.00","updated_time":"","pps_status":0},
+        "statistics":[{"type":"1","total":"89.75","unit":"kwh"},{"type":"2","total":"89.48","unit":"kg"},{"type":"3","total":"35.90","unit":"€"}],
+        "topology_type":"1","solarbank_info":{"solarbank_list":
+            [{"device_pn":"A17C0","device_sn":"9JVB42LJK8J0P5RY","device_name":"Solarbank E1600",
+                "device_img":"https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/e9478c2d-e665-4d84-95d7-dd4844f82055/20230719-144818.png",
+                "battery_power":"75","bind_site_status":"","charging_power":"0","power_unit":"W","charging_status":"2","status":"0","wireless_type":"1","main_version":"","photovoltaic_power":"0",
+                "output_power":"0","create_time":1695392386}],
+            "total_charging_power":"0","power_unit":"W","charging_status":"0","total_battery_power":"0.00","updated_time":"2023-12-28 18:53:27","total_photovoltaic_power":"0","total_output_power":"0.00"},
+        "retain_load":"0W","updated_time":"01-01-0001 00:00:00","power_site_type":2,"site_id":"efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c"}
+        """
+        siteId = str(siteId) or ""
+        data = {"site_id": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['scene_info']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["scene_info"], json=data
+            )
+        return resp.get("data") or {}
+
+    async def get_bind_devices(self, fromFile: bool = False) -> dict:
+        """Get the bind device information, which will list all devices the account has admin rights for. It also contains firmware level of devices. @thomas
+
+        Example data:
+        {"data": [{"device_sn":"9JVB42LJK8J0P5RY","product_code":"A17C0","bt_ble_id":"BC:A2:AF:C7:55:F9","bt_ble_mac":"BCA2AFC755F9","device_name":"Solarbank E1600","alias_name":"Solarbank E1600",
+        "img_url":"https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/e9478c2d-e665-4d84-95d7-dd4844f82055/20230719-144818.png",
+        "link_time":1695392302068,"wifi_online":false,"wifi_name":"","relate_type":["ble","wifi"],"charge":false,"bws_surplus":0,"device_sw_version":"v1.4.4","has_manual":false}]}
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['bind_devices']}.json"
+            )
+        else:
+            resp = await self.apisession.request("post", API_ENDPOINTS["bind_devices"])
+        data = resp.get("data") or {}
+        active_devices = set()
+        for device in data.get("data") or []:
+            # ensure to get product list once if needed if no device name in response
+            if not device.get("device_name") and "products" not in self.account:
+                self._update_account(
+                    {"products": await self.get_products(fromFile=fromFile)}
+                )
+            # Bind devices also list shared devices, device admin cannot longer be assumed per default and must be determined
+            if sn := self._update_dev(device.copy()):
+                active_devices.add(sn)
+        # avoid removal of passive devices from active sites, since they are not listed in bind_devices
+        for sn, device in self.devices.items():
+            if device.get("is_passive") and (device.get("site_id") or "") in self.sites:
+                active_devices.add(sn)
+        # recycle api device list and remove devices no longer used in sites or bind devices
+        self.recycleDevices(extraDevices=active_devices)
+        return data
+
+    async def get_auto_upgrade(self, fromFile: bool = False) -> dict:
+        """Get auto upgrade settings and devices enabled for auto upgrade. @thomas
+
+        Example data:
+        {'main_switch': True, 'device_list': [{'device_sn': '9JVB42LJK8J0P5RY', 'device_name': 'Solarbank E1600', 'auto_upgrade': True, 'alias_name': 'Solarbank E1600',
+        'icon': 'https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/e9478c2d-e665-4d84-95d7-dd4844f82055/20230719-144818.png'}]}
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['get_auto_upgrade']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_auto_upgrade"]
+            )
+        data = resp.get("data") or {}
+        main = data.get("main_switch")
+        devicelist = (
+            data.get("device_list") or []
+        )  # could be null for non owning account
+        for device in devicelist:
+            dev_ota = device.get("auto_upgrade")
+            if isinstance(dev_ota, bool):
+                # update device setting based on main setting if available
+                if isinstance(main, bool):
+                    device.update({"auto_upgrade": main and dev_ota})
+                self._update_dev(device.copy())
+        return data
+
+    async def set_auto_upgrade(self, devices: dict[str, bool]) -> bool | dict:
+        """Set auto upgrade switches for given device dictionary. @thomas
+
+        Example input:
+        devices = {'9JVB42LJK8J0P5RY': True}
+        The main switch must be set True if any device switch is set True. The main switch does not need to be changed to False if no device is True.
+        But if main switch is set to False, all devices will automatically be set to False and individual setting is ignored by Api.
+        """
+        resp: bool | dict = False
+        # get actual settings
+        settings = await self.get_auto_upgrade()
+        if (main_switch := settings.get("main_switch")) is None:
+            return resp
+        dev_switches = {}
+        main = None
+        change_list = []
+        for dev_setting in settings.get("device_list") or []:
+            if (
+                isinstance(dev_setting, dict)
+                and (device_sn := dev_setting.get("device_sn"))
+                and (dev_upgrade := dev_setting.get("auto_upgrade")) is not None
+            ):
+                dev_switches[device_sn] = dev_upgrade
+        # Loop through provided device list and compose the request data device list that needs to be send
+        for sn, upgrade in devices.items():
+            if sn in dev_switches and upgrade != dev_switches[sn]:
+                change_list.append({"device_sn": sn, "auto_upgrade": upgrade})
+                if upgrade:
+                    main = True
+        if change_list:
+            # json example for endpoint
+            # {"main_switch": False, "device_list": [{"device_sn": "9JVB42LJK8J0P5RY","auto_upgrade": True}]}
+            data = {
+                "main_switch": main if main is not None else main_switch,
+                "device_list": change_list,
+            }
+            # Make the Api call and check for return code
+            code = (
+                await self.apisession.request(
+                    "post", API_ENDPOINTS["set_auto_upgrade"], json=data
+                )
+            ).get("code")
+            if not isinstance(code, int) or int(code) != 0:
+                return resp
+            # update the data in api dict
+            resp = await self.get_auto_upgrade()
+        return resp
+
+    async def get_wifi_list(self, siteId: str, fromFile: bool = False) -> dict:
+        """Get the wifi list. @thomas
+
+        Example data:
+        {'wifi_info_list': [{"wifi_name": "wifi-network-1","wifi_signal": "48","device_sn": "7SKIVRGPK8XC2ROB","rssi": "","offline": false}]}
+        """
+        siteId = str(siteId) or ""
+        data = {"site_id": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['wifi_list']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["wifi_list"], json=data
+            )
+        # update device data if device_sn found in wifi list
+        if data := resp.get("data") or {}:
+            for wifi_info in data.get("wifi_info_list") or []:
+                if wifi_info.get("device_sn"):
+                    self._update_dev(wifi_info.copy())
+        return data
+
+    async def get_ota_batch(
+        self, deviceSns: list | None = None, fromFile: bool = False
+    ) -> dict:
+        """Get the OTA info for provided list of device serials or for all owning devices in devices dict. @thomas
+
+        Example data:
+        {"update_infos": [{"device_sn": "9JVB42LJK8J0P5RY","need_update": false,"upgrade_type": 0,"lastPackage": {
+                "product_code": "","product_component": "","version": "","is_forced": false,"md5": "","url": "","size": 0},
+        "change_log": "","current_version": "v1.6.3","children": [
+            {"needUpdate": false,"device_type": "A17C1_esp32","rom_version_name": "v0.1.5.1","force_upgrade": false,"full_package": {
+                "file_path": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/ota/2024/09/06/iot-admin/J7lALfvEQZIiqHyD/A17C1-A17C3_EUOTAWIFI_V0.1.5.1_20240828.bin",
+                "file_size": 1270256,"file_md5": "578ac26febb55ee55ffe9dc6819b6c4a"},
+            "change_log": "","sub_current_version": ""},
+            {"needUpdate": false,"device_type": "A17C1_mcu","rom_version_name": "v1.0.5.16","force_upgrade": false,"full_package": {
+                "file_path": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/ota/2024/09/06/iot-admin/w3ofT0NcpGF3IUcC/A17C1-A17C3_EUOTA_V1.0.5.16_20240904.bin",
+                "file_size": 694272,"file_md5": "40913018b3e542c0350e8815951e4a9c"},
+            "change_log": "","sub_current_version": ""},
+            {"needUpdate": false,"device_type": "A17C1_100Ah","rom_version_name": "v0.1.9.1","force_upgrade": false,"full_package": {
+                "file_path": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/ota/2024/09/06/iot-admin/mmCg3IkHt2YpF8TR/A17C1-A17C3_EUOTA_V0.1.9.1_20240904.bin",
+                "file_size": 694272,"file_md5": "40913018b3e542c0350e8815951e4a9c"},
+            "change_log": "","sub_current_version": ""}]]}]}
+        """
+        # default to all admin devices in devices dict if no device serial list provided
+        if not deviceSns or not isinstance(deviceSns, list):
+            deviceSns = [
+                s for s, device in self.devices.items() if device.get("is_admin")
+            ]
+        if not deviceSns:
+            resp = {}
+        elif fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['get_ota_batch']}.json"
+            )
+        else:
+            data = {
+                "device_list": [
+                    {"device_sn": serial, "version": ""} for serial in deviceSns
+                ]
+            }
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_ota_batch"], json=data
+            )
+        # update device details only if valid response
+        if (data := resp.get("data") or {}) and deviceSns:
+            # update devices dict with new ota data
+            for dev in data.get("update_infos") or []:
+                if deviceSn := dev.get("device_sn"):
+                    need_update = bool(dev.get("need_update"))
+                    is_forced = bool(dev.get("is_forced"))
+                    children: list = []
+                    for child in dev.get("children") or []:
+                        need_update = need_update or bool(child.get("needUpdate"))
+                        is_forced = is_forced or bool(child.get("needUpdate"))
+                        children.append(
+                            {
+                                "device_type": child.get("device_type"),
+                                "need_update": bool(child.get("needUpdate")),
+                                "force_upgrade": bool(child.get("force_upgrade")),
+                                "rom_version_name": str(
+                                    child.get("rom_version_name", "")
+                                ).lstrip("v"),
+                            }
+                        )
+                    self._update_dev(
+                        {
+                            "device_sn": deviceSn,
+                            "is_ota_update": need_update,
+                            "ota_forced": need_update,
+                            "ota_version": str(
+                                (dev.get("lastPackage") or {}).get("version", "")
+                                or dev.get("current_version", "")
+                                or ""
+                            ).lstrip("v"),
+                            "ota_children": children,
+                        }
+                    )
+        return data
+
+    async def get_message_unread(self, fromFile: bool = False) -> dict:
+        """Get the unread messages for account. @thomas
+
+        Example data:
+        {"has_unread_msg": false,"system_msg": false,"device_msg": false}
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['get_message_unread']}.json"
+            )
+        else:
+            # Ignore timeouts or other errors from endpoint wrapped into a ClientError
+            try:
+                resp = await self.apisession.request(
+                    "get", API_ENDPOINTS["get_message_unread"]
+                )
+            except ClientError:
+                resp = {}
+        # Save unread msg flag in account dictionary
+        if data := (resp.get("data") or {}):
+            self._update_account(data)
+        return data
+
+    async def get_product_platforms_list(self, fromFile: bool = False) -> list:
+        r"""Get the product list. The response fields will show all supported Anker devices including model type, device name and image url. @thomas
+
+        Example data:
+        [{"name": "Balcony Solar Power System","img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/29f0b6a3-6ba5-40cb-b1b8-94cf39784433/20230731-103020.jpeg",
+          "index": 2,"products": [
+          {"name": "MI60 Microinverter","img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/2e60fc1a-f1c2-4574-8e00-a50689c87f72/picl_A5140_normal.png",
+            "index": 1,"product_code": "A5140","net_img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/e75905fc-4cce-4533-bece-8bd7f9464e6f/A5140_guide.png",
+            "net_guideline": "<div style=\"margin-bottom:12px;\"><font face=\"DingNextLTProRegular\" style=\"font-size: 16px\";>The Schuko cable should not be connected to your home grid yet!</font></div><br>\n\n<div style=\"margin-bottom:12px;\"><font face=\"DingNextLTProRegular\" style=\"font-size: 16px\";>Step 1: Please make sure the DC power supply (cable solar panel to inverter) is connected.</font></div><br>\n\n<div style=\"margin-bottom:12px;\"><font face=\"DingNextLTProRegular\" style=\"font-size: 16px\";>Step 2: Wait 90 seconds when the indicator light of the inverter</font><font face=\"DingNextLTProRegular\" color=\"#00A9E0\" style=\"font-size: 16px\"> blink red</font>.</div><br>\n\n<div style=\"margin-bottom:12px;\"><font face=\"DingNextLTProRegular\" style=\"font-size: 16px\";>Step 3: Connect your phone to the Wi-Fi of the Microinverter</font><font face=\"DingNextLTProRegular\" color=\"#00A9E0\" style=\"font-size: 16px\"> MI-XXXXXXXX</font><font face=\"DingNextLTProRegular\" style=\"font-size: 16px\";> and return to the Anker App.</font></div><br>\n\n<div style=\"margin-bottom:12px;\"><font face=\"DingNextLTProRegular\" style=\"font-size: 16px\";>Password:</font><font face=\"DingNextLTProRegular\" color=\"#00A9E0\" style=\"font-size: 16px\">12345678</font></div>",
+            "p_codes": []},
+          {"name": "Solarbank 2 E1600 Pro","img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/05/24/iot-admin/5iJoq1dk63i47HuR/picl_A17C1_normal%281%29.png",
+            "index": 1,"product_code": "A17C1","net_img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/05/24/iot-admin/xCw8DYNcDGk35wxs/A17C1_guide.gif",
+            "net_guideline": "Press the IoT button for 2 seconds until the IoT button starts flashing.","p_codes": [
+              {"p_code": "A17C13Z1","img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/banner/2024/05/24/iot-admin/SC9Wa8mzqhkLFMjt/picl_A17C1_normal.png"},
+              {"p_code": "A17C1IZ1","img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/banner/2024/05/24/iot-admin/SC9Wa8mzqhkLFMjt/picl_A17C1_normal.png"}]},
+          {"name": "Solarbank E1600","img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/e9478c2d-e665-4d84-95d7-dd4844f82055/20230719-144818.png",
+            "index": 2,"product_code": "A17C0","net_img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/a901a1c3-a2ba-46ec-8eb6-f644eb29489b/A17C0_guide_generic.gif",
+            "net_guideline": "Press the button and the IoT button is blinking green light.","p_codes": [
+              {"p_code": "6Y6","img_url": "https://public-aiot-fra-prod.s3.eu-central-1.amazonaws.com/anker-power/public/banner/2023/08/21/iot-admin/2ZacNVApQvHbpyFe/picl_A17C0_normal.png"},
+              {"p_code": "V6Y","img_url": "https://public-aiot-fra-prod.s3.eu-central-1.amazonaws.com/anker-power/public/banner/2023/08/21/iot-admin/2ZacNVApQvHbpyFe/picl_A17C0_normal.png"},
+              {"p_code": "T90","img_url": "https://public-aiot-fra-prod.s3.eu-central-1.amazonaws.com/anker-power/public/banner/2023/08/21/iot-admin/2ZacNVApQvHbpyFe/picl_A17C0_normal.png"}]}]
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_product_categories']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "get", API_ENDPOINTS["get_product_categories"]
+            )
+        return resp.get("data") or []
+
+    async def get_third_platforms_list(self, fromFile: bool = False) -> list:
+        r"""Get the 3rd party platform list. The response fields will show all supported 3rd party platforms with their products, including model type, device name and image url. @thomas
+
+        Example data:
+        {"data":[{"index": 0,"name": "Shelly",
+          "content": "Shelly\u662f\u4e00\u5bb6\u4e13\u6ce8\u4e8e\u667a\u80fd\u5bb6\u5c45\u8bbe\u5907\u7684\u516c\u53f8\uff0c\u63d0\u4f9b\u9ad8\u6027\u80fd\u3001\u6613\u7528\u7684\u667a\u80fd\u5f00\u5173\u3001\u63d2\u5ea7\u3001\u4f20\u611f\u5668\u548c\u63a7\u5236\u5668\uff0c\u517c\u5bb9\u5176\u4ed6\u667a\u80fd\u5bb6\u5c45\u7cfb\u7edf\uff0c\u63d0\u5347\u7528\u6237\u4f53\u9a8c\u3002",
+          "logo": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/banner/2024/08/29/iot-admin/isCjeqQviU5L4O7D/20240829-102526.jpg",
+          "tag": "shelly","url": "https://my.shelly.cloud/integrator.html","callback_url": "https://ankerpower-api-eu.anker.com/cloud/powerservice/shelly_callback","tag_code": "ITG_AIN2",
+          "products": [
+            {"name": "3EM","img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/banner/2024/08/29/iot-admin/5lyJ9NmYG5pD7NIA/3em.png",
+            "index": 0,"product_code": "SHEM3","net_img_url": "","net_guideline": "","p_codes": null},
+            {"name": "Pro 3EM","img_url": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/banner/2024/09/02/iot-admin/I8dV8ONUfEm4iXSc/3em%20pro.png",
+            "index": 0,"product_code": "SHEMP3","net_img_url": "","net_guideline": "","p_codes": null}],
+          "countries": "DE,AT,FR,IT"}]}
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['get_third_platforms']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_third_platforms"]
+            )
+        return (resp.get("data") or {}).get("data") or []
+
+    async def get_hes_platforms_list(self, fromFile: bool = False) -> list:
+        r"""Get the hes platform list. The response fields will show supported platforms categories with their products, some redundant but also some unique to product platform list. @thomas
+
+        Example data:
+        "data": {"productsInfo": [
+            {"category": "Balcony Solar Power System","code": "A5140","name": "MI60 Microinverter",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/anker-power/2e60fc1a-f1c2-4574-8e00-a50689c87f72/picl_A5140_normal.png"},
+            {"category": "Balcony Solar Power System","code": "A17C1","name": "Solarbank 2 E1600 Pro",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/05/24/iot-admin/5iJoq1dk63i47HuR/picl_A17C1_normal%281%29.png"},
+            {"category": "Residential Storage System","code": "A5101","name": "X1-P6K-US/S",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/03/27/iot-admin/KEwdxNejZq2tDXCX/picl_A5101_normal.png"},
+            {"category": "Residential Storage System","code": "A5150","name": "Microinverter",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/07/29/iot-admin/1VUzMEfFhzv4gopz/%E5%BE%AE%E9%80%86.png"},
+            {"category": "Residential Storage System","code": "A5341","name": "Backup Controller",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/09/24/iot-admin/ANJzf3AX8isPzNMI/picl_A5341_normal.png"},
+            {"category": "Residential Storage System","code": "A5450","name": "Zigbee Dongle",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/07/29/iot-admin/mp7s3FzbBXjRqIxV/ECU.png"},
+            {"category": "Residential Storage System","code": "A5102","name": "X1-H(3.68~6)K-S\t",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/03/27/iot-admin/BT8pMS9hrhg8IEob/picl_A5101_normal.png"},
+            {"category": "Residential Storage System","code": "A5103","name": "X1-H (5~12)K-T",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/03/27/iot-admin/NLxTngSOzIY49fX2/picl_A5101_normal.png"},
+            {"category": "Residential Storage System","code": "A5220","name": "Battery Module",
+            "imgUrl": "https://public-aiot-fra-prod.s3.dualstack.eu-central-1.amazonaws.com/anker-power/public/product/2024/03/27/iot-admin/QgLuazcQypTsCzvv/picl_A5220_normal.png"}]}
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['hes_get_product_info']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_HES_SVC_ENDPOINTS["get_product_info"]
+            )
+        return (resp.get("data") or {}).get("productsInfo") or []
+
+    async def get_products(self, fromFile: bool = False) -> dict:
+        """Compose the supported Anker and third platform products into a condensed dictionary. @thomas"""
+
+        products = {}
+        self._logger.debug(
+            "Getting api %s Anker platform list",
+            self.apisession.nickname,
+        )
+        # Ignore timeouts or other errors wrapped into a ClientError from queries, but return data only if all worked
+        try:
+            for platform in await self.get_product_platforms_list(fromFile=fromFile):
+                plat_name = platform.get("name") or ""
+                for prod in platform.get("products") or []:
+                    custom_fields = json.loads(prod.get("custom_fields") or "{}")
+                    products[prod.get("product_code") or ""] = {
+                        "name": str(prod.get("name") or "").strip(),
+                        "platform": str(plat_name).strip(),
+                        # "img_url": prod.get("img_url"),
+                        "product_codes": {
+                            pc: {
+                                "p_code": pc,
+                                "sku": item.get("sku"),
+                                "custom_fields": custom_fields
+                                | json.loads(item.get("custom_fields") or "{}"),
+                            }
+                            for item in (prod.get("p_codes") or [])
+                            if (pc := item.get("p_code"))
+                        },
+                    }
+            self._logger.debug(
+                "Getting api %s HES product list",
+                self.apisession.nickname,
+            )
+            for platform in await self.get_hes_platforms_list(fromFile=fromFile):
+                if (pn := platform.get("code") or "") and pn not in products:
+                    products[pn] = {
+                        "name": str(platform.get("name") or "").strip(),
+                        "platform": str(platform.get("category") or "").strip(),
+                        # "img_url": platform.get("imgUrl"),
+                    }
+            # get_third_platforms_list does no longer show 3rd platform products, skip query until data provided again
+            # self._logger.debug(
+            #     "Getting api %s 3rd party platform list",
+            #     self.apisession.nickname,
+            # )
+            # for platform in await self.get_third_platforms_list(fromFile=fromFile):
+            #     plat_name = platform.get("name") or ""
+            #     countries = platform.get("countries") or ""
+            #     for prod in platform.get("products") or []:
+            #         products[prod.get("product_code") or ""] = {
+            #             "name": " ".join([plat_name, prod.get("name")]),
+            #             "platform": plat_name,
+            #             "countries": countries,
+            #             # "img_url": prod.get("img_url"),
+            #         }
+        except ClientError as err:
+            self._logger.error(
+                "Api %s failed to get product list: %s",
+                self.apisession.nickname,
+                err,
+            )
+        return products
+
+    async def get_co2_ranking(self, siteId: str, fromFile: bool = False) -> dict:
+        """Get the CO2 ranking for the site. @thomas
+
+        Example data:
+        {"show": true,"ranking": "999+","co2": "33.46","tree": "1.6","content": "Not to be underestimated","level": {
+            "tree": 2,"bubble": 2}}
+        """
+        siteId = str(siteId) or ""
+        data = {"site_id": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_co2_ranking']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_co2_ranking"], json=data
+            )
+        data = resp.get("data") or {}
+        # update site details in sites dict
+        details = data.copy()
+        details.pop("show", None)
+        self._update_site(siteId, {"co2_ranking": details})
+        return data
+
+    async def get_price_providers(self, model: str, fromFile: bool = False) -> dict:
+        """Get the dynamic price provides for a given device model. @thomas
+
+        Example data:
+        {"country_info": [
+            {"country": "DE","company_info": [
+                {"company": "Nordpool","area_info": [
+                    {"area": "GER","area_name": "GER"}]}]}
+        ]}
+        """
+        data = {"device_pn": model}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_dynamic_price_providers']}_{model}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_dynamic_price_providers"], json=data
+            )
+        # update account details with providers for this model
+        if data := resp.get("data") or {}:
+            self._update_account(
+                {
+                    f"price_providers_{model}": {
+                        # Add poll date to verify if re-polling makes sense
+                        "date": datetime.now().astimezone().strftime("%Y-%m-%d")
+                    }
+                    | data
+                }
+            )
+        return data
+
+    def price_provider_options(self, siteId: str) -> set:
+        """Get the valid price provider options for the site ID from Api cache data. @thomas
+
+        Active dynamic Price example:
+        "dynamic_price": {"country": "DE","company": "Nordpool","area": "GER","pct": null,"currency": "\u20ac","adjust_coef": null}
+        """
+        siteId = str(siteId) or ""
+        options: set = set()
+        if site := self.sites.get(siteId) or {}:
+            for model in (site.get("site_info") or {}).get(
+                "current_site_device_models"
+            ) or []:
+                # add options from provider list
+                for country in (self.account.get(f"price_providers_{model}") or {}).get(
+                    "country_info"
+                ) or []:
+                    for company in country.get("company_info") or []:
+                        for area in company.get("area_info") or []:
+                            options.add(
+                                str(
+                                    SolixPriceProvider(
+                                        country=country.get("country"),
+                                        company=company.get("company"),
+                                        area=area.get("area"),
+                                    )
+                                )
+                            )
+                if options:
+                    break
+        return options
+
+    async def get_currency_list(self, fromFile: bool = False) -> dict:
+        r"""Get the currency list for the power sites. @thomas
+
+        Example data:
+        "data": {"currency_list": [
+            {"symbol": "$","name": "AUD, CAD, USD"},
+            {"symbol": "\u20ac","name": "EUR"},
+            {"symbol": "z\u0142","name": "PLN"}],
+            {"symbol": "kr","name": "ISK, NOK, SEK"},
+            "default_currency": {"symbol": "\u20ac","name": "EUR"}}
+        """
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir()) / f"{API_FILEPREFIXES['get_currency_list']}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_currency_list"]
+            )
+        # cache the currency list in the account
+        if (data := resp.get("data") or {}):
+            self._update_account(
+                {
+                    "currency_list": data.get("currency_list") or [],
+                    "default_currency": data.get("default_currency") or {},
+                }
+            )
+        return data
+
+    def lookup_currency_symbol(self, currency: str) -> str | None:
+        """Get the currency symbol from the currency list if available. @thomas"""
+        # lookup symbol in currency list
+        if isinstance(currency, str):
+            return (
+                next(
+                    iter(
+                        item
+                        for item in self.account.get("currency_list") or []
+                        if currency in item.get("name")
+                    ),
+                    {},
+                )
+            ).get("symbol") or None
+        return None
+
+    async def get_site_price(
+        self, siteId: str, decimals: int | None = 5, fromFile: bool = False
+    ) -> dict:
+        """Get the power price set for the site. @thomas
+
+        Example data:
+        {"site_id": "efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c","price": 0.4,"site_co2": 0,"site_price_unit": "\u20ac"}
+        Enhanced data from 2025 to support dynamic prices for systems:
+        {"site_id": "efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c","price": 0.29,"site_co2": 0,"site_price_unit": "\u20ac", "price_type": "dynamic",
+        "current_mode": 7, "use_time": null, "dynamic_price": {
+            "country": "DE", "company": "Nordpool", "area": "GER", "pct": null}
+        "accuracy": 2}
+        Enhanced base data with sell price in 2026
+        {"site_id": "efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c","price": 0.4,"sell_price": 0,"site_co2": 0,"site_price_unit": "\u20ac"}
+        """
+        siteId = str(siteId) or ""
+        decimals = int(decimals) if isinstance(decimals, int | float) else None
+        data = {"site_id": str(siteId)}
+        if decimals is not None:
+            data["accuracy"] = decimals
+        if fromFile:
+            # For file data, verify first if there is a modified file to be used for testing
+            if not (
+                resp := await self.apisession.loadFromFile(
+                    Path(self.testDir())
+                    / f"{API_FILEPREFIXES['get_site_price']}_modified_{siteId}.json"
+                )
+            ):
+                resp = await self.apisession.loadFromFile(
+                    Path(self.testDir())
+                    / f"{API_FILEPREFIXES['get_site_price']}_{siteId}.json"
+                )
+        else:
+            resp = await self.apisession.request(
+                "post", API_ENDPOINTS["get_site_price"], json=data
+            )
+        data = resp.get("data") or {}
+        # update site details in sites dict
+        details = data.copy()
+        details.pop("site_id", None)
+        self._update_site(siteId, details)
+        return data
+
+    async def set_site_price(
+        self,
+        siteId: str,
+        price: float | None = None,
+        sell_price: float | None = None,
+        decimals: int | None = 5,
+        unit: str | None = None,
+        co2: float | None = None,
+        price_type: str | None = None,  # "fixed" | "use_time" | "dynamic"
+        provider: SolixPriceProvider | str | dict | None = None,
+        toFile: bool = False,
+    ) -> bool | dict:
+        """Set the power price, the unit, CO2 and price type for a site. @thomas
+
+        Example input:
+        {"site_id": 'efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c', "price": 0.325, "site_price_unit": "\u20ac", "site_co2": 0, "accuracy": 5}
+        Additional fields have been added to support dynamic prices, dynamic_price ignored if type not dynamic
+        {"site_id": 'efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c', "price": 0.325, "site_price_unit": "\u20ac", "site_co2": 0, "price_type": "dynamic", "dynamic_price": {
+            "country": "DE",
+            "company": "Nordpool",
+            "area": "GER",
+        }}
+        Enhanced base data with sell price in 2026
+        {"site_id": "efaca6b5-f4a0-e82e-3b2e-6b9cf90ded8c","price": 0.4,"sell_price": 0,"site_co2": 0,"site_price_unit": "\u20ac"}
+        """
+        siteId = str(siteId) or ""
+        decimals = int(decimals) if isinstance(decimals, int | float) else None
+        # First get the old settings from api dict or Api call to update only requested parameter
+        if not (details := (self.sites.get(siteId) or {}).get("site_details") or {}):
+            details = await self.get_site_price(siteId=siteId, fromFile=toFile)
+        if not details or not isinstance(details, dict):
+            return False
+        # Validate parameters
+        provider = (
+            provider
+            if isinstance(provider, SolixPriceProvider)
+            else SolixPriceProvider(provider=provider)
+            if isinstance(provider, str | dict)
+            else None
+        )
+        price_type = (
+            SolixPriceTypes.DYNAMIC.value
+            if provider
+            else str(price_type).lower()
+            if str(price_type).lower() in {item.value for item in SolixPriceTypes}
+            else None
+        )
+        # Prepare payload from details
+        data: dict = {}
+        data["price"] = (
+            float(price) if isinstance(price, float | int) else details.get("price")
+        )
+        data["sell_price"] = (
+            float(sell_price)
+            if isinstance(sell_price, float | int)
+            else details.get("sell_price")
+        )
+        data["site_price_unit"] = unit or details.get("site_price_unit")
+        data["site_co2"] = (
+            float(co2) if isinstance(co2, float | int) else details.get("site_co2")
+        )
+        if "accuracy" in details or decimals is not None:
+            data["accuracy"] = (
+                decimals if decimals is not None else details.get("accuracy")
+            )
+        if "price_type" in details or price_type:
+            data["price_type"] = price_type or details.get("price_type")
+        if "dynamic_price" in details or provider:
+            data["dynamic_price"] = (
+                provider.asdict() if provider else details.get("dynamic_price")
+            )
+
+        # Make the Api call and check for return code
+        data["site_id"] = siteId
+        if toFile:
+            # Write updated response to file for testing purposes
+            if not await self.apisession.saveToFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_site_price']}_modified_{siteId}.json",
+                data={
+                    "code": 0,
+                    "msg": "success!",
+                    "data": data,
+                },
+            ):
+                return False
+        else:
+            code = (
+                await self.apisession.request(
+                    "post", API_ENDPOINTS["update_site_price"], json=data
+                )
+            ).get("code")
+            if not isinstance(code, int) or int(code) != 0:
+                return False
+        # update the data in api dict and return active data
+        return await self.get_site_price(siteId=siteId, fromFile=toFile)
+
+    async def get_dynamic_prices(
+        self,
+        provider: SolixPriceProvider | str | dict,
+        date: datetime | None = None,
+        deviceSn: str | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get the dynamic price details for a given provider and date. @thomas
+
+        Example data:
+        {"release_time":"13:00","today_price_trend":[
+            {"time":"00:00","price":"81.76"},{"time":"01:00","price":"75.31"},{"time":"02:00","price":"75.00"},...,{"time":"23:00","price":"98.23"}],
+        "tomorrow_price_trend":[
+            {"time":"00:00","price":"111.49"},{"time":"01:00","price":"109.91"},{"time":"02:00","price":"102.02"},...,{"time":"23:00","price":"95.49"}],
+        "currency":"EUR","today_avg_price":"87.04","tomorrow_avg_price":"71.69"}
+        """
+        # validate provider, ensure area is defined since query will fail otherwise
+        if not (
+            (
+                provider := provider
+                if isinstance(provider, SolixPriceProvider)
+                else SolixPriceProvider(provider=provider)
+                if isinstance(provider, str | dict)
+                else None
+            )
+            and provider.area
+            # #619: Limit detail queries to Nordpool only to avoid request errors
+            and str(provider.company).lower() == 'nordpool'
+        ):
+            return {}
+        # validate date
+        polldate = (
+            date.astimezone()
+            if isinstance(date, datetime)
+            else datetime.now().astimezone()
+        )
+        data = {
+            # country parameter is not required for query
+            "company": provider.company,
+            "area": provider.area,
+            "date": str(int(polldate.timestamp())),
+            "device_sn": deviceSn or "",
+        }
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['get_dynamic_price_details']}_{str(provider).replace('/', '_')}.json"
+            )
+        else:
+            # Ignore Api errors from endpoint which may fail depending on provider and area codes...
+            try:
+                resp = await self.apisession.request(
+                    "post", API_ENDPOINTS["get_dynamic_price_details"], json=data
+                )
+            except AnkerSolixError:
+                resp = {}
+        data = resp.get("data") or {}
+        # update account details with spot prices for provider and add last poll time
+        self._update_account(
+            {
+                f"price_details_{str(provider).replace('/', '_')}": {
+                    # Add poll date and time to verify if repolling makes sense
+                    "poll_time": polldate.strftime("%Y-%m-%d %H:%M")
+                }
+                | data
+            }
+        )
+        return data
+
+    async def refresh_provider_prices(
+        self,
+        provider: SolixPriceProvider | str | dict,
+        siteId: str,
+        forceRefresh: bool = False,
+        fromFile: bool = False,
+    ) -> None:
+        """Refresh the dynamic price information for given provider and site ID if required. @thomas"""
+        siteId = str(siteId) or ""
+        # validate provider
+        if not (
+            provider := provider
+            if isinstance(provider, SolixPriceProvider)
+            else SolixPriceProvider(provider=provider)
+            if isinstance(provider, str | dict)
+            else None
+        ):
+            return
+        # validate site ID
+        if not (
+            site := self.sites.get(siteId) or {} if isinstance(siteId, str) else {}
+        ):
+            return
+        # consider different timezone if recognized in energy data
+        now = datetime.now().astimezone() + timedelta(
+            seconds=site.get("energy_offset_tz") or 0
+        )
+        # get existing price information
+        spot_prices = (
+            self.account.get(f"price_details_{str(provider).replace('/', '_')}") or {}
+        )
+        # get last poll time or initialize with old date for first poll
+        lastpoll = spot_prices.get("poll_time") or (now - timedelta(days=2)).strftime(
+            "%Y-%m-%d %H:%M"
+        )
+        lastpoll = datetime.fromisoformat(lastpoll).astimezone()
+        # fetch provider prices max once per hour or if missing
+        if (
+            forceRefresh
+            or lastpoll.date() != now.date()
+            or lastpoll.hour != now.hour
+            or not spot_prices.get("today_price_trend")
+        ):
+            self._logger.debug(
+                "Getting api %s dynamic price details for provider %s",
+                self.apisession.nickname,
+                provider,
+            )
+            await self.get_dynamic_prices(
+                provider=provider,
+                date=now,
+                fromFile=fromFile,
+            )
+
+    def extractPriceData(
+        self, siteId: str, forceCalc: bool = False, initialize: bool = False
+    ) -> dict:
+        """Get the dynamic price information extracted from cache data using spot prices, fees and taxes. @thomas"""
+        siteId = str(siteId) or ""
+        priceData = {}
+        if not (
+            site := self.sites.get(siteId) or {} if isinstance(siteId, str) else {}
+        ):
+            return priceData
+        if not (
+            "dynamic_price_details" in (details := site.get("site_details") or {})
+            or initialize
+        ):
+            return priceData
+        # get customized site data
+        customized = site.get("customized") or {}
+        # get provider details from api or customization
+        provider = SolixPriceProvider(
+            provider=details.get("dynamic_price")
+            or customized.get("dynamic_price")
+            or {}
+        )
+        # add generic details that are independent of spot price availability
+        priceData["dynamic_price_provider"] = str(provider)
+        # preset fee and vat, use customized values with priority, defaults last
+        # TODO(SB3): Add fee and tax values active on the system once data can be queried
+        priceData["dynamic_price_fee"] = customized.get("dynamic_price_fee") or str(
+            SolixDefaults.DYNAMIC_TARIFF_PRICE_FEE.get(
+                provider.country or self.apisession.countryId
+            )
+            or SolixDefaults.DYNAMIC_TARIFF_PRICE_FEE.get("DEFAULT")
+        )
+        priceData["dynamic_price_vat"] = customized.get("dynamic_price_vat") or str(
+            SolixDefaults.DYNAMIC_TARIFF_PRICE_VAT.get(
+                provider.country or self.apisession.countryId
+            )
+            or SolixDefaults.DYNAMIC_TARIFF_PRICE_VAT.get("DEFAULT")
+        )
+        priceData["dynamic_price_total"] = ""
+        # Assume end price for any other provider than nordpool
+        endprice = provider.company != "Nordpool"
+        if (
+            spot_prices := self.account.get(
+                f"price_details_{str(provider).replace('/', '_')}"
+            )
+            or {}
+        ):
+            # consider different timezone if recognized in energy data
+            now = datetime.now().astimezone() + timedelta(
+                seconds=site.get("energy_offset_tz") or 0
+            )
+            nowstring = now.strftime("%Y-%m-%d %H:%M")
+            last_details = details.get("dynamic_price_details") or {}
+            # get last poll time from site details
+            poll_time = spot_prices.get("poll_time")
+            last_calc = last_details.get("dynamic_price_poll_time") or ""
+            # lookup unit symbol in currency list
+            unit = spot_prices.get("currency") or ""
+            priceData["spot_price_unit"] = self.lookup_currency_symbol(unit) or unit
+            # update dynamic prices if new poll data is available or provider changed since last data
+            if poll_time and (
+                forceCalc
+                or last_calc < poll_time
+                or provider
+                != SolixPriceProvider(
+                    provider=last_details.get("dynamic_price_provider")
+                )
+            ):
+                fee = str(priceData.get("dynamic_price_fee"))
+                fee = (
+                    float(fee)
+                    if fee.replace("-", "", 1).replace(".", "", 1).isdigit()
+                    else 0
+                )
+                vat = priceData.get("dynamic_price_vat")
+                vat = (
+                    float(vat)
+                    if vat.replace("-", "", 1).replace(".", "", 1).isdigit()
+                    else 0
+                )
+                date = datetime.fromisoformat(poll_time).astimezone()
+                trend = []
+                # calculate total dynamic price
+                # TODO: Other providers than Nordpool may send final price for kWh (including fee and VAT?)
+                # There is currently no field to recognize the provided price type or unit
+                for day in range(2):
+                    daystring = (date + timedelta(days=day)).strftime("%Y-%m-%d")
+                    # Attention: Newer provider may provide very long lists, limit the list to 24 entries for both days
+                    trend.extend(
+                        {
+                            "timestamp": f"{daystring} {item.get('time')}",
+                            "price": f"{float(spotprice):0.4f}"
+                            if endprice
+                            else f"{(float(spotprice) / 1000 + fee) * (1 + vat / 100):0.4f}",
+                            "spot_mwh": None if endprice else spotprice,
+                        }
+                        for item in (
+                            spot_prices.get(
+                                "today_price_trend"
+                                if day == 0
+                                else "tomorrow_price_trend"
+                            )
+                            or []
+                        )[:24]
+                        if (
+                            (spotprice := item.get("price") or "")
+                            .replace("-", "", 1)
+                            .replace(".", "", 1)
+                            .isdigit()
+                        )
+                    )
+                priceData["dynamic_price_forecast"] = trend
+                priceData["dynamic_price_poll_time"] = poll_time
+                priceData["dynamic_price_calc_time"] = nowstring
+            elif (
+                SolixPriceProvider(provider=last_details.get("dynamic_price_provider"))
+                == provider
+            ):
+                # copy previous calculation for same provider
+                priceData["dynamic_price_forecast"] = (
+                    last_details.get("dynamic_price_forecast") or []
+                )
+                priceData["dynamic_price_poll_time"] = (
+                    last_details.get("dynamic_price_poll_time") or ""
+                )
+                priceData["dynamic_price_calc_time"] = (
+                    last_details.get("dynamic_price_calc_time") or ""
+                )
+            # extract correct prices depending on actual time
+            today = now.strftime("%Y-%m-%d") in poll_time
+            slot = next(
+                iter(
+                    [
+                        s
+                        for s in priceData["dynamic_price_forecast"] or []
+                        if isinstance(s, dict) and str(s.get("timestamp")) <= nowstring
+                    ][-1:]
+                ),
+                {},
+            )
+            priceData["spot_price_time"] = slot.get("timestamp") or ""
+            priceData["spot_price_mwh"] = slot.get("spot_mwh") or ""
+            priceData["dynamic_price_total"] = slot.get("price") or ""
+            priceData["spot_price_mwh_avg_today"] = (
+                str(float(price))
+                if (
+                    (
+                        price := (
+                            spot_prices.get(
+                                "today_avg_price" if today else "tomorrow_avg_price"
+                            )
+                            or ""
+                        )
+                    )
+                    .replace("-", "", 1)
+                    .replace(".", "", 1)
+                    .isdigit()
+                )
+                else ""
+            )
+            priceData["spot_price_mwh_avg_tomorrow"] = (
+                str(float(price))
+                if (
+                    (
+                        price := (
+                            spot_prices.get("tomorrow_avg_price" if today else "") or ""
+                        )
+                    )
+                    .replace("-", "", 1)
+                    .replace(".", "", 1)
+                    .isdigit()
+                )
+                else ""
+            )
+        return priceData
+
+    def extractSolarForecast(self, siteId: str) -> None:
+        """Get the current solar forecast data in cached details. @thomas"""
+        siteId = str(siteId) or ""
+        if not (
+            site := self.sites.get(siteId) or {} if isinstance(siteId, str) else {}
+        ):
+            return
+        if (
+            fcdetails := (site.get("energy_details") or {}).get("pv_forecast_details")
+            or {}
+        ):
+            # consider different timezone if recognized in energy data
+            now = datetime.now().astimezone() + timedelta(
+                seconds=site.get("energy_offset_tz") or 0
+            )
+            thishour = (
+                (now + timedelta(hours=1)).replace(minute=0).strftime("%Y-%m-%d %H:%M")
+            )
+            # first check if historical trend data from customization can be merged
+            if (
+                customized_fc := (site.get("customized") or {}).get(
+                    "pv_forecast_details"
+                )
+                or {}
+            ) and (old_trend := customized_fc.get("trend")):
+                # keep historical trend of today
+                checkdate = now.replace(hour=0, minute=0).strftime("%Y-%m-%d %H:%M")
+                new_trend = fcdetails.get("trend") or []
+                new_start = (new_trend[:1] or [{}])[0].get("timestamp") or ""
+                trend = [
+                    slot
+                    for slot in old_trend
+                    if (ot := slot.get("timestamp") or "") >= checkdate
+                    and (not new_start or ot < new_start)
+                ]
+                fcdetails["trend"] = trend + new_trend
+                # remove customization once merged
+                customized_fc.pop("trend", None)
+            # extract correct hourly data depending on actual time
+            if fcdetails.get("time_this_hour") != thishour:
+                slot = (
+                    [
+                        s
+                        for s in fcdetails.get("trend") or []
+                        if str(s.get("timestamp")) == thishour
+                    ][-1:]
+                    or [{}]
+                )[0]
+                # do inplace update
+                fcdetails["time_this_hour"] = slot.get("timestamp") or ""
+                fcdetails["trend_this_hour"] = slot.get("power") or ""
+                nexthour = (
+                    (now + timedelta(hours=2))
+                    .replace(minute=0)
+                    .strftime("%Y-%m-%d %H:%M")
+                )
+                slot = (
+                    [
+                        s
+                        for s in fcdetails.get("trend") or []
+                        if str(s.get("timestamp")) == nexthour
+                    ][-1:]
+                    or [{}]
+                )[0]
+                # do inplace update
+                fcdetails["time_next_hour"] = slot.get("timestamp") or ""
+                fcdetails["trend_next_hour"] = slot.get("power") or ""

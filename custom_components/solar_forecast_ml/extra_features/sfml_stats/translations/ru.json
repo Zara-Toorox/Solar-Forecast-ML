@@ -5,22 +5,22 @@
         "title": "Solar Forecast STATS - Добро пожаловать",
         "description": "Добро пожаловать в Solar Forecast STATS!\n\nЭта интеграция отслеживает солнечную генерацию, батарею, потребление из сети и рассчитывает затраты.\n\nНажмите ДАЛЕЕ для настройки сенсоров.",
         "data": {
-          "country": "Country",
+          "country": "Страна",
           "sensor_home_consumption": "🏠 Потребление дома (Вт)",
           "weather_entity": "🌤️ Объект погоды"
         },
         "data_description": {
-          "country": "Select your country for VAT and electricity price defaults.",
+          "country": "Выберите страну для НДС и стандартных цен на электроэнергию.",
           "sensor_home_consumption": "Единица: Ватт. Общее текущее потребление домохозяйства, включая всех потребителей. Необходим для диаграммы энергопотоков в реальном времени. (Обязательно)",
           "weather_entity": "Формат: weather.xxx. Интеграция погоды Home Assistant для прогнозов в графиках. Не sensor-объект, а weather-объект! (Опционально)"
         }
       },
       "energy_flows": {
         "title": "Потоки энергии",
-        "description": "Select the available live power sensors. STATS calculates the corresponding kWh values from midnight automatically. All fields are optional.",
+        "description": "Выберите доступные датчики мгновенной мощности. STATS сам считает соответствующие kWh с полуночи. Все поля необязательны.",
         "data": {
           "sensor_solar_to_house": "☀️ Солнце → Дом (Вт)",
-          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_inverter_ac_output": "Выход AC инвертора (W)",
           "sensor_solar_to_battery": "☀️ Солнце → Батарея (Вт)",
           "sensor_battery_to_house": "🔋 Батарея → Дом (Вт)",
           "sensor_grid_to_house": "⚡ Сеть → Дом (Вт)",
@@ -31,7 +31,7 @@
         },
         "data_description": {
           "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
-          "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. (Optional)",
+          "sensor_inverter_ac_output": "Полная мощность AC инвертора. Не выбирайте вход PV по DC и не датчик отдачи интеллектуального счётчика. (Опционально)",
           "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
           "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
           "sensor_grid_to_house": "Единица: Ватт. Мощность из сети, поступающая напрямую в дом. Без зарядки батареи от сети! Отличие от «Потребление из сети»: только доля домашнего потребления. (Опционально)",
@@ -43,21 +43,21 @@
       },
       "optional": {
         "title": "Аккумулятор и дополнительные значения",
-        "description": "Configure these fields only when the corresponding values are available. Systems without a battery can skip this step.",
+        "description": "Заполняйте эти поля только если значения есть. Установки без батареи могут пропустить этот шаг.",
         "data": {
           "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
           "sensor_battery_power": "🔋 Общая мощность батареи (Вт)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
+          "sensor_grid_import_extra": "Дополнительная энергия из сети за сегодня (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
           "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
+          "sensor_grid_import_extra": "Только особый случай: дополнительная энергия из сети, которую датчики мощности не видят. Должен отдавать значение с полуночи в kWh. (Опционально)"
         }
       },
       "consumers": {
         "title": "Потребители",
-        "description": "Configure live power sensors for additional consumers. STATS calculates their daily energy automatically. All fields are optional.",
+        "description": "Настройте датчики мгновенной мощности для дополнительных потребителей. STATS сам считает их суточную энергию. Все поля необязательны.",
         "data": {
           "sensor_heatpump_power": "🌡️ Тепловой насос мощность (Вт)",
           "sensor_heatingrod_power": "🔥 ТЭН мощность (Вт)",
@@ -65,7 +65,7 @@
           "sensor_wallbox_state": "🚗 Wallbox статус"
         },
         "data_description": {
-          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
+          "sensor_heatpump_power": "Берётся автоматически из EAI, если там задан датчик мощности теплового насоса в W, kW или MW. Иначе используется датчик, сохранённый здесь. (Опционально)",
           "sensor_heatingrod_power": "Единица: Ватт. Текущее электрическое потребление ТЭН. Отображается как отдельный потребитель в диаграмме энергопотоков. (Опционально)",
           "sensor_wallbox_power": "Единица: Ватт. Текущая мощность зарядки Wallbox/зарядной станции. Только фактическая мощность зарядки, не потребление в режиме ожидания! (Опционально)",
           "sensor_wallbox_state": "Формат: Текст. Возможные значения: 'charging' = автомобиль заряжается, 'idle' = готов/нет зарядки. Другие значения игнорируются. (Опционально)"
@@ -73,36 +73,36 @@
       },
       "consumer_details": {
         "title": "Дополнительные датчики потребителей",
-        "description": "Additional values for the heat pump and wallbox detail views. These fields are optional and can be skipped.",
+        "description": "Дополнительные значения для подробных экранов теплового насоса и wallbox. Эти поля необязательны, их можно пропустить.",
         "data": {
-          "sensor_wb_charge_mode": "Wallbox: Charging Mode",
-          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+          "sensor_wb_charge_mode": "Wallbox: режим зарядки",
+          "sensor_wb_energy_session": "Wallbox: энергия текущей сессии (kWh)"
         },
         "data_description": {
-          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
-          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+          "sensor_wb_charge_mode": "Объект с текущим режимом зарядки. (Опционально)",
+          "sensor_wb_energy_session": "Энергия, заряженная за текущую сессию. (Опционально)"
         }
       },
       "reconfigure": {
         "title": "Обновить основную настройку",
-        "description": "Update the basic configuration. Empty optional fields remove the currently stored value.\n\nSTATS calculates daily energy from live power sensors. EAI additionally needs a heat-pump daily energy counter.",
+        "description": "Обновите базовую конфигурацию. Пустые необязательные поля удаляют сохранённое значение.\n\nSTATS считает суточную энергию по датчикам мгновенной мощности. EAI дополнительно нужен суточный счётчик теплового насоса.",
         "data": {
-          "country": "Country",
+          "country": "Страна",
           "sensor_home_consumption": "🏠 Потребление дома (Вт)",
           "weather_entity": "🌤️ Объект погоды"
         },
         "data_description": {
-          "country": "Select your country for VAT and electricity price defaults.",
+          "country": "Выберите страну для НДС и стандартных цен на электроэнергию.",
           "sensor_home_consumption": "Единица: Ватт. Общее текущее потребление домохозяйства, включая всех потребителей. Необходим для диаграммы энергопотоков в реальном времени. (Обязательно)",
           "weather_entity": "Формат: weather.xxx. Интеграция погоды Home Assistant для прогнозов в графиках. Не sensor-объект, а weather-объект! (Опционально)"
         }
       },
       "reconfigure_energy_flows": {
         "title": "Обновить потоки энергии",
-        "description": "Select the available live power sensors. Empty fields remove the currently stored sensor.",
+        "description": "Выберите доступные датчики мгновенной мощности. Пустые поля удаляют сохранённый датчик.",
         "data": {
           "sensor_solar_to_house": "☀️ Солнце → Дом (Вт)",
-          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_inverter_ac_output": "Выход AC инвертора (W)",
           "sensor_solar_to_battery": "☀️ Солнце → Батарея (Вт)",
           "sensor_battery_to_house": "🔋 Батарея → Дом (Вт)",
           "sensor_grid_to_house": "⚡ Сеть → Дом (Вт)",
@@ -113,7 +113,7 @@
         },
         "data_description": {
           "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
-          "sensor_inverter_ac_output": "Total AC power produced by the inverter. Do not select the PV DC input or the smart meter grid-export sensor. Leave empty if unavailable. (Optional)",
+          "sensor_inverter_ac_output": "Полная мощность AC инвертора. Не выбирайте вход PV по DC и не датчик отдачи интеллектуального счётчика. Оставьте пустым, если значения нет. (Опционально)",
           "sensor_solar_to_battery": "Единица: Ватт. Солнечная мощность, поступающая напрямую в батарею. Только доля солнечной зарядки, не общая зарядка! (Опционально)",
           "sensor_battery_to_house": "Единица: Ватт. Мощность, разряжаемая из батареи в дом. Только доля разряда в дом, не общий разряд! (Опционально)",
           "sensor_grid_to_house": "Единица: Ватт. Мощность из сети, поступающая напрямую в дом. Без зарядки батареи от сети! Отличие от «Потребление из сети»: только доля домашнего потребления. (Опционально)",
@@ -125,21 +125,21 @@
       },
       "reconfigure_optional": {
         "title": "Обновить аккумулятор и дополнительные значения",
-        "description": "Systems without a battery can leave these fields empty. Empty fields remove the currently stored sensor.",
+        "description": "Установки без батареи могут оставить эти поля пустыми. Пустые поля удаляют сохранённый датчик.",
         "data": {
           "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
           "sensor_battery_power": "🔋 Общая мощность батареи (Вт)",
-          "sensor_grid_import_extra": "Additional Grid Energy Today (kWh)"
+          "sensor_grid_import_extra": "Дополнительная энергия из сети за сегодня (kWh)"
         },
         "data_description": {
           "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
           "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
-          "sensor_grid_import_extra": "Special fallback only: additional grid energy not captured by the configured power sensors. Must report the value since midnight in kWh. (Optional)"
+          "sensor_grid_import_extra": "Только особый случай: дополнительная энергия из сети, которую датчики мощности не видят. Должен отдавать значение с полуночи в kWh. (Опционально)"
         }
       },
       "reconfigure_consumers": {
         "title": "Обновить потребителей",
-        "description": "Configure live power sensors for additional consumers. Empty fields remove the currently stored sensor.",
+        "description": "Настройте датчики мгновенной мощности для дополнительных потребителей. Пустые поля удаляют сохранённый датчик.",
         "data": {
           "sensor_heatpump_power": "🌡️ Тепловой насос мощность (Вт)",
           "sensor_heatingrod_power": "🔥 ТЭН мощность (Вт)",
@@ -147,7 +147,7 @@
           "sensor_wallbox_state": "🚗 Wallbox статус"
         },
         "data_description": {
-          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
+          "sensor_heatpump_power": "Берётся автоматически из EAI, если там задан датчик мощности теплового насоса в W, kW или MW. Иначе используется датчик, сохранённый здесь. (Опционально)",
           "sensor_heatingrod_power": "Единица: Ватт. Текущее электрическое потребление ТЭН. Отображается как отдельный потребитель в диаграмме энергопотоков. (Опционально)",
           "sensor_wallbox_power": "Единица: Ватт. Текущая мощность зарядки Wallbox/зарядной станции. Только фактическая мощность зарядки, не потребление в режиме ожидания! (Опционально)",
           "sensor_wallbox_state": "Формат: Текст. Возможные значения: 'charging' = автомобиль заряжается, 'idle' = готов/нет зарядки. Другие значения игнорируются. (Опционально)"
@@ -155,21 +155,22 @@
       },
       "reconfigure_consumer_details": {
         "title": "Обновить дополнительные датчики",
-        "description": "Additional values for the heat pump and wallbox detail views. Empty fields remove the currently stored sensor.",
+        "description": "Дополнительные значения для подробных экранов теплового насоса и wallbox. Пустые поля удаляют сохранённый датчик.",
         "data": {
-          "sensor_wb_charge_mode": "Wallbox: Charging Mode",
-          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+          "sensor_wb_charge_mode": "Wallbox: режим зарядки",
+          "sensor_wb_energy_session": "Wallbox: энергия текущей сессии (kWh)"
         },
         "data_description": {
-          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
-          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+          "sensor_wb_charge_mode": "Объект с текущим режимом зарядки. (Опционально)",
+          "sensor_wb_energy_session": "Энергия, заряженная за текущую сессию. (Опционально)"
         }
       }
     },
     "abort": {
       "single_instance_allowed": "Solar Forecast STATS уже настроен.",
-      "raspberry_pi_not_supported": "Установка на Raspberry Pi не поддерживается. Интеграция использует matplotlib для генерации графиков, что вызывает проблемы производительности на Raspberry Pi. Используйте более мощную систему.",
-      "proxmox_not_recommended": "Обнаружена установка на хосте Proxmox VE. Home Assistant должен работать в ВМ или LXC-контейнере, а не напрямую на хосте Proxmox."
+      "reconfigure_successful": "Перенастройка выполнена.",
+      "not_reconfigure": "Этот шаг доступен только при перенастройке.",
+      "entry_not_found": "Запись конфигурации не найдена."
     },
     "error": {
       "cannot_connect": "Ошибка подключения",
@@ -182,16 +183,69 @@
         "title": "Параметры Solar Forecast STATS",
         "description": "Выберите категорию для настройки.",
         "data": {},
+        "menu_options": {
+          "sensors": "Датчики",
+          "consumers": "Подробности потребителя (wallbox)",
+          "pricing": "Цены",
+          "amortization": "Окупаемость",
+          "smart_charging": "Батарея",
+          "advanced": "Дополнительно",
+          "sinv": "S-INV"
+        },
         "data_description": {}
+      },
+      "sinv": {
+        "title": "Температура модуля",
+        "description": "STATS оценивает температуру модулей без ввода данных по наружной температуре, ветру и току каждого MPPT. Без собственных датчиков STATS использует настроенную погодную сущность. Датчик на тыльной стороне модуля необязателен: он заменяет оценку для своего MPPT и уточняет остальные.\n\nИнверторы: {devices}",
+        "data": {
+          "sinv_outdoor_temperature": "Наружная температура",
+          "sinv_wind_speed": "Скорость ветра",
+          "module_temperature_1_1": "MPPT 1 – датчик температуры модуля",
+          "module_temperature_1_2": "MPPT 2 – датчик температуры модуля",
+          "module_temperature_1_3": "MPPT 3 – датчик температуры модуля",
+          "module_temperature_1_4": "MPPT 4 – датчик температуры модуля",
+          "module_temperature_2_1": "Устройство 2 · MPPT 1 – датчик температуры модуля",
+          "module_temperature_2_2": "Устройство 2 · MPPT 2 – датчик температуры модуля",
+          "module_temperature_2_3": "Устройство 2 · MPPT 3 – датчик температуры модуля",
+          "module_temperature_2_4": "Устройство 2 · MPPT 4 – датчик температуры модуля",
+          "module_temperature_3_1": "Устройство 3 · MPPT 1 – датчик температуры модуля",
+          "module_temperature_3_2": "Устройство 3 · MPPT 2 – датчик температуры модуля",
+          "module_temperature_3_3": "Устройство 3 · MPPT 3 – датчик температуры модуля",
+          "module_temperature_3_4": "Устройство 3 · MPPT 4 – датчик температуры модуля",
+          "module_temperature_4_1": "Устройство 4 · MPPT 1 – датчик температуры модуля",
+          "module_temperature_4_2": "Устройство 4 · MPPT 2 – датчик температуры модуля",
+          "module_temperature_4_3": "Устройство 4 · MPPT 3 – датчик температуры модуля",
+          "module_temperature_4_4": "Устройство 4 · MPPT 4 – датчик температуры модуля"
+        },
+        "data_description": {
+          "sinv_outdoor_temperature": "Необязательно. Без датчика используется температура погодной сущности.",
+          "sinv_wind_speed": "Необязательно. Без датчика используется ветер погодной сущности.",
+          "module_temperature_1_1": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_1_2": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_1_3": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_1_4": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_2_1": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_2_2": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_2_3": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_2_4": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_3_1": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_3_2": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_3_3": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_3_4": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_4_1": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_4_2": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_4_3": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки.",
+          "module_temperature_4_4": "Необязательно. Датчик температуры на тыльной стороне модуля этой цепочки."
+        }
       },
       "sensors": {
         "title": "Все сенсоры",
         "description": "Настройте все сенсоры.\n\n**Датчики мощности** предоставляют текущие значения и автоматически преобразуются в суточные показатели энергии.",
         "data": {
-          "country": "Country",
+          "country": "Страна",
           "sensor_home_consumption": "🏠 Потребление дома (Вт)",
           "sensor_solar_to_house": "☀️ Солнце → Дом (Вт)",
-          "sensor_inverter_ac_output": "Inverter AC Output (W)",
+          "sensor_inverter_ac_output": "Выход AC инвертора (W)",
           "weather_entity": "🌤️ Объект погоды",
           "sensor_battery_soc": "📊 Уровень заряда батареи (%)",
           "sensor_battery_power": "🔋 Общая мощность батареи (Вт)",
@@ -202,17 +256,17 @@
           "sensor_house_to_grid": "📤 Отдача излишков (Вт)",
           "sensor_smartmeter_import": "📥 Потребление из сети (Вт)",
           "sensor_smartmeter_export": "📤 Отдача в сеть (Вт)",
-          "sensor_grid_import_extra": "Additional Grid Import (kWh)",
+          "sensor_grid_import_extra": "Дополнительное потребление из сети (kWh)",
           "sensor_heatpump_power": "🌡️ Тепловой насос мощность (Вт)",
           "sensor_heatingrod_power": "🔥 ТЭН мощность (Вт)",
           "sensor_wallbox_power": "🚗 Wallbox мощность (Вт)",
           "sensor_wallbox_state": "🚗 Wallbox статус"
         },
         "data_description": {
-          "country": "Select country for VAT and price defaults.",
+          "country": "Выберите страну для НДС и стандартных цен.",
           "sensor_home_consumption": "Единица: Ватт. Общее текущее потребление домохозяйства, включая всех потребителей. Необходим для диаграммы энергопотоков в реальном времени. (Обязательно)",
           "sensor_solar_to_house": "Единица: Ватт. Доля солнечной мощности, поступающая напрямую в дом. Не общая генерация — только доля собственного потребления! (Обязательно)",
-          "sensor_inverter_ac_output": "Total AC output power of the inverter in Watt. Do not select PV DC power or grid export. (Optional)",
+          "sensor_inverter_ac_output": "Полная выходная мощность AC инвертора в W. Не выбирайте мощность PV по DC и не отдачу в сеть. (Опционально)",
           "weather_entity": "Формат: weather.xxx. Интеграция погоды Home Assistant для прогнозов в графиках. Не sensor-объект, а weather-объект! (Опционально)",
           "sensor_battery_soc": "Единица: Процент (0–100). Текущий уровень заряда (SOC) батареи. Значение от 0 до 100, не десятичные значения типа 0.0–1.0! (Опционально)",
           "sensor_battery_power": "Единица: Ватт. Общая мощность батареи одним сенсором. Положительное = зарядка, Отрицательное = разряд. Используйте только если нет отдельных сенсоров зарядки/разряда! (Опционально)",
@@ -223,8 +277,8 @@
           "sensor_house_to_grid": "Единица: Ватт. Избыточная мощность, отдаваемая в сеть. Только солнечные излишки, не отдача из батареи! Отличие от «Отдача в сеть»: только доля излишков. (Опционально)",
           "sensor_smartmeter_import": "Единица: Ватт. Общее потребление из сети на точке учёта. Включает ВСЮ мощность из сети — в том числе зарядку батареи от сети! (Опционально)",
           "sensor_smartmeter_export": "Единица: Ватт. Общая отдача на точке учёта. Включает ВСЮ отдачу — в том числе отдачу из батареи в сеть! (Опционально)",
-          "sensor_grid_import_extra": "Additional grid import not measured by smartmeter in kWh. (Optional)",
-          "sensor_heatpump_power": "Taken automatically from EAI when a heat-pump power sensor with unit W, kW or MW is set there. Otherwise the sensor stored here is used. (Optional)",
+          "sensor_grid_import_extra": "Дополнительное потребление из сети, которое интеллектуальный счётчик не измеряет, в kWh. (Опционально)",
+          "sensor_heatpump_power": "Берётся автоматически из EAI, если там задан датчик мощности теплового насоса в W, kW или MW. Иначе используется датчик, сохранённый здесь. (Опционально)",
           "sensor_heatingrod_power": "Единица: Ватт. Текущее электрическое потребление ТЭН. Отображается как отдельный потребитель в диаграмме энергопотоков. (Опционально)",
           "sensor_wallbox_power": "Единица: Ватт. Текущая мощность зарядки Wallbox/зарядной станции. Только фактическая мощность зарядки, не потребление в режиме ожидания! (Опционально)",
           "sensor_wallbox_state": "Формат: Текст. Возможные значения: 'charging' = автомобиль заряжается, 'idle' = готов/нет зарядки. Другие значения игнорируются. (Опционально)"
@@ -234,17 +288,17 @@
         "title": "Сенсоры потребителей (Опционально)",
         "description": "Настройте сенсоры дополнительных потребителей.\n\nЭто ОПЦИОНАЛЬНО — настраивайте только при наличии этих устройств.\n\n**Необходимые единицы:**\n- Мощность: Ватт (Вт)\n- Энергия: кВт·ч (с ежедневным сбросом)\n- COP: Десятичное число (напр. 3.5)\n- Статус: Текст (charging/idle)",
         "data": {
-          "sensor_wb_charge_mode": "Wallbox: Charging Mode (select entity)",
-          "sensor_wb_energy_session": "Wallbox: Current Session Energy (kWh)"
+          "sensor_wb_charge_mode": "Wallbox: режим зарядки (объект select)",
+          "sensor_wb_energy_session": "Wallbox: энергия текущей сессии (kWh)"
         },
         "data_description": {
-          "sensor_wb_charge_mode": "Select entity containing the current charging mode. (Optional)",
-          "sensor_wb_energy_session": "Energy charged during the current session. (Optional)"
+          "sensor_wb_charge_mode": "Объект с текущим режимом зарядки. (Опционально)",
+          "sensor_wb_energy_session": "Энергия, заряженная за текущую сессию. (Опционально)"
         }
       },
       "smart_charging": {
         "title": "Батарея",
-        "description": "Константы установки. 0 кВт мощности заряда означает без ограничения (0 = unbegrenzt). Номинал инвертора берётся из Solar Forecast ML (0 = unbegrenzt).",
+        "description": "Константы установки. 0 кВт мощности заряда означает без ограничения. Номинал инвертора берётся из Solar Forecast ML.",
         "data": {
           "battery_capacity": "Ёмкость батареи (кВт·ч)",
           "max_charge_power_kw": "Макс. мощность заряда (кВт, 0 = без ограничения)",
@@ -272,22 +326,22 @@
       },
       "amortization": {
         "title": "Окупаемость",
-        "description": "PV investment, subsidies and running costs for the payback projection.",
+        "description": "Инвестиции в PV, субсидии и текущие расходы для прогноза окупаемости.",
         "data": {
-          "amortization_investment_eur": "Investment (EUR)",
-          "amortization_subsidy_eur": "Subsidy (EUR)",
-          "amortization_commissioning_date": "Commissioning date (YYYY-MM-DD)",
-          "amortization_annual_running_costs_eur": "Running costs per year (EUR)",
-          "amortization_price_increase_percent": "Electricity price increase per year (%)",
-          "amortization_degradation_percent": "PV degradation per year (%)"
+          "amortization_investment_eur": "Инвестиции (EUR)",
+          "amortization_subsidy_eur": "Субсидия (EUR)",
+          "amortization_commissioning_date": "Дата ввода в эксплуатацию (YYYY-MM-DD)",
+          "amortization_annual_running_costs_eur": "Годовые расходы (EUR)",
+          "amortization_price_increase_percent": "Рост цены электроэнергии в год (%)",
+          "amortization_degradation_percent": "Деградация PV в год (%)"
         },
         "data_description": {
-          "amortization_investment_eur": "Total system cost before subsidies.",
-          "amortization_subsidy_eur": "One-time subsidies or grants reducing the investment.",
-          "amortization_commissioning_date": "Historical cashflows are counted from this month. Format: YYYY-MM-DD.",
-          "amortization_annual_running_costs_eur": "Maintenance, insurance, metering or similar yearly costs.",
-          "amortization_price_increase_percent": "Assumption for rising electricity prices in the projection.",
-          "amortization_degradation_percent": "Annual PV output degradation in the projection."
+          "amortization_investment_eur": "Полная стоимость установки до субсидий.",
+          "amortization_subsidy_eur": "Разовые субсидии или дотации, уменьшающие инвестицию.",
+          "amortization_commissioning_date": "Исторические денежные потоки считаются с этого месяца. Формат: YYYY-MM-DD.",
+          "amortization_annual_running_costs_eur": "Обслуживание, страховка, учёт или похожие годовые расходы.",
+          "amortization_price_increase_percent": "Допущение роста цен на электроэнергию в прогнозе.",
+          "amortization_degradation_percent": "Годовое снижение выработки PV в прогнозе."
         }
       },
       "advanced": {
@@ -351,7 +405,65 @@
     }
   },
   "entity": {
+    "sensor": {
+      "heating_target": {
+        "name": "Целевая уставка",
+        "state_attributes": {
+          "mode": {
+            "state": {
+              "observe": "Наблюдение",
+              "comfort": "Комфорт",
+              "away": "Нет дома",
+              "frost": "Защита от замерзания",
+              "locked": "Заблокировано",
+              "disabled": "Выключено",
+              "override": "Пауза"
+            }
+          },
+          "reason": {
+            "state": {
+              "locked": "Лицензия не активна",
+              "disabled": "Отопление помещения выключено",
+              "no_persons": "Человек не выбран",
+              "presence_home": "Кто-то дома",
+              "presence_unknown": "Присутствие неизвестно",
+              "presence_pending": "Задержка отсутствия ещё идёт",
+              "presence_away": "Все отсутствуют",
+              "window_open": "Окно открыто",
+              "away_setback": "Понижение при отсутствии",
+              "comfort": "Комфортная температура",
+              "room_inactive": "Регулирование для этой комнаты выключено",
+              "thermostat_unavailable": "Термостат недоступен",
+              "hvac_off": "Термостат выключен",
+              "range_setpoint": "Термостат использует диапазон температур",
+              "setpoint_unreadable": "Уставку нельзя прочитать",
+              "within_band": "Уже близко к цели",
+              "same_value": "Эта уставка уже отправлена",
+              "decrease_limited": "Понижение не чаще одного раза в час",
+              "increase_limited": "Повышение ждёт после последней записи",
+              "manual_override": "Пауза после ручного изменения",
+              "startup_hold": "Ожидание после перезапуска",
+              "write_failed": "Термостат не принял уставку",
+              "schedule_setback": "Вне временного окна",
+              "hvac_switched": "Режим только что изменён",
+              "mixed_reasons": "Несколько причин",
+              "outdoor_unavailable": "Наружная температура недоступна",
+              "outdoor_missing": "Наружная температура не выбрана"
+            }
+          },
+          "presence": {
+            "state": {
+              "home": "Дома",
+              "away": "Нет дома"
+            }
+          }
+        }
+      }
+    },
     "switch": {
+      "heating_active": {
+        "name": "Управление отоплением"
+      },
       "smart_charging_enabled": {
         "name": "Умная зарядка"
       }

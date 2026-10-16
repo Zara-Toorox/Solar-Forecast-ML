@@ -1,0 +1,109 @@
+.sinv-page { display: grid; gap: 16px; min-width: 0; max-width: 100%; }
+.sinv-device { display: grid; gap: 12px; min-width: 0; }
+.sinv-device-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; min-width: 0; }
+.sinv-device-head h2 { margin: 0; color: var(--text-primary); font-size: 1.25rem; font-weight: 750; overflow-wrap: anywhere; }
+.sinv-device-head p { margin: 4px 0 0; color: var(--text-secondary); font-size: .85rem; }
+.sinv-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--warning) 45%, var(--border-default)); color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); font-size: .76rem; font-weight: 750; white-space: nowrap; }
+.sinv-total, .sinv-range { display: flex; flex-wrap: wrap; align-items: baseline; gap: .35rem; margin: 0; color: var(--text-secondary); font-size: .85rem; }
+.sinv-total strong, .sinv-range strong { color: var(--text-primary); font-weight: 750; }
+.sinv-notice { margin: 0; color: var(--warning); font-size: .75rem; font-weight: 650; overflow-wrap: anywhere; }
+.sinv-mppts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.sinv-mppt-row { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 18px; align-items: stretch; }
+.sinv-mppt-side, .sinv-mppt-charts { display: grid; gap: 10px; align-content: start; min-width: 0; }
+.sinv-mppt-charts { gap: 14px; border-left: 1px solid var(--border-default); padding-left: 18px; }
+.sinv-mppt-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.sinv-mppt-power { color: var(--text-secondary); font-size: .85rem; }
+.sinv-mppt-power strong { color: var(--text-primary); font-size: 1rem; font-weight: 750; }
+.sinv-panel-art { width: 100%; max-height: 110px; display: block; }
+.sinv-panel-shadow { fill: color-mix(in srgb, var(--text-secondary) 16%, transparent); }
+.sinv-panel-frame { fill: color-mix(in srgb, var(--text-primary) 8%, var(--bg-card)); stroke: var(--text-secondary); stroke-width: 1.5; stroke-linejoin: round; }
+.sinv-panel-glass { fill: color-mix(in srgb, #1f3b73 82%, var(--solar) 6%); }
+.sinv-panel-grid { fill: none; stroke: color-mix(in srgb, #ffffff 55%, transparent); stroke-width: 1.2; }
+.sinv-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.sinv-tile { display: grid; justify-items: center; gap: 4px; min-width: 0; padding: 10px 6px; border: 1px solid var(--border-default); border-radius: 12px; text-align: center; }
+.sinv-tile-icon { width: 26px; height: 26px; fill: none; stroke: var(--text-primary); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sinv-tile-label { color: var(--text-secondary); font-size: .75rem; font-weight: 700; overflow-wrap: anywhere; }
+.sinv-tile-value { color: var(--text-primary); font-size: 1.35rem; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sinv-tile.sinv-derived .sinv-tile-label { color: var(--chart-series-conservative); }
+.sinv-tile-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 0; color: var(--text-secondary); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.sinv-day-summary { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-default); }
+.sinv-day-summary h4 { margin: 0; color: var(--text-secondary); font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.sinv-day-summary dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 0; }
+.sinv-day-summary div { display: grid; gap: 2px; min-width: 0; }
+.sinv-day-summary dt { color: var(--text-secondary); font-size: .75rem; font-weight: 650; }
+.sinv-day-summary dd { margin: 0; color: var(--text-primary); font-size: 1.05rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+.sinv-day-summary small { color: var(--text-secondary); font-size: .72rem; font-weight: 600; }
+.sinv-chart-block { display: grid; gap: 6px; min-width: 0; }
+.sinv-chart-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .75rem; font-weight: 700; }
+.sinv-line-spark { color: var(--solar); }
+.sinv-line-chart { grid-template-columns: 3.6rem minmax(0, 1fr); }
+.sinv-line-chart .sinv-day path, .sinv-day .sinv-gridline { vector-effect: non-scaling-stroke; }
+.sinv-gridline { stroke: var(--chart-grid); stroke-width: 1; stroke-dasharray: 2 4; }
+.sinv-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.sinv-card, .sinv-state { min-width: 0; border: 1px solid var(--border-default); border-radius: var(--radius-xl, 16px); background: var(--bg-card); padding: 14px; box-shadow: var(--glass-shadow); }
+.sinv-card { display: grid; gap: 10px; align-content: start; }
+.sinv-card h3 { margin: 0; color: var(--text-primary); font-size: 1rem; font-weight: 750; }
+.sinv-state { display: grid; gap: 8px; }
+.sinv-state strong { color: var(--text-primary); }
+.sinv-state span { color: var(--text-secondary); }
+.sinv-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 0; }
+.sinv-metrics div { min-width: 0; display: grid; gap: 2px; }
+.sinv-metrics dt { color: var(--text-secondary); font-size: .75rem; font-weight: 700; }
+.sinv-metrics dd { margin: 0; color: var(--text-primary); font-size: 1.25rem; font-weight: 750; overflow-wrap: anywhere; }
+.sinv-packs { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.sinv-packs li { display: flex; flex-wrap: wrap; gap: 6px 12px; min-width: 0; color: var(--text-secondary); font-size: .85rem; }
+.sinv-packs strong { color: var(--text-primary); font-weight: 750; }
+.sinv-spark { width: 100%; height: 52px; display: block; color: var(--solar); }
+.sinv-spark path, .sinv-day path.sinv-line-module, .sinv-day path.sinv-line-faiman, .sinv-day path.sinv-line-spark, .sinv-day path.sinv-line-ambient, .sinv-day path.sinv-line-derived { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.sinv-line-module { color: var(--solar); }
+.sinv-line-derived { color: var(--chart-series-conservative); stroke-dasharray: 5 3; }
+.sinv-derived dt { color: var(--chart-series-conservative); }
+.sinv-hint { margin: 0; color: var(--text-secondary); font-size: .75rem; }
+.sinv-line-ambient, .sinv-line-faiman { color: var(--chart-series-ai); }
+.sinv-thermal .sinv-line-ambient { color: var(--chart-series-ai); }
+.sinv-anker, .sinv-fresh { color: var(--text-secondary); font-size: .75rem; font-weight: 650; }
+.sinv-fresh { margin: 4px 0 0; }
+.sinv-trace { display: flex; gap: 6px; }
+.sinv-trace button { min-width: 36px; min-height: 28px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-default); background: transparent; color: var(--text-secondary); font: inherit; font-size: .75rem; font-weight: 750; }
+.sinv-trace button.active { color: var(--text-primary); border-color: color-mix(in srgb, var(--solar) 55%, var(--border-default)); background: color-mix(in srgb, var(--solar) 16%, transparent); }
+.sinv-day-card h3 span { color: var(--text-secondary); font-size: .75rem; font-weight: 650; }
+.sinv-chart { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); column-gap: 6px; row-gap: 4px; min-width: 0; }
+.sinv-y-axis { position: relative; grid-column: 1; grid-row: 1; color: var(--text-secondary); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.sinv-y-axis span { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; }
+.sinv-y-axis span:last-child { transform: translateY(-100%); }
+.sinv-x-axis { position: relative; grid-column: 2; grid-row: 2; height: 1.15rem; color: var(--text-secondary); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.sinv-x-axis span { position: absolute; top: 0; white-space: nowrap; }
+.sinv-x-axis span[data-align="start"] { transform: none; }
+.sinv-x-axis span[data-align="end"] { transform: translateX(-100%); }
+.sinv-x-axis span[data-align="middle"] { transform: translateX(-50%); }
+.sinv-day { width: 100%; height: auto; display: block; grid-column: 2; grid-row: 1; }
+.sinv-axis { stroke: var(--chart-grid); stroke-width: 1; }
+.sinv-area { stroke-width: 1.25; stroke-linejoin: round; }
+.sinv-area-1 { fill: color-mix(in srgb, var(--solar) 88%, transparent); stroke: var(--solar); }
+.sinv-area-2 { fill: color-mix(in srgb, var(--chart-series-ai) 88%, transparent); stroke: var(--chart-series-ai); }
+.sinv-area-3 { fill: color-mix(in srgb, var(--chart-series-conservative) 88%, transparent); stroke: var(--chart-series-conservative); }
+.sinv-area-4 { fill: color-mix(in srgb, var(--accent) 88%, transparent); stroke: var(--accent); }
+.sinv-legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 0; padding: 0; list-style: none; color: var(--text-secondary); font-size: .75rem; }
+.sinv-legend li { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.sinv-swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.sinv-swatch-1 { background: var(--solar); }
+.sinv-swatch-2 { background: var(--chart-series-ai); }
+.sinv-swatch-3 { background: var(--chart-series-conservative); }
+.sinv-swatch-4 { background: var(--accent); }
+.sinv-swatch-derived { background: var(--chart-series-conservative); }
+.sinv-swatch-ambient { background: var(--chart-series-ai); }
+.sinv-thermal-legend { margin-top: 2px; }
+.sinv-cells { overflow-wrap: anywhere; }
+.sinv-page button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 980px) {
+    .sinv-mppt-row { grid-template-columns: minmax(0, 1fr); }
+    .sinv-mppt-charts { border-left: 0; padding-left: 0; border-top: 1px solid var(--border-default); padding-top: 12px; }
+}
+@media (max-width: 640px) {
+    .sinv-mppts, .sinv-pair, .sinv-metrics { grid-template-columns: minmax(0, 1fr); }
+    .sinv-tiles { gap: 6px; }
+    .sinv-tile-value { font-size: 1.1rem; }
+    .sinv-device-head { flex-direction: column; }
+    .sinv-chart { grid-template-columns: 3.5rem minmax(0, 1fr); }
+    .sinv-y-axis, .sinv-x-axis { font-size: .7rem; }
+}

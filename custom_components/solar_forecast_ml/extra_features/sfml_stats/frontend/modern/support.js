@@ -170,6 +170,84 @@ const SUPPORT_COPY = {
         environments: { "bare-metal-x86": "Bare Metal (x86)", proxmox: "Proxmox", arm: "ARM (Raspberry Pi, Home Assistant Green)", vm: "Virtual machine", docker: "Docker", other: "Other" },
         installations: { hacs: "HACS", "addon-store": "Add-on Store", manual: "Manual", other: "Other" },
     },
+    pl: {
+        kicker: "Bezpośredni kanał",
+        heroTitle: "Zgłoś błąd bezpośrednio",
+        heroText: "Opisz, co poszło nie tak. STATS dołącza automatycznie wersje i pasujące fragmenty logu z ostatnich godzin – bez adresu e-mail, bez lokalizacji, bez danych logowania.",
+        heroBadge: "Bez danych kontaktowych",
+        formTitle: "Twoje zgłoszenie",
+        product: "Dotknięty produkt",
+        environment: "Środowisko",
+        installation: "Instalacja",
+        choose: "Wybierz",
+        title: "Tytuł",
+        titleHint: "Krótko i konkretnie, np. „Prognoza na jutro zostaje przy 0 kWh”",
+        expected: "Oczekiwane zachowanie",
+        actual: "Rzeczywiste zachowanie",
+        steps: "Kroki odtworzenia",
+        stepsHint: "Co zrobiłeś, zanim pojawił się błąd? Godzina pomaga odnaleźć to w logu.",
+        window: "Okno logu",
+        windowHours: "{hours} h",
+        minChars: "min. {count}",
+        consent: "Sprawdziłem podgląd i zgadzam się, że te dane wraz z fragmentem logu zostaną przekazane na solarforecastml.com i przechowane tam do czasu opracowania, najdłużej 90 dni. Dane kontaktowe nie są przekazywane, a w tekście wolnym nie wpisałem danych osobowych. Rozumiem, że autor nie może się ze mną skontaktować i że status zgłoszenia muszę śledzić samodzielnie w trackerze błędów na solarforecastml.com.",
+        submit: "Wyślij zgłoszenie",
+        sending: "Wysyłanie zgłoszenia …",
+        previewTitle: "To zostanie wysłane",
+        previewText: "Zebrane automatycznie i już oczyszczone. Współrzędne, adresy e-mail, adresy IP i klucze są zastępowane przed przekazaniem.",
+        refresh: "Odśwież podgląd",
+        loading: "Zestawianie fragmentu logu …",
+        haCore: "Home Assistant",
+        hostOs: "System hosta",
+        install: "Typ instalacji",
+        integrations: "Integracje",
+        haLog: "Log HA",
+        sfmlLog: "Log SFML",
+        records: "{kept} z {total} wpisów",
+        unavailable: "niedostępne",
+        redactions: "Oczyszczono",
+        size: "Rozmiar",
+        showLog: "Załącznik techniczny – dołączany do zgłoszenia",
+        hideLog: "Ukryj załącznik techniczny",
+        moreLines: "… jeszcze {count} wierszy – w zgłoszeniu są w całości",
+        showAll: "Pokaż wszystkie wiersze",
+        showLess: "Pokaż mniej",
+        successTitle: "Dziękujemy – zgłoszenie dotarło.",
+        successText: "Zostało zapisane pod tą sygnaturą. Zapisz ją: to jedyny klucz do zgłoszenia, potwierdzenie nie jest wysyłane.",
+        successTracker: "Potwierdzone błędy pojawiają się ze statusem i poprawioną wersją w publicznym trackerze.",
+        openTracker: "Otwórz tracker błędów",
+        another: "Wpisz kolejne zgłoszenie",
+        previewFailed: "Nie udało się utworzyć podglądu.",
+        retry: "Spróbuj ponownie",
+        characters: "{count} znaków",
+        errors: {
+            cooldown: "Odczekaj kilka minut, zanim wyślesz kolejne zgłoszenie.",
+            submission_in_progress: "Zgłoszenie jest właśnie wysyłane.",
+            rate_limited: "Witryna nie przyjmuje teraz kolejnych zgłoszeń z tego adresu. Spróbuj później.",
+            too_large: "Fragment logu jest za duży. Wybierz krótsze okno.",
+            offline: "solarforecastml.com jest teraz niedostępny z tej instalacji.",
+            unavailable: "Witryna jest chwilowo niedostępna. Spróbuj później.",
+            rejected: "Witryna odrzuciła zgłoszenie. Sprawdź pola i spróbuj ponownie.",
+            invalid_field: "Sprawdź zaznaczone pola.",
+            confirmation_required: "Potwierdź zgodę.",
+            same_origin_required: "Zgłoszenie można wysłać tylko z interfejsu Home Assistant.",
+            local_access_required: "Możliwe tylko przez lokalny interfejs Home Assistant albo Home Assistant Cloud.",
+            authentication_required: "Zaloguj się w Home Assistant.",
+            default: "Nie udało się wysłać zgłoszenia.",
+        },
+        fieldErrors: {
+            title: "Tytuł: od 5 do 180 znaków.",
+            expected: "Oczekiwane zachowanie: od 10 do 2000 znaków.",
+            actual: "Rzeczywiste zachowanie: od 10 do 2000 znaków.",
+            steps: "Kroki: od 10 do 5000 znaków.",
+            provider: "Wybierz produkt.",
+            environment: "Wybierz środowisko.",
+            installation: "Wybierz typ instalacji.",
+            privacy: "Potwierdź zgodę.",
+        },
+        providers: { sfml: "Solar Forecast ML", stats: "SFML STATS", eai: "Energy AI (EAI)", gpm: "Grid Price Monitor", wfai: "Weather Fusion AI" },
+        environments: { "bare-metal-x86": "Bare Metal (x86)", proxmox: "Proxmox", arm: "ARM (Raspberry Pi, Home Assistant Green)", vm: "Maszyna wirtualna", docker: "Docker", other: "Inne" },
+        installations: { hacs: "HACS", "addon-store": "Add-on Store", manual: "Ręcznie", other: "Inne" },
+    },
 };
 
 const supportInterpolate = (text, params = {}) => String(text).replace(/\{(\w+)\}/g, (_match, key) => (params[key] ?? `{${key}}`));
@@ -184,9 +262,10 @@ const ModernSupportPage = {
     emits: ["navigate"],
     setup() {
         const { ref, reactive, computed, onMounted } = Vue;
-        const locale = window.SFMLI18n?.current === "de" ? "de" : "en";
+        const requested = window.SFMLI18n?.current;
+        const locale = requested === "de" || requested === "pl" ? requested : "en";
         const copy = SUPPORT_COPY[locale];
-        const numberFormat = new Intl.NumberFormat(locale === "de" ? "de-DE" : "en-GB");
+        const numberFormat = new Intl.NumberFormat(locale === "de" ? "de-DE" : locale === "pl" ? "pl-PL" : "en-GB");
 
         const previewLoading = ref(false);
         const previewError = ref("");

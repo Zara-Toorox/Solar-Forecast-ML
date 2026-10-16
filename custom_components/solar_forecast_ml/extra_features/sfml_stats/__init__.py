@@ -111,6 +111,8 @@ LOVELACE_CARD_URLS = (
     "/api/sfml_stats/static/sfml-warning-card.js",
     "/api/sfml_stats/static/sfml-price-card.js",
     "/api/sfml_stats/static/sfml-heating-card.js",
+    "/api/sfml_stats/static/sfml-shadow-card.js",
+    "/api/sfml_stats/static/sfml-trust-card.js",
 )
 # Retired card resources: the v9 energy flow card from early SFML releases and the removed STATS card
 LEGACY_LOVELACE_CARD_URLS = frozenset({

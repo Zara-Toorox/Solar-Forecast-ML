@@ -1,0 +1,2612 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""Select platform for solar_forecast_sinv. @thomas"""
+
+import json
+import logging
+from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import dataclass
+from datetime import timedelta
+from typing import Any
+
+import homeassistant.helpers.config_validation as cv
+from homeassistant.components.select import SelectEntity, SelectEntityDescription
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    CONF_EXCLUDE,
+    PERCENTAGE,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    EntityCategory,
+    UnitOfElectricCurrent,
+    UnitOfPower,
+    UnitOfTime,
+)
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.typing import UNDEFINED
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import (
+    ALLOW_TESTMODE,
+    ATTRIBUTION,
+    BACKUP_SOC,
+    CREATE_ALL_ENTITIES,
+    DAY_TYPE,
+    DELETE,
+    DOMAIN,
+    END_HOUR,
+    END_MONTH,
+    LOGGER,
+    MQTT_OVERLAY,
+    SERVICE_MODIFY_SOLIX_USE_TIME,
+    START_HOUR,
+    START_MONTH,
+    TARIFF,
+    TARIFF_PRICE,
+)
+from .coordinator import AnkerSolixDataUpdateCoordinator
+from .entity import (
+    AnkerSolixEntityFeature,
+    AnkerSolixEntityRequiredKeyMixin,
+    AnkerSolixEntityType,
+    SinvEntity,
+    get_AnkerSolixAccountInfo,
+    get_AnkerSolixDeviceInfo,
+    get_AnkerSolixSubdeviceInfo,
+    get_AnkerSolixSystemInfo,
+    get_AnkerSolixVehicleInfo,
+)
+from .solixapi.apitypes import (
+    ApiCategories,
+    SolarbankDeviceMetrics,
+    SolarbankSchedulePresetType,
+    SolarbankUsageMode,
+    SolixCircuitPriority,
+    SolixDeviceType,
+    SolixPpsOutputMode,
+    SolixPpsOutputModeV2,
+    SolixPriceProvider,
+    SolixPriceTypes,
+    SolixTariffTypes,
+    SolixVehicle,
+)
+from .solixapi.helpers import get_enum_name
+from .solixapi.mqtt_device import SolixMqttDevice
+from .solixapi.mqttcmdmap import SolixMqttCommands
+
+
+@dataclass(frozen=True)
+class AnkerSolixSelectDescription(
+    SelectEntityDescription, AnkerSolixEntityRequiredKeyMixin
+):
+    """Select entity description with optional keys. @thomas"""
+
+    feature: AnkerSolixEntityFeature | None = None
+    mqtt: bool = False
+    mqtt_cmd: str | None = None
+    mqtt_cmd_parm: str | None = None
+    dynamic_options: bool = False
+    api_cmd: bool | None = None
+    restore: bool = False
+    ignore_opt_count: bool | None = None
+    # Use optionally to provide function for value calculation or lookup of nested values
+    force_creation_fn: Callable[[dict, str], bool] = lambda d, jk: False
+    value_fn: Callable[[dict, str], str | None] = lambda d, jk: (
+        None if d.get(jk) is None else str(d.get(jk))
+    )
+    options_fn: Callable[[dict, str], list | None] = lambda d, jk: None
+    exclude_fn: Callable[[set, dict], bool] = lambda s, d: False
+    attrib_fn: Callable[[dict, str], dict | None] = lambda d, jk: None
+
+
+DEVICE_SELECTS = [
+    AnkerSolixSelectDescription(
+        # Solarbank Battery power cutoff setting for SB 1/2
+        key="power_cutoff",
+        translation_key="power_cutoff",
+        json_key="power_cutoff",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=PERCENTAGE,
+        # Allow unchangeable selection for member systems if they show non 0 value
+        value_fn=lambda d, jk: (
+            str(opt) if (opt := d.get(jk) or d.get("output_cutoff_data")) else None
+        ),
+        # Excludde for Solarbank 3 or later due to different MQTT command
+        exclude_fn=lambda s, d: (
+            not (
+                d.get("generation", 0) < 3
+                and (
+                    ({d.get("type")} - s)
+                    & {
+                        SolixDeviceType.SOLARBANK.value,
+                        SolixDeviceType.COMBINER_BOX.value,
+                    }
+                )
+                and {ApiCategories.solarbank_cutoff} - s
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+                and not (d.get("feature_switch") or {}).get("soc_enable")
+            )
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_power_cutoff_select,
+        api_cmd=True,
+    ),
+    AnkerSolixSelectDescription(
+        # Solarbank Battery power cutoff setting for SB 3+
+        key="power_cutoff",
+        translation_key="power_cutoff",
+        json_key="power_cutoff",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=PERCENTAGE,
+        # Allow unchangeable selection for member systems if they show non 0 value
+        value_fn=lambda d, jk: (
+            str(opt) if (opt := d.get(jk) or d.get("output_cutoff_data")) else None
+        ),
+        # Excludde for Solarbank 3 or later due to different MQTT command
+        exclude_fn=lambda s, d: (
+            not (
+                d.get("generation", 0) > 2
+                and (
+                    ({d.get("type")} - s)
+                    & {
+                        SolixDeviceType.SOLARBANK.value,
+                        SolixDeviceType.COMBINER_BOX.value,
+                    }
+                )
+                and {ApiCategories.solarbank_cutoff} - s
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+                and not (d.get("feature_switch") or {}).get("soc_enable")
+            )
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_min_soc_select,
+        api_cmd=True,
+    ),
+    AnkerSolixSelectDescription(
+        # Solarbank 2+ Usage Mode setting
+        key="preset_usage_mode",
+        translation_key="preset_usage_mode",
+        json_key="preset_usage_mode",
+        options_fn=lambda d, _: [
+            item.name for item in SolarbankUsageMode if "unknown" not in item.name
+        ],
+        value_fn=lambda d, jk: get_enum_name(
+            SolarbankUsageMode, d.get(jk), str(d.get(jk)) if jk in d else None
+        ),
+        attrib_fn=lambda d, jk: {"mode": d.get(jk)},
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")} - s
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+            )
+        ),
+    ),
+    AnkerSolixSelectDescription(
+        # Solarbank 3+ load type setting
+        key="preset_load_type",
+        translation_key="preset_load_type",
+        json_key="preset_load_type",
+        options_fn=lambda d, _: [
+            item.name
+            for item in SolarbankSchedulePresetType
+            if "unknown" not in item.name
+        ],
+        value_fn=lambda d, jk: get_enum_name(
+            SolarbankSchedulePresetType, d.get(jk), None
+        ),
+        attrib_fn=lambda d, jk: {"mode": d.get(jk)},
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")} - s
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+            )
+        ),
+        force_creation_fn=lambda d, jk: jk in d,
+    ),
+    AnkerSolixSelectDescription(
+        # Solarbank 2 AC Tariff type
+        key="preset_tariff",
+        translation_key="preset_tariff",
+        json_key="preset_tariff",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: [
+            item.name.lower()
+            for item in SolixTariffTypes
+            if "unknown" not in item.name.lower()
+        ],
+        value_fn=lambda d, jk: (
+            get_enum_name(SolixTariffTypes, d.get(jk), "").lower() or None
+        ),
+        attrib_fn=lambda d, jk: {"tariff": d.get(jk)},
+        feature=AnkerSolixEntityFeature.AC_CHARGE,
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")} - s - {SolixDeviceType.PPS.value}
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+            )
+        ),
+    ),
+    AnkerSolixSelectDescription(
+        # PPS TOU Tariff type
+        key="pps_preset_tariff",
+        translation_key="preset_tariff",
+        json_key="preset_tariff",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: [
+            item.name.lower()
+            for item in SolixTariffTypes
+            if SolixTariffTypes.PEAK.value
+            <= item.value
+            <= SolixTariffTypes.OFF_PEAK.value
+        ],
+        value_fn=lambda d, jk: (
+            get_enum_name(
+                SolixTariffTypes,
+                d.get("active_tariff") or d.get(jk)
+                if d.get(MQTT_OVERLAY)
+                else d.get(jk) or d.get("active_tariff"),
+                "",
+            ).lower()
+            or None
+        ),
+        attrib_fn=lambda d, jk: {
+            "tariff": d.get("active_tariff") or d.get(jk)
+            if d.get(MQTT_OVERLAY)
+            else d.get(jk) or d.get("active_tariff")
+        },
+        feature=AnkerSolixEntityFeature.AC_CHARGE,
+        exclude_fn=lambda s, d: (
+            not (({d.get("type")} - s) & {SolixDeviceType.PPS.value})
+        ),
+    ),
+    AnkerSolixSelectDescription(
+        # Inverter limit supported options
+        key="preset_inverter_limit",
+        translation_key="preset_inverter_limit",
+        json_key="preset_inverter_limit",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: (
+            SolarbankDeviceMetrics.INVERTER_OUTPUT_OPTIONS.get(d.get("device_pn") or "")
+            or []
+        ),
+        unit_of_measurement=UnitOfPower.WATT,
+        exclude_fn=lambda s, _: not ({SolixDeviceType.INVERTER.value} - s),
+    ),
+    AnkerSolixSelectDescription(
+        # SB output limit
+        key="max_load",
+        translation_key="max_load",
+        json_key="max_load",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=UnitOfPower.WATT,
+        # use different MQTT value name if overlay
+        # value_fn=lambda d, jk: None if (v := d.get(jk)) is None else str(v),
+        value_fn=lambda d, jk: (
+            None
+            if (
+                v := (d.get(jk) or d.get("power_limit"))
+                if d.get(MQTT_OVERLAY)
+                else (d.get("power_limit") or d.get(jk))
+            )
+            is None
+            else str(v)
+        ),
+        exclude_fn=lambda s, d: (
+            not (
+                # (
+                ({d.get("type")} - s)
+                and "all_power_limit" not in d
+                #     & {
+                #         SolixDeviceType.SOLARBANK.value,
+                #         SolixDeviceType.COMBINER_BOX.value,
+                #     }
+                # )
+                and not d.get("station_sn")
+            )
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_max_load,
+    ),
+    AnkerSolixSelectDescription(
+        # SB Multisystem output limit
+        key="max_load_total",
+        translation_key="max_load_total",
+        json_key="max_load_total",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=UnitOfPower.WATT,
+        # use different MQTT value name if overlay
+        value_fn=lambda d, jk: (
+            None
+            if (
+                v := (d.get(jk) or d.get("all_power_limit"))
+                if d.get(MQTT_OVERLAY)
+                else (d.get("all_power_limit") or d.get(jk))
+            )
+            is None
+            else str(v)
+        ),
+        # exclude if not main device of total load
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")} - s and "all_power_limit" in d
+                # and (
+                #     d.get("type") == SolixDeviceType.COMBINER_BOX.value
+                #     or d.get("station_sn") == d.get("device_sn")
+                # )
+            )
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_max_load_parallel,
+    ),
+    AnkerSolixSelectDescription(
+        # PPS output limit
+        key="max_load",
+        translation_key="max_load",
+        json_key="max_load",
+        unit_of_measurement=UnitOfPower.WATT,
+        exclude_fn=lambda s, d: (
+            not ({d.get("type")} - s - {SolixDeviceType.SOLARBANK.value})
+        ),
+        value_fn=lambda d, jk: None if (v := d.get(jk)) is None else str(v),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.device_max_load,
+    ),
+    AnkerSolixSelectDescription(
+        # SB AC input limit
+        key="preset_ac_input_limit",
+        translation_key="preset_ac_input_limit",
+        json_key="ac_input_limit",
+        unit_of_measurement=UnitOfPower.WATT,
+        exclude_fn=lambda s, d: (
+            not (({d.get("type")} - s) & {SolixDeviceType.SOLARBANK.value})
+        ),
+        value_fn=lambda d, jk: None if (v := d.get(jk)) is None else str(v),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_ac_input_limit,
+    ),
+    AnkerSolixSelectDescription(
+        # PPS AC input limit
+        key="preset_ac_input_limit",
+        translation_key="preset_ac_input_limit",
+        json_key="ac_input_limit",
+        unit_of_measurement=UnitOfPower.WATT,
+        exclude_fn=lambda s, d: (
+            not ({d.get("type")} - s - {SolixDeviceType.SOLARBANK.value})
+        ),
+        value_fn=lambda d, jk: None if (v := d.get(jk)) is None else str(v),
+        attrib_fn=lambda d, jk: (
+            {"silent_charge_limit": val}
+            if str(val := d.get("silent_charge_power", ""))
+            else {}
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ac_charge_limit,
+    ),
+    AnkerSolixSelectDescription(
+        # PV input limit supported options
+        key="preset_pv_input_limit",
+        translation_key="preset_pv_input_limit",
+        json_key="pv_power_limit",
+        entity_category=EntityCategory.CONFIG,
+        # Add options once settings are supported
+        unit_of_measurement=UnitOfPower.WATT,
+        # use different MQTT value name if overlay
+        value_fn=lambda d, jk: (
+            None
+            if (
+                v := (d.get("pv_limit") or d.get(jk))
+                if d.get(MQTT_OVERLAY)
+                else (d.get(jk) or d.get("pv_limit"))
+            )
+            is None
+            else str(v)
+        ),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_pv_limit_select,
+    ),
+    AnkerSolixSelectDescription(
+        # SB timeout
+        key="device_timeout",
+        translation_key="device_timeout",
+        json_key="device_timeout_minutes",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=UnitOfTime.MINUTES,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_device_timeout,
+    ),
+    AnkerSolixSelectDescription(
+        # PPS timeout
+        key="device_timeout",
+        translation_key="device_timeout",
+        json_key="device_timeout_minutes",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=UnitOfTime.MINUTES,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.device_timeout_minutes,
+    ),
+    AnkerSolixSelectDescription(
+        key="ac_output_timeout",
+        translation_key="ac_output_timeout",
+        json_key="ac_output_timeout_minutes",
+        unit_of_measurement=UnitOfTime.MINUTES,
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ac_output_timeout_minutes,
+    ),
+    AnkerSolixSelectDescription(
+        key="temp_unit",
+        translation_key="temp_unit",
+        json_key="temp_unit_fahrenheit",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.temp_unit_switch,
+    ),
+    AnkerSolixSelectDescription(
+        # SB light mode
+        key="light_mode",
+        translation_key="light_mode",
+        json_key="light_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_light_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        # PPS light mode
+        key="light_mode",
+        translation_key="light_mode",
+        json_key="light_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.light_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="display_timeout",
+        translation_key="display_timeout",
+        json_key="display_timeout_seconds",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=UnitOfTime.SECONDS,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.display_timeout_seconds,
+    ),
+    AnkerSolixSelectDescription(
+        # Display timeout second options
+        key="display_timeout",
+        translation_key="display_timeout",
+        json_key="display_timeout_mode",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=UnitOfTime.SECONDS,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.display_timeout_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="display_mode",
+        translation_key="display_mode",
+        json_key="display_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.display_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="ac_output_mode",
+        translation_key="ac_output_mode",
+        json_key="ac_output_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ac_output_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="dc_12v_output_mode",
+        translation_key="dc_12v_output_mode",
+        json_key="dc_12v_output_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.dc_12v_output_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="min_soc",
+        translation_key="min_soc",
+        json_key="power_cutoff",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=PERCENTAGE,
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")}
+                - s
+                - {SolixDeviceType.SOLARBANK.value, SolixDeviceType.COMBINER_BOX.value}
+            )
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.soc_limits,
+        mqtt_cmd_parm="set_min_soc",
+    ),
+    AnkerSolixSelectDescription(
+        key="max_soc",
+        translation_key="max_soc",
+        json_key="max_soc",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=PERCENTAGE,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.soc_limits,
+        mqtt_cmd_parm="set_max_soc",
+    ),
+    AnkerSolixSelectDescription(
+        key="backup_soc",
+        translation_key="backup_soc",
+        json_key="backup_soc",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=PERCENTAGE,
+        exclude_fn=lambda s, d: (
+            not (
+                ({d.get("type")} - s - {SolixDeviceType.PPS.value})
+                and "backup_reserve"
+                not in getattr(
+                    SolarbankDeviceMetrics,
+                    d.get("device_pn") or "",
+                    {},
+                )
+            )
+        ),
+        mqtt=True,
+        # TODO: define commands once known, mark as Api cmd for now to create entity to show state if available
+        api_cmd=True,
+    ),
+    AnkerSolixSelectDescription(
+        key="pps_usage_mode",
+        translation_key="pps_usage_mode",
+        json_key="usage_mode",
+        # option values are mdev functions, depending on charger feature settings
+        value_fn=lambda d, jk: d.get(jk),
+        attrib_fn=lambda d, jk: (
+            {"mode": d.get(jk)}
+            | (
+                {"custom_mode_schedule": val}
+                if str(val := d.get("custom_mode_schedule", ""))
+                else {}
+            )
+            | (
+                {"tou_mode_schedule": val}
+                if str(
+                    val := d.get("pps_use_time", "") or d.get("tou_mode_schedule", "")
+                )
+                else {}
+            )
+        ),
+        exclude_fn=lambda s, d: (
+            not (({d.get("type")} - s) & {SolixDeviceType.PPS.value})
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.pps_usage_mode,
+    ),
+    AnkerSolixSelectDescription(
+        key="max_evcharge_current",
+        translation_key="max_evcharge_current",
+        json_key="max_evcharge_current",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_max_charge_current,
+        # Dynamic limit changes based on reported data
+        dynamic_options=True,
+    ),
+    AnkerSolixSelectDescription(
+        key="solar_evcharge_min_current",
+        translation_key="solar_evcharge_min_current",
+        json_key="solar_evcharge_min_current",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_solar_charging,
+        mqtt_cmd_parm="set_solar_evcharge_min_current",
+        # Dynamic limit changes based on reported data
+        dynamic_options=True,
+    ),
+    AnkerSolixSelectDescription(
+        key="light_brightness",
+        translation_key="light_brightness",
+        json_key="light_brightness",
+        entity_category=EntityCategory.CONFIG,
+        unit_of_measurement=PERCENTAGE,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.light_brightness,
+    ),
+    AnkerSolixSelectDescription(
+        key="wipe_up_mode",
+        translation_key="wipe_up_mode",
+        json_key="wipe_up_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.swipe_up_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="wipe_down_mode",
+        translation_key="wipe_down_mode",
+        json_key="wipe_down_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.swipe_down_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="smart_touch_mode",
+        translation_key="smart_touch_mode",
+        json_key="smart_touch_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.smart_touch_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="ev_charger_mode",
+        translation_key="ev_charger_mode",
+        json_key="ev_charger_mode",
+        # state and option values are mdev functions, depending on charger status
+        value_fn=lambda d, jk: d.get(jk),
+        attrib_fn=lambda d, jk: (
+            (
+                {
+                    "start_countdown": str(timedelta(seconds=int(val))),
+                }
+                if str(val := d.get("start_countdown_seconds", ""))
+                else {}
+            )
+            | (
+                {
+                    "plug_countdown": str(timedelta(seconds=int(val))),
+                }
+                if str(val := d.get("plug_countdown_seconds", ""))
+                else {}
+            )
+        ),
+        force_creation_fn=lambda d, _: (
+            d.get("mqtt_data", {}).get("ev_charger_status") is not None
+        ),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s and d.get("mqtt_data")),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_charger_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="solar_evcharge_mode",
+        translation_key="solar_evcharge_mode",
+        json_key="solar_evcharge_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_solar_charging,
+        mqtt_cmd_parm="set_solar_evcharge_mode",
+    ),
+    AnkerSolixSelectDescription(
+        key="schedule_mode",
+        translation_key="schedule_mode",
+        json_key="schedule_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_charger_schedule_settings,
+        mqtt_cmd_parm="set_schedule_mode",
+    ),
+    AnkerSolixSelectDescription(
+        key="weekend_mode",
+        translation_key="weekend_mode",
+        json_key="weekend_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_charger_schedule_times,
+        mqtt_cmd_parm="set_weekend_mode",
+    ),
+    AnkerSolixSelectDescription(
+        key="charger_mode",
+        translation_key="charger_mode",
+        json_key="charger_mode",
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.charger_mode_select,
+        mqtt_cmd_parm="set_charger_mode",
+    ),
+    AnkerSolixSelectDescription(
+        key="car_battery_type",
+        translation_key="car_battery_type",
+        json_key="car_battery_type",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.car_battery_type,
+        mqtt_cmd_parm="set_car_battery_type",
+    ),
+    AnkerSolixSelectDescription(
+        key="car_battery_voltage_type",
+        translation_key="car_battery_voltage_type",
+        json_key="car_battery_voltage_type",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.car_battery_type,
+        mqtt_cmd_parm="set_car_battery_voltage_type",
+    ),
+    AnkerSolixSelectDescription(
+        key="charge_power_limit",
+        translation_key="charge_power_limit",
+        json_key="charge_power_limit",
+        value_fn=lambda d, jk: None if (v := d.get(jk)) is None else str(v),
+        unit_of_measurement=UnitOfPower.WATT,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.battery_charge_limits,
+        mqtt_cmd_parm="set_charge_power_limit",
+        # Dynamic limit changes based on reported data
+        dynamic_options=True,
+    ),
+    AnkerSolixSelectDescription(
+        key="reverse_power_limit",
+        translation_key="reverse_power_limit",
+        json_key="reverse_power_limit",
+        value_fn=lambda d, jk: None if (v := d.get(jk)) is None else str(v),
+        unit_of_measurement=UnitOfPower.WATT,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.reverse_charge_limits,
+        mqtt_cmd_parm="set_reverse_power_limit",
+        # Dynamic limit changes based on reported data
+        dynamic_options=True,
+    ),
+    AnkerSolixSelectDescription(
+        key="display_theme",
+        translation_key="display_theme",
+        json_key="display_theme",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk, {}).get("theme_name") or None,
+        attrib_fn=lambda d, jk: (
+            {
+                "id": str(val),
+            }
+            if str(val := d.get(jk, {}).get("id", ""))
+            else {}
+        ),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+    ),
+    AnkerSolixSelectDescription(
+        key="charger_usage_mode",
+        translation_key="charger_usage_mode",
+        json_key="usage_mode",
+        # option values are mdev functions, depending on charger feature settings
+        value_fn=lambda d, jk: d.get(jk),
+        attrib_fn=lambda d, jk: (
+            (
+                {
+                    "custom_mode": bool(val),
+                }
+                if str(
+                    val := d.get("device_setting", {}).get("charging_mode_status", "")
+                )
+                else {}
+            )
+            | (
+                {"custom_profile": val}
+                if (
+                    val := next(
+                        iter(
+                            v
+                            for v in d.get("custom_modes", {}).values()
+                            if str(v.get("number", ""))
+                            == str(d.get("custom_profile_number", ""))
+                        ),
+                        {},
+                    )
+                )
+                else {}
+            )
+        ),
+        exclude_fn=lambda s, d: (
+            not (({d.get("type")} - s) & {SolixDeviceType.CHARGER.value})
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.charger_usage_mode,
+    ),
+    AnkerSolixSelectDescription(
+        key="knob_mode",
+        translation_key="knob_mode",
+        json_key="knob_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.knob_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="clock_mode",
+        translation_key="clock_mode",
+        json_key="clock_mode",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.clock_mode_select,
+    ),
+    AnkerSolixSelectDescription(
+        key="charger_port_priority",
+        translation_key="charger_port_priority",
+        json_key="port_priority",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: d.get(jk),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.port_priority,
+    ),
+    # repeated element
+    *[
+        AnkerSolixSelectDescription(
+            key=f"priority_circuit_{idx:02d}",
+            translation_key="priority_circuit_x",
+            json_key="priority",
+            entity_category=EntityCategory.CONFIG,
+            value_fn=lambda d, jk, idx=idx: (
+                v.get(jk)
+                if (v := d.get("circuit_setup", {}).get(f"{idx:02d}", {}))
+                and v.get("pair_status", 0) != 1
+                else None
+            ),
+            exclude_fn=lambda s, d: not ({d.get("type")} - s),
+            mqtt=True,
+            mqtt_cmd=SolixMqttCommands.circuit_priority,
+            ignore_opt_count=True,
+        )
+        for idx in range(1, 13)
+    ],
+    AnkerSolixSelectDescription(
+        # Defined Site price unit energy saving calculations by cloud
+        key="device_price_unit",
+        translation_key="system_price_unit",
+        json_key="preset_tariff_currency",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: [
+            "€",
+            "$",
+            "£",
+            "¥",
+            "₹",
+            "원",
+        ],
+        exclude_fn=lambda s, d: not ({d.get("type")} - s and "pps_use_time" in d),
+    ),
+]
+
+SITE_SELECTS = [
+    AnkerSolixSelectDescription(
+        # Defined Site price unit energy saving calculations by cloud
+        key="system_price_unit",
+        translation_key="system_price_unit",
+        json_key="site_price_unit",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: [
+            "€",
+            "$",
+            "£",
+            "¥",
+            "₹",
+            "원",
+        ],
+        value_fn=lambda d, jk: (d.get("site_details") or {}).get(jk),
+        exclude_fn=lambda s, _: not ({ApiCategories.site_price} - s),
+    ),
+    AnkerSolixSelectDescription(
+        # Defined Site price type for saving calculations by cloud
+        key="system_price_type",
+        translation_key="system_price_type",
+        json_key="price_type",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: [
+            t.value for t in SolixPriceTypes if "unknown" not in t.name.lower()
+        ],
+        value_fn=lambda d, jk: (d.get("site_details") or {}).get(jk),
+        attrib_fn=lambda d, _: {
+            "type": (det := d.get("site_details") or {}).get("price_type"),
+            "current_mode": det.get("current_mode"),
+        },
+        exclude_fn=lambda s, _: not ({ApiCategories.site_price} - s),
+    ),
+    AnkerSolixSelectDescription(
+        # Solarbank 3 Dynamic price
+        key="dynamic_price_provider",
+        translation_key="dynamic_price_provider",
+        json_key="dynamic_price",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: None,
+        value_fn=lambda d, jk: (
+            str(SolixPriceProvider(provider=p))
+            if (
+                p := (d.get("site_details") or {}).get(jk)
+                or (d.get("customized") or {}).get(jk)
+                or {}
+            )
+            else None
+        ),
+        attrib_fn=lambda d, jk: (
+            SolixPriceProvider(
+                provider=(d.get("site_details") or {}).get(jk)
+                or (d.get("customized") or {}).get(jk)
+                or {}
+            ).asdict()
+            | ({"customized": c} if (c := (d.get("customized") or {}).get(jk)) else {})
+        ),
+        exclude_fn=lambda s, _: not ({ApiCategories.site_price} - s),
+        force_creation_fn=lambda d, _: bool(
+            "dynamic_price_details" in (d.get("site_details") or {})
+        ),
+        restore=True,
+    ),
+]
+
+ACCOUNT_SELECTS = []
+
+VEHICLE_SELECTS = [
+    AnkerSolixSelectDescription(
+        key="vehicle_brand",
+        translation_key="vehicle_brand",
+        json_key="brand",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: None,
+        exclude_fn=lambda s, _: not ({SolixDeviceType.VEHICLE.value} - s),
+    ),
+    AnkerSolixSelectDescription(
+        key="vehicle_model",
+        translation_key="vehicle_model",
+        json_key="model",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: None,
+        exclude_fn=lambda s, _: not ({SolixDeviceType.VEHICLE.value} - s),
+    ),
+    AnkerSolixSelectDescription(
+        key="vehicle_year",
+        translation_key="vehicle_year",
+        json_key="productive_year",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: None,
+        exclude_fn=lambda s, _: not ({SolixDeviceType.VEHICLE.value} - s),
+    ),
+    AnkerSolixSelectDescription(
+        key="vehicle_variant",
+        translation_key="vehicle_variant",
+        json_key="id",
+        entity_category=EntityCategory.CONFIG,
+        options_fn=lambda d, _: None,
+        value_fn=lambda d, jk: SolixVehicle(vehicle=d).idAttributes(),
+        exclude_fn=lambda s, _: not ({SolixDeviceType.VEHICLE.value} - s),
+    ),
+]
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up select platform. @thomas"""
+
+    coordinator: AnkerSolixDataUpdateCoordinator = hass.data[DOMAIN].get(entry.entry_id)
+    entities = []
+
+    if coordinator and hasattr(coordinator, "data") and coordinator.data:
+        # create entity based on type of entry in coordinator data, which consolidates the api.sites, api.devices and api.account dictionaries
+        # the coordinator.data dict key is either account nickname, a site_id or device_sn and used as context for the entity to lookup its data
+        for context, data in coordinator.data.items():
+            mdev = None
+            mdata = {}
+            if (data_type := data.get("type")) == SolixDeviceType.SYSTEM.value:
+                # site_id entry in data
+                entity_type = AnkerSolixEntityType.SITE
+                entity_list = SITE_SELECTS
+            elif data_type == SolixDeviceType.ACCOUNT.value:
+                # Unique key for account entry in data
+                entity_type = AnkerSolixEntityType.ACCOUNT
+                entity_list = ACCOUNT_SELECTS
+            elif data_type == SolixDeviceType.VEHICLE.value:
+                # vehicle entry in data
+                entity_type = AnkerSolixEntityType.VEHICLE
+                entity_list = VEHICLE_SELECTS
+            else:
+                # device_sn entry in data
+                entity_type = AnkerSolixEntityType.DEVICE
+                entity_list = DEVICE_SELECTS
+                # get MQTT device combined values for creation of entities
+                if mdev := coordinator.client.get_mqtt_device(sn=context):
+                    mdata = mdev.get_combined_cache(
+                        fromFile=coordinator.client.testmode()
+                    )
+
+            for description in (
+                desc
+                for desc in entity_list
+                if bool(CREATE_ALL_ENTITIES)
+                or (
+                    not desc.exclude_fn(set(entry.options.get(CONF_EXCLUDE, [])), data)
+                    and (
+                        desc.force_creation_fn(data, desc.json_key)
+                        # filter MQTT entities and provide combined or only api cache
+                        # Entities that should not be created without MQTT data need to use exclude option
+                        or (
+                            desc.mqtt
+                            and desc.value_fn(mdata or data, desc.json_key) is not None
+                            # include MQTT command select entities only if no switch and max 20 options or also using Api command
+                            and (
+                                desc.api_cmd
+                                or not (
+                                    mdev
+                                    and desc.mqtt_cmd
+                                    and (
+                                        mdev.cmd_is_switch(
+                                            cmd=desc.mqtt_cmd, parm=desc.mqtt_cmd_parm
+                                        )
+                                        or not (
+                                            desc.ignore_opt_count
+                                            or mdev.get_cmd_parm_option_map(
+                                                cmd=desc.mqtt_cmd,
+                                                parm=desc.mqtt_cmd_parm,
+                                                limit=20,
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                        # filter API only entities
+                        or (
+                            not desc.mqtt
+                            and desc.value_fn(data, desc.json_key) is not None
+                        )
+                    )
+                )
+            ):
+                if description.restore:
+                    entity = AnkerSolixRestoreSelect(
+                        coordinator, description, context, entity_type
+                    )
+                else:
+                    entity = AnkerSolixSelect(
+                        coordinator, description, context, entity_type
+                    )
+                entities.append(entity)
+
+    # create the sensors from the list
+    async_add_entities(entities)
+
+
+class AnkerSolixSelect(SinvEntity, CoordinatorEntity, SelectEntity):
+    """solar_forecast_sinv select class. @thomas"""
+
+    coordinator: AnkerSolixDataUpdateCoordinator
+    entity_description: AnkerSolixSelectDescription
+    _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset(
+        {
+            "area",
+            "country",
+            "company",
+            "customized",
+            "custom_profile",
+            "custom_mode",
+            "custom_mode_schedule",
+            "current_mode",
+            "id",
+            "mode",
+            "plug_countdown",
+            "power_cutoff",
+            "start_countdown",
+            "tariff",
+            "tou_mode_schedule",
+            "type",
+        }
+    )
+
+    def __init__(
+        self,
+        coordinator: AnkerSolixDataUpdateCoordinator,
+        description: AnkerSolixSelectDescription,
+        context: str,
+        entity_type: str,
+    ) -> None:
+        """Initialize the select class. @thomas"""
+        super().__init__(coordinator, context)
+
+        self._attribute_name = description.key
+        self._attr_attribution = f"{ATTRIBUTION}{' + MQTT' if description.mqtt else ''}"
+        self._attr_unique_id = (f"{context}_{description.key}").lower()
+        self.entity_description = description
+        self.entity_type = entity_type
+        self._attr_extra_state_attributes = None
+
+        mdev = self.coordinator.client.get_mqtt_device(context)
+        if self.entity_type == AnkerSolixEntityType.DEVICE:
+            # get the device data from device context entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            if data.get("is_subdevice"):
+                self._attr_device_info = get_AnkerSolixSubdeviceInfo(data, context)
+            else:
+                self._attr_device_info = get_AnkerSolixDeviceInfo(data, context)
+            # add service attribute for manageable devices
+            self._attr_supported_features: AnkerSolixEntityFeature = (
+                description.feature
+                if (data.get("is_admin", False) or (mdev and not mdev.is_passive()))
+                else None
+            )
+            if description.translation_key == "priority_circuit_x" and mdev:
+                # generate the id for the circuit
+                idx = description.key[-2:]
+                self._attr_translation_placeholders = {
+                    "id": "-".join(
+                        map(
+                            str,
+                            [
+                                int(idx),
+                                *mdev.get_status(
+                                    fromFile=coordinator.client.testmode()
+                                ).get(f"peers_circuit_{idx}", []),
+                            ],
+                        )
+                    )
+                }
+        elif self.entity_type == AnkerSolixEntityType.ACCOUNT:
+            # get the account data from account context entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            self._attr_device_info = get_AnkerSolixAccountInfo(data, context)
+            # add service attribute for account entities
+            self._attr_supported_features: AnkerSolixEntityFeature = description.feature
+        elif self.entity_type == AnkerSolixEntityType.VEHICLE:
+            # get the vehicle info data from vehicle entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            self._attr_device_info = get_AnkerSolixVehicleInfo(data, context)
+            # add service attribute for vehicle entities
+            self._attr_supported_features: AnkerSolixEntityFeature = description.feature
+        else:
+            # get the site info data from site context entry of coordinator data
+            data = (coordinator.data.get(context) or {}).get("site_info") or {}
+            self._attr_device_info = get_AnkerSolixSystemInfo(data, context)
+            # add service attribute for site entities
+            self._attr_supported_features: AnkerSolixEntityFeature = description.feature
+
+        self.update_state_value()
+        self._attr_options = self.entity_description.options_fn(
+            data, self.entity_description.json_key
+        )
+        # Initial options update for static information not changed during Api session
+        number_sort = False
+        if self._attribute_name in ["system_price_unit", "device_price_unit"]:
+            # merge currencies from entity description and from Api currency list
+            options = set(self._attr_options or []) | {
+                item.get("symbol")
+                for item in (
+                    (
+                        coordinator.data.get(coordinator.client.api.apisession.email)
+                        or {}
+                    ).get("currency_list")
+                    or []
+                )
+            }
+            self._attr_options = list(options)
+            self._attr_options.sort()
+        elif mdev and (
+            self.entity_description.mqtt_cmd
+            in [SolixMqttCommands.sb_max_load, SolixMqttCommands.sb_max_load_parallel]
+            and isinstance(options := mdev.device.get("power_limit_option"), list)
+        ):
+            # Limit the options to subset as provided in Api device details (from power limit query)
+            # [{'limit': 350, 'limit_real': 350}, {'limit': 600, 'limit_real': 600}, {'limit': 800, 'limit_real': 800}]
+            self._attr_options = [
+                str(d.get("limit"))
+                for d in options
+                if isinstance(d, dict)
+                for key, item in d.items()
+                if key == "limit"
+            ]
+            if not self._attr_options:
+                # fallback to MQTT command options
+                self._attr_options = list(
+                    mdev.get_cmd_parm_option_map(
+                        cmd=self.entity_description.mqtt_cmd,
+                        parm=self.entity_description.mqtt_cmd_parm,
+                    ).keys()
+                )
+            else:
+                # update mdev command description options
+                mdev.update_device(
+                    device=mdev.device,
+                    dynamic_descriptions={
+                        f"max_load{'_parallel' if self.entity_description.mqtt_cmd == SolixMqttCommands.sb_max_load_parallel else ''}_options": [
+                            int(x) for x in self._attr_options
+                        ]
+                    },
+                )
+            number_sort = True
+        elif self.entity_description.mqtt_cmd and mdev:
+            # Get MQTT device options for supported control
+            if self._attribute_name == "ev_charger_mode":
+                self._attr_options = mdev.ev_charger_mode_options(
+                    fromFile=self.coordinator.client.testmode()
+                )
+            elif self._attribute_name.startswith("priority_circuit_"):
+                self._attr_options = [
+                    item.name
+                    for item in SolixCircuitPriority
+                    if "unknown" not in item.name
+                ]
+            else:
+                # get options from MQTT device description
+                self._attr_options = list(
+                    mdev.get_cmd_parm_option_map(
+                        cmd=self.entity_description.mqtt_cmd,
+                        parm=self.entity_description.mqtt_cmd_parm,
+                    ).keys()
+                )
+            number_sort = True
+        # Remove all options if mdev control but device is in local mode
+        if self.entity_description.mqtt_cmd and mdev and mdev.is_passive():
+            self._attr_options = [self._attr_current_option]
+        elif number_sort and self._attr_options:
+            # ensure numbered sort also for strings
+            self._attr_options.sort(
+                key=lambda x: (
+                    not (
+                        isnum := str(x)
+                        .replace("-", "", 1)
+                        .replace(".", "", 1)
+                        .isdigit()
+                    ),
+                    float(x) if isnum else x,
+                )
+            )
+        # Make sure that options are set to existing state if no options defined
+        if not self._attr_options and self._attr_current_option is not None:
+            self._attr_options = [self._attr_current_option]
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator. @thomas"""
+        self.update_state_value()
+        super()._handle_coordinator_update()
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the selected entity option to represent the entity state. @thomas"""
+        if self._attribute_name == ("vehicle_variant"):
+            # Make sure that the only available option is automatically set
+            if len(self._attr_options) == 1 and self._attr_current_option in [
+                "unknown",
+                None,
+            ]:
+                self._attr_current_option = self._attr_options[0]
+        return self._attr_current_option
+
+    @property
+    def options(self) -> str | None:  # noqa: C901
+        """Return the entity options available. @thomas"""
+        # update the options depending on conditions
+        number_sort = False
+        if self._attribute_name == "preset_usage_mode":
+            options = self.coordinator.client.api.solarbank_usage_mode_options(
+                deviceSn=self.coordinator_context
+            )
+            if options != set(self._attr_options or []):
+                self._attr_options = list(options)
+                self._attr_options.sort()
+        elif self._attribute_name == "preset_load_type":
+            # set options depending on active usage mode
+            data = (self.coordinator.data or {}).get(self.coordinator_context) or {}
+            if data.get("preset_usage_mode") in [
+                SolarbankUsageMode.manual,
+                SolarbankUsageMode.smartplugs,
+            ]:
+                self._attr_options = self.entity_description.options_fn(
+                    data, self.entity_description.json_key
+                )
+                self._attr_options.sort()
+            else:
+                self._attr_options = None
+        elif self._attribute_name == "system_price_type":
+            options = self.coordinator.client.api.price_type_options(
+                siteId=self.coordinator_context
+            )
+            if options != set(self._attr_options or []):
+                self._attr_options = list(options)
+                self._attr_options.sort()
+        elif self._attribute_name == "dynamic_price_provider":
+            options = self.coordinator.client.api.price_provider_options(
+                siteId=self.coordinator_context
+            )
+            # add active provider to options if not listed in provider options
+            if self._attr_current_option is not None:
+                options.add(self._attr_current_option)
+            # TODO(SB3): Add None as option only if the provider can ever be removed
+            # options.add("none")
+            if options != set(self._attr_options or []):
+                self._attr_options = list(options)
+                self._attr_options.sort()
+        elif (
+            self._attribute_name == "preset_inverter_limit"
+            and self._attr_current_option is not None
+        ):
+            options = set(self._attr_options or [])
+            # Add actual power setting to options if not included
+            options.add(self._attr_current_option)
+            if options != set(self._attr_options or []):
+                self._attr_options = list(options)
+                number_sort = True
+        elif self._attribute_name == "vehicle_brand":
+            self._attr_options = self.coordinator.client.api.get_vehicle_options()
+            self._attr_options.sort()
+        elif self._attribute_name == "vehicle_model":
+            data = (self.coordinator.data or {}).get(self.coordinator_context) or {}
+            self._attr_options = (
+                self.coordinator.client.api.get_vehicle_options(
+                    vehicle=SolixVehicle(brand=brand)
+                )
+                if (brand := data.get("brand"))
+                else []
+            )
+            self._attr_options.sort()
+        elif self._attribute_name == "vehicle_year":
+            data = (self.coordinator.data or {}).get(self.coordinator_context) or {}
+            self._attr_options = (
+                self.coordinator.client.api.get_vehicle_options(
+                    vehicle=SolixVehicle(brand=brand, model=model)
+                )
+                if (brand := data.get("brand")) and (model := data.get("model"))
+                else []
+            )
+            number_sort = True
+        elif self._attribute_name == "vehicle_variant":
+            data = (self.coordinator.data or {}).get(self.coordinator_context) or {}
+            if (
+                (brand := data.get("brand"))
+                and (model := data.get("model"))
+                and (year := data.get("productive_year"))
+            ):
+                self._attr_options = self.coordinator.client.api.get_vehicle_options(
+                    vehicle=SolixVehicle(
+                        brand=brand, model=model, productive_year=year
+                    ),
+                    extendAttributes=True,
+                )
+                # If current state should be added as option although no model ID could be identified
+                # if (state := SolixVehicle(vehicle=data).idAttributes()) not in self._attr_options:
+                #     self._attr_options.append(state)
+                self._attr_options.sort()
+            else:
+                self._attr_options = []
+        elif self._attribute_name == "power_cutoff":
+            data = (self.coordinator.data or {}).get(self.coordinator_context) or {}
+            self._attr_options = [
+                str(item.get("output_cutoff_data") or item.get("soc"))
+                for item in data.get("power_cutoff_data") or []
+            ]
+            number_sort = True
+        elif self._attribute_name == "ev_charger_mode":
+            if mdev := self.coordinator.client.get_mqtt_device(
+                self.coordinator_context
+            ):
+                self._attr_options = mdev.ev_charger_mode_options(
+                    fromFile=self.coordinator.client.testmode()
+                )
+                self._attr_options.sort()
+        elif self._attribute_name == "charger_mode":
+            if mdev := self.coordinator.client.get_mqtt_device(
+                self.coordinator_context
+            ):
+                # enable reverse mode only if PPS connected via expansion cable and showing SN
+                if mdev.mqttdata.get("device_1_sn"):
+                    self._attr_options = list(
+                        mdev.get_cmd_parm_option_map(
+                            cmd=self.entity_description.mqtt_cmd,
+                            parm=self.entity_description.mqtt_cmd_parm,
+                        ).keys()
+                    )
+                    self._attr_options.sort()
+                else:
+                    self._attr_options = None
+        elif self._attribute_name == "charger_usage_mode":
+            if mdev := self.coordinator.client.get_mqtt_device(
+                self.coordinator_context
+            ):
+                options = set(
+                    mdev.get_cmd_parm_option_map(
+                        cmd=self.entity_description.mqtt_cmd,
+                        parm=self.entity_description.mqtt_cmd_parm,
+                    ).keys()
+                ) | {
+                    f"custom-{number}"
+                    for number in self.coordinator.client.api.get_charger_custom_mode_options(
+                        deviceSn=self.coordinator_context, by_number=True
+                    )
+                }
+                self._attr_options = list(options)
+                self._attr_options.sort()
+        elif self.entity_description.mqtt_cmd == SolixMqttCommands.sb_max_load:
+            # Limit the options to active setting if control is not changeable
+            data = (self.coordinator.data or {}).get(self.coordinator_context) or {}
+            if not data.get("station_sn") and data.get("generation", 0) < 3:
+                # MQTT command required for control, limit options if no mdev available
+                if (
+                    mdev := self.coordinator.client.get_mqtt_device(
+                        self.coordinator_context
+                    )
+                ) and isinstance(
+                    options := mdev.device.get("power_limit_option"), list
+                ):
+                    # Limit the options to subset as provided in Api device details (from power limit query)
+                    # [{'limit': 350, 'limit_real': 350}, {'limit': 600, 'limit_real': 600}, {'limit': 800, 'limit_real': 800}]
+                    self._attr_options = [
+                        str(d.get("limit"))
+                        for d in options
+                        if isinstance(d, dict)
+                        for key, item in d.items()
+                        if key == "limit"
+                    ]
+                    number_sort = True
+                else:
+                    self._attr_options = [self._attr_current_option]
+        elif self._attribute_name == "display_theme":
+            if not self._attr_options or len(self._attr_options) < 2:
+                # update screensaver option list only upon init, will later be done upon state change only
+                self._attr_options = (
+                    self.coordinator.client.api.get_charger_theme_options(
+                        deviceSn=self.coordinator_context
+                    )
+                )
+                self._attr_options.sort()
+        elif self.entity_description.dynamic_options:
+            if mdev := self.coordinator.client.get_mqtt_device(
+                self.coordinator_context
+            ):
+                if mdev.is_passive():
+                    self._attr_options = [self._attr_current_option]
+                else:
+                    # Get MQTT device options for supported control
+                    self._attr_options = list(
+                        mdev.get_cmd_parm_option_map(
+                            cmd=self.entity_description.mqtt_cmd,
+                            parm=self.entity_description.mqtt_cmd_parm,
+                        ).keys()
+                    )
+                    number_sort = True
+        # ensure numbered sort also for strings
+        if number_sort and self._attr_options:
+            self._attr_options.sort(
+                key=lambda x: (
+                    not (
+                        isnum := str(x)
+                        .replace("-", "", 1)
+                        .replace(".", "", 1)
+                        .isdigit()
+                    ),
+                    float(x) if isnum else x,
+                )
+            )
+        # Make sure that options are limited to existing state if no options defined
+        if not self._attr_options and self._attr_current_option is not None:
+            self._attr_options = [self._attr_current_option]
+        return self._attr_options
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes of the entity. @thomas"""
+        if (
+            self.coordinator
+            and (hasattr(self.coordinator, "data"))
+            and self.coordinator_context in self.coordinator.data
+        ):
+            # Api device data
+            data = self.coordinator.data.get(self.coordinator_context)
+            if self.entity_description.mqtt and (
+                mdev := self.coordinator.client.get_mqtt_device(
+                    self.coordinator_context
+                )
+            ):
+                # Combined MQTT device data, overlay prio depends on customized setting
+                data = mdev.get_combined_cache(
+                    api_prio=not mdev.device.get(MQTT_OVERLAY),
+                    fromFile=self.coordinator.client.testmode(),
+                )
+            with suppress(ValueError, TypeError):
+                self._attr_extra_state_attributes = self.entity_description.attrib_fn(
+                    data, self.entity_description.json_key
+                )
+        return self._attr_extra_state_attributes
+
+    async def modify_solix_use_time(self, **kwargs: Any) -> dict | None:
+        """Modify the use time schedule of devices supporting AC charge. @thomas"""
+        return await self._solix_ac_charge_service(
+            service_name=SERVICE_MODIFY_SOLIX_USE_TIME, **kwargs
+        )
+
+    def update_state_value(self):
+        """Update the state value of the number based on the coordinator data. @thomas"""
+        if self.coordinator and self.coordinator_context in self.coordinator.data:
+            # Api device data
+            data = self.coordinator.data.get(self.coordinator_context)
+            key = self.entity_description.json_key
+            if self.entity_description.mqtt and (
+                mdev := self.coordinator.client.get_mqtt_device(
+                    self.coordinator_context
+                )
+            ):
+                # Combined MQTT device data, overlay prio depends on customized setting
+                data = mdev.get_combined_cache(
+                    api_prio=not mdev.device.get(MQTT_OVERLAY),
+                    fromFile=self.coordinator.client.testmode(),
+                )
+                # convert command state value into option if available
+                if self._attribute_name == "ev_charger_mode":
+                    if state := mdev.ev_charger_mode_state(
+                        fromFile=self.coordinator.client.testmode()
+                    ):
+                        data.update({key: state})
+                # update image url if required
+                elif self._attribute_name == "display_theme":
+                    if state := self.entity_description.value_fn(data, key):
+                        if state != self._attr_current_option:
+                            self._attr_entity_picture = (
+                                data.get("display_theme", {}).get("image_url") or None
+                            )
+                            # update screensaver option list only upon init and change of theme
+                            self._attr_options = (
+                                self.coordinator.client.api.get_charger_theme_options(
+                                    deviceSn=self.coordinator_context
+                                )
+                            )
+                            self._attr_options.sort()
+                            # trigger A2345 theme request to update MQTT theme detail settings if changed externally
+                            # wrap the async method
+                            if self.hass:
+                                self.hass.add_job(
+                                    mdev.run_command(
+                                        cmd=SolixMqttCommands.theme_request,
+                                        toFile=self.coordinator.client.testmode(),
+                                    )
+                                )
+                    else:
+                        self._attr_entity_picture = None
+                # expand charger custom mode state since that needs also different MQTT command
+                elif (
+                    self._attribute_name == "charger_usage_mode"
+                    and self.entity_description.value_fn(data, key) == 5  # custom mode
+                ):
+                    data[key] = f"custom-{data.get('custom_profile_number', '')!s}"
+                elif self._attribute_name in ["ac_output_mode", "dc_12v_output_mode"]:
+                    # These entities may have different states than the switch setting across PPS models
+                    # The entity state cannot be obtained from the command parameter values
+                    data[key] = get_enum_name(
+                        SolixPpsOutputModeV2
+                        if get_enum_name(SolixPpsOutputModeV2, mdev.pn)
+                        else SolixPpsOutputMode,
+                        str(self.entity_description.value_fn(data, key)),
+                        SolixPpsOutputMode.unknown.value,
+                    )
+                elif self._attribute_name.startswith("priority_circuit_"):
+                    # update the priority for this circuit in the data copy
+                    circuit = (
+                        data.get("circuit_setup", {})
+                        .get(self._attribute_name[-2:], {})
+                        .copy()
+                    )
+                    circuit[key] = get_enum_name(
+                        SolixCircuitPriority,
+                        str(circuit.get(key)),
+                        SolixPpsOutputMode.unknown.value,
+                    )
+                    data["circuit_setup"] = {self._attribute_name[-2:]: circuit}
+                # convert MQTT state code into descriptive option
+                elif self.entity_description.mqtt_cmd:
+                    data.update(
+                        mdev.get_cmd_parm_state_option(
+                            cmd=self.entity_description.mqtt_cmd,
+                            parm=self.entity_description.mqtt_cmd_parm,
+                            fromFile=self.coordinator.client.testmode(),
+                        )
+                    )
+            with suppress(ValueError, TypeError):
+                self._attr_current_option = self.entity_description.value_fn(data, key)
+            # Make sure that a single option is changed to current state to ensure value is displayed in frontend
+            # The select entity remains unchangeable if only 1 option exists, which should reflect the found state
+            if (
+                self._attr_current_option is not None
+                and hasattr(self, "_attr_options")
+                and len(self._attr_options or []) == 1
+                and self._attr_current_option not in self._attr_options
+            ):
+                self._attr_options = [self._attr_current_option]
+        else:
+            self._attr_current_option = None
+
+        # Mark availability based on value
+        self._attr_available = self._attr_current_option is not None
+
+    async def async_select_option(self, option: str) -> None:  # noqa: C901
+        """Change the selected option. @thomas
+
+        Args:
+            option (str): The option to set.
+
+        """
+        if (
+            self.coordinator
+            and self.coordinator_context in self.coordinator.data
+            and (
+                self._attr_current_option is not None or self.entity_description.restore
+            )
+        ):
+            data = self.coordinator.data.get(self.coordinator_context) or {}
+            customize = True
+            if (
+                self.coordinator.client.testmode()
+                and self._attribute_name
+                not in [
+                    "preset_usage_mode",
+                    "preset_load_type",
+                    "preset_tariff",
+                    "pps_preset_tariff",
+                    "power_cutoff",
+                    "system_price_unit",
+                    "system_price_type",
+                    "device_price_unit",
+                    "preset_inverter_limit",
+                    "preset_ac_input_limit",
+                    "preset_pv_input_limit",
+                    "vehicle_brand",
+                    "vehicle_model",
+                    "vehicle_year",
+                    "vehicle_variant",
+                    "display_theme",
+                ]
+                and not self.entity_description.restore
+                and not self.entity_description.mqtt_cmd
+            ):
+                # Raise alert to frontend
+                raise ServiceValidationError(
+                    f"{self.entity_id} cannot be used while configuration is running in testmode",
+                    translation_domain=DOMAIN,
+                    translation_key="active_testmode",
+                    translation_placeholders={
+                        "entity_id": self.entity_id,
+                    },
+                )
+            # Skip Api calls if entity does not change
+            if str(option) == str(self._attr_current_option):
+                return
+            # Wait until client cache is valid before applying any api change
+            await self.coordinator.client.validate_cache()
+            mdev = self.coordinator.client.get_mqtt_device(self.coordinator_context)
+            # raise error if MQTT control but device is passive
+            if self.entity_description.mqtt_cmd and mdev and mdev.is_passive():
+                raise ServiceValidationError(
+                    f"'{self.entity_id}' cannot be used while device is running in local mode",
+                    translation_domain=DOMAIN,
+                    translation_key="local_mode",
+                    translation_placeholders={"entity_id": self.entity_id},
+                )
+            # Customize cache first if restore entity
+            if self.entity_description.restore:
+                if self._attribute_name == "dynamic_price_provider":
+                    # refresh the price details for new provider prior customizing cache or switching provider
+                    await self.coordinator.client.api.refresh_provider_prices(
+                        provider=option,
+                        siteId=self.coordinator_context,
+                        fromFile=self.coordinator.client.testmode(),
+                    )
+                    # skip customization of cache for site owners
+                    customize = not bool(data.get("site_admin"))
+                # customize cache with json key
+                if customize:
+                    self.coordinator.client.api.customizeCacheId(
+                        id=self.coordinator_context,
+                        key=self.entity_description.json_key,
+                        value=str(option),
+                    )
+                    if ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: State value of entity '%s' has been customized in Api cache to: %s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            self.entity_id,
+                            option,
+                        )
+            # Trigger Api calls depending on changed entity
+            if self._attribute_name == "power_cutoff":
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                with suppress(ValueError, TypeError):
+                    if selected_id := [
+                        d.get("id")
+                        for d in (data.get("power_cutoff_data") or [])
+                        if str(d.get("output_cutoff_data") or d.get("soc")) == option
+                    ]:
+                        resp = None
+                        if (
+                            data.get("type") == SolixDeviceType.COMBINER_BOX.value
+                            or data.get("station_sn") is not None
+                        ):
+                            # control via station setting
+                            resp = await self.coordinator.client.api.set_station_parm(
+                                deviceSn=self.coordinator_context,
+                                socReserve=int(option),
+                                toFile=self.coordinator.client.testmode(),
+                            )
+                        else:
+                            # control via individual device setting
+                            resp = await self.coordinator.client.api.set_power_cutoff(
+                                deviceSn=self.coordinator_context,
+                                setId=int(selected_id[0]),
+                                toFile=self.coordinator.client.testmode(),
+                            )
+                        # Control all solarbank devices via individual MQTT device setting
+                        # ensure that each MQTT device uses the command as supported by its control
+                        if site_id := data.get("site_id"):
+                            station_sn = (
+                                self.coordinator_context
+                                if data.get("type")
+                                == SolixDeviceType.COMBINER_BOX.value
+                                else data.get("station_sn", "")
+                            )
+                            for md in self.coordinator.client.get_mqtt_devices(
+                                siteId=site_id,
+                                stationSn=station_sn,
+                                extraDeviceSn=self.coordinator_context,
+                            ):
+                                if SolixMqttCommands.sb_min_soc_select in md.controls:
+                                    resp = (resp or {}) | {
+                                        f"mqtt_control_{md.sn}": await self._async_mqtt_option(
+                                            mdev=md,
+                                            option=option,
+                                            cmd=SolixMqttCommands.sb_min_soc_select,
+                                        )
+                                    }
+                                elif (
+                                    SolixMqttCommands.sb_power_cutoff_select
+                                    in md.controls
+                                    # and data.get("generation", 0) >= 2
+                                ):
+                                    resp = (resp or {}) | {
+                                        f"mqtt_control_{md.sn}": await self._async_mqtt_option(
+                                            mdev=md,
+                                            option=option,
+                                            cmd=SolixMqttCommands.sb_power_cutoff_select,
+                                        )
+                                    }
+                        if isinstance(resp, dict) and ALLOW_TESTMODE:
+                            LOGGER.info(
+                                "%s: Applied settings for '%s' change to '%s':\n%s",
+                                "TESTMODE"
+                                if self.coordinator.client.testmode()
+                                else "LIVEMODE",
+                                self.entity_id,
+                                option,
+                                json.dumps(
+                                    resp,
+                                    indent=2 if len(json.dumps(resp)) < 200 else None,
+                                ),
+                            )
+
+            elif self._attribute_name in ["max_load", "max_load_total"]:
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                resp = None
+                skip_mqtt_status = False
+                with suppress(ValueError, TypeError):
+                    # Systems with Station support can be controlled through Api alone, otherwise MQTT command is required
+                    # Note: A cloud change mid April 2026 reports station support for SB2 although max load cannot be controlled via station parm
+                    station_sn = (
+                        self.coordinator_context
+                        if data.get("type") == SolixDeviceType.COMBINER_BOX.value
+                        else data.get("station_sn")
+                    )
+                    if station_sn or data.get("generation", 0) >= 3:
+                        # MQTT control is not required for station managed devices
+                        # Control all solarbank devices via individual MQTT device setting if they have a station
+                        # for md in self.coordinator.client.get_mqtt_devices(
+                        #     siteId=data.get("site_id"),
+                        #     stationSn=station_sn,
+                        #     extraDeviceSn=self.coordinator_context,
+                        #     mqttControl=SolixMqttCommands.sb_max_load_parallel,
+                        # ):
+                        #     resp = (resp or {}) | {
+                        #         f"mqtt_control_{md.sn}": await self._async_mqtt_option(
+                        #             mdev=md,
+                        #             option=option,
+                        #             cmd=SolixMqttCommands.sb_max_load_parallel,
+                        #         )
+                        #     }
+                        pass
+                    elif self._attribute_name == "max_load" and mdev:
+                        # MQTT command required to change device setting
+                        # ensure that MQTT device uses the command as supported by its max load control
+                        resp = (resp or {}) | {
+                            f"mqtt_control_{mdev.sn}": await self._async_mqtt_option(
+                                mdev=mdev,
+                                option=option,
+                            )
+                        }
+                        skip_mqtt_status = True
+                    # Run Api command to update Api cache, also for test mode
+                    resp = (resp or {}) | (
+                        await self.coordinator.client.api.set_power_limit(
+                            siteId=data.get("site_id", ""),
+                            deviceSn=station_sn or self.coordinator_context,
+                            ac_output=option,
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                        or {}
+                    )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied limit setting:\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            json.dumps(
+                                resp,
+                                indent=2 if len(json.dumps(resp)) < 200 else None,
+                            ),
+                        )
+                    # trigger status request to get updated MQTT status if Api was used
+                    if resp and mdev and not skip_mqtt_status:
+                        await mdev.status_request(
+                            toFile=self.coordinator.client.testmode()
+                        )
+            elif self._attribute_name in [
+                "preset_ac_input_limit",
+                "preset_pv_input_limit",
+            ]:
+                # with suppress(ValueError, TypeError):
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                # use Api command to modify station settings for solarbanks
+                if data.get("type") == SolixDeviceType.SOLARBANK.value:
+                    resp = await self.coordinator.client.api.set_power_limit(
+                        siteId=data.get("site_id", ""),
+                        deviceSn=self.coordinator_context,
+                        ac_input=option
+                        if self._attribute_name == "preset_ac_input_limit"
+                        else None,
+                        pv_input=option
+                        if self._attribute_name == "preset_pv_input_limit"
+                        else None,
+                        toFile=self.coordinator.client.testmode(),
+                    )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied limit setting:\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+                # use also MQTT command to modify device settings as well
+                if mdev and self.entity_description.mqtt_cmd in mdev.controls:
+                    await self._async_mqtt_option(mdev=mdev, option=option)
+
+            elif self._attribute_name == "preset_usage_mode":
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                with suppress(ValueError, TypeError):
+                    if not (usage_mode := getattr(SolarbankUsageMode, option, None)):
+                        return
+                    if usage_mode == SolarbankUsageMode.backup.value:
+                        # Backup option cannot be enabled directly, instead activate backup mode switch
+                        # This will reactivate an existing interval or start a new backup with default duration
+                        resp = await self.coordinator.client.api.set_sb2_ac_charge(
+                            siteId=data.get("site_id", ""),
+                            deviceSn=self.coordinator_context,
+                            backup_switch=True,
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                    else:
+                        # Ensure an active backup mode will be disabled first in cache, the Api call will be done in the home load method
+                        if (
+                            getattr(SolarbankUsageMode, self._attr_current_option, None)
+                            == SolarbankUsageMode.backup.value
+                        ):
+                            resp = await self.coordinator.client.api.set_sb2_ac_charge(
+                                siteId=data.get("site_id", ""),
+                                deviceSn=self.coordinator_context,
+                                backup_switch=False,
+                                # Use test schedule to ensure change is done in cache only
+                                test_schedule=data.get("schedule") or {},
+                                toFile=self.coordinator.client.testmode(),
+                            )
+                        resp = await self.coordinator.client.api.set_sb2_home_load(
+                            siteId=data.get("site_id", ""),
+                            deviceSn=self.coordinator_context,
+                            usage_mode=usage_mode,
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied schedule for '%s' change to '%s':\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            self.entity_id,
+                            option,
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+            elif (
+                self._attribute_name == "preset_load_type"
+                and option != cv.ENTITY_MATCH_NONE
+            ):
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                with suppress(ValueError, TypeError):
+                    resp = await self.coordinator.client.api.set_sb2_home_load(
+                        siteId=data.get("site_id", ""),
+                        deviceSn=self.coordinator_context,
+                        charging_type=option,
+                        toFile=self.coordinator.client.testmode(),
+                    )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied schedule for '%s' change to '%s':\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            self.entity_id,
+                            option,
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+            elif (
+                self._attribute_name in ["preset_tariff", "pps_preset_tariff"]
+                and option != cv.ENTITY_MATCH_NONE
+            ):
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                with suppress(ValueError, TypeError):
+                    if self._attribute_name == "pps_preset_tariff":
+                        resp = await self.coordinator.client.api.set_pps_use_time(
+                            deviceSn=self.coordinator_context,
+                            tariff_type=option,
+                            # Ensure that only the tariff is changed without modification of slot times or clearance of tariff price
+                            merge_tariff_slots=False,
+                            clear_unused_tariff=False,
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                    else:
+                        resp = await self.coordinator.client.api.set_sb2_use_time(
+                            siteId=data.get("site_id", ""),
+                            deviceSn=self.coordinator_context,
+                            tariff_type=option,
+                            # Ensure that only the tariff is changed without modification of slot times or clearance of tariff price
+                            merge_tariff_slots=False,
+                            clear_unused_tariff=False,
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied site price settings for '%s' change to '%s':\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            self.entity_id,
+                            option,
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+
+            elif self._attribute_name == "system_price_unit":
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                with suppress(ValueError, TypeError):
+                    if str(self.coordinator_context).startswith(
+                        SolixDeviceType.VIRTUAL.value
+                    ):
+                        # change standalone inverter price of virtual system
+                        resp = await self.coordinator.client.api.set_device_pv_price(
+                            deviceSn=str(self.coordinator_context).split("-")[1],
+                            unit=option,
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                    else:
+                        # change real system price unit
+                        resp = await self.coordinator.client.api.set_site_price(
+                            siteId=self.coordinator_context,
+                            unit=option,
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied site price settings for '%s' change to '%s':\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            self.entity_id,
+                            option,
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+                    # Ensure currency change will also be applied to existing use time plan
+                    device_sn = next(
+                        iter(
+                            [
+                                item.get("device_sn")
+                                for item in self.coordinator.data.values()
+                                if item.get("site_id") == self.coordinator_context
+                                and (item.get("schedule") or {}).get("use_time")
+                            ]
+                        ),
+                        None,
+                    )
+                    if device_sn:
+                        resp = await self.coordinator.client.api.set_sb2_use_time(
+                            siteId=self.coordinator_context,
+                            deviceSn=device_sn,
+                            currency=option,
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                        if isinstance(resp, dict) and ALLOW_TESTMODE:
+                            LOGGER.info(
+                                "%s: Applied schedule for '%s' change to '%s':\n%s",
+                                "TESTMODE"
+                                if self.coordinator.client.testmode()
+                                else "LIVEMODE",
+                                self.entity_id,
+                                option,
+                                json.dumps(
+                                    resp,
+                                    indent=2 if len(json.dumps(resp)) < 200 else None,
+                                ),
+                            )
+
+            elif self._attribute_name == "device_price_unit":
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                with suppress(ValueError, TypeError):
+                    # change device price unit via pps_use_time plan attribute
+                    resp = await self.coordinator.client.api.set_pps_use_time(
+                        deviceSn=self.coordinator_context,
+                        currency=option,
+                        toFile=self.coordinator.client.testmode(),
+                    )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied device price settings for '%s' change to '%s':\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            self.entity_id,
+                            option,
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+
+            elif self._attribute_name == "preset_inverter_limit":
+                with suppress(ValueError, TypeError):
+                    LOGGER.debug(
+                        "'%s' selection change to option '%s' will be applied",
+                        self.entity_id,
+                        option,
+                    )
+                    resp = await self.coordinator.client.api.set_device_pv_power(
+                        deviceSn=self.coordinator_context,
+                        limit=int(option),
+                        toFile=self.coordinator.client.testmode(),
+                    )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied inverter limit setting:\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+
+            # Ensure site price type changes only performed by site owners
+            elif self._attribute_name in [
+                "system_price_type",
+                "dynamic_price_provider",
+            ] and data.get("site_admin"):
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                with suppress(ValueError, TypeError):
+                    resp = await self.coordinator.client.api.set_site_price(
+                        siteId=self.coordinator_context,
+                        price_type=option
+                        if self._attribute_name == "system_price_type"
+                        else None,
+                        provider=SolixPriceProvider(provider=option)
+                        if self._attribute_name == "dynamic_price_provider"
+                        else None,
+                        toFile=self.coordinator.client.testmode(),
+                    )
+                    if isinstance(resp, dict) and ALLOW_TESTMODE:
+                        LOGGER.info(
+                            "%s: Applied site price settings for '%s' change to '%s':\n%s",
+                            "TESTMODE"
+                            if self.coordinator.client.testmode()
+                            else "LIVEMODE",
+                            self.entity_id,
+                            option,
+                            json.dumps(
+                                resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                            ),
+                        )
+                    # trigger dynamic price calculation refresh upon provider change
+                    if self._attribute_name == "dynamic_price_provider":
+                        self.coordinator.client.api.customizeCacheId(
+                            id=self.coordinator_context,
+                            key=self.entity_description.json_key,
+                            value=str(option),
+                        )
+
+            elif self._attribute_name.startswith("vehicle_"):
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied",
+                    self.entity_id,
+                    option,
+                )
+                if self._attribute_name == "vehicle_brand":
+                    vehicle = SolixVehicle(brand=str(option))
+                elif self._attribute_name == "vehicle_model":
+                    vehicle = SolixVehicle(brand=data.get("brand"), model=str(option))
+                elif self._attribute_name == "vehicle_year":
+                    vehicle = SolixVehicle(
+                        brand=data.get("brand"),
+                        model=data.get("model"),
+                        productive_year=str(option),
+                    )
+                else:
+                    # extract model ID from selected option
+                    vehicle = SolixVehicle(
+                        brand=data.get("brand"),
+                        model=data.get("model"),
+                        productive_year=data.get("productive_year"),
+                        model_id=str(option).split("/", maxsplit=1)[0],
+                    )
+                # restore attributes if variant was selected, otherwise just update selected option
+                resp = await self.coordinator.client.api.manage_vehicle(
+                    vehicleId=self.coordinator_context,
+                    action="restore"
+                    if self._attribute_name == "vehicle_variant"
+                    else "update",
+                    vehicle=vehicle,
+                    toFile=self.coordinator.client.testmode(),
+                )
+                if isinstance(resp, dict):
+                    LOGGER.log(
+                        logging.INFO if ALLOW_TESTMODE else logging.DEBUG,
+                        "%s: Applied vehicle '%s' change to '%s':\n%s",
+                        "TESTMODE"
+                        if self.coordinator.client.testmode()
+                        else "LIVEMODE",
+                        self.entity_id,
+                        option,
+                        json.dumps(
+                            resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                        ),
+                    )
+                    # trigger cache update for selected vehicle option
+                    await self.coordinator.client.api.update_vehicle_options(
+                        vehicle=vehicle
+                    )
+                    # get device registry and update the device entry attribute
+                    if self._attribute_name != "vehicle_variant":
+                        dev_registry = dr.async_get(self.coordinator.hass)
+                        dev_registry.async_update_device(
+                            self.device_entry.id,
+                            manufacturer=vehicle.brand or UNDEFINED,
+                            model_id=vehicle.model or UNDEFINED,
+                            hw_version=str(vehicle.productive_year or "") or UNDEFINED,
+                        )
+            elif (
+                self._attribute_name == "charger_usage_mode"
+                and option.startswith("custom")
+                and mdev
+            ):
+                # change the MQTT command if a custom usage mode is selected
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied via MQTT command '%s'",
+                    self.entity_id,
+                    option,
+                    self.entity_description.mqtt_cmd,
+                )
+                await self._async_mqtt_option(
+                    mdev=mdev,
+                    option=0,  # dummy for parm validation only, real profile will be looked up by helper from name
+                    cmd=SolixMqttCommands.charger_custom_usage_mode,
+                    parm="set_custom_profile_number",
+                    parm_map={"name": option},
+                )
+
+            elif self._attribute_name == "display_theme" and mdev:
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied via MQTT command '%s'",
+                    self.entity_id,
+                    option,
+                    self.entity_description.mqtt_cmd,
+                )
+                if await self._async_mqtt_option(
+                    mdev=mdev,
+                    option=option,
+                    cmd=SolixMqttCommands.charger_theme_custom,
+                    parm="set_theme_url",
+                ):
+                    # trigger a delayed theme request to get updated MQTT message
+                    async_call_later(
+                        self.hass,
+                        2.0,
+                        lambda _: self.hass.create_task(
+                            mdev.run_command(
+                                cmd=SolixMqttCommands.theme_request,
+                                toFile=self.coordinator.client.testmode(),
+                            )
+                        ),
+                    )
+
+            # Trigger MQTT commands depending on changed entity
+            elif self.entity_description.mqtt_cmd and mdev:
+                LOGGER.debug(
+                    "'%s' selection change to option '%s' will be applied via MQTT command '%s'",
+                    self.entity_id,
+                    option,
+                    self.entity_description.mqtt_cmd,
+                )
+                await self._async_mqtt_option(mdev=mdev, option=option)
+
+            # trigger coordinator update with api dictionary data
+            await self.coordinator.async_refresh_data_from_apidict()
+
+    async def _async_mqtt_option(
+        self,
+        mdev: SolixMqttDevice,
+        option: Any,
+        cmd: str | None = None,
+        parm: str | None = None,
+        parm_map: dict | None = None,
+    ) -> dict | None:
+        """Use MQTT device control to modify option setting. @thomas"""
+        resp = None
+        if not isinstance(cmd, str):
+            cmd = self.entity_description.mqtt_cmd
+        if not isinstance(parm, str):
+            parm = self.entity_description.mqtt_cmd_parm
+        if not isinstance(parm_map, dict):
+            parm_map = {}
+        try:
+            # Use helper methods for certain MQTT commands to update complex parameter structures
+            if self._attribute_name.startswith("priority_circuit_"):
+                parm = "set_circuit_priority"
+                # update whole circuit setup strcuture
+                cmdvalue = mdev.update_circuit_priority(
+                    circuit=self._attribute_name[-2:], priority=option
+                )
+            else:
+                cmdvalue = mdev.get_cmd_parm_option_map(
+                    cmd=cmd,
+                    parm=parm,
+                ).get(option)
+            # Use helper methods for certain MQTT commands that require special handling
+            if self._attribute_name == "weekend_mode":
+                # change dependend times upon weekend mode changes
+                resp = await mdev.set_ev_charger_schedule(
+                    weekend_mode=parm_map.get(self.entity_description.mqtt_cmd_parm)
+                    or option,
+                    toFile=self.coordinator.client.testmode(),
+                )
+            elif self._attribute_name == "display_theme":
+                # change theme via helper
+                resp = await mdev.set_clock_theme(
+                    name=option,
+                    toFile=self.coordinator.client.testmode(),
+                )
+            elif cmd == SolixMqttCommands.charger_custom_usage_mode:
+                # change profile via helper
+                resp = await mdev.set_custom_usage_profile(
+                    number=(parm_map.pop("name", "").split("-")[-1:] or ["0"])[0],
+                    toFile=self.coordinator.client.testmode(),
+                )
+            else:
+                resp = await mdev.run_command(
+                    cmd=cmd,
+                    parm=parm,
+                    value=option if cmdvalue is None else cmdvalue,
+                    parm_map=parm_map,
+                    toFile=self.coordinator.client.testmode(),
+                )
+            if isinstance(resp, dict):
+                if ALLOW_TESTMODE:
+                    LOGGER.info(
+                        "%s: Applied MQTT command '%s' for '%s' change to '%s':\n%s",
+                        "TESTMODE"
+                        if self.coordinator.client.testmode()
+                        else "LIVEMODE",
+                        cmd,
+                        self.entity_id,
+                        option,
+                        json.dumps(
+                            resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                        ),
+                    )
+                # copy the changed state(s) of the mock response into device cache to avoid flip back of entity until real state is received
+                for key, val in resp.items():
+                    if key in mdev.mqttdata:
+                        mdev.mqttdata[key] = val
+                # trigger status request to get updated MQTT message
+                await mdev.status_request(toFile=self.coordinator.client.testmode())
+            else:
+                LOGGER.error(
+                    "'%s' option could not be changed via MQTT command '%s'",
+                    self.entity_id,
+                    cmd,
+                )
+        except (ValueError, TypeError) as err:
+            LOGGER.error(
+                "'%s' option could not be changed via MQTT command '%s':\n%s",
+                self.entity_id,
+                cmd,
+                str(err),
+            )
+        if not isinstance(resp, dict):
+            cmd_parm = f"{cmd!s}{(' with parm ' + str(parm)) if parm else ''}"
+            alias = mdev.device.get("alias") or ""
+            raise ServiceValidationError(
+                f"'{cmd_parm}' for {self.coordinator.client.api.apisession.nickname} device "
+                f"{alias} ({self.coordinator_context}) failed",
+                translation_domain=DOMAIN,
+                translation_key="mqtt_command_failed",
+                translation_placeholders={
+                    "command": cmd_parm,
+                    "coordinator": self.coordinator.client.api.apisession.nickname,
+                    "device_alias": alias,
+                    "device_sn": self.coordinator_context,
+                },
+            )
+        return resp
+
+    async def _solix_ac_charge_service(
+        self, service_name: str, **kwargs: Any
+    ) -> dict | None:
+        """Execute the defined solix ac charge action. @thomas"""
+        # Raise alerts to frontend
+        if not (self.supported_features & AnkerSolixEntityFeature.AC_CHARGE):
+            raise ServiceValidationError(
+                f"The entity {self.entity_id} does not support the action {service_name}",
+                translation_domain=DOMAIN,
+                translation_key="service_not_supported",
+                translation_placeholders={
+                    "entity": self.entity_id,
+                    "service": service_name,
+                },
+            )
+        # When running in Test mode do not run services that are not supporting a testmode
+        if (
+            self.coordinator.client.testmode()
+            and service_name != SERVICE_MODIFY_SOLIX_USE_TIME
+        ):
+            raise ServiceValidationError(
+                f"{self.entity_id} cannot be used while configuration is running in testmode",
+                translation_domain=DOMAIN,
+                translation_key="active_testmode",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                },
+            )
+        # When Api refresh is deactivated, do not run action to avoid kicking off other client Api token
+        if not self.coordinator.client.allow_refresh():
+            raise ServiceValidationError(
+                f"{self.entity_id} cannot be used for requested action {service_name} while Api usage is deactivated",
+                translation_domain=DOMAIN,
+                translation_key="apiusage_deactivated",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                    "action_name": service_name,
+                },
+            )
+        if self.coordinator and hasattr(self.coordinator, "data"):
+            result = None
+            data: dict = self.coordinator.data.get(self.coordinator_context) or {}
+            if service_name == SERVICE_MODIFY_SOLIX_USE_TIME:
+                # first check if tariff is supported by device
+                if (tariff := kwargs.get(TARIFF)) is not None:
+                    if str(tariff).isdigit():
+                        tariff = get_enum_name(SolixTariffTypes, int(tariff), "")
+                    if str(tariff).lower() not in self._attr_options:
+                        # Raise alert to frontend
+                        raise ServiceValidationError(
+                            f"The action {service_name} cannot be executed: Selected tariff '{tariff}' is no supported tariff option: {self._attr_options!s}",
+                            translation_domain=DOMAIN,
+                            translation_key="value_error",
+                            translation_placeholders={
+                                "service": service_name,
+                                "error": f"Selected tariff '{tariff}' is no supported tariff option: {self._attr_options!s}",
+                            },
+                        )
+                LOGGER.debug("%s action will be applied", service_name)
+                if self._attribute_name == "pps_preset_tariff":
+                    result = await self.coordinator.client.api.set_pps_use_time(
+                        deviceSn=self.coordinator_context,
+                        start_hour=kwargs.get(START_HOUR),
+                        end_hour=kwargs.get(END_HOUR),
+                        tariff_type=kwargs.get(TARIFF),
+                        tariff_price=kwargs.get(TARIFF_PRICE),
+                        backup_soc=kwargs.get(BACKUP_SOC),
+                        delete=kwargs.get(DELETE),
+                        toFile=self.coordinator.client.testmode(),
+                    )
+                else:
+                    result = await self.coordinator.client.api.set_sb2_use_time(
+                        siteId=data.get("site_id") or "",
+                        deviceSn=self.coordinator_context,
+                        start_month=kwargs.get(START_MONTH),
+                        end_month=kwargs.get(END_MONTH),
+                        start_hour=kwargs.get(START_HOUR),
+                        end_hour=kwargs.get(END_HOUR),
+                        day_type=kwargs.get(DAY_TYPE),
+                        tariff_type=kwargs.get(TARIFF),
+                        tariff_price=kwargs.get(TARIFF_PRICE),
+                        delete=kwargs.get(DELETE),
+                        toFile=self.coordinator.client.testmode(),
+                    )
+            else:
+                raise ServiceValidationError(
+                    f"The entity {self.entity_id} does not support the action {service_name}",
+                    translation_domain=DOMAIN,
+                    translation_key="service_not_supported",
+                    translation_placeholders={
+                        "entity": self.entity_id,
+                        "service": service_name,
+                    },
+                )
+            # raise service error if result failed
+            if result is False:
+                raise ServiceValidationError(
+                    f"The action '{service_name}' failed, review log for error details",
+                    translation_domain=DOMAIN,
+                    translation_key="service_error",
+                    translation_placeholders={
+                        "service": service_name,
+                    },
+                )
+            # log resulting schedule if testmode returned dict
+            if isinstance(result, dict) and ALLOW_TESTMODE:
+                LOGGER.info(
+                    "%s: Applied schedule for action %s:\n%s",
+                    "TESTMODE" if self.coordinator.client.testmode() else "LIVEMODE",
+                    service_name,
+                    json.dumps(
+                        result, indent=2 if len(json.dumps(result)) < 200 else None
+                    ),
+                )
+            await self.coordinator.async_refresh_data_from_apidict()
+        return None
+
+
+class AnkerSolixRestoreSelect(AnkerSolixSelect, RestoreEntity):
+    """solar_forecast_sinv select class with restore capability. @thomas"""
+
+    def __init__(
+        self,
+        coordinator: AnkerSolixDataUpdateCoordinator,
+        description: AnkerSolixSelectDescription,
+        context: str,
+        entity_type: str,
+    ) -> None:
+        """Initialize the select class. @thomas"""
+        super().__init__(coordinator, description, context, entity_type)
+        self._assumed_state = True
+
+    async def async_added_to_hass(self) -> None:
+        """Load the last known state when added to hass. @thomas"""
+        await super().async_added_to_hass()
+        # Note: Only last state object can be restored, but not extra data
+        if last_state := await self.async_get_last_state():
+            # First try to get customization from state attributes if last state was unknown
+            if last_state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE):
+                if customized := last_state.attributes.get("customized"):
+                    last_state.state = customized
+            if (
+                last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+                and last_state.state in self.options
+                and not self._attr_current_option
+            ):
+                if self._attribute_name == "dynamic_price_provider":
+                    # refresh the price details for restored provider
+                    await self.coordinator.client.api.refresh_provider_prices(
+                        provider=last_state.state,
+                        siteId=self.coordinator_context,
+                        fromFile=self.coordinator.client.testmode(),
+                    )
+                # set last known option as current option if not available
+                self._attr_current_option = last_state.state
+                LOGGER.info(
+                    "Restored state value of entity '%s' to: %s",
+                    self.entity_id,
+                    last_state.state,
+                )
+                # customize cache with json key
+                self.coordinator.client.api.customizeCacheId(
+                    id=self.coordinator_context,
+                    key=self.entity_description.json_key,
+                    value=str(last_state.state),
+                )
+                await self.coordinator.async_refresh_data_from_apidict(delayed=True)

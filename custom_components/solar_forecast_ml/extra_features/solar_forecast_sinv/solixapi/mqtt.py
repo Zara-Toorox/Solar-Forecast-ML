@@ -1,0 +1,1252 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""Anker Solix MQTT class to handle an MQTT server client connection session for an account. @thomas"""
+
+import asyncio
+import contextlib
+import json
+import os
+import secrets
+import ssl
+import tempfile
+from base64 import b64decode, b64encode
+from collections.abc import Callable
+from datetime import datetime, timedelta
+from functools import partial
+from pathlib import Path
+from typing import Any
+
+import aiofiles
+import paho.mqtt.client as mqtt
+from paho.mqtt.enums import CallbackAPIVersion
+
+from .apitypes import DeviceHexDataTypes, SolixDefaults
+from .mqttcmdmap import (
+    BYTES,
+    COMMAND_LIST,
+    COMMAND_NAME,
+    EMBEDDED,
+    LENGTH,
+    MASK_STATE,
+    MASK_VALUE,
+    NAME,
+    OFFSET,
+    TYPE,
+    VALUE_SKIP,
+    SolixMqttCommands,
+)
+from .mqttmap import SOLIXMQTTMAP
+from .mqtttypes import (
+    DeviceHexData,
+    DeviceHexDataField,
+    DeviceHexDataHeader,
+    DeviceJsonData,
+    MqttDataStats,
+)
+from .session import AnkerSolixClientSession
+
+MessageCallback = Callable[[Any, str, Any, bytes, str, str, bool], None]
+
+
+class AnkerSolixMqttSession:
+    """Define the class to handle an MQTT client for Anker MQTT server connection. @thomas"""
+
+    def __init__(self, apisession: AnkerSolixClientSession) -> None:
+        """Initialize. @thomas"""
+        self._message_callback: MessageCallback | None = None
+        self._temp_cert_files: list[tempfile.NamedTemporaryFile] = []
+        self._logger = apisession.logger()
+        # ensure folder for certificate file caching exists
+        self._auth_cache_dir = Path(__file__).parent / "authcache"
+        if not os.access(self._auth_cache_dir.parent, os.W_OK):
+            self._auth_cache_dir = Path(tempfile.gettempdir()) / "authcache"
+        self._auth_cache_dir.mkdir(parents=True, exist_ok=True)
+        self.apisession: AnkerSolixClientSession = apisession
+        self.client: mqtt.Client | None = None
+        self.mqtt_stats: MqttDataStats | None = None
+        self.host: str | None = None
+        self.port: int = 8883
+        # reset class variables for saving mqtt relevant data
+        # Variable to save mqtt info from connected Api client
+        self.mqtt_info: dict = {}
+        # Variable to save all active subscriptions
+        self.subscriptions: set = set()
+        # Variable to save the devices that are to be triggered for realtime data
+        self.triggered_devices: set = set()
+        # Cache variable to save all received and known mqtt values per device
+        self.mqtt_data: dict = {}
+        # Variable to exchange MID for connections
+        self.mids: dict = {}
+        self.testdir: str = self.apisession.testDir()
+
+    def on_connect(
+        self,
+        client: mqtt.Client,
+        userdata: mqtt.Any,
+        flags: mqtt.ConnectFlags,
+        reason_code: mqtt.ReasonCode,
+        properties: mqtt.Properties | None,
+    ):
+        """Define callback when the client receives a CONNACK response from the server. @thomas"""
+        if reason_code.is_failure:
+            self._logger.error(
+                "Api %s MQTT session client failed to connect to Anker Solix MQTT server: %s(%s)",
+                self.apisession.nickname,
+                reason_code,
+                reason_code.value,
+            )
+        else:
+            self._logger.debug(
+                "Api %s MQTT session client connected successfully to Anker Solix MQTT server",
+                self.apisession.nickname,
+            )
+            # ReInitialize statistics
+            self.mqtt_stats = MqttDataStats()
+            # we should always subscribe from on_connect callback to be sure
+            # our subscribe is persisted across reconnection.
+            for topic in self.subscriptions:
+                _, mid = self.client.subscribe(topic)
+                # check if mid was recorded with subscription error
+                if reason_code := self.mids.pop(str(mid), None):
+                    # subscription failed although connected, remove topic from subscriptions
+                    self.subscriptions.discard(topic)
+                    self._logger.info(
+                        "Api %s MQTT session client removed topic from subscriptions: %s",
+                        self.apisession.nickname,
+                        topic,
+                    )
+                else:
+                    self._logger.info(
+                        "Api %s MQTT session client subscribing to topic: %s",
+                        self.apisession.nickname,
+                        topic,
+                    )
+
+    def on_message(
+        self, client: mqtt.Client, userdata: mqtt.Any, msg: mqtt.MQTTMessage
+    ):
+        """Define callback when a PUBLISH message is received from the server. @thomas"""
+        # update mqtt stats
+        self.mqtt_stats.add_bytes(count=len(msg.payload))
+        # default MQTT payload decode is UTF-8
+        message = json.loads(msg.payload.decode())
+        # Extract timestamp field from expected dictionary in message
+        timestamp = (
+            datetime.fromtimestamp(
+                (message.get("head") or {}).get("timestamp")
+                if isinstance(message, dict)
+                else 0
+            )
+            .astimezone()
+            .strftime("%Y-%m-%d %H:%M:%S")
+        )
+        # extract message payload
+        payload = json.loads(message.get("payload") or "[]")
+        # Third party models not included in payload
+        if not (model := payload.get("pn") if isinstance(payload, dict) else None):
+            # extract model from received topic
+            model = (str(msg.topic).split("/")[2:3] or [None])[0]
+        if not (device_sn := payload.get("sn") if isinstance(payload, dict) else None):
+            # extract sn from received topic
+            device_sn = (str(msg.topic).split("/")[3:4] or [None])[0]
+        # hex data from devices use data fields, json strings from X1 use trans fields
+        data = (
+            (payload.get("data") or payload.get("trans"))
+            if isinstance(payload, dict)
+            else payload
+        )
+        # Decrypt base64-encoded encrypted data field from expected dictionary in message payload
+        data = b64decode(data) if isinstance(data, str) else data
+        self._logger.debug(
+            "Api %s MQTT session client received message dated %s: %s on topic: %s",
+            self.apisession.nickname,
+            timestamp,
+            message,
+            msg.topic,
+        )
+        extracted_values = {}
+        # Update data stats
+        if isinstance(data, bytes):
+            hd = None
+            if "data" in payload:
+                # structure hex data and extract values
+                hd = DeviceHexData(model=model, hexbytes=data)
+            elif "trans" in payload:
+                # structure json data and extract values
+                hd = DeviceJsonData(model=model, hexbytes=data)
+                # use dict as data to distinguish format for subsequent callbacks
+                data = hd.data
+            # extract values and update stats
+            self.mqtt_stats.add_data(device_data=hd or data, model=model)
+            if not hd:
+                self._logger.debug(
+                    "Api %s MQTT session client received message from device %s (%s) with unknown payload data format:\n%s",
+                    self.apisession.nickname,
+                    device_sn,
+                    model,
+                    str(payload),
+                )
+            # save extracted values in common mqtt data cache
+            elif device_sn and model:
+                extracted_values = hd.values()
+                # get embedded data from other devices
+                if embedded_list := extracted_values.get(EMBEDDED):
+                    for edata in embedded_list:
+                        embedded_sn = edata.get("sn", "")
+                        device = self.mqtt_data.get(embedded_sn) or {}
+                        self.mqtt_data[embedded_sn] = (
+                            device
+                            | edata.get(EMBEDDED, {})
+                            | {"last_message": timestamp}
+                        )
+                else:
+                    # get existing mqtt data for device
+                    device = self.mqtt_data.get(device_sn) or {}
+                    topics = set(device.get("topics") or [])
+                    topics.add(msg.topic)
+                    self.mqtt_data[device_sn] = (
+                        device
+                        | extracted_values
+                        | {"last_message": timestamp, "topics": list(topics)}
+                    )
+        elif data:
+            # no encoded data in payload, print object whatever it is
+            self._logger.debug(
+                "Api %s MQTT session client received message from device %s (%s) with non-byte data:\n%s",
+                self.apisession.nickname,
+                device_sn,
+                model,
+                str(data),
+            )
+        # call message callback if defined
+        if callable(self._message_callback):
+            self._message_callback(
+                self, msg.topic, message, data, model, device_sn, extracted_values
+            )
+
+    def on_disconnect(
+        self,
+        client: mqtt.Client,
+        userdata: mqtt.Any,
+        flags: mqtt.ConnectFlags,
+        reason_code: mqtt.ReasonCode,
+        properties: mqtt.Properties | None,
+    ):
+        """Define callback when the client disconnects from the server. @thomas"""
+        self._logger.debug(
+            "Api %s MQTT session client disconnected from Anker Solix MQTT server: %s(%s)",
+            self.apisession.nickname,
+            reason_code,
+            reason_code.value,
+        )
+
+    def on_subscribe(
+        self,
+        client: mqtt.Client,
+        userdata: Any,
+        mid: int,
+        reason_code_list: list[mqtt.ReasonCode],
+        properties: mqtt.Properties | None,
+    ):
+        """Define callback when the client subscribes to a topic. @thomas"""
+        # Since we subscribe only for a single channel, reason_code_list contains a single entry
+        if reason_code_list[0].is_failure:
+            # save the message ID as reference for subscription failures
+            self.mids[str(mid)] = reason_code_list[0]
+            self._logger.error(
+                "Api %s MQTT session client received failure while subscribing topic: %s(%s)",
+                self.apisession.nickname,
+                reason_code_list[0],
+                reason_code_list[0].value,
+            )
+        else:
+            self._logger.debug(
+                "Api %s MQTT session client subscribed to topic with following QoS: %s",
+                self.apisession.nickname,
+                reason_code_list[0].value,
+            )
+
+    def on_unsubscribe(
+        self,
+        client: mqtt.Client,
+        userdata: Any,
+        mid: int,
+        reason_code_list: list[mqtt.ReasonCode],
+        properties: mqtt.Properties | None,
+    ):
+        """Define callback when the client unsubscribes from a topic. @thomas"""
+        # The reason_code_list is only present in MQTTv5,in MQTTv3 it will always be empty
+        if not reason_code_list or not reason_code_list[0].is_failure:
+            self._logger.debug(
+                "Api %s MQTT session client unsubscribed from topic",
+                self.apisession.nickname,
+            )
+        else:
+            # save the message ID as reference for unsubscription failures
+            self.mids[str(mid)] = reason_code_list[0]
+            self._logger.error(
+                "Api %s MQTT session client received failure while unsubscribing topic: %s(%s)",
+                self.apisession.nickname,
+                reason_code_list[0],
+                reason_code_list[0].value,
+            )
+
+    def on_publish(
+        self,
+        client: mqtt.Client,
+        userdata: Any,
+        mid: int,
+        reason_code: mqtt.ReasonCode,
+        properties: mqtt.Properties,
+    ):
+        """Define callback when the client subscribes to a topic. @thomas"""
+        if reason_code.is_failure:
+            # save the message ID as reference for publish failures
+            self.mids[str(mid)] = reason_code
+            self._logger.error(
+                "Api %s MQTT session client received failure while publishing topic: %s(%s)",
+                self.apisession.nickname,
+                reason_code,
+                reason_code.value,
+            )
+        else:
+            self._logger.debug(
+                "Api %s MQTT session client published topic with following QoS: %s",
+                self.apisession.nickname,
+                reason_code.value,
+            )
+
+    def message_callback(
+        self, func: MessageCallback | None = ""
+    ) -> MessageCallback | None:
+        """Get or set the message callback for this session. @thomas"""
+        if callable(func) or func is None:
+            self._message_callback = func
+        return self._message_callback
+
+    def get_topic_prefix(self, deviceDict: dict, publish: bool = False) -> str:
+        """Get the MQTT topic prefix for provided device data. @thomas"""
+        topic = ""
+        if (
+            isinstance(deviceDict, dict)
+            and self.mqtt_info
+            and (sn := deviceDict.get("device_sn") or "")
+            and (
+                pn := deviceDict.get("device_pn")
+                or deviceDict.get("product_code")
+                or ""
+            )
+        ):
+            topic = f"{'cmd' if publish else 'dt'}/{self.mqtt_info.get('app_name')}/{pn}/{sn}/"
+        return topic
+
+    def get_command_data(
+        self,
+        command: str = SolixMqttCommands.realtime_trigger,
+        parameters: dict | None = None,
+        model: str | None = None,
+        dynamic_descriptions: dict | None = None,
+    ) -> str | None:
+        """Compose the hex data for MQTT publish payload to Anker Solix devices. @thomas"""
+        if hexdata := generate_mqtt_command(
+            command=command,
+            parameters=parameters,
+            model=model,
+            dynamic_descriptions=dynamic_descriptions,
+        ):
+            self._logger.debug(
+                "Api %s MQTT session generated hexdata for device%s command %s:\n%s",
+                self.apisession.nickname,
+                " " + str(model) if model else "",
+                command,
+                hexdata.hex(":"),
+            )
+            return hexdata.hex()
+        return None
+
+    def publish(
+        self,
+        deviceDict: dict,
+        hexbytes: bytearray | bytes | str,
+        cmd: int = 17,
+        sessId: str = "1234-5678",
+        encoding_type: int | None = None,
+    ) -> tuple[str, mqtt.MQTTMessageInfo]:
+        """Publish an MQTT message with provided bytes and device data. @thomas
+
+        Returns the published message string and MQTTMessageInfo class with the publish results.
+        """
+        # convert parameter as required
+        if isinstance(hexbytes, str):
+            hexbytes = bytes.fromhex(hexbytes.replace(":", ""))
+        message = {
+            "head": {
+                "version": "1.0.0.1",
+                "client_id": f"android-{self.mqtt_info.get('app_name')}-{self.mqtt_info.get('user_id')}-{self.mqtt_info.get('certificate_id')}",
+                "sess_id": sessId,  # eg "5681-3252", can this be fix, or can it be obtained from client connection?
+                "msg_seq": 1,
+                "seed": secrets.token_hex(16)
+                if isinstance(encoding_type, int)
+                else 1,  # random 16 Bytes seed if any encoding type provided
+                "timestamp": int(datetime.now().astimezone().timestamp()),
+                "cmd_status": 2,
+                "cmd": cmd,
+                "sign_code": 1,
+                "device_pn": (
+                    deviceDict.get("device_pn") or deviceDict.get("product_code") or ""
+                ),
+                "device_sn": (sn := deviceDict.get("device_sn") or ""),
+            },
+            "payload": json.dumps(
+                {
+                    "device_sn": sn,
+                    # use device owner for member devices if available
+                    "account_id": deviceDict.get("owner_user_id")
+                    or self.mqtt_info.get("user_id"),
+                    # data field in payload must be b64 encoded
+                    "data": b64encode(hexbytes or b"").decode("utf-8"),
+                }
+                # add encoding type field to payload if provided
+                | (
+                    {"encoding_type": encoding_type}
+                    if isinstance(encoding_type, int)
+                    else {}
+                ),
+                separators=(",", ":"),
+            ),
+        }
+        # generate message string and topic
+        message = json.dumps(message, separators=(",", ":"))
+        topic = f"{self.get_topic_prefix(deviceDict=deviceDict, publish=True)}req"
+        # update stats
+        if self.mqtt_stats:
+            self.mqtt_stats.add_bytes(count=len(message), sent=True)
+        # publish the message and return message and response
+        return (message, self.client.publish(topic=topic, payload=message))
+
+    def subscribe(self, topic: str) -> mqtt.ReasonCode | None:
+        """Add topic to subscription set and subscribe if just added and client is already connected. @thomas"""
+        if topic and topic not in self.subscriptions:
+            # Try to subscribe topic first if client already connected
+            if self.is_connected():
+                _, mid = self.client.subscribe(topic)
+                # check if mid was recorded with subscription error
+                if reason_code := self.mids.pop(str(mid), None):
+                    # subscription failed although connected
+                    self._logger.error(
+                        "Api %s MQTT session client failed to subscribe to topic: %s",
+                        self.apisession.nickname,
+                        topic,
+                    )
+                else:
+                    self._logger.info(
+                        "Api %s MQTT session client subscribed to topic: %s",
+                        self.apisession.nickname,
+                        topic,
+                    )
+                    # Add topic to subscription set to ensure it will be subscribed again on reconnects
+                    self.subscriptions.add(topic)
+                return reason_code
+            # Add topic to subscription set to ensure it will be subscribed on (re)connects
+            self.subscriptions.add(topic)
+            self._logger.debug(
+                "Api %s MQTT session added new topic to subscriptions: %s",
+                self.apisession.nickname,
+                topic,
+            )
+        return None
+
+    def unsubscribe(self, topic: str) -> mqtt.ReasonCode | None:
+        """Remove topic from subscription set and unsubscribe if already connected. @thomas"""
+        if topic and topic in self.subscriptions:
+            # Try to unsubscribe topic if client already connected
+            if self.is_connected():
+                _, mid = self.client.unsubscribe(topic)
+                # check if mid was recorded with unsubscription error
+                if reason_code := self.mids.pop(str(mid), None):
+                    # Unsubscription failed although connected
+                    self._logger.error(
+                        "Api %s MQTT session client failed to unsubscribe from topic: %s",
+                        self.apisession.nickname,
+                        topic,
+                    )
+                else:
+                    self._logger.info(
+                        "Api %s MQTT session client unsubscribed from topic: %s",
+                        self.apisession.nickname,
+                        topic,
+                    )
+                # Always remove topic from subscription set
+                self.subscriptions.discard(topic)
+                return reason_code
+            # Remove topic from subscription set to ensure it will not be subscribed again on reconnects
+            self.subscriptions.discard(topic)
+            self._logger.debug(
+                "Api %s MQTT session removed topic from subscriptions: %s",
+                self.apisession.nickname,
+                topic,
+            )
+        return None
+
+    async def connect_client_async(self, keepalive: int = 60) -> mqtt.Client | None:
+        """Connect MQTT client, it will optionally being created if none configured yet. @thomas"""
+        if not (self.client or await self.create_client()):
+            return None
+        if not self.client.is_connected():
+            # Stop any previous thread before starting new one
+            self.client.loop_stop()
+            # Use Non blocking connect with loop_start
+            self.client.connect_async(
+                host=self.host, port=self.port, keepalive=keepalive
+            )
+            # Start the loop to process network traffic and callbacks
+            self.client.loop_start()
+        # Wait briefly for the client to establish the connection
+        # Paho's connect_async is non-blocking; some servers are fast but we still
+        # need to wait until client.is_connected() becomes True before returning.
+        interval = 0.2
+        waited = 0.0
+        while not self.client.is_connected() and waited < self.client.connect_timeout:
+            await asyncio.sleep(interval)
+            waited += interval
+        return self.client
+
+    def is_connected(self) -> bool:
+        """Return MQTT client connection state if client was started already. @thomas"""
+        # return client connection state is client started
+        return bool(self.client and self.client.is_connected())
+
+    async def create_client(self) -> mqtt.Client | None:
+        """Create and configure MQTT client with SSL/TLS certificates queried from Anker Solix api session. @thomas"""
+        try:
+            # get latest mqtt info from api session
+            self.mqtt_info = await self.apisession.get_mqtt_info()
+            # extract host from info
+            self.host = self.mqtt_info.get("endpoint_addr") or None
+            if not self.host:
+                self.mqtt_info = {}
+                self.host = None
+                self.client = None
+                return self.client
+            # Create client instance
+            self.client = mqtt.Client(
+                callback_api_version=CallbackAPIVersion.VERSION2,
+                client_id=f"{self.mqtt_info.get('thing_name')}_{secrets.randbelow(99999):05}",
+                clean_session=True,
+            )
+            # Set userdata for client
+            self.client.user_data_set(self.subscriptions)
+            self.client.connect_timeout = 15
+            # Set callbacks for client
+            self.client.on_connect = self.on_connect
+            self.client.on_message = self.on_message
+            self.client.on_disconnect = self.on_disconnect
+            self.client.on_subscribe = self.on_subscribe
+            self.client.on_unsubscribe = self.on_unsubscribe
+            self.client.on_publish = self.on_publish
+            # create temporary cert files
+            self._temp_cert_files = []
+            for certname in [
+                "aws_root_ca1_pem",
+                "certificate_pem",
+                "private_key",
+            ]:
+                filename = str(
+                    self._auth_cache_dir
+                    / f"{self.apisession.email}_mqtt_{certname}.crt"
+                )
+                # remove file if existing
+                if Path(filename).is_file():
+                    with contextlib.suppress(Exception):
+                        Path(filename).unlink()
+                # Cache login response in file for reuse
+                async with aiofiles.open(filename, "w", encoding="utf-8") as certfile:
+                    await certfile.write(self.mqtt_info.get(certname))
+                    self._logger.debug(
+                        "Api %s MQTT session certificate dumped to file: %s",
+                        self.apisession.nickname,
+                        filename,
+                    )
+                    self._temp_cert_files.append(filename)
+            # Configure SSL/TLS using temporary files
+            if len(self._temp_cert_files) == 3:
+                # run this in loop executor to avoid blocking calls to files
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(
+                    None,
+                    partial(
+                        self.client.tls_set,
+                        ca_certs=self._temp_cert_files[0],
+                        certfile=self._temp_cert_files[1],
+                        keyfile=self._temp_cert_files[2],
+                        cert_reqs=ssl.CERT_REQUIRED,
+                        tls_version=ssl.PROTOCOL_TLS,
+                        ciphers=None,
+                    ),
+                )
+            else:
+                self.client = None
+            # initialize statistics
+            self.mqtt_stats = MqttDataStats()
+        except Exception:
+            # Clean up files if there was an error
+            self.cleanup()
+            raise
+        return self.client
+
+    def cleanup(self):
+        """Clean up client connections and delete certificate files. @thomas"""
+        if self.is_connected():
+            self.client.disconnect()
+            self.client.loop_stop()
+        self.client = None
+        self.subscriptions = set()
+        self.triggered_devices = set()
+        self._message_callback = None
+        for filename in self._temp_cert_files:
+            # remove file if existing
+            if Path(filename).is_file():
+                with contextlib.suppress(Exception):
+                    Path(filename).unlink()
+                    self._logger.debug(
+                        "Api %s MQTT session deleted cert file: %s",
+                        self.apisession.nickname,
+                        filename,
+                    )
+        self._temp_cert_files = []
+
+    def realtime_trigger(
+        self,
+        deviceDict: dict,
+        timeout: int = SolixDefaults.TRIGGER_TIMEOUT_DEF,
+        wait_for_publish: int = 0,
+    ) -> mqtt.MQTTMessageInfo:
+        """Trigger MQTT real time data for Anker Solix device via MQTT message. @thomas"""
+
+        resp = self.publish(
+            deviceDict=deviceDict,
+            hexbytes=self.get_command_data(
+                command=SolixMqttCommands.realtime_trigger,
+                parameters={"timeout": timeout},
+                model=deviceDict.get("device_pn"),
+            ),
+        )[1]
+        with contextlib.suppress(ValueError, RuntimeError):
+            resp.wait_for_publish(timeout=wait_for_publish)
+        return resp
+
+    def status_request(
+        self,
+        deviceDict: dict,
+        wait_for_publish: int = 0,
+    ) -> mqtt.MQTTMessageInfo:
+        """Request status from Anker Solix device via MQTT message. @thomas"""
+
+        resp = self.publish(
+            deviceDict=deviceDict,
+            hexbytes=self.get_command_data(
+                command=SolixMqttCommands.status_request,
+                model=deviceDict.get("device_pn"),
+            ),
+        )[1]
+        with contextlib.suppress(ValueError, RuntimeError):
+            resp.wait_for_publish(timeout=wait_for_publish)
+        return resp
+
+    async def message_poller(
+        self,
+        topics: set,
+        trigger_devices: set,
+        msg_callback: Callable | None = None,
+        timeout: int = 120,
+    ) -> None:
+        """Run MQTT message poller and optional device update trigger in background. @thomas
+
+        Topics must be a shared mutable object containing the topics to be subscribed for MQTT message updates.
+        Real_time_devices must be a shared mutable object containing the device serials which should trigger real time updates.
+        The update trigger will be refreshed automatically while poller is running.
+        msg_callback is the function that will be called back upon received mqtt data with following parameters:
+            topic: str, message: Any, data: bytes, model: str
+        Optional timeout specifies how long devices should publish real time updates before trigger must be resent.
+        """
+        try:
+            # register message callback function
+            if msg_callback and not self.message_callback(func=msg_callback):
+                self._logger.error(
+                    "Api %s MQTT session message callback is not callable: %s",
+                    self.apisession.nickname,
+                    msg_callback,
+                )
+                self.cleanup()
+                return False
+            client = await self.connect_client_async()
+            if client and not client.is_connected():
+                self._logger.error(
+                    "Api %s MQTT session failed connection to Anker Solix MQTT server %s: %s",
+                    self.apisession.nickname,
+                    self.host,
+                    self.port,
+                )
+                self.cleanup()
+                return False
+            self._logger.debug(
+                "Api %s MQTT session connected successfully to Anker Solix MQTT server %s: %s",
+                self.apisession.nickname,
+                self.host,
+                self.port,
+            )
+            subscribed_topics = set()
+            subscribed_devices = set()
+            request_devices = set()
+            triggered_devices = set()
+            # register devices to be triggered for real time data
+            self.triggered_devices = trigger_devices
+            start = datetime.now().astimezone() - timedelta(seconds=timeout)
+            while True:
+                # Update subscribed topics
+                if topics != subscribed_topics:
+                    subscribed_devices = set()
+                    request_devices = set()
+                    # unsubscribe removed topics
+                    for topic in subscribed_topics - topics:
+                        self.unsubscribe(topic)
+                    # subscribe topics and track subscribed devices
+                    for topic in topics.copy():
+                        parts = str(topic).split("/")
+                        if (pn := (parts[2:3] or [None])[0]) and (
+                            sn := (parts[3:4] or [None])[0]
+                        ):
+                            if (resp := self.subscribe(topic)) and resp.is_failure:
+                                # remove topic from shared mutable subscription tracker
+                                topics.discard(topic)
+                            else:
+                                # add successfully subscribed device
+                                subscribed_devices.add((sn, pn))
+                                # mark devices that need status requests
+                                if [
+                                    msg
+                                    for msg in SOLIXMQTTMAP.get(pn, {}).values()
+                                    if SolixMqttCommands.status_request
+                                    in [
+                                        msg.get(COMMAND_NAME),
+                                        *msg.get(COMMAND_LIST, []),
+                                    ]
+                                ]:
+                                    request_devices.add(sn)
+                    subscribed_topics = topics.copy()
+                # check if updates must be retriggered, also upon changes in trigger devices
+                if (
+                    restart := int(
+                        (datetime.now().astimezone() - start).total_seconds()
+                    )
+                    + 5
+                    >= timeout
+                ) or (trigger_devices - triggered_devices):
+                    # republish update trigger or status request to subscribed and yet untriggered devices
+                    for sn, pn in subscribed_devices:
+                        if (
+                            sn
+                            in (
+                                trigger_devices
+                                if restart
+                                else trigger_devices - triggered_devices
+                            )
+                            - request_devices
+                        ):
+                            message, response = self.publish(
+                                deviceDict={
+                                    "device_sn": sn,
+                                    "device_pn": pn,
+                                },
+                                hexbytes=self.get_command_data(
+                                    command=SolixMqttCommands.realtime_trigger,
+                                    parameters={"timeout": timeout},
+                                    model=pn,
+                                ),
+                            )
+                            self._logger.debug(
+                                "Api %s MQTT session published message: %s\n%s",
+                                self.apisession.nickname,
+                                response,
+                                message,
+                            )
+                        if sn in trigger_devices & request_devices:
+                            # Use permanent status request for devices that do not support real time triggers
+                            message, response = self.publish(
+                                deviceDict={
+                                    "device_sn": sn,
+                                    "device_pn": pn,
+                                },
+                                hexbytes=self.get_command_data(
+                                    command=SolixMqttCommands.status_request, model=pn
+                                ),
+                            )
+                            self._logger.info(
+                                "Api %s MQTT session published message: %s\n%s",
+                                self.apisession.nickname,
+                                response,
+                                message,
+                            )
+                    triggered_devices = trigger_devices - request_devices
+                    # restart timeout interval
+                    if restart:
+                        start = datetime.now().astimezone()
+                await asyncio.sleep(5)
+        except asyncio.CancelledError:
+            self._logger.info(
+                "Api %s MQTT session message poller was cancelled",
+                self.apisession.nickname,
+            )
+            self.cleanup()
+
+    async def file_poller(
+        self,
+        folderdict: dict,
+        speed: float = 1,
+        msg_callback: Callable | None = None,
+    ) -> None:
+        """Run MQTT message poller from files for the active folder defined in provided folder dict. @thomas
+
+        The poller will cycle through all recorded messages of subscribed devices and call
+        the msg_callback function at corresponding delays.
+        The messages will repeat after the last message was used for the callback.
+        The speed parameter can be used to increase or decrease the runtime through existing messages.
+        To change the speed at poller runtime, specify the speed key in the referenced folder dict
+        """
+        if not isinstance(folderdict, dict):
+            return None
+        try:
+            # register message callback function
+            if msg_callback and not self.message_callback(func=msg_callback):
+                self._logger.error(
+                    "Api %s MQTT session message callback is not callable: %s",
+                    self.apisession.nickname,
+                    msg_callback,
+                )
+                return False
+            # initialize MQTT statistics for file poller
+            self.mqtt_stats = MqttDataStats()
+            active_folder: str | None = None
+            timestamps = []
+            steps = None
+            # merge initial speed options
+            if (newspeed := folderdict.get("speed")) and isinstance(
+                newspeed, float | int
+            ):
+                speed = newspeed
+            else:
+                folderdict["speed"] = speed
+            while True:
+                # Update active folder and reset msg cycle
+                if active_folder != folderdict.get("folder"):
+                    active_folder = None
+                    active_msgs = {}
+                    timestamps = []
+                    time_idx = 0
+                    duration = 0
+                    addtime = 0
+                    speedstart = 0
+                    if folderdict:
+                        active_folder = folderdict.get("folder")
+                        # create new cache for saved messages
+                        files = await self.get_mqtt_files(folder=active_folder or None)
+                        for file in files:
+                            for timestr, message in (
+                                await self.loadFromFile(filename=file)
+                            ).items():
+                                if (
+                                    timestamp := int(
+                                        datetime.fromisoformat(timestr)
+                                        .astimezone()
+                                        .timestamp()
+                                    )
+                                    if timestr
+                                    else 0
+                                ):
+                                    active_msgs[timestamp] = (
+                                        active_msgs.get(timestamp) or []
+                                    ) + [message]
+                        # sort messages
+                        if timestamps := sorted(active_msgs.keys()):
+                            # get messages duration, 60 seconds at least for a cycle
+                            duration = max(
+                                60, timestamps[len(timestamps) - 1] - timestamps[0]
+                            )
+                            speedstart = timestamps[0]
+                            cycleoffset = (
+                                datetime.now().astimezone().timestamp() - speedstart
+                            )
+                            addtime = 0
+                            # write cycle progress into folderdict
+                            folderdict["progress"] = 0
+                            folderdict["duration"] = duration
+                            folderdict["timestamps"] = len(timestamps)
+                            folderdict["ts_index"] = 0
+                            folderdict["timestamp"] = timestamps[0] if timestamps else 0
+                if timestamps:
+                    cycle_now = (
+                        speedstart
+                        + (
+                            datetime.now().astimezone().timestamp()
+                            - cycleoffset
+                            - speedstart
+                        )
+                        * speed
+                    )
+                    while time_idx < len(timestamps) and (
+                        (steps is None and timestamps[time_idx] <= cycle_now) or steps
+                    ):
+                        # write cycle progress into folderdict
+                        if steps:
+                            folderdict["progress"] = round(
+                                (time_idx + 1) / len(timestamps) * 100, 2
+                            )
+                        else:
+                            folderdict["progress"] = round(
+                                (timestamps[time_idx] - timestamps[0]) / duration * 100,
+                                2,
+                            )
+                        folderdict["ts_index"] = time_idx
+                        folderdict["timestamp"] = timestamps[time_idx]
+                        # simulate mqtt messages for timestamp
+                        for message in active_msgs.get(timestamps[time_idx]) or []:
+                            self._logger.debug(
+                                "Api %s MQTT session loaded message from %s:\n%s",
+                                self.apisession.nickname,
+                                datetime.fromtimestamp(timestamps[time_idx])
+                                .astimezone()
+                                .strftime("%Y-%m-%d %H:%M:%S"),
+                                message,
+                            )
+                            # mock timestamp in message for subsequent cycles
+                            message = message.copy()
+                            if addtime > 0 and (
+                                timestamp := (message.get("head") or {}).get(
+                                    "timestamp"
+                                )
+                            ):
+                                message["head"]["timestamp"] = int(timestamp + addtime)
+                            # simulate MQTT message
+                            mqtt_msg = mqtt.MQTTMessage(
+                                topic=message.pop("topic", "").encode()
+                            )
+                            mqtt_msg.payload = json.dumps(message).encode()
+                            self.on_message(client=None, userdata=None, msg=mqtt_msg)
+                        if steps:
+                            time_idx += steps
+                            steps = 0
+                            folderdict["steps"] = steps
+                        else:
+                            time_idx += 1
+                    # check for cycle reset with 5 sec gap after last message
+                    if time_idx >= len(timestamps) and (
+                        steps is not None
+                        or (
+                            steps is None
+                            and (cycle_now - timestamps[0]) >= duration + 5
+                        )
+                    ):
+                        time_idx = 0
+                        # reset cycle offset with 5 sec gap between last and first message
+                        speedstart = timestamps[0]
+                        cycleoffset = (
+                            datetime.now().astimezone().timestamp() - speedstart
+                        )
+                        addtime += duration + 5
+                    # check for speed change at runtime
+                    if (newspeed := folderdict.get("speed")) and speed != newspeed:
+                        # reset the offset into the cycle
+                        speed = newspeed
+                        speedstart = timestamps[max(0, time_idx - 1)]
+                        cycleoffset = (
+                            datetime.now().astimezone().timestamp() - speedstart
+                        )
+                    # check steps or playmode change at runtime
+                    if steps != (newsteps := folderdict.get("steps")):
+                        # reset the offset into the cycle
+                        steps = newsteps
+                        if steps is None:
+                            # restart play mode
+                            speedstart = timestamps[max(0, time_idx - 1)]
+                            cycleoffset = (
+                                datetime.now().astimezone().timestamp() - speedstart
+                            )
+                await asyncio.sleep(0.5)
+        except asyncio.CancelledError:
+            self._logger.info(
+                "Api %s MQTT session file poller was cancelled",
+                self.apisession.nickname,
+            )
+
+    async def get_mqtt_files(self, folder: str | Path) -> list:
+        """Get actual list of mqtt message files from provided folder. @thomas"""
+        if isinstance(folder, str):
+            folder = Path(folder)
+        if isinstance(folder, Path) and folder.is_dir():
+            loop = asyncio.get_running_loop()
+            contentlist = await loop.run_in_executor(None, os.scandir, folder)
+            return [
+                (folder / f.name).absolute()
+                for f in contentlist
+                if f.is_file() and f.name.startswith("mqtt_msg_")
+            ]
+        return []
+
+    async def loadFromFile(
+        self, filename: str | Path, starttime: str | datetime | None = None
+    ) -> dict:
+        """Load all or optionally the first MQTT message after starttime from given file for testing. @thomas
+
+        It will return a dict with message timestamp and the message object itself.
+        """
+        filename = str(filename)
+        messages = {}
+        if isinstance(starttime, datetime):
+            starttime = starttime.strftime("%Y-%m-%d %H:%M:%S")
+        elif not isinstance(starttime, str):
+            starttime = None
+        try:
+            if Path(filename).is_file():
+                async with aiofiles.open(filename, encoding="utf-8") as file:
+                    async for line in file:
+                        message = json.loads(line.strip())
+                        if isinstance(message, dict):
+                            msgtime = str(message.pop("msg_time", ""))
+                            if not starttime:
+                                messages[msgtime] = message
+                            elif msgtime and msgtime >= starttime:
+                                messages[msgtime] = message
+                                return messages
+        except OSError as err:
+            self._logger.error(
+                "ERROR: Failed to load MQTT messages from file %s\n%s", filename, err
+            )
+        return messages
+
+    async def saveToFile(
+        self, filename: str | Path, data: dict | None = None, append: bool = True
+    ) -> bool:
+        """Save MQTT message to given file for testing. @thomas"""
+        filename = str(filename)
+        if not isinstance(data, dict):
+            data = {}
+        try:
+            async with aiofiles.open(
+                filename, "a" if append else "w", encoding="utf-8"
+            ) as file:
+                # add message timestamp to data
+                await file.write(
+                    json.dumps(
+                        {
+                            "msg_time": datetime.now()
+                            .astimezone()
+                            .strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        | data
+                    )
+                    + "\n"
+                )
+                self._logger.debug("Saved MQTT message to file %s:", filename)
+                return True
+        except OSError as err:
+            self._logger.error(
+                "ERROR: Failed to save MQTT message to file %s\n%s", filename, err
+            )
+            return False
+
+
+def generate_mqtt_command(
+    command: str = SolixMqttCommands.realtime_trigger,
+    parameters: dict | None = None,
+    model: str | None = None,
+    dynamic_descriptions: dict | None = None,
+) -> DeviceHexData | None:
+    r"""Compose the hex data for MQTT publish payload to Anker Solix devices. @thomas
+
+    Hex command example for update trigger:
+    '==================== Publish Header for update trigger ========================
+    ff 09   : 2 Byte Anker Solix message marker (supposed 'ff 09')
+    1f 00   : 2 Byte total message length (31) in Bytes (Little Endian format)
+    03 00 0f: 3 Byte fixed message pattern (supposed `03 00 0f` for sending message)
+    00 57   : 2 Byte message type pattern (varies per device model and message type)
+    == Fields ==|- Value (Hex/Decode Options)=======================================
+    Fld Len Typ    uIntLe/var     sIntLe
+    a1  01  --  22
+    └->   1 unk           34             -> fix
+    a2  02  01  01
+    └->   2 ui             1             -> Toggle updates on/off
+    a3  05  03  2c:01:00:00
+    └->   5 var                      300 -> Update timeout in sec
+    fe  05  03  c8:d7:b6:68
+    └->   5 var               1756813256 -> Unix Timestamp
+    ==============================================================================='
+    """
+
+    hexdata = None
+    msgtype = ""
+    fields = {}
+    if not isinstance(parameters, dict):
+        parameters = {}
+    if not isinstance(dynamic_descriptions, dict):
+        dynamic_descriptions = {}
+    # get defined message type and description for command if model provided
+    if isinstance(model, str) and (pn_map := SOLIXMQTTMAP.get(model)):
+        msgtype, fields = (
+            [
+                (k, v)
+                for k, v in pn_map.items()
+                if command
+                in [
+                    v.get(COMMAND_NAME),
+                    *v.get(COMMAND_LIST, []),
+                ]
+            ][:1]
+            or [("", {})]
+        )[0]
+    if fields:
+        # generic build of command based on MQTT Map description if available
+        # extract nested command descriptions
+        fields = fields.get(str(command), fields)
+        # consider only byte field descriptions
+        if bytefields := {k: desc for k, desc in fields.items() if len(k) <= 2}:
+            hexdata = DeviceHexData(
+                model=model, msg_header=DeviceHexDataHeader(cmd_msg=msgtype)
+            )
+            for field, desc in bytefields.items():
+                field = f"{field.lower():>02}"
+                if (name := desc.get(NAME)) == "pattern_22":
+                    hexdata.update_field(DeviceHexDataField(hexbytes=f"{field}0122"))
+                elif name == "msg_timestamp":
+                    # select proper timestamp format depending on field name and type
+                    if field == "fd":
+                        hexdata.add_timestamp_ms_field()
+                    else:
+                        hexdata.add_timestamp_field(fieldtype=desc.get(TYPE))
+                # compose command field based on description
+                elif subfields := desc.get(BYTES, {}):
+                    # initialize datafield with empty value for subfield updates
+                    datafield = DeviceHexDataField(
+                        f_name=bytes.fromhex(field),
+                        f_type=desc.get(TYPE),
+                        f_value=bytearray(bytes.fromhex("00" * desc.get(LENGTH, 0))),
+                    )
+                    # use all subfields to update datafield
+                    pos = 0
+                    length = 0
+                    mask_state = None
+                    for key, subfield in (
+                        enumerate(subfields)
+                        if isinstance(subfields, list)
+                        else subfields.items()
+                    ):
+                        if isinstance(key, int) and isinstance(subfield, dict):
+                            name = subfield.get(NAME)
+                            value = parameters.get(name)
+                            # relative byte position last position
+                            pos += length + int(subfield.get(OFFSET, 0))
+                            typ = subfield.get(TYPE)
+                            if length := subfield.get(LENGTH, 0):
+                                # for negative length, add 1 byte for the str length
+                                length = abs(length) + int(
+                                    length < 0 and typ == DeviceHexDataTypes.str.value
+                                )
+                            else:
+                                length = (
+                                    1
+                                    if typ == DeviceHexDataTypes.ui.value
+                                    else 2
+                                    if typ == DeviceHexDataTypes.sile.value
+                                    else 4
+                                    if typ
+                                    in [
+                                        DeviceHexDataTypes.sfle.value,
+                                        DeviceHexDataTypes.var.value,
+                                    ]
+                                    else (len(value) + int(LENGTH in subfield))
+                                    if typ == DeviceHexDataTypes.str.value
+                                    and isinstance(value, str)
+                                    else 0
+                                )
+                        else:
+                            pos = int(key)
+
+                        # use all bitmask fields if defined as list
+                        for bitfield in (
+                            subfield if isinstance(subfield, list) else [subfield]
+                        ):
+                            name = bitfield.get(NAME)
+                            value = parameters.get(name)
+                            # skip field if no value provided and skip function described
+                            if value is None and bitfield.get(VALUE_SKIP):
+                                continue
+                            ms = bitfield.get(MASK_STATE)
+                            # Init datafield with old byte value if bitmask control and new mask_state
+                            if (
+                                ms != mask_state
+                                and (mask_state := ms)
+                                and (
+                                    ms_value := dynamic_descriptions.get(name, {}).get(
+                                        MASK_VALUE
+                                    )
+                                )
+                                is not None
+                            ):
+                                # Extend with zeros if needed
+                                if len(datafield.f_value) < pos + 1:
+                                    datafield.f_value.extend(
+                                        b"\x00" * (pos + 1 - len(datafield.f_value))
+                                    )
+                                datafield.f_value[pos] = ms_value
+                            datafield.update(
+                                value=value,
+                                offset=pos,  # use same position for bitmask updates
+                                desc=bitfield | dynamic_descriptions.get(name, {}),
+                            )
+                    hexdata.update_field(datafield)
+                else:
+                    value = parameters.get(name)
+                    # skip field if no value provided and skip function described
+                    if value is None and desc.get(VALUE_SKIP):
+                        continue
+                    hexdata.update_field(
+                        DeviceHexDataField().update(
+                            value=value,
+                            name=field,
+                            fieldtype=desc.get(TYPE),
+                            desc=desc | dynamic_descriptions.get(name, {}),
+                        )
+                    )
+    elif command == SolixMqttCommands.realtime_trigger:
+        hexdata = DeviceHexData(
+            msg_header=DeviceHexDataHeader(cmd_msg=msgtype or "0057")
+        )
+        hexdata.update_field(DeviceHexDataField(hexbytes="a10122"))
+        hexdata.update_field(DeviceHexDataField(hexbytes="a2020101"))
+        hexdata.update_field(
+            DeviceHexDataField(
+                f_name=bytes.fromhex("a3"),
+                f_type=DeviceHexDataTypes.var.value,
+                f_value=int(
+                    parameters.get("timeout")
+                    or parameters.get("trigger_timeout_sec")
+                    or 60
+                ).to_bytes(length=4, byteorder="little", signed=False),
+            )
+        )
+        hexdata.add_timestamp_field()
+    elif command == SolixMqttCommands.status_request:
+        hexdata = DeviceHexData(
+            msg_header=DeviceHexDataHeader(cmd_msg=msgtype or "0040")
+        )
+        hexdata.update_field(DeviceHexDataField(hexbytes="a10122"))
+        hexdata.add_timestamp_field()
+    return hexdata

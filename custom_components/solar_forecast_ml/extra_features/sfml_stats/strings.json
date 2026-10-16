@@ -189,9 +189,54 @@
           "pricing": "Pricing",
           "smart_charging": "Battery",
           "advanced": "Advanced",
-          "amortization": "Amortization"
+          "amortization": "Amortization",
+          "sinv": "S-INV"
         },
         "data_description": {}
+      },
+      "sinv": {
+        "title": "Module temperature",
+        "description": "STATS estimates the module temperature without any input from outdoor temperature, wind and the current of each MPPT. Without sensors of your own, STATS uses the configured weather entity. A sensor on the back of a module is optional: it replaces the estimate for its MPPT and improves the others.\n\nInverters: {devices}",
+        "data": {
+          "sinv_outdoor_temperature": "Outdoor temperature",
+          "sinv_wind_speed": "Wind speed",
+          "module_temperature_1_1": "MPPT 1 – module temperature sensor",
+          "module_temperature_1_2": "MPPT 2 – module temperature sensor",
+          "module_temperature_1_3": "MPPT 3 – module temperature sensor",
+          "module_temperature_1_4": "MPPT 4 – module temperature sensor",
+          "module_temperature_2_1": "Device 2 · MPPT 1 – module temperature sensor",
+          "module_temperature_2_2": "Device 2 · MPPT 2 – module temperature sensor",
+          "module_temperature_2_3": "Device 2 · MPPT 3 – module temperature sensor",
+          "module_temperature_2_4": "Device 2 · MPPT 4 – module temperature sensor",
+          "module_temperature_3_1": "Device 3 · MPPT 1 – module temperature sensor",
+          "module_temperature_3_2": "Device 3 · MPPT 2 – module temperature sensor",
+          "module_temperature_3_3": "Device 3 · MPPT 3 – module temperature sensor",
+          "module_temperature_3_4": "Device 3 · MPPT 4 – module temperature sensor",
+          "module_temperature_4_1": "Device 4 · MPPT 1 – module temperature sensor",
+          "module_temperature_4_2": "Device 4 · MPPT 2 – module temperature sensor",
+          "module_temperature_4_3": "Device 4 · MPPT 3 – module temperature sensor",
+          "module_temperature_4_4": "Device 4 · MPPT 4 – module temperature sensor"
+        },
+        "data_description": {
+          "sinv_outdoor_temperature": "Optional. Without a sensor, the temperature of the weather entity is used.",
+          "sinv_wind_speed": "Optional. Without a sensor, the wind of the weather entity is used.",
+          "module_temperature_1_1": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_1_2": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_1_3": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_1_4": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_2_1": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_2_2": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_2_3": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_2_4": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_3_1": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_3_2": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_3_3": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_3_4": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_4_1": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_4_2": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_4_3": "Optional. Temperature sensor on the back of a module of this string.",
+          "module_temperature_4_4": "Optional. Temperature sensor on the back of a module of this string."
+        }
       },
       "sensors": {
         "title": "All Sensors",
@@ -252,11 +297,11 @@
         }
       },
       "smart_charging": {
-        "title": "Batterie",
-        "description": "Anlagenkonstanten der Batterie. 0 kW Ladeleistung bedeutet unbegrenzt. Die Wechselrichter-Nennleistung kommt aus Solar Forecast ML (0 = unbegrenzt).",
+        "title": "Battery",
+        "description": "Battery plant constants. 0 kW charge power means unlimited (0 = unbegrenzt). Inverter nominal power comes from Solar Forecast ML (0 = unbegrenzt).",
         "data": {
-          "battery_capacity": "Batterie Capacity (kWh)",
-          "max_charge_power_kw": "Max charge power (kW, 0 = unbegrenzt)",
+          "battery_capacity": "Battery Capacity (kWh)",
+          "max_charge_power_kw": "Max charge power (kW, 0 = unlimited / 0 = unbegrenzt)",
           "battery_soc_sensor": "Battery SOC Sensor",
           "smart_charging_switch": "Charging Control Switch",
           "ems_surplus_switch": "S-Plus Flexible Load Enable",
@@ -264,8 +309,8 @@
           "ems_heat_pump_boost_switch": "EMS Heat Pump PV Boost"
         },
         "data_description": {
-          "battery_capacity": "Required. 0 means not configured. Usable battery capacity. Used to translate solar kWh forecast into SOC percent. Pflichtangabe, 0 bedeutet: nicht eingerichtet.",
-          "max_charge_power_kw": "Grid charge power in kW. 0 = unbegrenzt (no window cap).",
+          "battery_capacity": "Required. 0 means not configured. Usable battery capacity. Used to translate solar kWh forecast into SOC percent.",
+          "max_charge_power_kw": "Grid charge power in kW. 0 = unlimited (0 = unbegrenzt, no window cap).",
           "battery_soc_sensor": "Battery state-of-charge sensor (0-100%). Without it there is no grid charging.",
           "smart_charging_switch": "Switch entity to turn grid charging on/off in Home Assistant.",
           "ems_surplus_switch": "Optional switch for a flexible load. EMS only enables it after the stable S-Plus surplus gate.",

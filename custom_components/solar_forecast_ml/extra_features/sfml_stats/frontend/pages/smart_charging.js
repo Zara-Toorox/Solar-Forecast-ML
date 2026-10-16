@@ -1242,7 +1242,7 @@ const SmartChargingPage = ((Vue) => {
             }
 
             // Sizing Advisor localization
-            const currentLang = window.SFMLI18n ? window.SFMLI18n.locale : 'de';
+            const currentLang = window.SFMLI18n ? window.SFMLI18n.current : 'de';
             const localText = (key) => {
                 const bundle = {
                     de: {
@@ -1308,6 +1308,38 @@ const SmartChargingPage = ((Vue) => {
                         sizingNeedMore: "A larger battery could be worth it! You could have saved an additional {savings} net so far this year.",
                         noBattery: "No Battery",
                         noBatteryDesc: "No battery optimization possible because no battery is configured.",
+                    },
+                    pl: {
+                        advisorTitle: "Analiza sprzętu i pojemności (2026)",
+                        batterySizing: "Dobór akumulatora",
+                        sizingDesc: "Ocena pojemności akumulatora",
+                        fullDays: "Dni pełnego naładowania",
+                        fullDaysSub: "Akumulator pełny przez {days} z {total} dni ({pct}%)",
+                        unboundPotential: "Niewykorzystany uzysk",
+                        unboundPotentialSub: "Oddawanie do sieci przy pełnym akumulatorze, które dało się zmagazynować, ograniczone późniejszym poborem z sieci",
+                        potentialSavings: "Potencjał netto",
+                        potentialSavingsSub: "Wycenione na {value} ct/kWh po stawce za oddawanie ({feed} ct/kWh) i stratach magazynu",
+                        sizingRecommendation: "Zalecenie",
+                        solarPerformance: "Roczny bilans PV",
+                        performanceDesc: "Wskaźniki PV od początku roku",
+                        totalYield: "Uzysk łącznie",
+                        totalYieldSub: "Energia wytworzona od początku roku",
+                        avgDailyYield: "Uzysk dzienny Ø",
+                        avgDailyYieldSub: "Średni uzysk na dzień",
+                        houseConsumption: "Zużycie domu",
+                        houseConsumptionSub: "Średnie dzienne zapotrzebowanie",
+                        autarkyRate: "Autarkia",
+                        autarkyRateSub: "Średnia niezależność od sieci",
+                        batteryThroughput: "Przepływ akumulatora i cykle",
+                        throughputDesc: "Wykorzystanie i obciążenie cyklami",
+                        totalCharged: "Ładowanie łącznie",
+                        totalChargedSub: "Naładowana energia (PV: {pv}%, sieć: {grid}%)",
+                        batteryCycles: "Ekwiwalent pełnych cykli",
+                        batteryCyclesSub: "Odpowiada ok. {cycles} cyklom na dzień",
+                        sizingGood: "Twój akumulator ({cap} kWh) jest dobrze dobrany. Powiększenie dałoby dotychczas tylko {savings} oszczędności netto.",
+                        sizingNeedMore: "Większy akumulator może się opłacić. W tym roku dałoby się już zaoszczędzić {savings} netto.",
+                        noBattery: "Brak akumulatora",
+                        noBatteryDesc: "Optymalizacja akumulatora nie jest możliwa, bo żaden akumulator nie jest skonfigurowany.",
                     }
                 };
                 const lang = bundle[currentLang] ? currentLang : 'de';

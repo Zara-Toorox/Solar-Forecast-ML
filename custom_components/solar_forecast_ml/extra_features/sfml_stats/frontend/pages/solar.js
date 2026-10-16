@@ -981,7 +981,7 @@ const _SolarPage = {
                 ? shadowMovement.groupNames
                 : Object.keys(groups || {});
             return orderedNames.map((name, index) => {
-                const fallbackName = name || `Gruppe ${index + 1}`;
+                const fallbackName = name || t('solar.movement.groupFallback', { n: index + 1 });
                 return smFormatPanel(fallbackName, groups?.[name], fallbackShadowPct);
             });
         }
@@ -1101,8 +1101,8 @@ const _SolarPage = {
 	                    efficiency: eff,
 	                    cause: d.cause || t('solar.movement.noShadow'),
 	                    lossKwh: 0,
-	                    panels: (shadowMovement.groupNames.length ? shadowMovement.groupNames : ['Gruppe 1']).map((name, index) => ({
-	                        name: name || `Gruppe ${index + 1}`,
+	                    panels: (shadowMovement.groupNames.length ? shadowMovement.groupNames : ['']).map((name, index) => ({
+	                        name: name || t('solar.movement.groupFallback', { n: index + 1 }),
 	                        efficiencyValue: eff,
 	                        efficiencyLabel: `${eff}%`,
 	                        shadowPct: d.shadowPct || 0,
@@ -1222,12 +1222,12 @@ const _SolarPage = {
                 installedKwp: (sys.installed_kwp || 0).toFixed(2),
                 panelGroups: (sys.panel_groups || [])
                     .filter(pg => {
-                        const name = String(pg.group_name || '').trim();
+                        const name = String(pg.original_name || pg.group_name || '').trim();
                         return name && !/^_+pgm_temp_/i.test(name);
                     })
                     .sort((a, b) => {
-                        const ak = panelGroupSortKey(a.group_name);
-                        const bk = panelGroupSortKey(b.group_name);
+                        const ak = panelGroupSortKey(a.original_name || a.group_name);
+                        const bk = panelGroupSortKey(b.original_name || b.group_name);
                         if (ak[0] !== bk[0]) return ak[0] - bk[0];
                         if (ak[1] !== bk[1]) return ak[1] - bk[1];
                         return ak[2].localeCompare(bk[2]);

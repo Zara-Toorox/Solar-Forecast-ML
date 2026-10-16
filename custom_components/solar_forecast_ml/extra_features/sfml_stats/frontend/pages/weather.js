@@ -258,10 +258,8 @@ const _WeatherPage = {
         // Map our locale codes to BCP47 tags for Date/Intl formatting
         const bcp = (l) => ({ de: 'de-DE', en: 'en-US', pl: 'pl-PL' }[l] || 'en-US');
 
-        // Clothing recommendation arrives in German from the PyArmor-protected
-        // backend (no source access to localize at origin). Map known German
-        // values per locale; unknowns fall through unchanged so we don't hide
-        // information when a new label appears.
+        // Display strings are translated by weather.clothing label keys first.
+        // This map covers known German labels when a key is absent.
         const CLOTHING_TRANSLATIONS = {
             pl: {
                 // labels (chart subtitle)

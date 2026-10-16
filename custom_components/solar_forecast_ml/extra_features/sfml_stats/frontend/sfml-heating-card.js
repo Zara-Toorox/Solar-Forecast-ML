@@ -2,8 +2,8 @@
 // (C) 2026 Zara-Toorox
 
 // Solar Forecast ML brand mark (96 px WebP of brand/icon@2x.png), inlined so the card needs no extra asset
-const HEATING_BRAND_ICON = "data:image/webp;base64,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";
-const HEATING_BRAND_URL = { de: "https://www.solarforecastml.com/de/", en: "https://www.solarforecastml.com/en/" };
+const HEATING_BRAND_ICON = "data:image/webp;base64,UklGRngLAABXRUJQVlA4IGwLAABQMQCdASpwAHAAPj0cikQiIaEUmb3wIAPEsYBmKAdkr+q81m4d6YNVbS9MX51/3G/P8w/7Sfqr7zXoo3jv0APLg9j/+9f+H0yKxrzO+4vbLQG/ln4B/V8UvAI9df5zzy/h+4E1fzAvY/7D/reMzxAP1R/1vrJ/mfBToAfzb/Df9D7gPpZ/u//T5dPp//ze4P/N/65/yuyZ+4B4N40bCZ+nb5os+l2PIMI6mXVLlPyXU2vQ5MkmjDM2fxBTtAVlQ6y7SfFSCu1lMsB56MF4NnE+uC8ZFkVnM3m8QtdQSod6IYAPcbvnFVM443lKOAFsk5G30DE0DiaUaRJVbceemWNt2b/NeGftIA13ICtmvMdKzFqZ0tEUxpOocUs+D53SExLje2XtXqrPR/tp9f+WYxGlS75acLVmsfx05kNCARLxY8Gy3vodo4e/1z/CDowJ94A00e7HuH0+u4LXWvG35V7vEgIPzaPv5vqvO/bc3yvlhSlC8IcjDzp47xvPvXE1IhBQEnt8YS3TtZpSaR8pAIacEGTAAP79U88gex3qJrn9N7hGlPmT4726q52mfpU0fDe8t0wiaRESyenBLy+L2hJsVxYIt1u4Ih08ByPfIf12VaI/tGh61btYKzAsQRjV5ufwTlC3UE+wq5o1eSr/cen8hIeqGvkpDfGrdg/qqxRZI0wSZPmHIGi0dGYpsjnYVd2WviLKasvZBjtyfRmHo1JT227d39Zi8fDxMzBT+YFAxw9ZW2n+wj7sbtzHHBcTRhMtXB0xMkFf8HgLwr8Jc0Cv10Dk7e9d1FymgYkClhhadgr/MlOIN0F/lKgGE6MjKQGu8TRxwnZ7mzP2Vx5M02TjmSflFAVv2ZjDiebQHKHrGmuFWi1QXcpVpvTsFuPpMz3QefOQNI+3FQkTad1zEtz05tnWocn9pLIozBomjgVSuNObt6ebZW8rcW7fIvaxkCqShGfoXHFwhxLOrJ8zBKWAGQDRwVD3b+puFoehEvXZNsAqZx75XrFj2g0ZJzm4273eN4IPjpuRwmL1FIbA75xeOGPyccs0so+YnVX4De1dvL+MLWCk7tnu1tvRqPx3QV+EqX4rqxxYUB4E4h1MyVIOTOHWrwB22b9mpeiYK5NV4AyPFWFdA4ocG7ImxAwWXavboSGyHiTuklUtY12GOLvCsFgP7ddssWy1XRNo/HMLKxiQEFPe0nGam1Zs74tokOmh1P6kWkTYBibtTzp5YlVOTM4uTve/YO03z3c8h6Vojx+wrBdeOncdLT5Ek7Q7RwAO8F4nAKMGXKbc3CaHOE8LlAE9pl/4FnnS93hCWUoOmPreCendxMy0ZeOYkUBwI3C9hrCkR8u1+3xgS+YrOTxGrMDAVXoV5jbd3aWDU5u/7QUi5kPmBWpTgHeLTThX4DIBhw5UdSRgSOBpq2BKEgplg2ZdTdSW+5ZYX+npY3qHj/gi+xDAK3hbMZ1CoUT7StE782mxKG1SYEGIcPD9bIhwg6fRUrL7TWYM7AQ2OUCsEB8EAyVjNnB/06KI1frfi2N+oH7AsFqX0ZX+JmpU9/6r5cCzRmysCIdijWqS6fvI/8q8fAzHRF40xz9+I8MZr/NHp8vgxsT05IjsvJqCTQL4fE7Teg5WJYKWcxQgyBzdau3f1YRuS07P6OehZFO46bQ7k2zHjLCJpGKaOo5YLekyHzllAlb5OiBf61gXhI7/Wb42Y+H64NEfObU7KGrGu1f3Y4r9IZPl6XCgEbaAy6LCaoqL9IAUCVyjBwIIqiI2MAY9l0fbn58kDVhdSIghTSHzps8zdxNiyWn+0RSYrWPE+rxC2mgFktQCqDh65U8EbK+Xs+cln4Eneu7nsrUH+MXJPybUkFjt/4Xpvld1aQwoVDe9qBJsvuV8xYV2ctxhV7LgxE5iKo3dh/Pr3qerkvtO6q6ICjyzldVARoVneyUaEkP3KfsQoNd55o5sufUmxwRjAo1IEn+PzLIV9IBpkuXI6lEd+bOP9+QiNnVtmxYnVvS0+MPcVokDGswEdFX0ETLjfu2uY+eNih2Y1NXsq8cT6pWegzB9cnxW66YXCQdDpRRbPRP6AwXAKRcI6rb4F3gke1STSTA7EFoL5DAFyegz39/OzTlt3eZjhC22rJg1tsZCk4k638O8238VcoDGS5gQ2iB/AIbdQIcdoerCldanGJ7EzVrjYOksdWMc/fBW5qnCBuyuHa2HJF0mXiwW87JebtSLrTN7okCr4bP1sftj3oeFTNxUZL0ku179UuTR0FY9e8QFj9F2ECcLlzoak0OfxDj10uMmAv/qBzCf0yTZurgyDatVPwANpcGcfybml5lKJTusd17Eu10MYfmiZP/ZjwazT73nNFvh8Cr4l4lcU5h2UZ5e1HRN+pQV4H49mXeSExvOufIgFzgqSyfyt2GFeoXz2qELemyFKrTmsyOyWBTbm8sfsZAUELk5dxVSwJP46C+jb+lCSYYqWLE22KI8d5LTxo4dg8lePVXQx0QfeJYH0WANnR8PFUU+EPqNOLNZ800ljiG7AMD6XYsh+knnVLTX6KJNSbsuTZurzIoAFQH5iT5iPQHhYqtaEac2AwjmelM0NLwxBxu/13Skly60M15TBA6JjclFB4jPNwOJ7xpaUP+GfvPOlJZZhNqxeQWQxXXoUnR6eqKXZPsZ8n3NLpuTXZdUW3vjLyq3P4LZmWc0OF1y57aiWQtzOqHVNnDSoqpqwA/yaM0JmUzLu3lS2qNJx29dxs3Xt02FdPrpsUAwjyNh6yxQE7km0pYdrktOeVLuw+ZGvfXOU1351Kwgyqr/sApVXnLN36vbbdAaXk6lrJ6KWiC076E2mUO/hiTukYAzMid5Xgfb1HRFhtcUBv92XdaAlNVV9tH/jVNto4F++k4JebGT0qB9RH2fsWt9bNcymEAa5Oyc+uJJpFDLAiP82AzsN3t8efj5CvoGsyr99vjY5Ptbh9DaM5D2WAeISc6p81kROhRDz/XohojtA0vqPBXKlXuFa0hvwBE0DR/T4zT531wfVsGX7Uesm3zpYKVKbS9thpqZW0C96zJdCeM3hk2+GFgZDtTuO2qRdcwx7wTW0gSvqzb/V+O5x1EBXFJr4b3iMChwNW6ukO1kzK7JYR/ue4FrFdsjD3j58JN86E01WuykLOaBnPNxZL/eysmIPVZbqxUwRcptvTCT+89b8Uc3kvgGNeGz8SAn2mKahUvHHhF/zeh3mZNB0mckvr6KWiG3ENC2B7L4IpPOnB2HCRtg91AIT46gNyJunX0bih1wIMk3OcMlUYozOivtnJwC79T0yw5eQ16j8CG8HPX+girUub74k/qjNoRB0t7Sl7/zhoeUQdV8Mfo+i3JbvG3e/yf03JBKRPhexil/8DNmDOy0qYhNU1BMb6KmnTYjKQhbJAaaTXyCSpu2b6Woayq2eVrv3/kWuJa69RGDUQ/5KoU+9v/8056UizVpT/Sk7Jtv1boQ452svL8iRKjKu6sJLru+s9jxcWcH3vLSO8bSbOHyHvkcr9r1XF4cvErRxs3G/E+UZx5qiAvew3qW6q46qdJ6AUa+wjZZToxQFdK24g6+wiRyvl6ZdmFCTd8UQytfYf6ZEGlIBPxV3lBfmjqC4GwDYKr+UIn5UAxzQMtL9+2uHUooj2NT2Q/GFJ+713WlvB7426rn5sQI2b6bEU1S6JiZsuzLcSrqMaHJFbM3Z03lF20AwDpGx630z5RgrAlfijSUie0C2+U6o/fSf/x14UfTVCdye/UKv9UTB4szaov/KrhB01/3GVRAORg+j3qsdmVKxXwaqzE3/icGY5AkbOUyAzh/L/aBzDgecTWfshO/+HyiN3x1uPr/6F8BAF/e/MS/vV3BNomFqQFJrF+DTytIlj1e8QfWEF00kSdAuAttm2gAAA==";
+const HEATING_BRAND_URL = { de: "https://www.solarforecastml.com/de/", en: "https://www.solarforecastml.com/en/", pl: "https://www.solarforecastml.com/en/" };
 
 // Reason and label wording mirrors i18n/locales.js (heating.*)
 const HEATING_PAGE_TEXT = {
@@ -138,6 +138,72 @@ const HEATING_PAGE_TEXT = {
     "enableTitle": "Enable in EAI",
     "enableText": "Turn on room heating in the EAI features step.",
     "windowOpen": "Window open"
+  },
+  "pl": {
+    "reasons": {
+      "locked": "Licencja nieaktywna",
+      "disabled": "Ogrzewanie jest wyłączone",
+      "no_persons": "Nie wybrano osoby",
+      "presence_home": "Ktoś jest w domu",
+      "presence_unknown": "Obecność niejasna",
+      "presence_pending": "Nieobecność trwa jeszcze za krótko",
+      "presence_away": "Nikogo nie ma w domu",
+      "window_open": "Okno otwarte",
+      "window_detected": "Wykryto otwarte okno",
+      "away_setback": "Obniżenie z powodu nieobecności",
+      "vacation": "Urlop",
+      "boost": "Boost",
+      "pv_lift": "Podniesienie z powodu nadwyżki PV",
+      "price_lift": "Podniesienie z powodu taniej energii",
+      "comfort": "Temperatura zadana",
+      "room_inactive": "Pomieszczenie jest tylko obserwowane",
+      "thermostat_unavailable": "Termostat niedostępny",
+      "hvac_off": "Termostat wyłączony",
+      "range_setpoint": "Zakres zadany, nie pojedyncza wartość",
+      "setpoint_unreadable": "Wartości zadanej nie da się odczytać",
+      "within_band": "Już blisko celu",
+      "same_value": "Ta wartość jest już ustawiona",
+      "decrease_limited": "Obniżenie jest ograniczone czasowo",
+      "increase_limited": "Podniesienie jeszcze czeka",
+      "manual_override": "Zmieniono ręcznie, regulacja wstrzymana",
+      "startup_hold": "Czeka po restarcie",
+      "write_failed": "Termostat nie przyjął wartości zadanej",
+      "schedule_setback": "Poza oknem czasowym",
+      "hvac_switched": "Tryb został właśnie zmieniony",
+      "mixed_reasons": "Kilka powodów",
+      "outdoor_unavailable": "Temperatura zewnętrzna niedostępna",
+      "outdoor_missing": "Nie wybrano temperatury zewnętrznej",
+      "forecast_unavailable": "Prognoza niedostępna",
+      "preheat": "Nagrzewanie wstępne",
+      "awaiting_device": "Czeka na termostat",
+      "device_not_responding": "Termostat nie odpowiada",
+      "unknown": "Nieznany stan"
+    },
+    "seasonOnShort": "Wł.",
+    "seasonOffShort": "Wył.",
+    "seasonUnknown": "–",
+    "modeAutoShort": "Automatyka",
+    "modeScheduleShort": "Harmonogram",
+    "modeCombinedShort": "Łączony",
+    "modeObserve": "Obserwacja",
+    "modePause": "Pauza",
+    "modeAwaiting": "Czeka na urządzenie",
+    "resume": "Przejmij ponownie",
+    "keplerRoomLearning": "uczy się {heat}/3 · {cool}/3",
+    "keplerRoomReady": "Nagrzewanie {rate} K/h · trzyma ciepło ~{hours} h",
+    "hubbleMin": "Hubble · jutro min {temp} °C",
+    "hubbleMissing": "Hubble · prognoza niedostępna",
+    "preheatFor": "Nagrzewanie wstępne na {time}",
+    "nextChange": "Następna zmiana",
+    "premiumTitle": "Funkcja Premium jest zablokowana",
+    "premiumText": "Ogrzewanie pomieszczeń wymaga aktywnej licencji Premium.",
+    "outdoorNow": "Na zewnątrz teraz",
+    "personHome": "w domu",
+    "personAway": "poza domem",
+    "emptyTitle": "Nie ma jeszcze pomieszczenia",
+    "enableTitle": "Włącz w EAI",
+    "enableText": "Włącz ogrzewanie pomieszczeń w kroku funkcji EAI.",
+    "windowOpen": "Okno otwarte"
   }
 };
 
@@ -202,6 +268,36 @@ const HEATING_TEXT = {
     error: "Heating data unavailable.",
     at: "{time}",
   },
+  pl: {
+    title: "Ogrzewanie",
+    tagline: "Regulacja pomieszczeń od Solar Forecast ML",
+    seasonOn: "Sezon grzewczy włączony",
+    seasonOff: "Sezon grzewczy wyłączony",
+    home: "{n} w domu",
+    nobodyHome: "Nikogo nie ma w domu",
+    kepler: "Kepler · {room}: {text}",
+    now: "teraz {v}°",
+    setpoint: "Wartość zadana",
+    comfort: "Temperatura zadana",
+    more: "Dowiedz się więcej",
+    premiumLead: "Każde pomieszczenie grzeje tylko wtedy, gdy ktoś jest – z nagrzewaniem wstępnym, wykrywaniem okna i modelem uczącym się.",
+    saveFailed: "Nie udało się zapisać.",
+    noPermission: "Brak uprawnień do tego pomieszczenia.",
+    boostTemp: "Boost",
+    boostMinutes: "Czas",
+    boostStart: "Uruchom boost",
+    boostStop: "Zakończ boost",
+    boostUntil: "Boost {temp} °C do {time}",
+    boost30: "30 min",
+    boost60: "1 h",
+    boost120: "2 h",
+    boost240: "4 h",
+    boost480: "8 h",
+    boost1440: "24 h",
+    loading: "Wczytywanie ogrzewania …",
+    error: "Dane ogrzewania są niedostępne.",
+    at: "{time}",
+  },
 };
 
 const HEATING_REFRESH_MS = 60000;
@@ -244,7 +340,8 @@ class SfmlHeatingCard extends HTMLElement {
   }
 
   get _lang() {
-    return this._locale.toLowerCase().startsWith("de") ? "de" : "en";
+    const code = String(this._locale || "en").toLowerCase().slice(0, 2);
+    return code === "de" || code === "pl" ? code : "en";
   }
 
   _t(key, vars = {}) {
@@ -1177,14 +1274,13 @@ if (!customElements.get("sfml-heating-card")) customElements.define("sfml-heatin
 
 window.customCards = window.customCards || [];
 if (!window.customCards.some((c) => c.type === "sfml-heating-card")) {
-  const de = (document.documentElement.lang || navigator.language || "").toLowerCase().startsWith("de");
+  const code = (document.documentElement.lang || navigator.language || "en").toLowerCase().slice(0, 2);
+  const cardLang = code === "de" || code === "pl" ? code : "en";
   window.customCards.push({
     type: "sfml-heating-card",
-    name: de ? "Solar Forecast ML – Heizung" : "Solar Forecast ML – Heating",
+    name: ({ de: "Solar Forecast ML – Heizung", en: "Solar Forecast ML – Heating", pl: "Solar Forecast ML – Ogrzewanie" })[cardLang],
     preview: true,
-    description: de
-      ? "Raumheizung mit Ist/Soll, Grund in Klartext, Wunschtemperatur und Verlauf je Raum – von Solar Forecast ML."
-      : "Room heating with actual/target, plain-language reason, comfort temperature and trend per room – by Solar Forecast ML.",
+    description: ({ de: "Raumheizung mit Ist/Soll, Grund in Klartext, Wunschtemperatur und Verlauf je Raum – von Solar Forecast ML.", en: "Room heating with actual/target, plain-language reason, comfort temperature and trend per room – by Solar Forecast ML.", pl: "Ogrzewanie pomieszczeń: wynik i wartość zadana, powód zwykłym językiem, temperatura zadana i przebieg każdego pomieszczenia – od Solar Forecast ML." })[cardLang],
     documentationURL: "https://www.solarforecastml.com/",
   });
 }

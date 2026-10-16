@@ -1,0 +1,641 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""Binary sensor platform for solar_forecast_sinv. @thomas"""
+
+from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import dataclass
+from random import randrange
+from typing import Any
+
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+    BinarySensorEntityDescription,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    CONF_EXCLUDE,
+    PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
+)
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+
+from .const import (
+    ALLOW_TESTMODE,
+    ATTRIBUTION,
+    CONF_VENDOR,
+    CREATE_ALL_ENTITIES,
+    DOMAIN,
+    MQTT_OVERLAY,
+    TEST_NUMBERVARIANCE,
+)
+from .coordinator import AnkerSolixDataUpdateCoordinator
+from .entity import (
+    AnkerSolixEntityFeature,
+    AnkerSolixEntityRequiredKeyMixin,
+    AnkerSolixEntityType,
+    SinvEntity,
+    get_AnkerSolixAccountInfo,
+    get_AnkerSolixDeviceInfo,
+    get_AnkerSolixSubdeviceInfo,
+    get_AnkerSolixSystemInfo,
+    get_AnkerSolixVehicleInfo,
+)
+from .site import VENDOR_SITE, async_setup_site_entities
+from .solixapi.apitypes import SolarbankAiemsStatus, SolixDeviceType, SolixNetworkStatus
+from .solixapi.helpers import get_enum_name
+from .solixapi.mqtt_device import SolixMqttDevice
+from .vendors import anker
+
+
+@dataclass(frozen=True)
+class AnkerSolixBinarySensorDescription(
+    BinarySensorEntityDescription, AnkerSolixEntityRequiredKeyMixin
+):
+    """Binary Sensor entity description with optional keys. @thomas"""
+
+    force_creation: bool = False
+    mqtt: bool = False
+    # Use optionally to provide function for value calculation or lookup of nested values
+    value_fn: Callable[[dict, str], bool | None] = lambda d, jk: d.get(jk)
+    attrib_fn: Callable[[dict, str], dict | None] = lambda d, jk: None
+    exclude_fn: Callable[[set, dict], bool] = lambda s, d: False
+
+
+DEVICE_SENSORS = [
+    AnkerSolixBinarySensorDescription(
+        key="curtailment_active",
+        translation_key="sinv_state_curtailment",
+        json_key="allow_grid_export",
+        mqtt=True,
+        value_fn=anker.curtailment_value,
+        exclude_fn=lambda s, d: (
+            d.get("type") != SolixDeviceType.SOLARBANK.value
+            or not ({d.get("type")} - s)
+        ),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="wifi_connection",
+        translation_key="wifi_connection",
+        json_key="wifi_online",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        attrib_fn=lambda d, _: {
+            "wifi_ssid": d.get("wifi_name"),
+            "wifi_signal": " ".join([d.get("wifi_signal") or "--", PERCENTAGE]),
+            "rssi": " ".join(
+                [d.get("rssi") or "--", SIGNAL_STRENGTH_DECIBELS_MILLIWATT]
+            ),
+            "wifi_mac": d.get("wifi_mac"),
+            "bt_mac": d.get("bt_ble_mac"),
+            "wireless_type": d.get("wireless_type"),
+        },
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="wired_connection",
+        translation_key="wired_connection",
+        json_key="wired_connected",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        exclude_fn=lambda s, d: (
+            not ({d.get("type")} - s) or not d.get("is_support_wired")
+        ),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="ai_ems_enabled",
+        translation_key="ai_ems_enabled",
+        json_key="enable",
+        value_fn=lambda d, jk: ((d.get("schedule") or {}).get("ai_ems") or {}).get(jk),
+        attrib_fn=lambda d, _: {
+            "status_code": (
+                code := ((d.get("schedule") or {}).get("ai_ems") or {}).get("status")
+            ),
+            "status": get_enum_name(
+                SolarbankAiemsStatus, str(code), SolarbankAiemsStatus.unknown.name
+            ),
+        },
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")} - s
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+            )
+        ),
+    ),
+    AnkerSolixBinarySensorDescription(
+        # Smart Plug entity
+        key="auto_switch",
+        translation_key="auto_switch",
+        json_key="auto_switch",
+        attrib_fn=lambda d, _: {
+            "priority": d.get("priority"),
+            "running_time": d.get("running_time"),
+        },
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: (
+            not ({d.get("type")} - s & {SolixDeviceType.SMARTPLUG.value})
+        ),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="sub_pack_temp_alarm",
+        translation_key="sub_pack_temp_alarm",
+        json_key="sub_pack_temp_alarm",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="protection_status",
+        translation_key="protection_status",
+        json_key="protection_status",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        attrib_fn=lambda d, _: {
+            "charge_threshold": d.get("charge_protect_threshold"),
+            "discharge_threshold": d.get("discharge_protect_threshold"),
+        },
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="plug_status",
+        translation_key="plug_status",
+        json_key="plug_status",
+        device_class=BinarySensorDeviceClass.PLUG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="generator_plug_status",
+        translation_key="generator_plug_status",
+        json_key="generator_plug_status",
+        device_class=BinarySensorDeviceClass.PLUG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="mqtt_local_mode",
+        translation_key="mqtt_local_mode",
+        json_key="is_passive",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: (
+            not ({d.get("type")} - s and d.get("mqtt_data") and d.get("is_passive"))
+        ),
+    ),
+    AnkerSolixBinarySensorDescription(
+        # PPS device disaster sensor
+        key="disaster_support",
+        translation_key="disaster_support",
+        json_key="support_auto_disaster",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d, jk: d.get("disaster_support", {}).get(jk),
+        attrib_fn=lambda d, _: {
+            "countries": [
+                country.get("code")
+                for country in (
+                    d.get("disaster_support", {}).get("support_country_code") or []
+                )
+            ]
+        },
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+]
+
+SITE_SENSORS = [
+    AnkerSolixBinarySensorDescription(
+        key="site_admin",
+        translation_key="site_admin",
+        json_key="site_admin",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="heating",
+        translation_key="heating",
+        json_key="heating",
+        device_class=BinarySensorDeviceClass.HEAT,
+        value_fn=lambda d, jk: (d.get("feature_switch") or {}).get(jk),
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("site_type")} - s),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="micro_inverter_power_exceed",
+        translation_key="micro_inverter_power_exceed",
+        json_key="micro_inverter_power_exceed",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        value_fn=lambda d, jk: (d.get("feature_switch") or {}).get(jk),
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("site_type")} - s),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="offgrid_with_micro_inverter_alert",
+        translation_key="offgrid_with_micro_inverter_alert",
+        json_key="offgrid_with_micro_inverter_alert",
+        device_class=BinarySensorDeviceClass.PROBLEM,
+        value_fn=lambda d, jk: (d.get("feature_switch") or {}).get(jk),
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("site_type")} - s),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="connected",
+        translation_key="connected",
+        json_key="connected",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+        value_fn=lambda d, jk: (d.get("hes_info") or {}).get(jk),
+        attrib_fn=lambda d, _: {
+            "network": get_enum_name(
+                SolixNetworkStatus,
+                str((d.get("hes_info") or {}).get("net")),
+                SolixNetworkStatus.unknown.name,
+            ),
+            "network_code": (d.get("hes_info") or {}).get("net"),
+            "post_interval": (d.get("hes_info") or {}).get("rePostTime"),
+        },
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("site_type")} - s),
+    ),
+    AnkerSolixBinarySensorDescription(
+        # site disaster sensor
+        key="disaster_support",
+        translation_key="disaster_support",
+        json_key="support_auto_disaster",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d, jk: (
+            d.get("site_details", {}).get("disaster_support", {}).get(jk)
+        ),
+        attrib_fn=lambda d, _: {
+            "countries": [
+                country.get("code")
+                for country in (
+                    d.get("site_details", {})
+                    .get("disaster_support", {})
+                    .get("support_country_code")
+                    or []
+                )
+            ]
+        },
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+]
+
+ACCOUNT_SENSORS = [
+    AnkerSolixBinarySensorDescription(
+        key="has_unread_msg",
+        translation_key="has_unread_msg",
+        json_key="has_unread_msg",
+        # entity_category=EntityCategory.DIAGNOSTIC,
+        attrib_fn=lambda d, _: {
+            "system_msg": None
+            if (val := d.get("system_msg")) is None
+            else "on"
+            if bool(val)
+            else "off",
+            "device_msg": None
+            if (val := d.get("device_msg")) is None
+            else "on"
+            if bool(val)
+            else "off",
+        },
+    ),
+    # This should be shown only when testmode is active
+    AnkerSolixBinarySensorDescription(
+        key="use_files",
+        translation_key="use_files",
+        json_key="use_files",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda d, _: not ALLOW_TESTMODE,
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="mqtt_connection",
+        translation_key="mqtt_connection",
+        json_key="mqtt_connection",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    ),
+]
+
+VEHICLE_SENSORS = [
+    AnkerSolixBinarySensorDescription(
+        key="smart_charging",
+        translation_key="smart_charging",
+        json_key="is_smart_charging",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+    AnkerSolixBinarySensorDescription(
+        key="connected_to_enodeapi",
+        translation_key="connected_to_enodeapi",
+        json_key="is_connected_to_enodeapi",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+]
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up binary sensor platform. @thomas"""
+    if entry.data.get(CONF_VENDOR) == VENDOR_SITE:
+        await async_setup_site_entities(
+            hass, entry, async_add_entities, "binary_sensor"
+        )
+        return
+
+    coordinator: AnkerSolixDataUpdateCoordinator = hass.data[DOMAIN].get(entry.entry_id)
+    entities = []
+    mdev: SolixMqttDevice | None = None
+    if coordinator and hasattr(coordinator, "data") and coordinator.data:
+        # create entity based on type of entry in coordinator data, which consolidates the api.sites, api.devices and api.account dictionaries
+        # the coordinator.data dict key is either account nickname, a site_id or device_sn and used as context for the entity to lookup its data
+        # manually register parent devices to avoid core warning while processing first component setup with account via device that may not exist yet
+        # The device topology structure with device ids will be build in the first run, and the parent relation can be applied in a cycle through the
+        # device id structure, see also https://developers.home-assistant.io/blog/2026/07/21/device-registry-single-config-entry/
+        device_registry = dr.async_get(hass)
+        topology = {}
+        excluded = set(entry.options.get(CONF_EXCLUDE, []))
+        for context, data in coordinator.data.items():
+            mdev = None
+            mdata = {}
+            if (data_type := data.get("type")) == SolixDeviceType.SYSTEM.value:
+                # Unique key for site_id entry in data
+                entity_type = AnkerSolixEntityType.SITE
+                entity_list = SITE_SENSORS
+                dev_info = get_AnkerSolixSystemInfo(data, context)
+                dev_entry = device_registry.async_get_or_create(
+                    config_entry_id=entry.entry_id,
+                    identifiers=dev_info.get("identifiers"),
+                    manufacturer=dev_info.get("manufacturer"),
+                    serial_number=dev_info.get("serial_number"),
+                    model=dev_info.get("model"),
+                    model_id=dev_info.get("model_id"),
+                    name=dev_info.get("name"),
+                )
+                topology[context] = {
+                    "device_id": dev_entry.id,
+                    "parent_context": coordinator.client.api.apisession.email,
+                }
+            elif data_type == SolixDeviceType.ACCOUNT.value:
+                # Unique key for account entry in data
+                entity_type = AnkerSolixEntityType.ACCOUNT
+                entity_list = ACCOUNT_SENSORS
+                dev_info = get_AnkerSolixAccountInfo(data, context)
+                dev_entry = device_registry.async_get_or_create(
+                    config_entry_id=entry.entry_id,
+                    identifiers=dev_info.get("identifiers"),
+                    manufacturer=dev_info.get("manufacturer"),
+                    serial_number=dev_info.get("serial_number"),
+                    model=dev_info.get("model"),
+                    model_id=dev_info.get("model_id"),
+                    name=dev_info.get("name"),
+                )
+                topology[context] = {
+                    "device_id": dev_entry.id,
+                }
+            elif data_type == SolixDeviceType.VEHICLE.value:
+                # vehicle entry in data
+                entity_type = AnkerSolixEntityType.VEHICLE
+                entity_list = VEHICLE_SENSORS
+                dev_info = get_AnkerSolixVehicleInfo(data, context)
+                dev_entry = device_registry.async_get_or_create(
+                    config_entry_id=entry.entry_id,
+                    identifiers=dev_info.get("identifiers"),
+                    manufacturer=dev_info.get("manufacturer"),
+                    serial_number=dev_info.get("serial_number"),
+                    model=dev_info.get("model"),
+                    model_id=dev_info.get("model_id"),
+                    hw_version=dev_info.get("hw_version"),
+                    name=dev_info.get("name"),
+                )
+                topology[context] = {
+                    "device_id": dev_entry.id,
+                    "parent_context": coordinator.client.api.apisession.email,
+                }
+            else:
+                # device_sn entry in data
+                entity_type = AnkerSolixEntityType.DEVICE
+                entity_list = DEVICE_SENSORS
+                # create device and subdevice only if not excluded to avoid empty devices
+                if {data.get("type") or ""} - excluded:
+                    if data.get("is_subdevice"):
+                        dev_info = get_AnkerSolixSubdeviceInfo(data, context)
+                    else:
+                        dev_info = get_AnkerSolixDeviceInfo(data, context)
+                    dev_entry = device_registry.async_get_or_create(
+                        config_entry_id=entry.entry_id,
+                        identifiers=dev_info.get("identifiers"),
+                        manufacturer=dev_info.get("manufacturer"),
+                        serial_number=dev_info.get("serial_number"),
+                        model=dev_info.get("model"),
+                        model_id=dev_info.get("model_id"),
+                        sw_version=dev_info.get("sw_version"),
+                        name=dev_info.get("name"),
+                    )
+                    topology[context] = {
+                        "device_id": dev_entry.id,
+                        "parent_context": data.get("main_sn")
+                        if data.get("is_subdevice")
+                        else (
+                            data.get("site_id")
+                            or coordinator.client.api.apisession.email
+                        ),
+                    }
+                # get MQTT device combined values for creation of entities
+                if mdev := coordinator.client.get_mqtt_device(sn=context):
+                    mdata = mdev.get_combined_cache(
+                        fromFile=coordinator.client.testmode()
+                    )
+
+            for description in (
+                desc
+                for desc in entity_list
+                if bool(CREATE_ALL_ENTITIES)
+                or (
+                    not desc.exclude_fn(excluded, data)
+                    and (
+                        desc.force_creation
+                        # filter MQTT entities and provide combined or only api cache
+                        # Entities that should not be created without MQTT data need to use exclude option
+                        or (
+                            desc.mqtt
+                            and desc.value_fn(mdata or data, desc.json_key) is not None
+                        )
+                        # filter API only entities
+                        or (
+                            not desc.mqtt
+                            and desc.value_fn(data, desc.json_key) is not None
+                        )
+                    )
+                )
+            ):
+                entity = AnkerSolixBinarySensor(
+                    coordinator, description, context, entity_type
+                )
+                entities.append(entity)
+
+        # update the topology in the created devices
+        for device in topology.values():
+            if parent := device.get("parent_context"):
+                device_registry.async_update_device(
+                    device_id=device.get("device_id"),
+                    via_device_id=topology.get(parent, {}).get("device_id"),
+                )
+
+    # create the entities from the list
+    async_add_entities(entities)
+
+
+class AnkerSolixBinarySensor(SinvEntity, CoordinatorEntity, BinarySensorEntity):
+    """solar_forecast_sinv binary_sensor class. @thomas"""
+
+    coordinator: AnkerSolixDataUpdateCoordinator
+    entity_description: AnkerSolixBinarySensorDescription
+    _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset(
+        {
+            "bt_mac",
+            "charge_threshold",
+            "countries",
+            "discharge_threshold",
+            "network",
+            "network_code",
+            "post_interval",
+            "rssi",
+            "site_admin",
+            "wifi_ssid",
+            "wifi_signal",
+            "wireless_type",
+            "wifi_mac",
+        }
+    )
+
+    def __init__(
+        self,
+        coordinator: AnkerSolixDataUpdateCoordinator,
+        description: AnkerSolixBinarySensorDescription,
+        context: str,
+        entity_type: str,
+    ) -> None:
+        """Initialize an Anker Solix Device coordinator entity. @thomas
+
+        The CoordinatorEntity class provides:
+        should_poll
+        async_update
+        async_added_to_hass
+        available
+        """
+        super().__init__(coordinator, context)
+
+        self._attribute_name = description.key
+        self._attr_attribution = f"{ATTRIBUTION}{' + MQTT' if description.mqtt else ''}"
+        self._attr_unique_id = (f"{context}_{description.key}").lower()
+        self.entity_description = description
+        self.entity_type = entity_type
+        self._attr_extra_state_attributes = None
+        if self.entity_type == AnkerSolixEntityType.DEVICE:
+            # get the device data from device context entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            if data.get("is_subdevice"):
+                self._attr_device_info = get_AnkerSolixSubdeviceInfo(data, context)
+            else:
+                self._attr_device_info = get_AnkerSolixDeviceInfo(data, context)
+        elif self.entity_type == AnkerSolixEntityType.ACCOUNT:
+            # get the account data from account context entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            self._attr_device_info = get_AnkerSolixAccountInfo(data, context)
+        elif self.entity_type == AnkerSolixEntityType.VEHICLE:
+            # get the vehicle info data from vehicle entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            self._attr_device_info = get_AnkerSolixVehicleInfo(data, context)
+        else:
+            # get the site info data from site context entry of coordinator data
+            data = (coordinator.data.get(context, {})).get("site_info", {})
+            self._attr_device_info = get_AnkerSolixSystemInfo(data, context)
+
+        self._attr_is_on = None
+        self.update_state_value()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator. @thomas"""
+        self.update_state_value()
+        super()._handle_coordinator_update()
+
+    @property
+    def supported_features(self) -> AnkerSolixEntityFeature:
+        """Flag supported features. @thomas"""
+        return self._attr_supported_features
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes of the sensor. @thomas"""
+        if (
+            self.coordinator
+            and (hasattr(self.coordinator, "data"))
+            and self.coordinator_context in self.coordinator.data
+        ):
+            # Api device data
+            data = self.coordinator.data.get(self.coordinator_context)
+            if self.entity_description.mqtt and (
+                mdev := self.coordinator.client.get_mqtt_device(
+                    self.coordinator_context
+                )
+            ):
+                # Combined MQTT device data, overlay prio depends on customized setting
+                data = mdev.get_combined_cache(
+                    api_prio=not mdev.device.get(MQTT_OVERLAY),
+                    fromFile=self.coordinator.client.testmode(),
+                )
+            with suppress(ValueError, TypeError):
+                self._attr_extra_state_attributes = self.entity_description.attrib_fn(
+                    data, self.entity_description.json_key
+                )
+        return self._attr_extra_state_attributes
+
+    def update_state_value(self):
+        """Update the state value of the sensor based on the coordinator data. @thomas"""
+        if self.coordinator and not (hasattr(self.coordinator, "data")):
+            self._attr_is_on = None
+        elif self.coordinator_context in self.coordinator.data:
+            # Api device data
+            data = self.coordinator.data.get(self.coordinator_context)
+            if self.entity_description.mqtt and (
+                mdev := self.coordinator.client.get_mqtt_device(
+                    self.coordinator_context
+                )
+            ):
+                # Combined MQTT device data, overlay prio depends on customized setting
+                data = mdev.get_combined_cache(
+                    api_prio=not mdev.device.get(MQTT_OVERLAY),
+                    fromFile=self.coordinator.client.testmode(),
+                )
+            key = self.entity_description.json_key
+            self._attr_is_on = self.entity_description.value_fn(data, key)
+
+            # When running in Test mode, simulate some variance for entities with set device class
+            if (
+                self.coordinator.client.testmode()
+                and TEST_NUMBERVARIANCE
+                and self._attr_is_on is not None
+            ):
+                # value fluctuation
+                self._attr_is_on = bool(randrange(2))
+        else:
+            self._attr_is_on = None
+
+        # Mark sensor availability based on a sensore value
+        self._attr_available = self._attr_is_on is not None

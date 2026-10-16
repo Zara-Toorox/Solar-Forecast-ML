@@ -1,0 +1,1687 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""Switch platform for solar_forecast_sinv. @thomas"""
+
+import json
+import logging
+import urllib.parse
+from asyncio import sleep
+from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+from homeassistant.components.switch import (
+    SwitchDeviceClass,
+    SwitchEntity,
+    SwitchEntityDescription,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import (
+    CONF_EXCLUDE,
+    CONF_METHOD,
+    CONF_PAYLOAD,
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    EntityCategory,
+)
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util.dt import UTC
+
+from .api_client import AnkerSolixApiClientCommunicationError, AnkerSolixApiClientError
+from .const import (
+    ALLOW_TESTMODE,
+    ATTRIBUTION,
+    BACKUP_DURATION,
+    BACKUP_END,
+    BACKUP_START,
+    CONF_VENDOR,
+    CREATE_ALL_ENTITIES,
+    DOMAIN,
+    ENABLE_BACKUP,
+    ENDPOINT,
+    EXPORTFOLDER,
+    INCLUDE_MQTT,
+    LOGGER,
+    MQTT_OVERLAY,
+    SERVICE_API_REQUEST,
+    SERVICE_EXPORT_SYSTEMS,
+    SERVICE_MODIFY_SOLIX_BACKUP_CHARGE,
+)
+from .coordinator import AnkerSolixDataUpdateCoordinator, Command
+from .entity import (
+    AnkerSolixEntityFeature,
+    AnkerSolixEntityRequiredKeyMixin,
+    AnkerSolixEntityType,
+    AnkerSolixPicturePath,
+    SinvEntity,
+    get_AnkerSolixAccountInfo,
+    get_AnkerSolixDeviceInfo,
+    get_AnkerSolixSubdeviceInfo,
+    get_AnkerSolixSystemInfo,
+    get_AnkerSolixVehicleInfo,
+)
+from .install_counter import InstallCountSwitch
+from .site import VENDOR_SITE
+from .solixapi import export
+from .solixapi.apitypes import (
+    ApiCategories,
+    SolixConnectionStatus,
+    SolixDeviceType,
+    SolixEvChargerMode,
+)
+from .solixapi.mqtt_device import SolixMqttDevice
+from .solixapi.mqttcmdmap import SolixMqttCommands
+
+
+@dataclass(frozen=True)
+class AnkerSolixSwitchDescription(
+    SwitchEntityDescription, AnkerSolixEntityRequiredKeyMixin
+):
+    """Switch entity description with optional keys. @thomas"""
+
+    feature: AnkerSolixEntityFeature | None = None
+    restore: bool = False
+    mqtt: bool = False
+    mqtt_cmd: str | None = None
+    mqtt_cmd_parm: str | None = None
+    api_cmd: bool | None = None
+    inverted: bool = False
+
+    # Use optionally to provide function for value calculation or lookup of nested values
+    value_fn: Callable[[dict, str], bool | None] = lambda d, jk: d.get(jk)
+    attrib_fn: Callable[[dict, str], dict | None] = lambda d, jk: None
+    exclude_fn: Callable[[set, dict], bool] = lambda s, d: False
+    force_creation_fn: Callable[[dict, str], bool] = lambda d, jk: False
+
+
+DEVICE_SWITCHES = [
+    AnkerSolixSwitchDescription(
+        key="auto_upgrade",
+        translation_key="auto_upgrade",
+        json_key="auto_upgrade",
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+    AnkerSolixSwitchDescription(
+        key="preset_allow_export",
+        translation_key="preset_allow_export",
+        json_key="preset_allow_export",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        force_creation_fn=lambda d, jk: jk in d and d.get("cascaded"),
+    ),
+    AnkerSolixSwitchDescription(
+        # This SB1 entity may not be supported in cascaded systems and is created only if the schedule field indicates visibility
+        key="preset_discharge_priority",
+        translation_key="preset_discharge_priority",
+        json_key="preset_discharge_priority",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        force_creation_fn=lambda d, jk: (
+            jk in d and (d.get("schedule") or {}).get("is_show_priority_discharge")
+        ),
+    ),
+    AnkerSolixSwitchDescription(
+        key="preset_backup_option",
+        translation_key="preset_backup_option",
+        json_key="preset_backup_option",
+        feature=AnkerSolixEntityFeature.AC_CHARGE,
+        value_fn=lambda d, jk: (
+            (v if (v := d.get("backup_switch")) is not None else d.get(jk))
+            if d.get(MQTT_OVERLAY)
+            else (v if (v := d.get(jk)) is not None else d.get("backup_switch"))
+        ),
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")} - s
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+            )
+        ),
+    ),
+    AnkerSolixSwitchDescription(
+        key="allow_grid_export",
+        translation_key="allow_grid_export",
+        json_key="allow_grid_export",
+        entity_category=EntityCategory.CONFIG,
+        value_fn=lambda d, jk: (
+            (not v if (v := d.get("grid_export_disabled")) is not None else d.get(jk))
+            if d.get(MQTT_OVERLAY)
+            else (
+                v
+                if (v := d.get(jk)) is not None
+                else not v
+                if (v := d.get("grid_export_disabled")) is not None
+                else None
+            )
+        ),
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")} - s
+                and d.get("mqtt_data")
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+            )
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_disable_grid_export_switch,
+        mqtt_cmd_parm="set_disable_grid_export_switch",
+        api_cmd=True,
+    ),
+    AnkerSolixSwitchDescription(
+        # SB Light switch
+        key="light_switch",
+        translation_key="light_switch",
+        json_key="light_off_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_light_switch,
+        inverted=True,
+    ),
+    AnkerSolixSwitchDescription(
+        # Solarbank Battery soc reserve switch SB 3+ with new FW
+        key="sb_backup_soc_switch",
+        translation_key="backup_soc_switch",
+        json_key="backup_reserve_switch",
+        entity_category=EntityCategory.CONFIG,
+        # use different MQTT value name if overlay
+        value_fn=lambda d, jk: (
+            (v if (v := d.get("backup_soc_switch")) is not None else d.get(jk))
+            if d.get(MQTT_OVERLAY)
+            else (v if (v := d.get(jk)) is not None else d.get("backup_soc_switch"))
+        ),
+        # Excludde for Solarbanks not supporting new SOC feature
+        exclude_fn=lambda s, d: (
+            not (
+                (
+                    ({d.get("type")} - s)
+                    & {
+                        SolixDeviceType.SOLARBANK.value,
+                        SolixDeviceType.COMBINER_BOX.value,
+                    }
+                )
+                and {ApiCategories.solarbank_cutoff} - s
+                and d.get("generation", 3) > 2
+                and (not (sn := d.get("station_sn")) or sn == d.get("device_sn"))
+            )
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_soc_limits,
+        mqtt_cmd_parm="set_backup_soc_switch",
+        api_cmd=True,
+    ),
+    AnkerSolixSwitchDescription(
+        # PPS Light switch
+        key="light_switch",
+        translation_key="light_switch",
+        json_key="light_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.light_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        # Customizable device option for MQTT value overlay
+        key=MQTT_OVERLAY,
+        translation_key=MQTT_OVERLAY,
+        json_key=MQTT_OVERLAY,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        attrib_fn=lambda d, _: (
+            {"customized": c}
+            if (c := (d.get("customized") or {}).get(MQTT_OVERLAY)) is not None
+            else {}
+        ),
+        exclude_fn=lambda s, d: not (({d.get("type")} - s) and d.get("mqtt_data")),
+        restore=True,
+        mqtt=True,
+    ),
+    AnkerSolixSwitchDescription(
+        key="ac_socket_switch",
+        translation_key="ac_socket_switch",
+        json_key="ac_socket_switch",
+        device_class=SwitchDeviceClass.OUTLET,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.sb_ac_socket_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="ac_output_power_switch",
+        translation_key="ac_output_power_switch",
+        json_key="ac_output_power_switch",
+        device_class=SwitchDeviceClass.OUTLET,
+        attrib_fn=lambda d, jk: (
+            {"ac_output_schedule": val}
+            if str(val := d.get("ac_output_schedule", ""))
+            else {}
+        ),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ac_output_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="dc_output_power_switch",
+        translation_key="dc_output_power_switch",
+        json_key="dc_output_power_switch",
+        device_class=SwitchDeviceClass.OUTLET,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.dc_output_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="energy_saving_switch",
+        translation_key="energy_saving_switch",
+        json_key="energy_saving_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.energy_saving_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="ac_fast_charge_switch",
+        translation_key="ac_fast_charge_switch",
+        json_key="ac_fast_charge_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ac_fast_charge_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="display_switch",
+        translation_key="display_switch",
+        json_key="display_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.display_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="port_memory_switch",
+        translation_key="port_memory_switch",
+        json_key="port_memory_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.port_memory_switch,
+    ),
+    # repeated element
+    *[
+        AnkerSolixSwitchDescription(
+            key=f"{idx}_switch",
+            translation_key=f"{idx[:4]}_x_switch",
+            translation_placeholders={
+                "id": f"{idx.strip('usb').replace('_', '').upper()}"
+            },
+            json_key=f"{idx}_switch",
+            exclude_fn=lambda s, d: not ({d.get("type")} - s),
+            device_class=SwitchDeviceClass.SWITCH,
+            mqtt=True,
+            mqtt_cmd=getattr(SolixMqttCommands, f"{idx}_port_switch", None),
+        )
+        for idx in ["usbc_1", "usbc_2", "usbc_3", "usbc_4", "usba"]
+    ],
+    AnkerSolixSwitchDescription(
+        key="ac_1_switch",
+        translation_key="ac_1_switch",
+        json_key="ac_1_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.OUTLET,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ac_1_port_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="ac_2_switch",
+        translation_key="ac_2_switch",
+        json_key="ac_2_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.OUTLET,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ac_2_port_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="plug_lock_switch",
+        translation_key="plug_lock_switch",
+        json_key="plug_lock_switch",
+        entity_category=EntityCategory.CONFIG,
+        # On (1), Off (2) !
+        value_fn=lambda d, jk: (
+            {1: True, 2: False}.get(int(v)) if (v := d.get(jk)) is not None else None
+        ),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.plug_lock_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="auto_start_switch",
+        translation_key="auto_start_switch",
+        json_key="auto_start_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_auto_start_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="auto_charge_restart_switch",
+        translation_key="auto_charge_restart_switch",
+        json_key="auto_charge_restart_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_auto_charge_restart_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="random_delay_switch",
+        translation_key="random_delay_switch",
+        json_key="random_delay_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_random_delay_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="modbus_switch",
+        translation_key="modbus_switch",
+        json_key="modbus_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.modbus_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="light_off_schedule_switch",
+        translation_key="light_off_schedule_switch",
+        json_key="light_off_schedule_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.light_off_schedule,
+        mqtt_cmd_parm="set_light_off_schedule_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="load_balance_switch",
+        translation_key="load_balance_switch",
+        json_key="load_balance_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_load_balancing,
+        mqtt_cmd_parm="set_load_balance_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="solar_evcharge_switch",
+        translation_key="solar_evcharge_switch",
+        json_key="solar_evcharge_switch",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_solar_charging,
+        mqtt_cmd_parm="set_solar_evcharge_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="auto_phase_switch",
+        translation_key="auto_phase_switch",
+        json_key="auto_phase_switch",
+        entity_category=EntityCategory.CONFIG,
+        device_class=SwitchDeviceClass.SWITCH,
+        exclude_fn=lambda s, d: (
+            not (
+                {d.get("type")} - s
+                and d.get("mqtt_data", {}).get("installed_phases", 0) >= 3
+            )
+        ),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_solar_charging,
+        mqtt_cmd_parm="set_auto_phase_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="ev_charger_mode_switch",
+        translation_key="ev_charger_mode_switch",
+        json_key="ev_charger_mode",
+        # state values are mdev functions, depending on charger status, must be converted into binary switch state
+        value_fn=lambda d, jk: bool(d.get(jk)),
+        force_creation_fn=lambda d, _: (
+            d.get("mqtt_data", {}).get("ev_charger_status") is not None
+        ),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s and d.get("mqtt_data")),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_charger_mode_select,
+    ),
+    AnkerSolixSwitchDescription(
+        key="charge_schedule_switch",
+        translation_key="charge_schedule_switch",
+        json_key="schedule_switch",
+        entity_category=EntityCategory.CONFIG,
+        device_class=SwitchDeviceClass.SWITCH,
+        # on (1), off (2) !!!
+        value_fn=lambda d, jk: (
+            {1: True, 2: False}.get(int(v)) if (v := d.get(jk)) is not None else None
+        ),
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.ev_charger_schedule_settings,
+        mqtt_cmd_parm="set_schedule_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="device_switch",
+        translation_key="device_switch",
+        json_key="device_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.device_switch,
+    ),
+    AnkerSolixSwitchDescription(
+        key="device_timeout_switch",
+        translation_key="device_timeout_switch",
+        json_key="device_timeout_switch",
+        # on (0), off (1) !!!
+        value_fn=lambda d, jk: not v if (v := d.get(jk)) is not None else None,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.device_timeout_minutes,
+        mqtt_cmd_parm="set_device_timeout_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="clock_switch",
+        translation_key="clock_switch",
+        json_key="clock_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        mqtt=True,
+        # Command may need to be changed to charger_theme_custom if custom theme active
+        mqtt_cmd=SolixMqttCommands.charger_theme,
+        mqtt_cmd_parm="set_clock_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="holiday_switch",
+        translation_key="holiday_switch",
+        json_key="holiday_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.clock_holiday_switch,
+    ),
+    # repeated element
+    *[
+        AnkerSolixSwitchDescription(
+            key=f"{idx}_timer_switch",
+            translation_key="usb_x_timer_switch",
+            translation_placeholders={
+                "id": f"{idx.strip('usb').replace('_', '').upper()}"
+            },
+            json_key=f"{idx}_timer_switch",
+            exclude_fn=lambda s, d: (
+                not (
+                    ({d.get("type")} - s) and ({ApiCategories.charger_usb_settings} - s)
+                )
+            ),
+            device_class=SwitchDeviceClass.SWITCH,
+            mqtt=True,
+            mqtt_cmd=getattr(SolixMqttCommands, f"{idx}_port_timer", None),
+            mqtt_cmd_parm="set_port_timer_switch",
+        )
+        for idx in [
+            "usbc_1",
+            "usbc_2",
+            "usbc_3",
+            "usbc_4",
+            "usba",
+        ]
+    ],
+    # repeated element
+    *[
+        AnkerSolixSwitchDescription(
+            key=f"{idx}_start_switch",
+            translation_key="usb_x_start_switch",
+            translation_placeholders={
+                "id": f"{idx.strip('usb').replace('_', '').upper()}"
+            },
+            json_key=f"{idx}_start_switch",
+            entity_category=EntityCategory.CONFIG,
+            # may have undefined value
+            value_fn=lambda d, jk: (v == 1) if (v := d.get(jk)) is not None else None,
+            exclude_fn=lambda s, d: (
+                not (
+                    ({d.get("type")} - s) and ({ApiCategories.charger_usb_settings} - s)
+                )
+            ),
+            device_class=SwitchDeviceClass.SWITCH,
+            mqtt=True,
+            mqtt_cmd=getattr(SolixMqttCommands, f"{idx}_start_time", None),
+            mqtt_cmd_parm="set_port_time_switch",
+        )
+        for idx in [
+            "usbc_1",
+            "usbc_2",
+            "usbc_3",
+            "usbc_4",
+            "usba",
+        ]
+    ],
+    # repeated element
+    *[
+        AnkerSolixSwitchDescription(
+            key=f"{idx}_end_switch",
+            translation_key="usb_x_end_switch",
+            translation_placeholders={
+                "id": f"{idx.strip('usb').replace('_', '').upper()}"
+            },
+            json_key=f"{idx}_end_switch",
+            entity_category=EntityCategory.CONFIG,
+            # may have undefined value
+            value_fn=lambda d, jk: (v == 1) if (v := d.get(jk)) is not None else None,
+            exclude_fn=lambda s, d: (
+                not (
+                    ({d.get("type")} - s) and ({ApiCategories.charger_usb_settings} - s)
+                )
+            ),
+            device_class=SwitchDeviceClass.SWITCH,
+            mqtt=True,
+            mqtt_cmd=getattr(SolixMqttCommands, f"{idx}_end_time", None),
+            mqtt_cmd_parm="set_port_time_switch",
+        )
+        for idx in [
+            "usbc_1",
+            "usbc_2",
+            "usbc_3",
+            "usbc_4",
+            "usba",
+        ]
+    ],
+    AnkerSolixSwitchDescription(
+        key="silent_mode_switch",
+        translation_key="silent_mode_switch",
+        json_key="silent_mode_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        device_class=SwitchDeviceClass.SWITCH,
+        entity_category=EntityCategory.CONFIG,
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.silent_schedule,
+        mqtt_cmd_parm="set_silent_mode_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="pps_storm_guard_switch",
+        translation_key="storm_guard_switch",
+        json_key="storm_guard_switch",
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.backup_charge_storm_guard,
+        mqtt_cmd_parm="set_backup_option_switch",
+    ),
+    AnkerSolixSwitchDescription(
+        key="pps_manual_backup_switch",
+        translation_key="preset_backup_option",
+        json_key="backup_switch",
+        feature=AnkerSolixEntityFeature.AC_CHARGE,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+        mqtt=True,
+        mqtt_cmd=SolixMqttCommands.backup_charge_plan,
+        mqtt_cmd_parm="set_backup_option_switch",
+    ),
+]
+
+
+SITE_SWITCHES = []
+
+
+ACCOUNT_SWITCHES = [
+    AnkerSolixSwitchDescription(
+        key=Command.ALLOW_REFRESH.value,
+        translation_key=Command.ALLOW_REFRESH.value,
+        json_key=Command.ALLOW_REFRESH.value,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        feature=AnkerSolixEntityFeature.ACCOUNT_INFO,
+        force_creation_fn=lambda d, _: True,
+        value_fn=lambda d, _: len(d) > 0,
+        attrib_fn=lambda d, _: {
+            "requests_last_min": d.get("requests_last_min"),
+            "requests_last_hour": d.get("requests_last_hour"),
+        },
+    ),
+]
+
+VEHICLE_SWITCHES = [
+    AnkerSolixSwitchDescription(
+        key="default_vehicle",
+        translation_key="default_vehicle",
+        json_key="is_default_vehicle",
+        entity_category=EntityCategory.CONFIG,
+        exclude_fn=lambda s, d: not ({d.get("type")} - s),
+    ),
+]
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up sensor platform. @thomas"""
+    if entry.data.get(CONF_VENDOR) == VENDOR_SITE:
+        async_add_entities([InstallCountSwitch(entry)])
+        return
+
+    coordinator: AnkerSolixDataUpdateCoordinator = hass.data[DOMAIN].get(entry.entry_id)
+    entities = []
+
+    if coordinator and hasattr(coordinator, "data") and coordinator.data:
+        # create entity based on type of entry in coordinator data, which consolidates the api.sites, api.devices and api.account dictionaries
+        # the coordinator.data dict key is either account nickname, a site_id or device_sn and used as context for the entity to lookup its data
+        for context, data in coordinator.data.items():
+            mdev = None
+            mdata = {}
+            if (data_type := data.get("type")) == SolixDeviceType.SYSTEM.value:
+                # Unique key for site_id entry in data
+                entity_type = AnkerSolixEntityType.SITE
+                entity_list = SITE_SWITCHES
+            elif data_type == SolixDeviceType.ACCOUNT.value:
+                # Unique key for account entry in data
+                entity_type = AnkerSolixEntityType.ACCOUNT
+                entity_list = ACCOUNT_SWITCHES
+            elif data_type == SolixDeviceType.VEHICLE.value:
+                # vehicle entry in data
+                entity_type = AnkerSolixEntityType.VEHICLE
+                entity_list = VEHICLE_SWITCHES
+            else:
+                # device_sn entry in data
+                entity_type = AnkerSolixEntityType.DEVICE
+                entity_list = DEVICE_SWITCHES
+                # get MQTT device combined values for creation of entities
+                if mdev := coordinator.client.get_mqtt_device(sn=context):
+                    mdata = mdev.get_combined_cache(
+                        fromFile=coordinator.client.testmode()
+                    )
+
+            for description in (
+                desc
+                for desc in entity_list
+                if bool(CREATE_ALL_ENTITIES)
+                or (
+                    not desc.exclude_fn(set(entry.options.get(CONF_EXCLUDE, [])), data)
+                    and (
+                        desc.force_creation_fn(data, desc.json_key)
+                        # filter MQTT entities and provide combined or only api cache
+                        # Entities that should not be created without MQTT data need to use exclude option
+                        or (
+                            desc.mqtt
+                            and desc.value_fn(mdata or data, desc.json_key) is not None
+                            # include MQTT command switch entities only if switch options or also using Api command
+                            and (
+                                desc.api_cmd
+                                or not (
+                                    mdev
+                                    and desc.mqtt_cmd
+                                    and not mdev.cmd_is_switch(
+                                        desc.mqtt_cmd, parm=desc.mqtt_cmd_parm
+                                    )
+                                )
+                            )
+                        )
+                        # filter API only entities
+                        or (
+                            not desc.mqtt
+                            and desc.value_fn(data, desc.json_key) is not None
+                        )
+                    )
+                )
+            ):
+                if description.restore:
+                    entity = AnkerSolixRestoreSwitch(
+                        coordinator, description, context, entity_type
+                    )
+                else:
+                    entity = AnkerSolixSwitch(
+                        coordinator, description, context, entity_type
+                    )
+                entities.append(entity)
+
+    # create the sensors from the list
+    async_add_entities(entities)
+
+
+class AnkerSolixSwitch(SinvEntity, CoordinatorEntity, SwitchEntity):
+    """solar_forecast_sinv switch class. @thomas"""
+
+    coordinator: AnkerSolixDataUpdateCoordinator
+    entity_description: AnkerSolixSwitchDescription
+    _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset(
+        {
+            "ac_output_schedule",
+            "customized",
+            "requests_last_min",
+            "requests_last_hour",
+        }
+    )
+
+    def __init__(
+        self,
+        coordinator: AnkerSolixDataUpdateCoordinator,
+        description: AnkerSolixSwitchDescription,
+        context: str,
+        entity_type: str,
+    ) -> None:
+        """Initialize the switch class. @thomas"""
+        super().__init__(coordinator, context)
+
+        self._attribute_name = description.key
+        self._attr_attribution = f"{ATTRIBUTION}{' + MQTT' if description.mqtt else ''}"
+        self._attr_unique_id = (f"{context}_{description.key}").lower()
+        self.entity_description = description
+        self.entity_type = entity_type
+        self.last_run: datetime | None = None
+        self._attr_extra_state_attributes = None
+
+        if self.entity_type == AnkerSolixEntityType.DEVICE:
+            # get the device data from device context entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            if data.get("is_subdevice"):
+                self._attr_device_info = get_AnkerSolixSubdeviceInfo(data, context)
+            else:
+                self._attr_device_info = get_AnkerSolixDeviceInfo(data, context)
+            # add service attribute for manageable devices
+            self._attr_supported_features: AnkerSolixEntityFeature = (
+                description.feature
+                if (
+                    data.get("is_admin", False)
+                    or (data.get("mqtt_data") and not data.get("is_passive", False))
+                )
+                else None
+            )
+        elif self.entity_type == AnkerSolixEntityType.ACCOUNT:
+            # get the account data from account context entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            self._attr_device_info = get_AnkerSolixAccountInfo(data, context)
+            # add service attribute for account entities
+            self._attr_supported_features: AnkerSolixEntityFeature = description.feature
+        elif self.entity_type == AnkerSolixEntityType.VEHICLE:
+            # get the vehicle info data from vehicle entry of coordinator data
+            data = coordinator.data.get(context) or {}
+            self._attr_device_info = get_AnkerSolixVehicleInfo(data, context)
+            # add service attribute for vehicle entities
+            self._attr_supported_features: AnkerSolixEntityFeature = description.feature
+        else:
+            # get the site info data from site context entry of coordinator data
+            data = (coordinator.data.get(context, {})).get("site_info", {})
+            self._attr_device_info = get_AnkerSolixSystemInfo(data, context)
+            # add service attribute for site entities
+            self._attr_supported_features: AnkerSolixEntityFeature = description.feature
+
+        self._attr_is_on = None
+        self.update_state_value()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator. @thomas"""
+        self.update_state_value()
+        super()._handle_coordinator_update()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes of the entity. @thomas"""
+        if (
+            self.coordinator
+            and (hasattr(self.coordinator, "data"))
+            and self.coordinator_context in self.coordinator.data
+        ):
+            # Api device data
+            data = self.coordinator.data.get(self.coordinator_context)
+            if self.entity_description.mqtt and (
+                mdev := self.coordinator.client.get_mqtt_device(
+                    self.coordinator_context
+                )
+            ):
+                # Combined MQTT device data, overlay prio depends on customized setting
+                data = mdev.get_combined_cache(
+                    api_prio=not mdev.device.get(MQTT_OVERLAY),
+                    fromFile=self.coordinator.client.testmode(),
+                )
+            with suppress(ValueError, TypeError):
+                self._attr_extra_state_attributes = self.entity_description.attrib_fn(
+                    data, self.entity_description.json_key
+                )
+        return self._attr_extra_state_attributes
+
+    async def export_systems(self, **kwargs: Any) -> dict | None:
+        """Export the actual api responses for accessible systems and devices into zipped JSON files. @thomas"""
+        return await self._solix_account_service(
+            service_name=SERVICE_EXPORT_SYSTEMS, **kwargs
+        )
+
+    async def api_request(self, **kwargs: Any) -> dict | None:
+        """Submit the api request to selected entity account. @thomas"""
+        return await self._solix_account_service(
+            service_name=SERVICE_API_REQUEST, **kwargs
+        )
+
+    async def modify_solix_backup_charge(self, **kwargs: Any) -> dict | None:
+        """Modify the backup charge settings of devices supporting AC charge. @thomas"""
+        return await self._solix_ac_charge_service(
+            service_name=SERVICE_MODIFY_SOLIX_BACKUP_CHARGE, **kwargs
+        )
+
+    def update_state_value(self):
+        """Update the state value of the switch based on the coordinator data. @thomas"""
+        if (
+            self.coordinator
+            and (hasattr(self.coordinator, "data"))
+            and self.coordinator_context in self.coordinator.data
+        ):
+            # Api device data
+            data = self.coordinator.data.get(self.coordinator_context)
+            mdev = None
+            if self.entity_description.mqtt and (
+                mdev := self.coordinator.client.get_mqtt_device(
+                    self.coordinator_context
+                )
+            ):
+                # Combined MQTT device data, overlay prio depends on customized setting
+                data = mdev.get_combined_cache(
+                    api_prio=not mdev.device.get(MQTT_OVERLAY),
+                    fromFile=self.coordinator.client.testmode(),
+                )
+            key = self.entity_description.json_key
+            if (
+                self._attribute_name == "device_switch"
+                and data.get("type") == SolixDeviceType.CHARGER.value
+            ):
+                # enable device switch only if PPS connected
+                if (
+                    str(data.get("device_1_status", ""))
+                    == SolixConnectionStatus.disconnected.value
+                ):
+                    self._attr_is_on = None
+                else:
+                    self._attr_is_on = self.entity_description.value_fn(data, key)
+            elif self._attribute_name == "ev_charger_mode_switch":
+                if mdev:
+                    # convert command state value into option if available
+                    if (
+                        state := mdev.ev_charger_mode_state(
+                            fromFile=self.coordinator.client.testmode()
+                        )
+                    ) and SolixEvChargerMode.stop_charge.name == state:
+                        self._attr_is_on = False
+                    elif state:
+                        # All other states indicate charger was somehow activated
+                        self._attr_is_on = True
+                    else:
+                        self._attr_is_on = None
+                else:
+                    self._attr_is_on = None
+            elif self._attribute_name == "pps_manual_backup_switch":
+                if (
+                    state := self.entity_description.value_fn(data, key)
+                ) and state != self._attr_is_on:
+                    # remove any customized backup plan timestamps if switch changes to enabled
+                    data.get("customized", {}).pop("backup_plan", None)
+                self._attr_is_on = state
+            else:
+                self._attr_is_on = self.entity_description.value_fn(data, key)
+        else:
+            self._attr_is_on = None
+
+        # invert the state for inverted switch entity
+        if self._attr_is_on is not None:
+            self._attr_is_on ^= self.entity_description.inverted
+        # Mark availability based on value
+        self._attr_available = self._attr_is_on is not None
+
+    async def async_turn_on(self, **_: any) -> None:
+        """Turn on the switch. @thomas"""
+        await self._async_toggle(enable=True)
+
+    async def async_turn_off(self, **_: any) -> None:
+        """Turn off the switch. @thomas"""
+        await self._async_toggle(enable=False)
+
+    async def _async_toggle(self, enable: bool) -> None:  # noqa: C901
+        """Enable or disable the entity. @thomas"""
+        # Skip Api calls if entity does not change
+        if self._attr_is_on in [None, enable]:
+            return
+        if self._attribute_name == Command.ALLOW_REFRESH.value:
+            await self.coordinator.async_execute_command(
+                command=self.entity_description.key,
+                option=enable ^ self.entity_description.inverted,
+            )
+            return
+        # When running in Test mode do not switch for entities not supporting test mode
+        if (
+            self.coordinator.client.testmode()
+            and self._attribute_name
+            not in [
+                "preset_allow_export",
+                "preset_discharge_priority",
+                "preset_backup_option",
+                "default_vehicle",
+                "allow_grid_export",
+                MQTT_OVERLAY,
+            ]
+            and not self.entity_description.mqtt_cmd
+        ):
+            # Raise alert to frontend
+            raise ServiceValidationError(
+                f"'{self.entity_id}' cannot be used while configuration is running in testmode",
+                translation_domain=DOMAIN,
+                translation_key="active_testmode",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                },
+            )
+        # Wait until client cache is valid before applying any api change
+        await self.coordinator.client.validate_cache()
+        mdev = self.coordinator.client.get_mqtt_device(self.coordinator_context)
+        data = (self.coordinator.data or {}).get(self.coordinator_context)
+        resp = None
+        # raise error if MQTT control but device is passive
+        if self.entity_description.mqtt_cmd and mdev and mdev.is_passive():
+            raise ServiceValidationError(
+                f"'{self.entity_id}' cannot be used while device is running in local mode",
+                translation_domain=DOMAIN,
+                translation_key="local_mode",
+                translation_placeholders={"entity_id": self.entity_id},
+            )
+        if self.entity_description.restore:
+            LOGGER.info(
+                "%s will be %s",
+                self.entity_id,
+                "enabled" if enable else "disabled",
+            )
+            # Customize cache if restore entity
+            value = enable ^ self.entity_description.inverted
+            self.coordinator.client.api.customizeCacheId(
+                id=self.coordinator_context,
+                key=self.entity_description.json_key,
+                value=value,
+            )
+            if ALLOW_TESTMODE:
+                LOGGER.info(
+                    "%s: State value of entity '%s' has been customized in Api cache to: %s",
+                    "TESTMODE" if self.coordinator.client.testmode() else "LIVEMODE",
+                    self.entity_id,
+                    value,
+                )
+            await self.coordinator.async_refresh_data_from_apidict()
+            return
+        if self._attribute_name == "default_vehicle":
+            LOGGER.debug(
+                "'%s' will be %s", self.entity_id, "enabled" if enable else "disabled"
+            )
+            # if default is disabled, another registered vehicle must be enabled or disabling being skipped
+            if (enable ^ self.entity_description.inverted) or len(
+                registered := set(self.coordinator.client.get_registered_vehicles())
+            ) > 1:
+                if enable ^ self.entity_description.inverted:
+                    vehicle_id = self.coordinator_context
+                else:
+                    # get first other vehicle from list to set as new default
+                    vehicle_id = list(registered - {self.coordinator_context})[0]
+                resp = await self.coordinator.client.api.manage_vehicle(
+                    vehicleId=vehicle_id,
+                    action="setdefault",
+                    vehicle=data.get(vehicle_id) or {},
+                    toFile=self.coordinator.client.testmode(),
+                )
+                if isinstance(resp, dict) and ALLOW_TESTMODE:
+                    LOGGER.info(
+                        "Applied toggle for '%s' change to '%s' by enabling %svehicle as default:\n%s",
+                        self.entity_id,
+                        STATE_ON if enable else STATE_OFF,
+                        "" if enable else "other ",
+                        json.dumps(
+                            resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                        ),
+                    )
+                await self.coordinator.async_refresh_data_from_apidict()
+                return
+        elif self._attribute_name == "auto_upgrade":
+            LOGGER.debug(
+                "'%s' will be %s", self.entity_id, "enabled" if enable else "disabled"
+            )
+            resp = await self.coordinator.client.api.set_auto_upgrade(
+                devices={
+                    self.coordinator_context: enable ^ self.entity_description.inverted
+                }
+            )
+        elif self._attribute_name == "preset_backup_option":
+            LOGGER.debug(
+                "'%s' will be %s", self.entity_id, "enabled" if enable else "disabled"
+            )
+            # SB2 AC option
+            resp = await self.coordinator.client.api.set_sb2_ac_charge(
+                siteId=data.get("site_id") or "",
+                deviceSn=self.coordinator_context,
+                backup_start=datetime.fromtimestamp(
+                    data.get("preset_manual_backup_start") or 0, UTC
+                ).astimezone()
+                if enable ^ self.entity_description.inverted
+                else None,
+                backup_end=datetime.fromtimestamp(
+                    data.get("preset_manual_backup_end") or 0, UTC
+                ).astimezone()
+                if enable ^ self.entity_description.inverted
+                else None,
+                backup_switch=enable ^ self.entity_description.inverted,
+                toFile=self.coordinator.client.testmode(),
+            )
+        elif self._attribute_name == "allow_grid_export":
+            LOGGER.debug(
+                "'%s' will be %s", self.entity_id, "enabled" if enable else "disabled"
+            )
+            # First control all solarbank devices via individual MQTT device setting
+            if site_id := data.get("site_id"):
+                station_sn = (
+                    self.coordinator_context
+                    if data.get("type") == SolixDeviceType.COMBINER_BOX.value
+                    else data.get("station_sn", "")
+                )
+                for md in self.coordinator.client.get_mqtt_devices(
+                    siteId=site_id,
+                    stationSn=station_sn,
+                    extraDeviceSn=self.coordinator_context,
+                    mqttControl=self.entity_description.mqtt_cmd,
+                ):
+                    resp = (resp or {}) | {
+                        f"mqtt_control_{md.sn}": await self._async_mqtt_toggle(
+                            mdev=md,
+                            enable=not enable,  # only MQTT control is inverted
+                            # re-use same existing limit (no MQTT state)
+                            parm_map={
+                                "set_grid_export_limit": int(
+                                    mdev.device.get("grid_export_limit", 0)
+                                )
+                            },
+                        )
+                    }
+                # Last control settings via Api, set power limit will make required Api call for switch
+                resp = (resp or {}) | (
+                    await self.coordinator.client.api.set_power_limit(
+                        siteId=site_id,
+                        deviceSn=self.coordinator_context,
+                        grid_export=enable ^ self.entity_description.inverted,
+                        toFile=self.coordinator.client.testmode(),
+                    )
+                    or {}
+                )
+        elif self._attribute_name in [
+            "preset_allow_export",
+            "preset_discharge_priority",
+        ]:
+            LOGGER.debug(
+                "'%s' will be %s", self.entity_id, "enabled" if enable else "disabled"
+            )
+            # SB1 schedule options
+            resp = await self.coordinator.client.api.set_home_load(
+                siteId=data.get("site_id") or "",
+                deviceSn=self.coordinator_context,
+                export=(enable ^ self.entity_description.inverted)
+                if self._attribute_name == "preset_allow_export"
+                else None,
+                discharge_prio=(enable ^ self.entity_description.inverted)
+                if self._attribute_name == "preset_discharge_priority"
+                else None,
+                toFile=self.coordinator.client.testmode(),
+            )
+        elif self._attribute_name == "sb_backup_soc_switch":
+            LOGGER.debug(
+                "'%s' will be %s", self.entity_id, "enabled" if enable else "disabled"
+            )
+            if (
+                data.get("type") == SolixDeviceType.COMBINER_BOX.value
+                or data.get("station_sn") is not None
+            ):
+                # control only via station setting which will issue required device MQTT commands
+                resp = await self.coordinator.client.api.set_station_parm(
+                    deviceSn=self.coordinator_context,
+                    socSwitch=enable ^ self.entity_description.inverted,
+                    toFile=self.coordinator.client.testmode(),
+                )
+                # Combiner box requires additional command with type 2 to apply cloud settings only
+                if resp and data.get("type") == SolixDeviceType.COMBINER_BOX.value:
+                    resp = resp | await self.coordinator.client.api.set_station_parm(
+                        deviceSn=self.coordinator_context,
+                        socSwitch=enable ^ self.entity_description.inverted,
+                        cmdType=2,
+                        toFile=self.coordinator.client.testmode(),
+                    )
+        # Hybrid PPS commands
+        elif self._attribute_name == "pps_storm_guard_switch":
+            LOGGER.debug(
+                "'%s' will be %s", self.entity_id, "enabled" if enable else "disabled"
+            )
+            # First control settings via Api for the cloud service
+            resp = (
+                await self.coordinator.client.api.powerpanelApi.set_auto_disaster(
+                    identifier=self.coordinator_context,
+                    id_type=1,
+                    enable=enable ^ self.entity_description.inverted,
+                    toFile=self.coordinator.client.testmode(),
+                )
+                or {}
+            )
+            # Finally issue the MQTT command to ensure the device also activated Storm guard setting
+            resp = (resp or {}) | {
+                "mqtt_control": await self._async_mqtt_toggle(mdev=mdev, enable=enable)
+            }
+        # Trigger MQTT commands depending on changed entity
+        elif self.entity_description.mqtt_cmd and mdev:
+            LOGGER.debug(
+                "'%s' will be %s via MQTT command '%s'",
+                self.entity_id,
+                "enabled" if enable else "disabled",
+                self.entity_description.mqtt_cmd,
+            )
+            # First handle special value toggles that do not support "off" and "on" options
+            if self._attribute_name == "<enter_key_name>":
+                await self._async_mqtt_toggle(
+                    mdev=mdev, value="enable" if enable else "disable"
+                )
+            elif self._attribute_name == "clock_switch":
+                # change command depending on actual theme setting category
+                # prepare parameter map and correct command
+                theme = data.get("display_theme", {})
+                category = theme.get("theme_name", "").split("-")[:1][0].strip()
+                await self._async_mqtt_toggle(
+                    mdev=mdev,
+                    enable=enable,
+                    cmd=(
+                        SolixMqttCommands.charger_theme_custom
+                        if category == "Custom"
+                        else SolixMqttCommands.charger_theme
+                    ),
+                    parm=self.entity_description.mqtt_cmd_parm,
+                    parm_map={
+                        "set_theme_hash": mdev.mqttdata.get("theme_hash")
+                        or int(theme.get("file_hash") or 0, 16),
+                        "set_theme_url": mdev.mqttdata.get("theme_url")
+                        or theme.get("image_url", ""),
+                    },
+                )
+            elif self._attribute_name == "pps_manual_backup_switch":
+                # consider cached timestamps when enabling the backup mode
+                await self._async_mqtt_toggle(
+                    mdev=mdev,
+                    enable=enable,
+                    cmd=self.entity_description.mqtt_cmd,
+                    parm=self.entity_description.mqtt_cmd_parm,
+                    parm_map={
+                        "set_backup_start_timestamp": mdev.device.get("customized", {})
+                        .get("backup_plan", {})
+                        .get("backup_start_timestamp"),
+                        "set_backup_end_timestamp": mdev.device.get("customized", {})
+                        .get("backup_plan", {})
+                        .get("backup_end_timestamp"),
+                    }
+                    if enable
+                    else {},
+                )
+            else:
+                await self._async_mqtt_toggle(mdev=mdev, enable=enable)
+        # log change if in test more
+        if isinstance(resp, dict) and ALLOW_TESTMODE:
+            LOGGER.info(
+                "%s: Applied settings for '%s' change to '%s':\n%s",
+                "TESTMODE" if self.coordinator.client.testmode() else "LIVEMODE",
+                self.entity_id,
+                STATE_ON if enable else STATE_OFF,
+                json.dumps(resp, indent=2 if len(json.dumps(resp)) < 200 else None),
+            )
+        await self.coordinator.async_refresh_data_from_apidict()
+
+    async def _async_mqtt_toggle(
+        self,
+        mdev: SolixMqttDevice,
+        enable: bool | None = None,
+        cmd: str | None = None,
+        value: Any | None = None,
+        parm: str | None = None,
+        parm_map: dict | None = None,
+    ) -> dict | None:
+        """Enable or disable the entity via MQTT device control. @thomas"""
+        resp = None
+        if not isinstance(cmd, str):
+            cmd = self.entity_description.mqtt_cmd
+        if not isinstance(parm, str):
+            parm = self.entity_description.mqtt_cmd_parm
+        if not isinstance(parm_map, dict):
+            parm_map = {}
+        try:
+            if enable is not None:
+                cmdvalue = (
+                    STATE_ON
+                    if (enable ^ self.entity_description.inverted)
+                    else STATE_OFF
+                )
+            else:
+                cmdvalue = value
+            # Use helper methods for certain MQTT commands to update complex parameter structures
+            if self._attribute_name == "ev_charger_mode_switch":
+                # convert switch into charger mode option
+                options = mdev.ev_charger_mode_options(
+                    fromFile=self.coordinator.client.testmode()
+                )
+                if (
+                    cmdvalue := (
+                        SolixEvChargerMode.start_charge.name
+                        if cmdvalue == STATE_ON
+                        and SolixEvChargerMode.start_charge.name in options
+                        else SolixEvChargerMode.stop_charge.name
+                        if cmdvalue == STATE_OFF
+                        and SolixEvChargerMode.stop_charge.name in options
+                        else None  # let the command fail since toggle not possible
+                    )
+                ) is None:
+                    raise ServiceValidationError(
+                        f"The action {'switch.toggle'} cannot be executed: No other charging mode option available for toggling",
+                        translation_domain=DOMAIN,
+                        translation_key="value_error",
+                        translation_placeholders={
+                            "service": "switch.toggle",
+                            "error": "No other charging mode option available for toggling",
+                        },
+                    )
+            # Use helper methods for certain MQTT commands that require special handling
+            if self._attribute_name == "pps_manual_backup_switch":
+                # consider cached timestamps that may have been provided
+                resp = await mdev.set_backup_charge_plan(
+                    backup_start=parm_map.get("set_backup_start_timestamp") or None,
+                    backup_end=parm_map.get("set_backup_end_timestamp") or None,
+                    backup_switch=cmdvalue == STATE_ON,
+                    toFile=self.coordinator.client.testmode(),
+                )
+            else:
+                resp = await mdev.run_command(
+                    cmd=cmd,
+                    parm=parm,
+                    value=cmdvalue,
+                    parm_map=parm_map,
+                    toFile=self.coordinator.client.testmode(),
+                )
+            if isinstance(resp, dict):
+                if ALLOW_TESTMODE:
+                    LOGGER.info(
+                        "%s: Applied MQTT command '%s' for '%s' toggle to '%s':\n%s",
+                        "TESTMODE"
+                        if self.coordinator.client.testmode()
+                        else "LIVEMODE",
+                        cmd,
+                        self.entity_id,
+                        STATE_ON if enable else STATE_OFF,
+                        json.dumps(
+                            resp, indent=2 if len(json.dumps(resp)) < 200 else None
+                        ),
+                    )
+                # copy the changed state(s) of the mock response into device cache to avoid flip back of entity until real state is received
+                for key, val in resp.items():
+                    if key in mdev.mqttdata:
+                        mdev.mqttdata[key] = val
+                # trigger status request to get updated MQTT message after short delay
+                await sleep(1)
+                await mdev.status_request(toFile=self.coordinator.client.testmode())
+            else:
+                LOGGER.error(
+                    "'%s' could not be toggled via MQTT command '%s'",
+                    self.entity_id,
+                    cmd,
+                )
+        except (ValueError, TypeError) as err:
+            LOGGER.error(
+                "'%s' could not be toggled via MQTT command '%s':\n%s",
+                self.entity_id,
+                cmd,
+                str(err),
+            )
+        if not isinstance(resp, dict):
+            cmd_parm = f"{cmd!s}{(' with parm ' + str(parm)) if parm else ''}"
+            alias = mdev.device.get("alias") or ""
+            raise ServiceValidationError(
+                f"'{cmd_parm}' for {self.coordinator.client.api.apisession.nickname} device "
+                f"{alias} ({self.coordinator_context}) failed",
+                translation_domain=DOMAIN,
+                translation_key="mqtt_command_failed",
+                translation_placeholders={
+                    "command": cmd_parm,
+                    "coordinator": self.coordinator.client.api.apisession.nickname,
+                    "device_alias": alias,
+                    "device_sn": self.coordinator_context,
+                },
+            )
+        return resp
+
+    async def _solix_account_service(
+        self, service_name: str, **kwargs: Any
+    ) -> dict | None:
+        """Execute the defined solarbank account action. @thomas"""
+        # Raise alerts to frontend
+        if not (self.supported_features & AnkerSolixEntityFeature.ACCOUNT_INFO):
+            raise ServiceValidationError(
+                f"The entity '{self.entity_id}' does not support the action '{service_name}'",
+                translation_domain=DOMAIN,
+                translation_key="service_not_supported",
+                translation_placeholders={
+                    "entity": self.entity_id,
+                    "service": service_name,
+                },
+            )
+        # When running in Test mode do not run services that are not supporting a testmode
+        if self.coordinator.client.testmode():
+            raise ServiceValidationError(
+                f"'{self.entity_id}' cannot be used while configuration is running in testmode",
+                translation_domain=DOMAIN,
+                translation_key="active_testmode",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                },
+            )
+        # When Api refresh is deactivated, do not run action to avoid kicking off other client Api token
+        if not self.coordinator.client.allow_refresh():
+            raise ServiceValidationError(
+                f"'{self.entity_id}' cannot be used for requested action '{service_name}' while Api usage is deactivated",
+                translation_domain=DOMAIN,
+                translation_key="apiusage_deactivated",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                    "action_name": service_name,
+                },
+            )
+        # Ensure Export can be triggered only once and startup is finished
+        if self.coordinator.client.startup and not self.last_run:
+            self.last_run = datetime.now().astimezone() - timedelta(minutes=9)
+        if self.last_run and datetime.now().astimezone() < (
+            timeout := self.last_run + timedelta(minutes=10)
+        ):
+            LOGGER.debug(
+                "The action '%s' cannot be executed again while still running or startup in progress",
+                service_name,
+            )
+            # Raise alert to frontend
+            raise ServiceValidationError(
+                f"The action '{service_name}' cannot be executed again while still running or startup in progress (Timeout at {timeout.strftime('%H:%M:%S')})",
+                translation_domain=DOMAIN,
+                translation_key="action_blocked",
+                translation_placeholders={
+                    "service": service_name,
+                    "timeout": timeout.strftime("%H:%M:%S"),
+                },
+            )
+        # Reset last run after timeout (for unexpected exceptions)
+        self.last_run = None
+        if self.coordinator and hasattr(self.coordinator, "data"):
+            if service_name == SERVICE_EXPORT_SYSTEMS:
+                LOGGER.debug("'%s' action will be applied", service_name)
+                self.last_run = datetime.now().astimezone()
+                exportlogger: logging.Logger = logging.getLogger(
+                    "solar_forecast_sinv_export"
+                )
+                exportlogger.setLevel(logging.DEBUG)
+                myexport = export.AnkerSolixApiExport(
+                    client=self.coordinator.client.api,
+                    logger=exportlogger,
+                )
+                wwwroot = str(Path(self.coordinator.hass.config.config_dir) / "www")
+                exportpath: str = str(
+                    Path(wwwroot) / "community" / DOMAIN / EXPORTFOLDER
+                )
+                # Toogle coordinator client cache invalid during the cache export randomization of the randomized system export
+                try:
+                    if await myexport.export_data(
+                        export_path=exportpath,
+                        mqttdata=bool(kwargs.get(INCLUDE_MQTT)),
+                        toggle_cache=self.coordinator.client.toggle_cache,
+                    ):
+                        # convert path to public available url folder and filename
+                        result = urllib.parse.quote(
+                            myexport.zipfilename.replace(
+                                wwwroot, AnkerSolixPicturePath.LOCALPATH
+                            )
+                        )
+                    else:
+                        result = None
+                except (
+                    AnkerSolixApiClientError,
+                    AnkerSolixApiClientCommunicationError,
+                ) as exception:
+                    result = {
+                        "error": str(exception),
+                    }
+                finally:
+                    # Ensure to validate the coordinator client cache again
+                    self.coordinator.client.toggle_cache(True)
+                    # reset action blocker
+                    self.last_run = None
+                return {"export_filename": result}
+            if service_name == SERVICE_API_REQUEST:
+                LOGGER.debug("%s action will be applied", service_name)
+                self.last_run = datetime.now().astimezone()
+                # Wait until client cache is valid
+                await self.coordinator.client.validate_cache()
+                try:
+                    result = await self.coordinator.client.request(
+                        method=kwargs.get(CONF_METHOD),
+                        endpoint=kwargs.get(ENDPOINT),
+                        payload=kwargs.get(CONF_PAYLOAD),
+                    )
+                except (
+                    AnkerSolixApiClientError,
+                    AnkerSolixApiClientCommunicationError,
+                ) as exception:
+                    return {
+                        "request": {
+                            "method": kwargs.get(CONF_METHOD),
+                            "endpoint": kwargs.get(ENDPOINT),
+                            "payload": kwargs.get(CONF_PAYLOAD),
+                        },
+                        "error": str(exception),
+                    }
+                else:
+                    # only when no exception occurs
+                    return {
+                        "request": {
+                            "server": self.coordinator.client.api.apisession.server,
+                            "method": kwargs.get(CONF_METHOD),
+                            "endpoint": kwargs.get(ENDPOINT),
+                            "payload": kwargs.get(CONF_PAYLOAD),
+                        },
+                        "response": result,
+                    }
+                finally:
+                    # always executed even upon return in except block
+                    # reset action blocker
+                    self.last_run = None
+
+            raise ServiceValidationError(
+                f"The entity '{self.entity_id}' does not support the action '{service_name}'",
+                translation_domain=DOMAIN,
+                translation_key="service_not_supported",
+                translation_placeholders={
+                    "entity": self.entity_id,
+                    "service": service_name,
+                },
+            )
+        return None
+
+    async def _solix_ac_charge_service(
+        self, service_name: str, **kwargs: Any
+    ) -> dict | None:
+        """Execute the defined solix ac charge action. @thomas"""
+        # Raise alerts to frontend
+        if not (self.supported_features & AnkerSolixEntityFeature.AC_CHARGE):
+            raise ServiceValidationError(
+                f"The entity '{self.entity_id}' does not support the action '{service_name}'",
+                translation_domain=DOMAIN,
+                translation_key="service_not_supported",
+                translation_placeholders={
+                    "entity": self.entity_id,
+                    "service": service_name,
+                },
+            )
+        # When running in Test mode do not run services that are not supporting a testmode
+        if (
+            self.coordinator.client.testmode()
+            and service_name != SERVICE_MODIFY_SOLIX_BACKUP_CHARGE
+        ):
+            raise ServiceValidationError(
+                f"'{self.entity_id}' cannot be used while configuration is running in testmode",
+                translation_domain=DOMAIN,
+                translation_key="active_testmode",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                },
+            )
+        # When Api refresh is deactivated, do not run action to avoid kicking off other client Api token
+        if not self.coordinator.client.allow_refresh():
+            raise ServiceValidationError(
+                f"'{self.entity_id}' cannot be used for requested action '{service_name}' while Api usage is deactivated",
+                translation_domain=DOMAIN,
+                translation_key="apiusage_deactivated",
+                translation_placeholders={
+                    "entity_id": self.entity_id,
+                    "action_name": service_name,
+                },
+            )
+        if self.coordinator and hasattr(self.coordinator, "data"):
+            result = False
+            data: dict = self.coordinator.data.get(self.coordinator_context) or {}
+            if service_name == SERVICE_MODIFY_SOLIX_BACKUP_CHARGE:
+                LOGGER.debug("'%s' action will be applied", service_name)
+                # backup_start = None if not isinstance(kwargs.get(BACKUP_START), datetime) else kwargs.get(BACKUP_START)
+                # backup_end = None if not isinstance(kwargs.get(BACKUP_END), datetime) else kwargs.get(BACKUP_END)
+                # duration = None if not isinstance(kwargs.get(BACKUP_DURATION), timedelta) else kwargs.get(BACKUP_DURATION)
+                result = None
+                if self._attribute_name == "pps_manual_backup_switch":
+                    if mdev := self.coordinator.client.get_mqtt_device(
+                        self.coordinator_context
+                    ):
+                        result = await mdev.set_backup_charge_plan(
+                            backup_start=kwargs.get(BACKUP_START),
+                            backup_end=kwargs.get(BACKUP_END),
+                            backup_duration=kwargs.get(BACKUP_DURATION),
+                            backup_switch=kwargs.get(ENABLE_BACKUP),
+                            toFile=self.coordinator.client.testmode(),
+                        )
+                    else:
+                        LOGGER.error(
+                            "Could not find MQTT device instance of %s to control '%s'",
+                            self.coordinator_context,
+                            self.entity_id,
+                        )
+                else:
+                    # Solarbank backup charge
+                    result = await self.coordinator.client.api.set_sb2_ac_charge(
+                        siteId=data.get("site_id") or "",
+                        deviceSn=self.coordinator_context,
+                        backup_start=kwargs.get(BACKUP_START),
+                        backup_end=kwargs.get(BACKUP_END),
+                        backup_duration=kwargs.get(BACKUP_DURATION),
+                        backup_switch=kwargs.get(ENABLE_BACKUP),
+                        toFile=self.coordinator.client.testmode(),
+                    )
+                # raise service error if no result
+                if result is False:
+                    raise ServiceValidationError(
+                        f"The action '{service_name}' failed, review log for error details",
+                        translation_domain=DOMAIN,
+                        translation_key="service_error",
+                        translation_placeholders={
+                            "service": service_name,
+                        },
+                    )
+                await self.coordinator.async_refresh_data_from_apidict()
+            else:
+                raise ServiceValidationError(
+                    f"The entity '{self.entity_id}' does not support the action '{service_name}'",
+                    translation_domain=DOMAIN,
+                    translation_key="service_not_supported",
+                    translation_placeholders={
+                        "entity": self.entity_id,
+                        "service": service_name,
+                    },
+                )
+            # log resulting schedule if testmode returned dict
+            if isinstance(result, dict) and ALLOW_TESTMODE:
+                LOGGER.info(
+                    "%s: Applied result for action '%s':\n%s",
+                    "TESTMODE" if self.coordinator.client.testmode() else "LIVEMODE",
+                    service_name,
+                    json.dumps(
+                        result, indent=2 if len(json.dumps(result)) < 200 else None
+                    ),
+                )
+            await self.coordinator.async_refresh_data_from_apidict()
+        return None
+
+
+class AnkerSolixRestoreSwitch(AnkerSolixSwitch, RestoreEntity):
+    """solar_forecast_sinv switch class with restore capability. @thomas"""
+
+    def __init__(
+        self,
+        coordinator: AnkerSolixDataUpdateCoordinator,
+        description: AnkerSolixSwitchDescription,
+        context: str,
+        entity_type: str,
+    ) -> None:
+        """Initialize the switch class. @thomas"""
+        super().__init__(coordinator, description, context, entity_type)
+        self._assumed_state = True
+
+    async def async_added_to_hass(self) -> None:
+        """Load the last known state when added to hass. @thomas"""
+        await super().async_added_to_hass()
+        if last_state := await self.async_get_last_state():
+            # First try to get customization from state attributes if last state was unknown
+            if (
+                last_state.state in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+                and (customized := last_state.attributes.get("customized")) is not None
+            ):
+                last_state.state = STATE_ON if customized else STATE_OFF
+            if (
+                last_state.state not in (STATE_UNKNOWN, STATE_UNAVAILABLE)
+                and self._attr_is_on is not None
+                and self._attr_is_on != (last_state.state == STATE_ON)
+            ):
+                # set the customized value if it was modified
+                # NOTE: State may have string representation of boolean according to device class
+                self._attr_is_on = last_state.state == STATE_ON
+                LOGGER.info(
+                    "Restored state value of entity '%s' to: %s",
+                    self.entity_id,
+                    last_state.state,
+                )
+                self.coordinator.client.api.customizeCacheId(
+                    id=self.coordinator_context,
+                    key=self.entity_description.json_key,
+                    value=self._attr_is_on,
+                )
+                await self.coordinator.async_refresh_data_from_apidict(delayed=True)

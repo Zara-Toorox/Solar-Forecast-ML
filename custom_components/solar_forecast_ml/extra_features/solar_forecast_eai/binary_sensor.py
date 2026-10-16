@@ -72,6 +72,7 @@ async def async_setup_entry(
 
 class EAIBinarySensor(BinarySensorEntity):
     _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset({"intent_id"})
 
     def __init__(
         self,
@@ -100,6 +101,7 @@ class EAIWeatherIntelligenceBinarySensor(BinarySensorEntity):
     """Expose forecast weather risks as ready-to-use automation triggers."""
 
     _attr_has_entity_name = True
+    _unrecorded_attributes = frozenset({"events"})
 
     def __init__(self, runtime, entry: ConfigEntry, description: BinarySensorEntityDescription) -> None:
         self.runtime = runtime

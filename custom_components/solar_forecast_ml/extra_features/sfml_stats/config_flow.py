@@ -11,7 +11,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Mapping
 
 import voluptuous as vol
 
@@ -105,6 +105,57 @@ MONTHS_EN = {
     5: "May", 6: "June", 7: "July", 8: "August",
     9: "September", 10: "October", 11: "November", 12: "December",
 }
+
+
+def _sinv_menu_available(hass: Any) -> bool:
+    """Show the S-INV options step only when that integration is set up."""
+    try:
+        from .api.sinv import sinv_feature_enabled
+    except Exception:
+        return False
+    try:
+        return bool(sinv_feature_enabled(hass))
+    except Exception:
+        return False
+
+
+def _suggested(value: Any) -> dict[str, Any]:
+    if value is None or value == "":
+        return {}
+    return {"suggested_value": value}
+
+
+SINV_MAX_DEVICES = 4
+SINV_MODULE_FIELDS = tuple(
+    f"module_temperature_{device}_{index}"
+    for device in range(1, SINV_MAX_DEVICES + 1)
+    for index in range(1, 5)
+)
+
+
+def _sinv_devices(slots: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """MPPT slots grouped per device, in slot order, at most SINV_MAX_DEVICES devices."""
+    devices: dict[str, list[dict[str, Any]]] = {}
+    for slot in slots:
+        devices.setdefault(str(slot["serial"]), []).append(slot)
+    return list(devices.values())[:SINV_MAX_DEVICES]
+
+
+def _sinv_module_slots(slots: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Form field ``module_temperature_<device>_<mppt>`` -> MPPT slot."""
+    fields: dict[str, dict[str, Any]] = {}
+    for device_number, device in enumerate(_sinv_devices(slots), start=1):
+        for slot in device:
+            fields[f"module_temperature_{device_number}_{slot['index']}"] = slot
+    return fields
+
+
+def _sinv_device_names(slots: list[dict[str, Any]]) -> str:
+    devices = _sinv_devices(slots)
+    names = [device[0].get("name") or "S-INV" for device in devices]
+    if len(names) == 1:
+        return names[0]
+    return " · ".join(f"{number}: {name}" for number, name in enumerate(names, start=1))
 
 
 def _entity(*, domain: str = "sensor", device_class: str | None = None) -> selector.EntitySelector:
@@ -471,17 +522,79 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_smart_charging()
             if choice == "advanced":
                 return await self.async_step_advanced()
+            if choice == "sinv":
+                return await self.async_step_sinv()
 
+        menu_options = [
+            "sensors",
+            "consumers",
+            "pricing",
+            "amortization",
+            "smart_charging",
+            "advanced",
+        ]
+        if _sinv_menu_available(self.hass):
+            menu_options.append("sinv")
         return self.async_show_menu(
             step_id="init",
-            menu_options=[
-                "sensors",
-                "consumers",
-                "pricing",
-                "amortization",
-                "smart_charging",
-                "advanced",
-            ],
+            menu_options=menu_options,
+        )
+
+    # ----- S-INV module temperature -----
+
+    async def async_step_sinv(
+        self, user_input: dict[str, Any] | None = None,
+    ) -> FlowResult:
+        """Outdoor sensors and optional module sensors for the S-INV page. @zara"""
+        from datetime import datetime, timezone
+
+        from .api.sinv import devices_from_registry, mppt_slots, parse_sinv_options
+
+        slots = mppt_slots(devices_from_registry(self.hass))
+        module_slots = _sinv_module_slots(slots)
+        current = self._config_entry.data
+        if user_input is not None:
+            flat = {
+                key: user_input.get(key)
+                for key in ("sinv_outdoor_temperature", "sinv_wind_speed")
+            }
+            for field, slot in module_slots.items():
+                flat[f"{slot['key']}:module_temperature"] = user_input.get(field)
+            stored = parse_sinv_options(
+                flat,
+                slots,
+                previous=current if isinstance(current, Mapping) else {},
+                now=datetime.now(timezone.utc),
+            )
+            new_data = {**current}
+            for key in list(new_data):
+                if key in ("sinv_outdoor_temperature", "sinv_wind_speed") or (
+                    isinstance(key, str) and ":" in key and key.split(":", 1)[1] in {"1", "2", "3", "4"}
+                ):
+                    new_data.pop(key, None)
+            new_data.update(stored)
+            return self._save(new_data)
+        schema: dict[Any, Any] = {
+            vol.Optional(
+                "sinv_outdoor_temperature",
+                description=_suggested(current.get("sinv_outdoor_temperature")),
+            ): _entity(domain="sensor", device_class="temperature"),
+            vol.Optional(
+                "sinv_wind_speed",
+                description=_suggested(current.get("sinv_wind_speed")),
+            ): _entity(domain="sensor", device_class="wind_speed"),
+        }
+        for field, slot in module_slots.items():
+            record = current.get(str(slot["key"]))
+            record = record if isinstance(record, Mapping) else {}
+            schema[vol.Optional(
+                field,
+                description=_suggested(record.get("module_temperature")),
+            )] = _entity(domain="sensor", device_class="temperature")
+        return self.async_show_form(
+            step_id="sinv",
+            data_schema=vol.Schema(schema),
+            description_placeholders={"devices": _sinv_device_names(slots) or "S-INV"},
         )
 
     # ----- Sensors (merged Step 1 + 2) -----

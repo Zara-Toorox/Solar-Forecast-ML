@@ -35,6 +35,7 @@ const ICON_PATHS = {
     solar: "M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8",
     weather: "M17.5 19H7a5 5 0 1 1 1.8-9.67A6 6 0 0 1 20 12a3.5 3.5 0 0 1-2.5 7ZM8 5l1-2M4.5 7.5 2-1M3 12H1",
     energy: "M13 2 4.5 13H11l-1 9 8.5-11H12l1-9Z",
+    inverter: "M3 7h18v12H3zM7 7V4h10v3M8 13h3M13 13h3M12 13v3",
     heatpump: "M4 7h10v10H4zM14 10h4l2 2v5h-6M7 10h4M7 13h4M6 20h2M16 20h2",
     heating: "M6 3v18M10 3v18M14 3v18M18 3v18M4 7h16M4 17h16",
     mobility: "M5 15h14l-1.5-5h-11L5 15Zm2-5 2-4h6l2 4M7 15v3M17 15v3M8 18h.01M16 18h.01M20 9h2v5M22 9V6",
@@ -93,6 +94,7 @@ const COPY = {
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],
             weather: ["Wetter", "Wetterlage, Prognose, Strahlung und Ertrag"],
             energy: ["Energie & Finanzen", "Bilanz, Verbraucher, Tarife und Amortisation"],
+            sinv: ["S-INV", "Wechselrichter live: MPPT, Netz, Akku"],
             gpm: ["Strompreis (GPM)", "Tarif, Kurve und Lizenzstatus"],
             smart_charging: ["Smart Charging", "Ladeentscheidung, Preise und Batterieziel"],
             hybrid_forecast: ["Hybrid-Prognose", "Was gilt, was heute gelaufen ist, und die Einstellung"],
@@ -133,6 +135,7 @@ const COPY = {
             solar: ["Solar & Forecast", "Yield, models, deviations and shading"],
             weather: ["Weather", "Conditions, forecast, radiation and yield"],
             energy: ["Energy & Finance", "Balance, consumers, tariffs and payback"],
+            sinv: ["S-INV", "Inverter live: MPPT, grid, battery"],
             gpm: ["Grid prices (GPM)", "Tariff, curve and licence status"],
             smart_charging: ["Smart Charging", "Charge decision, prices and battery target"],
             hybrid_forecast: ["Hybrid forecast", "What applies, what ran today, and the setting"],
@@ -173,6 +176,7 @@ const COPY = {
             solar: ["Energia słoneczna", "Produkcja, modele, odchylenia i cień"],
             weather: ["Pogoda", "Warunki, prognoza, promieniowanie i uzysk"],
             energy: ["Energia i finanse", "Bilans, odbiorniki, taryfy i amortyzacja"],
+            sinv: ["S-INV", "Falownik na żywo: MPPT, sieć, akumulator"],
             gpm: ["Ceny energii (GPM)", "Taryfa, wykres i status licencji"],
             smart_charging: ["Smart Charging", "Decyzja ładowania, ceny i cel baterii"],
             hybrid_forecast: ["Prognoza hybrydowa", "Co obowiązuje, co dziś się wykonało i ustawienie"],
@@ -399,6 +403,7 @@ const ModernApp = {
     template: `
         <div class="modern-app" :class="{
             'drawer-open': drawerOpen,
+            'nav-collapsed': navCollapsed && currentPage !== 'dashboard',
             'orbit-mode': currentPage === 'dashboard',
             'premium-mode': currentPage === 'eai',
             'dev-mode': devActive,
@@ -473,7 +478,8 @@ const ModernApp = {
                 <header class="topbar">
                     <div class="topbar-title">
                         <button class="icon-button menu-button" type="button" :aria-label="copy.navigation"
-                                @click="drawerOpen = true">
+                                :aria-expanded="String(drawerOpen || (!navCollapsed && currentPage !== 'dashboard'))"
+                                @click="toggleNavigation">
                             <ui-icon name="menu"></ui-icon>
                         </button>
                         <div>
@@ -571,6 +577,7 @@ const ModernApp = {
         const dashboardMode = ref("loading");
         const premiumCorrections = ref(false);
         const drawerOpen = ref(false);
+        const navCollapsed = ref(readNavCollapsed());
         const hasLoaded = ref(false);
         const requestPending = ref(false);
         const connectionState = ref("loading");
@@ -612,6 +619,7 @@ const ModernApp = {
                     { id: "weather", icon: "weather" },
                     { id: "eai_weather", icon: "weather", premium: true },
                     { id: "energy", icon: "energy" },
+                    { id: "sinv", icon: "inverter" },
                     { id: "gpm", icon: "energy", premium: true },
                     { id: "statistics", icon: "quality", premium: true },
                     { id: "tomorrow", icon: "play", premium: true, panel: true },
@@ -637,9 +645,14 @@ const ModernApp = {
             },
         ];
         const heatingFeatureEnabled = ref(false);
+        const sinvFeatureEnabled = ref(false);
         const navigation = computed(() => navigationDefinition.map((section) => ({
             ...section,
-            items: section.items.filter((item) => item.id !== "heating" || heatingFeatureEnabled.value),
+            items: section.items.filter((item) => {
+                if (item.id === "heating") return heatingFeatureEnabled.value;
+                if (item.id === "sinv") return sinvFeatureEnabled.value;
+                return true;
+            }),
         })));
         const isAdmin = computed(() => {
             try {
@@ -672,6 +685,7 @@ const ModernApp = {
             quality: window.ModernQualityPage,
             weather: window.ModernWeatherPage,
             energy: window.EnergyPage,
+            sinv: window.SinvPage,
             gpm: window.GPMPage,
             tomorrow: window.TomorrowPage,
             eai: window.ModernEAIPage,
@@ -824,6 +838,29 @@ const ModernApp = {
             drawerOpen.value = false;
         }
 
+        function readNavCollapsed() {
+            try {
+                return localStorage.getItem("sfml-stats-modern-nav-collapsed") === "1";
+            } catch (_error) {
+                return false;
+            }
+        }
+
+        // Desktop pages pin or unpin the sidebar; the cockpit and narrow screens keep the overlay drawer.
+        function toggleNavigation() {
+            const docked = window.matchMedia("(min-width: 961px)").matches;
+            if (!docked || currentPage.value === "dashboard") {
+                drawerOpen.value = true;
+                return;
+            }
+            navCollapsed.value = !navCollapsed.value;
+            try {
+                localStorage.setItem("sfml-stats-modern-nav-collapsed", navCollapsed.value ? "1" : "0");
+            } catch (_error) {
+                // Storage can be blocked; the toggle still works for this session.
+            }
+        }
+
         function handleKeydown(event) {
             if (event.key === "Escape") closeDrawer();
         }
@@ -949,6 +986,16 @@ const ModernApp = {
             }
         }
 
+        async function loadSinvFeature() {
+            try {
+                const payload = await SFMLApi.fetch("/api/sfml_stats/sinv/status", { authenticated: true });
+                const body = payload && payload.data ? payload.data : payload;
+                sinvFeatureEnabled.value = body?.feature_enabled === true;
+            } catch (_error) {
+                sinvFeatureEnabled.value = false;
+            }
+        }
+
         const devActive = computed(() => window.sfmlDevState.active === true);
         const devHint = computed(() => `${spockQuote()} — ${copy.devSubline}`);
         const devUntilLabel = computed(() => {
@@ -971,6 +1018,7 @@ const ModernApp = {
             applyTheme();
             loadDevMode();
             loadHeatingFeature();
+            loadSinvFeature();
             handleHashChange();
             window.addEventListener("hashchange", handleHashChange);
             window.addEventListener("keydown", handleKeydown);
@@ -1006,6 +1054,7 @@ const ModernApp = {
             themeOptions,
             themeMode,
             drawerOpen,
+            navCollapsed,
             hasLoaded,
             connectionState,
             lastUpdated,
@@ -1017,6 +1066,7 @@ const ModernApp = {
             formatPrice,
             navigate,
             closeDrawer,
+            toggleNavigation,
             setThemeMode,
             handlePageTheme,
             handleDashboardMode,

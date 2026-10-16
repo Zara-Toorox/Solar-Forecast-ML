@@ -1,0 +1,2364 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""Class for interacting with the Anker Power / Solix API Power Panel related charging_service endpoints. @thomas"""
+# ruff: noqa: N806
+
+import contextlib
+import logging
+from datetime import datetime, timedelta
+from pathlib import Path
+
+from aiohttp import ClientSession
+
+from .apibase import AnkerSolixBaseApi
+from .apitypes import (
+    API_CHARGING_ENDPOINTS,
+    API_FILEPREFIXES,
+    PRODUCT_CODES,
+    ApiCategories,
+    SolixDeviceCapacity,
+    SolixDeviceCategory,
+    SolixDeviceNames,
+    SolixDeviceStatus,
+    SolixDeviceType,
+    SolixSiteType,
+)
+from .helpers import convertToKwh, get_solix_product_code
+from .mqttcmdmap import COMMAND_LIST, COMMAND_NAME, SolixMqttCommands
+from .mqttmap import SOLIXMQTTMAP
+from .session import AnkerSolixClientSession
+
+_LOGGER: logging.Logger = logging.getLogger(__name__)
+
+
+class AnkerSolixPowerpanelApi(AnkerSolixBaseApi):
+    """Define the API class to handle Anker server communication via AnkerSolixClientSession for Power Panel related queries. @thomas
+
+    It will also build internal cache dictionaries with information collected through the Api.
+    """
+
+    def __init__(
+        self,
+        email: str | None = None,
+        password: str | None = None,
+        countryId: str | None = None,
+        websession: ClientSession | None = None,
+        logger: logging.Logger | None = None,
+        apisession: AnkerSolixClientSession | None = None,
+    ) -> None:
+        """Initialize. @thomas"""
+        super().__init__(
+            email=email,
+            password=password,
+            countryId=countryId,
+            websession=websession,
+            logger=logger,
+            apisession=apisession,
+        )
+
+    def _update_site(
+        self,
+        siteId: str,
+        details: dict,
+    ) -> None:
+        """Update the internal sites dictionary with data provided for the nested site details dictionary. @thomas
+
+        This method is used to consolidate site details from various less frequent requests that are not covered with the update_sites poller method.
+        """
+        # lookup old site details if any
+        if siteId in self.sites:
+            site_details = (self.sites[siteId]).get("site_details") or {}
+            site_details.update(details)
+        else:
+            site_details = details
+            self.sites[siteId] = {}
+        self.sites[siteId]["site_details"] = site_details
+
+    def _update_dev(  # noqa: C901
+        self,
+        devData: dict,
+        devType: str | None = None,
+        siteId: str | None = None,
+        isAdmin: bool | None = None,
+    ) -> str | None:
+        """Update the internal device details dictionary with the given data. The device_sn key must be set in the data dict for the update to be applied. @thomas
+
+        This method should be implemented to consolidate various device related key values from various requests under a common set of device keys.
+        The device SN should be returned if found in devData and an update was done
+        """
+
+        if sn := devData.pop("device_sn", None):
+            device: dict = self.devices.get(sn, {})  # lookup old device info if any
+            device["device_sn"] = str(sn)
+            # extract device product code once from SN
+            if "device_code" not in device:
+                device["device_code"] = get_solix_product_code(device["device_sn"])
+            if devType:
+                device["type"] = devType.lower()
+            if siteId:
+                device["site_id"] = str(siteId)
+            if isAdmin is not None:
+                # always update admin flag if passed as parameter
+                device["is_admin"] = isAdmin
+            elif (value := devData.get("ms_device_type")) is not None:
+                # update admin flag if recognizable from provided devData
+                # Update admin based on ms device type for standalone devices
+                device["is_admin"] = value in [0, 1]
+                # member devices should only be listed in bind_device query and return owner_user_id
+                if value := devData.get("owner_user_id"):
+                    device["owner_user_id"] = value
+            calc_capacity = False  # Flag whether capacity may need recalculation
+            cap_change = False  # Flag whether capacity change was identified
+            update_main = False  # Flag whether main_sn must be updated for sub devices
+            site_id = device.get("site_id", "")
+            for key, value in devData.items():
+                try:
+                    # Implement device update code with key filtering, conversion, consolidation, calculation or dependency updates
+                    if key in ["product_code", "device_pn"] and value:
+                        device.update({"device_pn": str(value)})
+                        # Get device code features once
+                        if "device_code_features" not in device:
+                            device["device_code_features"] = (
+                                self.account.get("products", {})
+                                .get(str(value), {})
+                                .get("product_codes", {})
+                                .get(device.get("device_code", ""), {})
+                                .get("custom_fields", {})
+                            )
+                        # Flag device for supported mqtt trigger if admin and device not passive
+                        if (
+                            device.get("is_admin") or device.get("owner_user_id")
+                        ) and not (
+                            device.get("is_passive") or devData.get("is_passive")
+                        ):
+                            device["mqtt_supported"] = True
+                            # update customizable setting whether MQTT values should overlay Api values upon cache merge
+                            device["mqtt_overlay"] = bool(
+                                device.get("mqtt_overlay") or False
+                            )
+                            # update customizable setting for desired MQTT status request interval
+                            device["mqtt_status_interval"] = device.get(
+                                "mqtt_status_interval", 0
+                            )
+                            # check once if device supports status requests from description
+                            if "mqtt_status_request" not in device:
+                                device["mqtt_status_request"] = bool(
+                                    [
+                                        cmd
+                                        for cmd in SOLIXMQTTMAP.get(
+                                            str(value), {}
+                                        ).values()
+                                        if SolixMqttCommands.status_request
+                                        in [
+                                            cmd.get(COMMAND_NAME),
+                                            *cmd.get(COMMAND_LIST, []),
+                                        ]
+                                    ]
+                                )
+                        # try to get capacity from category definitions
+                        if (
+                            hasattr(SolixDeviceCapacity, str(value))
+                            and "battery_capacity" not in device
+                        ):
+                            # get battery capacity from known PNs
+                            device["battery_capacity"] = str(
+                                getattr(SolixDeviceCapacity, str(value))
+                            )
+                            cap_change = True
+                        # try to get type for standalone device from category definitions if not defined yet
+                        if (
+                            hasattr(SolixDeviceCategory, str(value))
+                            and "type" not in device
+                        ):
+                            dev_type = str(
+                                getattr(SolixDeviceCategory, str(value))
+                            ).split("_")
+                            if dev_type[-1].isdigit():
+                                gen = int(dev_type.pop(-1))
+                            else:
+                                gen = None
+                            device["type"] = "_".join(dev_type)
+                            # update generation if specified in device type definitions
+                            if gen:
+                                device["generation"] = gen
+                        # Update main and sub device structure
+                        if site_id and (t := device.get("type")):
+                            if t == SolixDeviceType.PPS.value:
+                                device["is_subdevice"] = True
+                            elif (t == SolixDeviceType.POWERPANEL.value) and device.get(
+                                "main_sn"
+                            ) != sn:
+                                device["main_sn"] = sn
+                                device["is_primary"] = True
+                                update_main = True
+                    elif key == "device_name" and value:
+                        device["name"] = str(value)
+                    elif key == "alias_name" and value:
+                        device["alias"] = str(value)
+                        # preset default device name if only alias provided, fallback to alias if product name not listed
+                        if (
+                            pn := device.get("device_pn")
+                            or devData.get("device_pn")
+                            or None
+                        ) and (not device.get("name") or devData.get("device_name")):
+                            device["name"] = (
+                                devData.get("device_name")
+                                or (
+                                    (self.account.get("products") or {}).get(pn) or {}
+                                ).get("name")
+                                or getattr(SolixDeviceNames, pn, "")
+                                or str(value)
+                            )
+                    elif (
+                        key in ["mqtt_overlay", "mqtt_status_interval"]
+                        and value is not None
+                    ):
+                        # keys that are customized
+                        custom = (device.get("customized") or {}).get(key)
+                        device[key] = custom if custom is not None else value
+                        # If mqtt_status_interval is 0, clear customization
+                        if (
+                            key == "mqtt_status_interval"
+                            and custom is not None
+                            and float(custom) == 0
+                        ):
+                            device.get("customized", {}).pop(
+                                "mqtt_status_interval", None
+                            )
+                    elif key == "status":
+                        device.update({"status": str(value)})
+                        # decode the status into a description
+                        description = SolixDeviceStatus.unknown.name
+                        for status in SolixDeviceStatus:
+                            if str(value) == status.value:
+                                description = status.name
+                                break
+                        device.update({"status_desc": description})
+                    elif key == "battery_capacity" and str(value).isdigit():
+                        # This is used as trigger for customization to recalculate modified capacity dependent values
+                        device[key] = value
+                        cap_change = True
+                    elif key == "battery_soc" and value is not None:
+                        # This is a percentage value for the battery state of charge, not power
+                        calc_capacity |= device.get("battery_soc") != str(value)
+                        device["battery_soc"] = str(value)
+                    elif key == "average_power" and value:
+                        # calculate remaining capacity for new SOC
+                        calc_capacity |= (device.get("average_power") or {}).get(
+                            "state_of_charge"
+                        ) != value.get("state_of_charge")
+                        device[key] = value
+                    elif key == "batCount" and str(value).isdigit():
+                        calc_capacity |= device.get(key) != int(value)
+                        device[key] = int(value)
+                    # keys with any value
+                    elif key in [
+                        "disaster_support",
+                        "device_disaster_status",
+                        "device_disaster",
+                    ]:
+                        device[key] = value
+                    # keys with boolean values
+                    elif key in ["auto_upgrade", "is_passive"]:
+                        device[key] = bool(value)
+                    # keys with string values
+                    elif key == "wireless_type" or (
+                        # Example for keys with string values that should only be updated if value returned
+                        key in ["wifi_name", "rssi"] and value
+                    ):
+                        device.update({key: str(value)})
+                    elif key == "utility_rate_plan":
+                        device[key] = value
+                        # TODO: Add code to extract active slot parameters from plan
+
+                except Exception:  # pylint: disable=broad-exception-caught
+                    self._logger.exception(
+                        "Api %s exception occurred when updating device details for key %s with value %s",
+                        self.apisession.nickname,
+                        key,
+                        value,
+                    )
+
+            # check that main device is defined for all sub devices
+            if update_main or (
+                device.get("is_subdevice") and not device.get("main_sn")
+            ):
+                site_devs = [
+                    d for d in self.devices.values() if site_id == d.get("site_id")
+                ]
+                if main_sn := ([d for d in site_devs if d.get("is_primary")] or [{}])[
+                    0
+                ].get("main_sn"):
+                    for dev in [d for d in site_devs if d.get("is_subdevice")]:
+                        dev["main_sn"] = main_sn
+
+            # generate extra values when certain conditions are met
+            if calc_capacity or cap_change:
+                # get some data optionally from mqtt data
+                mqtt = device.get("mqtt_data") or {}
+                # init calculated fields with 0 if not existing
+                if "battery_capacity" not in device:
+                    device["battery_capacity"] = "0"
+                if "battery_energy" not in device:
+                    # leave energy empty until it can be calculated
+                    device["battery_energy"] = ""
+                # calculate size only once based on PN
+                if (size := device.get("battery_size")) is None:
+                    size = getattr(SolixDeviceCapacity, str(device.get("device_pn")), 0)
+                    device["battery_size"] = size
+                    cap_change = True
+                if (
+                    exp := device.get("sub_package_num")
+                    or mqtt.get("expansion_packs")
+                    or 0
+                ) != device.get("expansion_packs"):
+                    # update calculated exp number in Api cache
+                    device["expansion_packs"] = exp
+                    cap_change = True
+                # recalculate capacity if required
+                if cap_change and str(size).isdigit() and str(exp).isdigit():
+                    # NOTE: E10 controller has no battery, but needs 1-5 battery expansions
+                    controller_cap = (
+                        0
+                        if device.get("device_pn") == "A17E1"
+                        else size
+                        * min(
+                            100,
+                            float(
+                                device.get("mqtt_data", {}).get("battery_soh") or 100
+                            ),
+                        )
+                        / 100
+                    )
+                    expansion_cap = sum(
+                        [
+                            float(device.get(f"exp_{i}_size", 0))
+                            * min(
+                                100,
+                                float(
+                                    device.get("mqtt_data", {}).get(f"exp_{i}_soh")
+                                    or 100
+                                ),
+                            )
+                            / 100
+                            for i in range(1, 1 + exp)
+                        ]
+                    )
+                    # use determined expansion size or assume same size for all expansions
+                    device["battery_capacity"] = (
+                        f"{(expansion_cap or (size * exp)) + controller_cap:.0f}"
+                    )
+                # generate battery values for main device only when soc updated or PPS capacity triggered
+                is_primary = bool(device.get("is_primary"))
+                # get primary device to update capacity and energy values as well
+                prim_dev = (
+                    (
+                        [
+                            d
+                            for d in self.devices.values()
+                            if site_id == d.get("site_id") and d.get("is_primary")
+                        ]
+                        or [{}]
+                    )[0]
+                    if not is_primary
+                    else {}
+                )
+                if (
+                    not (cap := device.get("battery_capacity") or 0)
+                    or cap_change
+                    or (
+                        prim_dev
+                        and device.get("customized", {}).get("battery_capacity")
+                    )
+                ):
+                    # refresh (customized) capacity from sub devices in system
+                    if not (
+                        pri_cap := (device if is_primary else prim_dev)
+                        .get("customized", {})
+                        .get("battery_capacity", 0)
+                    ):
+                        # calculate only if primary dev has no customized capacity
+                        pri_cap = 0
+                        for dev in [
+                            d
+                            for d in self.devices.values()
+                            if d.get("main_sn") == (prim_dev.get("device_sn") or sn)
+                            and d.get("is_subdevice")
+                            and str(d.get("battery_capacity")).isdigit()
+                        ]:
+                            # consider customized capacity for calculation
+                            pri_cap += (
+                                int(c)
+                                if (
+                                    c := (dev.get("customized") or {}).get(
+                                        "battery_capacity"
+                                    )
+                                )
+                                and str(c).isdigit()
+                                else int(dev.get("battery_capacity") or 0)
+                            )
+                    if pri_cap == 0:
+                        # add 1 F3800 base capacity as minimum if no PPS found with site relation
+                        pri_cap = SolixDeviceCapacity.A1790
+                    if is_primary:
+                        cap = pri_cap
+                    elif prim_dev:
+                        # refresh capacity of primary in system
+                        prim_dev["battery_capacity"] = str(pri_cap)
+                device["battery_capacity"] = str(cap)
+                apisoc = device.get("battery_soc", "") or device.get(
+                    "average_power", {}
+                ).get("state_of_charge", "")
+                # get total SOC, prefer value depending on overlay
+                soc = (
+                    (mqtt.get("battery_soc", "") or apisoc)
+                    if device.get("mqtt_overlay")
+                    else (apisoc or mqtt.get("battery_soc", ""))
+                )
+                custom_cap = (
+                    int(c)
+                    if (c := device.get("customized", {}).get("battery_capacity"))
+                    and str(c).isdigit()
+                    else int(device.get("battery_capacity") or 0)
+                )
+                if soc:
+                    device["battery_energy"] = str(
+                        int(int(custom_cap) * int(soc) / 100)
+                    )
+                # if not primary, update the primary dev energy as well
+                if prim_dev:
+                    apisoc = prim_dev.get("battery_soc", "") or prim_dev.get(
+                        "average_power", {}
+                    ).get("state_of_charge", "")
+                    # get total SOC, prefer value depending on overlay
+                    soc = (
+                        (prim_dev.get("mqtt_data", {}).get("battery_soc", "") or apisoc)
+                        if prim_dev.get("mqtt_overlay")
+                        else (
+                            apisoc
+                            or prim_dev.get("mqtt_data", {}).get("battery_soc", "")
+                        )
+                    )
+                    if soc and str(soc).isdigit():
+                        custom_cap = (
+                            int(c)
+                            if (
+                                c := prim_dev.get("customized", {}).get(
+                                    "battery_capacity"
+                                )
+                            )
+                            and str(c).isdigit()
+                            else int(prim_dev.get("battery_capacity") or 0)
+                        )
+                        prim_dev["battery_energy"] = str(
+                            int(int(custom_cap) * int(soc) / 100)
+                        )
+
+            self.devices.update({str(sn): device})
+        return sn
+
+    async def update_sites(
+        self,
+        siteId: str | None = None,
+        fromFile: bool = False,
+        exclude: set | None = None,
+        siteData: dict | None = None,
+    ) -> dict:
+        """Create/Update api sites cache structure. @thomas
+
+        Implement this method to get the latest info for all power panel sites or only the provided siteId and update class cache dictionaries.
+        """
+        # define excluded categories to skip for queries
+        if not exclude or not isinstance(exclude, set):
+            exclude = set()
+        if not siteData or not isinstance(siteData, dict):
+            siteData = {}
+        if siteId and (
+            (site_info := siteData.pop("site_info", {}))
+            or (self.sites.get(siteId) or {}).get("site_info")
+            or {}
+        ):
+            # update only the provided site ID when siteInfo available/provided to avoid another site list query
+            self._logger.debug(
+                "Updating api %s Power Panel sites data for site ID %s",
+                self.apisession.nickname,
+                siteId,
+            )
+            new_sites = self.sites
+            # prepare the site list dictionary for the update loop by copying the requested site from the cache
+            sites: dict = {"site_list": [site_info]}
+        else:
+            # run normal refresh for given or all sites
+            self._logger.debug(
+                "Updating api %s Power Panel sites data%s",
+                self.apisession.nickname,
+                " for site ID " + siteId if siteId else "",
+            )
+            new_sites = {}
+            self._logger.debug(
+                "Getting api %s site list",
+                self.apisession.nickname,
+            )
+            sites: dict = {
+                "site_list": [
+                    s
+                    for s in (await self.get_site_list(fromFile=fromFile)).get(
+                        "site_list"
+                    )
+                    or []
+                    if not siteId or s.get("site_id") == siteId
+                ]
+            }
+            # rebuild device list found in any site
+            if not siteId:
+                self._site_devices = set()
+        for site in sites.get("site_list", []):
+            if myid := site.get("site_id"):
+                # Update site info
+                mysite: dict = self.sites.get(myid, {})
+                site_info: dict = mysite.get("site_info", {})
+                site_info.update(site)
+                if hasattr(
+                    SolixSiteType,
+                    item := "t_" + str(site_info.get("power_site_type") or ""),
+                ):
+                    mysite["site_type"] = getattr(SolixSiteType, item)
+                # check if power panel site type
+                if mysite.get("site_type") == SolixDeviceType.POWERPANEL.value:
+                    mysite.update(
+                        {
+                            "site_id": myid,
+                            "type": SolixDeviceType.SYSTEM.value,
+                            "site_info": site_info,
+                        }
+                    )
+                    # add boolean key to indicate whether user is site admin (ms_type 1 or not known) and can query device details
+                    admin = site_info.get("ms_type", 0) in [0, 1]
+                    mysite["site_admin"] = admin
+                    # get currency list once if valid site found for account
+                    if "currency_list" not in self.account and (
+                        {ApiCategories.site_price} - exclude
+                    ):
+                        data = await self.get_currency_list(fromFile=fromFile)
+                        self._update_account(
+                            {
+                                "currency_list": data.get("currency_list") or [],
+                                "default_currency": data.get("default_currency") or {},
+                            }
+                        )
+                    # Get product list once for device names if no admin and save it in account cache
+                    if "products" not in self.account:
+                        if not admin and {ApiCategories.account_info} - exclude:
+                            self._update_account(
+                                {"products": await self.get_products(fromFile=fromFile)}
+                            )
+                        else:
+                            # Used defined codes for required device feature identification
+                            self._update_account({"products": PRODUCT_CODES})
+                    # Add any missing site device to cache
+                    for dev in [
+                        d
+                        for d in mysite.get("site_info", {}).get("site_device_list")
+                        or []
+                        if (sn := d.get("device_sn")) and sn not in self._site_devices
+                    ]:
+                        self._update_dev(
+                            {
+                                "device_sn": dev.get("device_sn"),
+                                "device_pn": dev.get("device_model"),
+                                "alias": dev.get("device_name"),
+                                "status": dev.get("status"),
+                            },
+                            siteId=myid,
+                            isAdmin=admin,
+                        )
+                        self._site_devices.add(sn)
+                    # query scene info if not provided in site Data
+                    if not (scene := siteData):
+                        self._logger.debug(
+                            "Getting api %s scene info for site",
+                            self.apisession.nickname,
+                        )
+                        scene = await self.get_scene_info(myid, fromFile=fromFile)
+                    # add extra site data to my site
+                    if scene:
+                        mysite["powerpanel_list"] = scene.get("powerpanel_list") or []
+                    for powerpanel in mysite.get("powerpanel_list") or []:
+                        # work around for device_name which is actually the device_alias in scene info
+                        if "device_name" in powerpanel:
+                            # modify only a copy of the device dict to prevent changing the scene info dict
+                            powerpanel = dict(powerpanel).copy()
+                            powerpanel.update(
+                                {"alias_name": powerpanel.pop("device_name")}
+                            )
+                        if sn := self._update_dev(
+                            powerpanel,
+                            siteId=myid,
+                            isAdmin=admin,
+                        ):
+                            self._site_devices.add(sn)
+
+                    # Query 5 min avg power and soc from energy stats as work around since no current power values found for power panels in cloud server yet
+                    if not (
+                        {
+                            SolixDeviceType.POWERPANEL.value,
+                            ApiCategories.powerpanel_avg_power,
+                        }
+                        & exclude
+                    ):
+                        if avg_data := await self.get_avg_power_from_energy(
+                            siteId=myid, fromFile=fromFile
+                        ):
+                            # Add energy offset info to site cache
+                            mysite.update(
+                                {
+                                    "energy_offset_seconds": (
+                                        avg_data.get("offset_seconds") or 0
+                                    )
+                                    - 10,
+                                    "energy_offset_check": avg_data.get("last_check"),
+                                    "energy_offset_tz": 1800
+                                    * round(
+                                        round(avg_data.get("offset_seconds") or 0)
+                                        / 1800
+                                    ),
+                                }
+                            )
+                            # Update todays energy totals if not excluded
+                            if (intraday := avg_data.get("intraday")) and not (
+                                {ApiCategories.powerpanel_energy} & exclude
+                            ):
+                                energy = mysite.get("energy_details") or {}
+                                # add intraday entry to indicate latest data for energy details routine
+                                energy.update({"intraday": intraday})
+                                # update todays data if no date mismatch
+                                if (energy.get("today") or {}).get("date") in [
+                                    None,
+                                    intraday.get("date"),
+                                ]:
+                                    energy.update({"today": intraday})
+                                mysite["energy_details"] = energy
+                        elif not (avg_data or {}).get("intraday"):
+                            # remove avg data from energy details to indicate no update was done for energy details routine
+                            (mysite.get("energy_details") or {}).pop("intraday", None)
+                    new_sites.update({myid: mysite})
+
+        # Write back the updated sites
+        self.sites = new_sites
+        return self.sites
+
+    async def update_disaster_status(
+        self, fromFile: bool = False, exclude: set | None = None
+    ) -> dict:
+        """Update the manual and auto disaster status if supported by site or standalone device. @thomas"""
+        # cycle through all sites
+        for site_id, site in self.sites.items():
+            if {site.get("site_type")} - exclude and site.get("site_details", {}).get(
+                "disaster_support", {}
+            ):
+                await self.get_device_disaster_status(
+                    identifier=site_id, fromFile=fromFile
+                )
+        # cycle through all stand alone devices which support auto disaster
+        for device_sn, device in self.devices.items():
+            if (
+                {device.get("type")} - exclude
+                and not device.get("site_id")
+                and device.get("disaster_support", {}).get("support_auto_disaster")
+            ):
+                await self.get_device_disaster_status(
+                    identifier=device_sn, id_type=1, fromFile=fromFile
+                )
+
+    async def update_site_details(
+        self, fromFile: bool = False, exclude: set | None = None
+    ) -> dict:
+        """Get the latest updates for additional account or site related details updated less frequently. @thomas
+
+        Implement this method for site related queries that should be used less frequently.
+        Most of theses requests return data only when user has admin rights for sites owning the devices.
+        To limit API requests, this update site details method should be called less frequently than update site method,
+        and it updates just the nested site_details dictionary in the sites dictionary as well as the account dictionary
+        """
+        # define excluded categories to skip for queries
+        if not exclude or not isinstance(exclude, set):
+            exclude = set()
+        self._logger.debug(
+            "Updating api %s Power Panel sites details",
+            self.apisession.nickname,
+        )
+        for site_id, site in self.sites.items():
+            # Fetch overall statistic totals for powerpanel site that should not be excluded since merged to overall site cache
+            self._logger.debug(
+                "Getting api %s system running totals information",
+                self.apisession.nickname,
+            )
+            await self.get_system_running_info(siteId=site_id, fromFile=fromFile)
+            # First fetch details that only work for site admins
+            if site.get("site_admin", False):
+                # Get disaster support once for site
+                if "disaster_support" not in site.get("site_details", {}):
+                    await self.get_disaster_support(
+                        identifier=site_id, fromFile=fromFile
+                    )
+                # Fetch disaster settings if supported
+                if site.get("site_details").get("disaster_support"):
+                    await self.get_device_disaster(
+                        identifier=site_id, fromFile=fromFile
+                    )
+                    # fetch first status if not done yet by update sites
+                    if not site.get("site_details").get("device_disaster_status"):
+                        await self.update_disaster_status(
+                            fromFile=fromFile, exclude=exclude
+                        )
+                # Fetch site price and CO2 settings
+                if {ApiCategories.site_price} - exclude:
+                    self._logger.debug(
+                        "Getting api %s price and CO2 settings for site",
+                        self.apisession.nickname,
+                    )
+                    await self.get_site_price(siteId=site_id, fromFile=fromFile)
+                # Fetch utility rate plan (TOU) of the main Power Panel device
+                if {ApiCategories.site_price} - exclude and (
+                    main_sn := next(
+                        (
+                            sn
+                            for sn, dev in self.devices.items()
+                            if dev.get("site_id") == site_id
+                            and dev.get("type") == SolixDeviceType.POWERPANEL.value
+                        ),
+                        None,
+                    )
+                ):
+                    self._logger.debug(
+                        "Getting api %s utility rate plan for site",
+                        self.apisession.nickname,
+                    )
+                    await self.get_utility_rate_plan(
+                        siteId=site_id, deviceSn=main_sn, fromFile=fromFile
+                    )
+            # Fetch details that work for all account types
+            # Fetch CO2 Ranking if not excluded
+            if not ({ApiCategories.powerpanel_energy} & exclude):
+                self._logger.debug(
+                    "Getting api %s CO2 ranking",
+                    self.apisession.nickname,
+                )
+            await self.get_co2_ranking(siteId=site_id, fromFile=fromFile)
+        return self.sites
+
+    async def update_device_energy(
+        self, fromFile: bool = False, exclude: set | None = None
+    ) -> dict:
+        """Get the site energy statistics for given site. @thomas
+
+        Implement this method for the required energy query methods to obtain energy data for today and yesterday.
+        It was found that energy data is tracked only per site, but not individual devices even if a device SN parameter may be mandatory in the Api request.
+        """
+        # check exclusion list, default to all energy data
+        if not exclude or not isinstance(exclude, set):
+            exclude = set()
+        for site_id, site in self.sites.items():
+            query_types: set = set()
+            # build device types set for daily energy query, depending on device types found for site
+            # Powerpanel sites have no variations for energy metrics, either all or none can be queried
+            if not (
+                {
+                    SolixDeviceType.POWERPANEL.value,
+                    ApiCategories.powerpanel_energy,
+                }
+                & exclude
+            ):
+                query_types: set = {SolixDeviceType.POWERPANEL.value}
+            if query_types:
+                self._logger.debug(
+                    "Getting api %s Power Panel energy details for site",
+                    self.apisession.nickname,
+                )
+                # obtain previous energy details to check if yesterday must be queried as well
+                energy = site.get("energy_details") or {}
+                # delay actual time to allow the cloud server to finish update of previous day, since previous day will be queried only once
+                # Cloud server energy stat updates may be delayed by 3 minutes for Power Panel
+                # min Offset in seconds to last valid record, reduce by 5 minutes to ensure last record is made
+                energy_offset = (site.get("energy_offset_seconds") or 0) - 300
+                time: datetime = datetime.now().astimezone() + timedelta(
+                    seconds=energy_offset
+                )
+                today = time.strftime("%Y-%m-%d")
+                yesterday = (time - timedelta(days=1)).strftime("%Y-%m-%d")
+                # Fetch energy from today or both days
+                data: dict = {}
+                skip_today: bool = False
+                # update todays data from existing intraday data if no date mismatch
+                if (intraday := energy.pop("intraday", {})).get("date") == today:
+                    data.update({today: intraday})
+                    skip_today = True
+                if yesterday != (energy.get("last_period") or {}).get("date"):
+                    data.update(
+                        await self.energy_daily(
+                            siteId=site_id,
+                            startDay=datetime.fromisoformat(yesterday).astimezone(),
+                            numDays=1 if skip_today else 2,
+                            dayTotals=True,
+                            devTypes=query_types,
+                            fromFile=fromFile,
+                        )
+                    )
+                elif not skip_today:
+                    data.update(
+                        await self.energy_daily(
+                            siteId=site_id,
+                            startDay=datetime.fromisoformat(today).astimezone(),
+                            numDays=1,
+                            dayTotals=True,
+                            devTypes=query_types,
+                            fromFile=fromFile,
+                        )
+                    )
+                energy["today"] = data.get(today) or {}
+                if yesterday in data:
+                    energy["last_period"] = data.get(yesterday) or {}
+                # save energy stats with sites dictionary
+                site["energy_details"] = energy
+                self.sites[site_id] = site
+        return self.sites
+
+    async def update_device_details(
+        self, fromFile: bool = False, exclude: set | None = None
+    ) -> dict:
+        """Get the latest updates for additional device info updated less frequently. @thomas
+
+        Implement this method for the required query methods to fetch device related data and update the device cache accordingly.
+        To limit API requests, this update device details method should be called less frequently than update site method,
+        which will also update most device details as found in the site data response.
+        """
+        # define excluded device types or categories to skip for queries
+        if not exclude or not isinstance(exclude, set):
+            exclude = set()
+        self._logger.debug(
+            "Updating api %s Power Panel Device details",
+            self.apisession.nickname,
+        )
+        for sn, device in self.devices.items():
+            if device.get("type") in (
+                {SolixDeviceType.POWERPANEL.value} - exclude
+            ) and device.get("is_admin", False):
+                # Fetch wifi info of the Power Panel, since bind_devices does not
+                # report the rssi of the panel itself (attached PPS devices are
+                # already covered by bind_devices, so they are skipped here)
+                self._logger.debug(
+                    "Getting api %s wifi info for device",
+                    self.apisession.nickname,
+                )
+                await self.get_wifi_info(deviceSn=sn, fromFile=fromFile)
+            elif not device.get("site_id"):
+                # fetch info for standalone devices, those are owned or shared devices
+                if device.get("type") in ({SolixDeviceType.PPS.value} - exclude):
+                    # Get auto disaster support once for device
+                    if "disaster_support" not in device:
+                        support = await self.get_disaster_support(
+                            identifier=sn, id_type=1, fromFile=fromFile
+                        )
+                        # Fetch initial disaster status if supported
+                        if support.get("support_auto_disaster"):
+                            await self.get_device_disaster_status(
+                                identifier=sn, id_type=1, fromFile=fromFile
+                            )
+                    else:
+                        support = device.get("disaster_support", {})
+                    # Fetch disaster settings if supported
+                    if support.get("support_auto_disaster"):
+                        await self.get_device_disaster(
+                            identifier=sn, id_type=1, fromFile=fromFile
+                        )
+        return self.devices
+
+    async def get_system_running_info(
+        self, siteId: str, fromFile: bool = False
+    ) -> dict:
+        """Get the site running information with tracked total stats. @thomas
+
+        Example data:
+        {"connect_infos": {"9NKBPG283YESZL5Y": true},"connected": true,"total_system_savings": 310.5,"system_savings_price_unit": "$",
+        "save_carbon_footprint": 2.53,"save_carbon_unit": "t","save_carbon_c": 0.997,"total_system_power_generation": 2.54,"system_power_generation_unit": "MWh"}
+        """
+        data = {"siteId": siteId}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_system_running_info']}_{siteId}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_CHARGING_ENDPOINTS["get_system_running_info"], json=data
+            )
+        data = resp.get("data") or {}
+        # update sites dict with relevant info and with required structure
+        stats = []
+        if data and (mysite := self.sites.get(siteId)):
+            # create statistics dictionary as used in scene_info for other sites to allow direct replacement
+            # Total Energy
+            stats.append(
+                {
+                    "type": "1",
+                    "total": ""
+                    if data.get("total_system_power_generation") is None
+                    else str(data.get("total_system_power_generation")),
+                    "unit": str(data.get("system_power_generation_unit") or "").lower(),
+                }
+            )
+            # Total carbon
+            stats.append(
+                {
+                    "type": "2",
+                    "total": ""
+                    if data.get("save_carbon_footprint") is None
+                    else str(data.get("save_carbon_footprint")),
+                    "unit": str(data.get("save_carbon_unit") or "").lower(),
+                }
+            )
+            # Total savings
+            stats.append(
+                {
+                    "type": "3",
+                    "total": ""
+                    if data.get("total_system_savings") is None
+                    else str(data.get("total_system_savings")),
+                    "unit": str(data.get("system_savings_price_unit") or ""),
+                }
+            )
+            # Add stats and connect infos to sites cache
+            mysite.update(
+                {
+                    "statistics": stats,
+                    "connect_infos": data.get("connect_infos") or {},
+                    "connected": data.get("connected"),
+                },
+            )
+            self.sites[siteId] = mysite
+        return data
+
+    async def get_avg_power_from_energy(
+        self, siteId: str, fromFile: bool = False
+    ) -> dict:
+        """Get the last 5 min average power from energy statistics. @thomas
+
+        Example data:
+        {"totalEnergy": "1.17","totalEnergyUnit": "KWh","totalImportedEnergy": "0.26","totalImportedEnergyUnit": "KWh","totalExportedEnergy": "1.17",
+            "totalExportedEnergyUnit": "KWh","power": [
+                {"time": "00:00","powerInfos": [{"type": "hes","value": "-0.00"},{"type": "hes","value": "0.01"}]},
+                {"time": "00:05","powerInfos": [{"type": "hes","value": "-0.01"},{"type": "hes","value": "0.01"}]},
+                ...
+                {"time": "23:55","powerInfos": [{"type": "hes","value": "0.00"},{"type": "hes","value": "0.00"}]}],
+            "powerUnit": "KW","chargeLevel": [
+                {"value": "23","time": "00:00"},
+                {"value": "23","time": "00:05"},
+                ...
+                {"value": "0","time": "23:55"}],
+            "energy": [
+                {"value": "1.17","negValue": "0","rods": [
+                    {"from": "0","to": "1.17","sourceType": "hes"}]}],
+            "energyUnit": "KWh",
+            "aggregates": [
+                {"title": "Photovoltaic power supply","value": "0.13","unit": "KWh","type": "solar","percent": "50%","imported": true},
+                {"title": "Grid power consumption","value": "0.13","unit": "KWh","type": "grid","percent": "50%","imported": true}],
+            "hasDiesel": false}
+        """
+        # get existing data first from device details to check if requery must be done
+        avg_data = next(
+            iter(
+                [
+                    (dev.get("average_power") or {})
+                    for dev in self.devices.values()
+                    if dev.get("type") == SolixDeviceType.POWERPANEL.value
+                    and dev.get("site_id") == siteId
+                ]
+            ),
+            {},
+        )
+        # Collect todays totals in new entry for re-use to avoid redundant daily energy polls
+        entry: dict = {}
+        # verify last runtime and avoid re-query in less than 5 minutes since no new values available in energy stats
+        if not (timestring := avg_data.get("last_check")) or (
+            datetime.now().astimezone()
+            - datetime.fromisoformat(timestring).astimezone()
+        ) >= timedelta(minutes=5):
+            self._logger.debug(
+                "Updating api %s power average values from energy statistics of Power Panel site ID %s",
+                self.apisession.nickname,
+                siteId,
+            )
+            offset = timedelta(seconds=avg_data.get("offset_seconds") or 0)
+            validtime = datetime.now().astimezone() + offset
+            validdata = {}
+            old_valid = avg_data.get("valid_time") or ""
+            for source in ["hes", "solar", "home", "grid"]:
+                # check for initial or updated min offset, using SOC value in hes data because that should never be 0 for a valid timestamp
+                if source == "hes":
+                    future = ""
+                    for diff in (
+                        [1, 0, -1]
+                        if offset.total_seconds() == 0 and not fromFile
+                        else [0]
+                    ):
+                        # check +/- 1 day to find last valid SOC timestamp in real data before invalid SOC entry of 0 %
+                        checkdate = validtime + timedelta(days=diff)
+                        self._logger.debug(
+                            "Checking api %s %s data of %s",
+                            self.apisession.nickname,
+                            source,
+                            checkdate.strftime("%Y-%m-%d"),
+                        )
+                        if fromFile:
+                            data = (
+                                await self.apisession.loadFromFile(
+                                    Path(self.testDir())
+                                    / f"{API_FILEPREFIXES[f'charging_energy_{source}_today']}_{siteId}.json"
+                                )
+                            ).get("data") or {}
+                        else:
+                            data = await self.energy_statistics(
+                                siteId=siteId,
+                                rangeType="day",
+                                sourceType=source,
+                                startDay=checkdate,
+                                endDay=checkdate,
+                            )
+                        # generate list of SOC timestamps different from 0 and pick last one
+                        if (
+                            soclist := [
+                                item
+                                for item in (data.get("chargeLevel") or [])
+                                if (item.get("value") or "0") != "0"
+                            ]
+                        ) and soclist[-1].get("time"):
+                            last = datetime.strptime(
+                                checkdate.strftime("%Y-%m-%d")
+                                + soclist[-1].get("time"),
+                                "%Y-%m-%d%H:%M",
+                            ).astimezone()
+                            future: datetime = last + timedelta(minutes=5)
+                            validdata = data
+                            break
+                    # get min offset to first invalid timestamp to find best check time (smallest delay after new value from cloud)
+                    if future:
+                        offset = min(
+                            # use default offset 2 days for first calculation
+                            timedelta(days=2)
+                            if offset.total_seconds() == 0
+                            # reset offset if significantly higher, when previous last valid entry was not really the last one due to 0 value SOC entries
+                            or future - datetime.now().astimezone()
+                            > offset + timedelta(minutes=6)
+                            else offset,
+                            # set offset few seconds before future invalid time if smaller than previous offset
+                            future - datetime.now().astimezone() - timedelta(seconds=5),
+                        )
+                        validtime = datetime.now().astimezone() + offset
+                        # reuse last valid data from timestamp check to get values
+                        data = validdata
+                        self._logger.debug(
+                            "Found valid api %s %s entries until %s",
+                            self.apisession.nickname,
+                            source,
+                            validtime.strftime("%Y-%m-%d %H:%M:%S"),
+                        )
+                elif fromFile:
+                    self._logger.debug(
+                        "Reading api %s %s data of %s",
+                        self.apisession.nickname,
+                        source,
+                        validtime.strftime("%Y-%m-%d"),
+                    )
+                    data = (
+                        await self.apisession.loadFromFile(
+                            Path(self.testDir())
+                            / f"{API_FILEPREFIXES[f'charging_energy_{source}_today']}_{siteId}.json"
+                        )
+                    ).get("data") or {}
+                else:
+                    self._logger.debug(
+                        "Querying api %s %s data of %s",
+                        self.apisession.nickname,
+                        source,
+                        validtime.strftime("%Y-%m-%d"),
+                    )
+                    data = await self.energy_statistics(
+                        siteId=siteId,
+                        rangeType="day",
+                        sourceType=source,
+                        startDay=validtime,
+                        endDay=validtime,
+                    )
+                # set last check time more into past to ensure each run verifies until offset no longer increases
+                if (
+                    future
+                    and not fromFile
+                    and (
+                        future - datetime.now().astimezone() - timedelta(seconds=5)
+                        < offset
+                        or offset.total_seconds == 0
+                    )
+                ):
+                    avg_data["last_check"] = (
+                        datetime.now().astimezone() - timedelta(minutes=5)
+                    ).strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    avg_data["last_check"] = (
+                        datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
+                    )
+                avg_data["valid_time"] = validtime.strftime("%Y-%m-%d %H:%M:%S")
+                avg_data["offset_seconds"] = round(offset.total_seconds())
+                if avg_data["valid_time"] == old_valid:
+                    # Skip remaining queries if valid time did not change
+                    return avg_data
+                if unit := data.get("powerUnit"):
+                    avg_data["power_unit"] = str(unit).lower().replace("w", "W")
+                # extract power values only if offset to last valid SOC entry was found
+                if offset.total_seconds() != 0 and (
+                    powerlist := [
+                        item
+                        for item in (data.get("power") or [])
+                        if (item.get("time") or "24:00") <= validtime.strftime("%H:%M")
+                    ]
+                ):
+                    entry["date"] = validtime.strftime("%Y-%m-%d")
+                    if source == "hes":
+                        for idx, power in enumerate(
+                            powerlist[-1].get("powerInfos") or [], start=1
+                        ):
+                            if idx == 1:
+                                avg_data["charge_power_avg"] = str(
+                                    power.get("value") or ""
+                                ).replace("-", "")
+                            else:
+                                avg_data["discharge_power_avg"] = str(
+                                    power.get("value") or ""
+                                ).replace("-", "")
+                        if soclist := [
+                            item
+                            for item in (data.get("chargeLevel") or [])
+                            if (item.get("time") or "24:00")
+                            <= validtime.strftime("%H:%M")
+                        ]:
+                            avg_data["state_of_charge"] = soclist[-1].get("value") or ""
+                        # get todays totals from data to avoid redundant daily query for today
+                        entry.update(self.extract_energy(source=source, data=data))
+                    elif source == "solar":
+                        avg_data["solar_power_avg"] = (
+                            next(
+                                iter(powerlist[-1].get("powerInfos") or []),
+                                {},
+                            ).get("value")
+                            or ""
+                        )
+                        # get todays totals from data to avoid redundant daily query for today
+                        entry.update(self.extract_energy(source=source, data=data))
+                    elif source == "home":
+                        avg_data["home_usage_avg"] = (
+                            next(
+                                iter(powerlist[-1].get("powerInfos") or []),
+                                {},
+                            ).get("value")
+                            or ""
+                        )
+                        # get todays totals from data to avoid redundant daily query for today
+                        entry.update(self.extract_energy(source=source, data=data))
+                    elif source == "grid":
+                        avg_data["grid_import_avg"] = (
+                            next(
+                                iter(powerlist[-1].get("powerInfos") or []),
+                                {},
+                            ).get("value")
+                            or ""
+                        )
+                        # Grid export data is not provided for daily queries.
+                        # Calculate delta from last export total
+                        avg_data["grid_export_avg"] = ""
+                        last_total = (
+                            (
+                                (self.sites.get(siteId) or {}).get("energy_details")
+                                or {}
+                            ).get("today")
+                            or {}
+                        ).get("solar_to_grid")
+                        # get todays totals from data to avoid redundant daily query for today
+                        entry.update(self.extract_energy(source=source, data=data))
+                        new_total = entry.get("solar_to_grid")
+                        if (
+                            str(new_total)
+                            .replace("-", "", 1)
+                            .replace(".", "", 1)
+                            .isdigit()
+                        ):
+                            if (
+                                str(last_total)
+                                .replace("-", "", 1)
+                                .replace(".", "", 1)
+                                .isdigit()
+                            ):
+                                # Assume new cycle if new < last total
+                                avg_data["grid_export_avg"] = (
+                                    float(new_total) - float(last_total)
+                                    if float(new_total) >= float(last_total)
+                                    else float(new_total)
+                                )
+                                # spread total Wh delta across time since last valid time
+                                interval = 300
+                                factor = 3600 / max(
+                                    interval
+                                    * round(
+                                        (
+                                            datetime.fromisoformat(
+                                                avg_data["valid_time"]
+                                            ).astimezone()
+                                            - datetime.fromisoformat(
+                                                old_valid
+                                            ).astimezone()
+                                        ).total_seconds()
+                                        / interval
+                                    ),
+                                    interval,
+                                )
+                                # consider unit conversion since totals are always converted to kwh
+                                avg_data["grid_export_avg"] = (
+                                    f"{(avg_data['grid_export_avg'] * factor * (1 if 'k' in avg_data['power_unit'].lower() else 1000)):.2f}"
+                                )
+                            else:
+                                # first total value, calculate an approximate for first interval (remainder from other avg values without loss)
+                                with contextlib.suppress(ValueError):
+                                    avg_data["grid_export_avg"] = (
+                                        f"{max(0, float(avg_data.get('solar_power_avg')) - float(avg_data.get('charge_power_avg')) + float(avg_data.get('discharge_power_avg')) - float(avg_data.get('home_usage_avg')) + float(avg_data.get('grid_import_avg'))):.2f}"
+                                    )
+            # update device dict with relevant info and with required structure
+            if avg_data:
+                # Add average power to device details as work around if no other powerpanel usage data will be found in cloud
+                for sn, dev in self.devices.items():
+                    if (
+                        dev.get("type") == SolixDeviceType.POWERPANEL.value
+                        and dev.get("site_id") == siteId
+                    ):
+                        self._update_dev({"device_sn": sn, "average_power": avg_data})
+        # return also todays totals so they can be merged to system data
+        return avg_data | ({"intraday": entry} if entry else {})
+
+    async def energy_statistics(
+        self,
+        siteId: str,
+        rangeType: str | None = None,
+        startDay: datetime | None = None,
+        endDay: datetime | None = None,
+        sourceType: str | None = None,
+        isglobal: bool = False,
+        productCode: str = "",
+    ) -> dict:
+        """Fetch Energy data for given device and optional time frame. @thomas
+
+        siteId: site ID of device
+        deviceSn: Device to fetch data # This does not really matter since system level data provided, but field is mandatory
+        rangeType: "day" | "week" | "year"
+        startTime: optional start Date and time
+        endTime: optional end Date and time
+        devType: "solar" | "hes" | "grid" | "home" | "pps" | "diesel"
+        Example Data for solar_production:
+        {"totalEnergy": "37.23","totalEnergyUnit": "KWh","totalImportedEnergy": "","totalImportedEnergyUnit": "","totalExportedEnergy": "37.23","totalExportedEnergyUnit": "KWh",
+        "power": null,"powerUnit": "","chargeLevel": null,"energy": [
+            {"value": "20.55","negValue": "0","rods": [
+                {"from": "0.00","to": "20.55","sourceType": "solar"}]},
+            {"value": "16.70","negValue": "0","rods": [
+                {"from": "0.00","to": "16.70","sourceType": "solar"}]}],
+        "energyUnit": "KWh","aggregates": [
+            {"title": "Battery charging capacity","value": "26.00","unit": "KWh","type": "hes","percent": "69%","imported": false},
+            {"title": "Load power consumption","value": "6.33","unit": "KWh","type": "home","percent": "17%","imported": false},
+            {"title": "Sold power","value": "4.90","unit": "KWh","type": "grid","percent": "14%","imported": false}]}
+
+        Responses for solar:
+        Daily: Solar Energy, Extra Totals: PV charged, PV usage, PV to grid, 3 x percentage share solar usage
+        Responses for pps:
+        Daily: Discharge Energy, Extra Totals: charge
+        Responses for hes:
+        Daily: Discharge Energy, Extra Totals: charge
+        Responses for home_usage:
+        Daily: Home Usage Energy, Extra Totals: grid_to_home, battery_to_home, pv_to_home, 3 x percentage share home usage source
+        Responses for grid:
+        Daily: Grid import, Extra Totals: solar_to_grid, grid_to_home, grid_to_battery, 2 x percentage share how import used
+        Responses for diesel:
+        unknown
+        """
+        data = {
+            "siteId": siteId,
+            "sourceType": sourceType
+            if sourceType in ["solar", "hes", "home", "grid", "pps", "diesel"]
+            else "solar",
+            "dateType": rangeType if rangeType in ["day", "week", "year"] else "day",
+            "start": startDay.astimezone().strftime("%Y-%m-%d")
+            if isinstance(startDay, datetime)
+            else datetime.today().astimezone().strftime("%Y-%m-%d"),
+            "end": endDay.astimezone().strftime("%Y-%m-%d")
+            if isinstance(endDay, datetime)
+            else datetime.today().astimezone().strftime("%Y-%m-%d"),
+            "global": isglobal,
+            "productCode": productCode,
+        }
+        resp = await self.apisession.request(
+            "post", API_CHARGING_ENDPOINTS["energy_statistics"], json=data
+        )
+        return resp.get("data") or {}
+
+    async def energy_daily(  # noqa: C901
+        self,
+        siteId: str,
+        startDay: datetime | None = None,
+        numDays: int = 1,
+        dayTotals: bool = False,
+        devTypes: set | None = None,
+        fromFile: bool = False,
+        showProgress: bool = False,
+    ) -> dict:
+        """Fetch daily Energy data for given interval and provide it in a table format dictionary. @thomas
+
+        Solar production data is always queried. Additional energy data will be queried for devtypes 'powerpanel'. The number of
+        queries is optimized if dayTotals is True
+        Example:
+        {"2023-09-29": {"date": "2023-09-29", "solar_production": "1.21", "battery_discharge": "0.47", "battery_charge": "0.56"},
+        "2023-09-30": {"date": "2023-09-30", "solar_production": "3.07", "battery_discharge": "1.06", "battery_charge": "1.39"}}
+        """
+        table = {}
+        startDay = (
+            startDay.astimezone()
+            if isinstance(startDay, datetime)
+            else datetime.today().astimezone()
+        )
+        if not devTypes or not isinstance(devTypes, set):
+            devTypes = set()
+        future = datetime.today().astimezone() + timedelta(days=7)
+        # check daily range and limit to 1 year max and avoid future days if more than 1 week
+        if startDay > future:
+            startDay = future
+            numDays = 1
+        elif (startDay + timedelta(days=numDays)) > future:
+            numDays = (future - startDay).days + 1
+        numDays = min(366, max(1, numDays))
+
+        # first get HES export
+        source = "hes"
+        if SolixDeviceType.POWERPANEL.value in devTypes:
+            # get first data period from file or api
+            if fromFile:
+                resp = (
+                    await self.apisession.loadFromFile(
+                        Path(self.testDir())
+                        / f"{API_FILEPREFIXES['charging_energy_hes']}_{siteId}.json"
+                    )
+                ).get("data", {})
+            else:
+                resp = await self.energy_statistics(
+                    siteId=siteId,
+                    rangeType="week",
+                    startDay=startDay,
+                    # query only 1 day if daytotals requested
+                    endDay=startDay
+                    if dayTotals
+                    else startDay + timedelta(days=numDays - 1),
+                    sourceType=source,
+                )
+            unit = resp.get("energyUnit") or ""
+            items = resp.get("energy") or []
+            # No daystring in response, count the index for proper date and skip previous items
+            # for file usage ensure that last item is used if today is included
+            start = (
+                len(items) - 1
+                if fromFile and datetime.now().astimezone().date() == startDay.date()
+                else 0
+            )
+            for idx, item in enumerate(items[start : start + numDays]):
+                daystr = (startDay + timedelta(days=idx)).strftime("%Y-%m-%d")
+                entry = table.get(daystr, {"date": daystr})
+                entry.update(
+                    {
+                        "battery_discharge": convertToKwh(
+                            val=item.get("value") or None, unit=unit
+                        ),
+                    }
+                )
+                table.update({daystr: entry})
+            # Power Panel HES has total charge energy for given interval. If requested, make daily queries for given interval
+            if dayTotals and table:
+                for day in [
+                    startDay + timedelta(days=x)
+                    for x in range(min(len(items), numDays) if fromFile else numDays)
+                ]:
+                    daystr = day.strftime("%Y-%m-%d")
+                    entry = table.get(daystr, {"date": daystr})
+                    # update response only for real requests if not first day which was already queried
+                    if not fromFile and day != startDay:
+                        resp = await self.energy_statistics(
+                            siteId=siteId,
+                            rangeType="week",
+                            startDay=day,
+                            endDay=day,
+                            sourceType=source,
+                        )
+                        # get first item from breakdown list for single day queries
+                        item = next(iter(resp.get("energy") or []), {})
+                        unit = resp.get("energyUnit") or ""
+                        entry.update(
+                            {
+                                "battery_discharge": convertToKwh(
+                                    val=item.get("value") or None, unit=unit
+                                ),
+                            }
+                        )
+                    entry.update(
+                        {
+                            "battery_charge": convertToKwh(
+                                val=resp.get("totalImportedEnergy") or None,
+                                unit=resp.get("totalImportedEnergyUnit"),
+                            ),
+                        }
+                    )
+                    table.update({daystr: entry})
+                    if showProgress:
+                        self._logger.info(
+                            "Received api %s hes energy for %s",
+                            self.apisession.nickname,
+                            daystr,
+                        )
+            if showProgress:
+                self._logger.info(
+                    "Received api %s hes energy for period",
+                    self.apisession.nickname,
+                )
+
+        # Get home usage energy types
+        source = "home"
+        if SolixDeviceType.POWERPANEL.value in devTypes:
+            # get first data period from file or api
+            if fromFile:
+                resp = (
+                    await self.apisession.loadFromFile(
+                        Path(self.testDir())
+                        / f"{API_FILEPREFIXES['charging_energy_home']}_{siteId}.json"
+                    )
+                ).get("data", {})
+            else:
+                resp = await self.energy_statistics(
+                    siteId=siteId,
+                    rangeType="week",
+                    startDay=startDay,
+                    # query only 1 day if daytotals requested
+                    endDay=startDay
+                    if dayTotals
+                    else startDay + timedelta(days=numDays - 1),
+                    sourceType=source,
+                )
+            unit = resp.get("energyUnit") or ""
+            items = resp.get("energy") or []
+            # for file usage ensure that last item is used if today is included
+            start = (
+                len(items) - 1
+                if fromFile and datetime.now().astimezone().date() == startDay.date()
+                else 0
+            )
+            for idx, item in enumerate(items[start : start + numDays]):
+                daystr = (startDay + timedelta(days=idx)).strftime("%Y-%m-%d")
+                entry = table.get(daystr, {"date": daystr})
+                entry.update(
+                    {
+                        "home_usage": convertToKwh(
+                            val=item.get("value") or None, unit=unit
+                        ),
+                    }
+                )
+                table.update({daystr: entry})
+            # Home has consumption breakdown and shares for given interval. If requested, make daily queries for given interval
+            if dayTotals and table:
+                for day in [
+                    startDay + timedelta(days=x)
+                    for x in range(min(len(items), numDays) if fromFile else numDays)
+                ]:
+                    daystr = day.strftime("%Y-%m-%d")
+                    entry = table.get(daystr, {"date": daystr})
+                    # update response only for real requests if not first day which was already queried
+                    if not fromFile and day != startDay:
+                        resp = await self.energy_statistics(
+                            siteId=siteId,
+                            rangeType="week",
+                            startDay=day,
+                            endDay=day,
+                            sourceType=source,
+                        )
+                        # get first item from breakdown list for single day queries
+                        item = next(iter(resp.get("energy") or []), {})
+                        unit = resp.get("energyUnit") or ""
+                        entry.update(
+                            {
+                                "home_usage": convertToKwh(
+                                    val=item.get("value") or None, unit=unit
+                                ),
+                            }
+                        )
+                    # get interval totals from aggregate
+                    entry.update(
+                        self.extract_energy(
+                            source=source, aggregate=resp.get("aggregates")
+                        )
+                    )
+                    table.update({daystr: entry})
+                    if showProgress:
+                        self._logger.info(
+                            "Received api %s home energy for %s",
+                            self.apisession.nickname,
+                            daystr,
+                        )
+            if showProgress:
+                self._logger.info(
+                    "Received api %s home energy for period",
+                    self.apisession.nickname,
+                )
+
+        # Add grid import, totals contain export and battery charging from grid for given interval
+        source = "grid"
+        if SolixDeviceType.POWERPANEL.value in devTypes:
+            # get first data period from file or api
+            if fromFile:
+                resp = (
+                    await self.apisession.loadFromFile(
+                        Path(self.testDir())
+                        / f"{API_FILEPREFIXES['charging_energy_grid']}_{siteId}.json"
+                    )
+                ).get("data", {})
+            else:
+                resp = await self.energy_statistics(
+                    siteId=siteId,
+                    rangeType="week",
+                    startDay=startDay,
+                    # query only 1 day if daytotals requested
+                    endDay=startDay
+                    if dayTotals
+                    else startDay + timedelta(days=numDays - 1),
+                    sourceType=source,
+                )
+            unit = resp.get("energyUnit") or ""
+            items = resp.get("energy") or []
+            # for file usage ensure that last item is used if today is included
+            start = (
+                len(items) - 1
+                if fromFile and datetime.now().astimezone().date() == startDay.date()
+                else 0
+            )
+            for idx, item in enumerate(items[start : start + numDays]):
+                daystr = (startDay + timedelta(days=idx)).strftime("%Y-%m-%d")
+                entry = table.get(daystr, {"date": daystr})
+                entry.update(
+                    {
+                        "battery_discharge": convertToKwh(
+                            val=item.get("value") or None, unit=unit
+                        ),
+                    }
+                )
+                table.update({daystr: entry})
+                entry = table.get(daystr, {"date": daystr})
+                entry.update(
+                    {
+                        "grid_import": convertToKwh(
+                            val=item.get("value") or None, unit=unit
+                        ),
+                    }
+                )
+                table.update({daystr: entry})
+            # Grid import and battery charge from grid totals for given interval. If requested, make daily queries for given interval
+            if dayTotals and table:
+                for day in [
+                    startDay + timedelta(days=x)
+                    for x in range(min(len(items), numDays) if fromFile else numDays)
+                ]:
+                    daystr = day.strftime("%Y-%m-%d")
+                    entry = table.get(daystr, {"date": daystr})
+                    # update response only for real requests if not first day which was already queried
+                    if not fromFile and day != startDay:
+                        resp = await self.energy_statistics(
+                            siteId=siteId,
+                            rangeType="week",
+                            startDay=day,
+                            endDay=day,
+                            sourceType=source,
+                        )
+                        # get first item from breakdown list for single day queries
+                        item = next(iter(resp.get("energy") or []), {})
+                        unit = resp.get("energyUnit") or ""
+                        entry.update(
+                            {
+                                "grid_import": convertToKwh(
+                                    val=item.get("value") or None, unit=unit
+                                ),
+                            }
+                        )
+                    entry.update(
+                        {
+                            "solar_to_grid": convertToKwh(
+                                val=resp.get("totalExportedEnergy") or None,
+                                unit=resp.get("totalExportedEnergyUnit"),
+                            ),
+                        }
+                    )
+                    # get interval totals from aggregate
+                    entry.update(
+                        self.extract_energy(
+                            source=source, aggregate=resp.get("aggregates")
+                        )
+                    )
+                    table.update({daystr: entry})
+                    if showProgress:
+                        self._logger.info(
+                            "Received api %s grid energy for %s",
+                            self.apisession.nickname,
+                            daystr,
+                        )
+            if showProgress:
+                self._logger.info(
+                    "Received api %s grid energy for period",
+                    self.apisession.nickname,
+                )
+
+        # Always Add solar production
+        source = "solar"
+        # get first data period from file or api
+        if fromFile:
+            resp = (
+                await self.apisession.loadFromFile(
+                    Path(self.testDir())
+                    / f"{API_FILEPREFIXES['charging_energy_solar']}_{siteId}.json"
+                )
+            ).get("data", {})
+        else:
+            resp = await self.energy_statistics(
+                siteId=siteId,
+                rangeType="week",
+                startDay=startDay,
+                # query only 1 day if daytotals requested
+                endDay=startDay
+                if dayTotals
+                else startDay + timedelta(days=numDays - 1),
+                sourceType=source,
+            )
+        unit = resp.get("energyUnit") or ""
+        items = resp.get("energy") or []
+        # for file usage ensure that last item is used if today is included
+        start = (
+            len(items) - 1
+            if fromFile and datetime.now().astimezone().date() == startDay.date()
+            else 0
+        )
+        for idx, item in enumerate(items[start : start + numDays]):
+            daystr = (startDay + timedelta(days=idx)).strftime("%Y-%m-%d")
+            entry = table.get(daystr, {"date": daystr})
+            entry.update(
+                {
+                    "solar_production": convertToKwh(
+                        val=item.get("value") or None, unit=unit
+                    ),
+                }
+            )
+            table.update({daystr: entry})
+        # Solar charge and is only received as total value for given interval. If requested, make daily queries for given interval
+        if dayTotals and table:
+            for day in [
+                startDay + timedelta(days=x)
+                for x in range(min(len(items), numDays) if fromFile else numDays)
+            ]:
+                daystr = day.strftime("%Y-%m-%d")
+                entry = table.get(daystr, {"date": daystr})
+                # update response only for real requests if not first day which was already queried
+                if not fromFile and day != startDay:
+                    resp = await self.energy_statistics(
+                        siteId=siteId,
+                        rangeType="week",
+                        startDay=day,
+                        endDay=day,
+                        sourceType=source,
+                    )
+                    # get first item from breakdown list for single day queries
+                    item = next(iter(resp.get("energy") or []), {})
+                    unit = resp.get("energyUnit") or ""
+                    entry.update(
+                        {
+                            "solar_production": convertToKwh(
+                                val=item.get("value") or None, unit=unit
+                            ),
+                        }
+                    )
+                # get interval totals from aggregate
+                entry.update(
+                    self.extract_energy(source=source, aggregate=resp.get("aggregates"))
+                )
+                table.update({daystr: entry})
+                if showProgress:
+                    self._logger.info(
+                        "Received api %s solar energy for %s",
+                        self.apisession.nickname,
+                        daystr,
+                    )
+        if showProgress:
+            self._logger.info(
+                "Received api %s solar energy for period",
+                self.apisession.nickname,
+            )
+        return table
+
+    def extract_energy(
+        self,
+        source: str,
+        data: dict | None = None,
+        aggregate: list | None = None,
+    ) -> dict:
+        """Extract the daily totals from the provided aggregate list or full data dict depending on the data source. @thomas
+
+        If the full data dictionary is provided, the data totals as well as the aggregate data will be extracted (e.g. for intraday responses).
+        The aggregate parameter input will then be ignored.
+        If only the aggregate list is provided, only those totals will be extracted, since interval breakdown must be extracted individually.
+        """
+        data = data if isinstance(data, dict) else {}
+        aggregate = (
+            aggregate
+            if isinstance(aggregate, list) and not data
+            else data.get("aggregates") or []
+        )
+        source = source if isinstance(source, str) else ""
+        entry: dict = {}
+        if data:
+            # extract also required totals of interval breakdown if data provided
+            if source == "hes":
+                entry.update(
+                    {
+                        "battery_charge": convertToKwh(
+                            val=data.get("totalImportedEnergy") or None,
+                            unit=data.get("totalImportedEnergyUnit") or "",
+                        ),
+                        "battery_discharge": convertToKwh(
+                            val=data.get("totalExportedEnergy") or None,
+                            unit=data.get("totalExportedEnergyUnit") or "",
+                        ),
+                    }
+                )
+            elif source == "home":
+                entry.update(
+                    {
+                        "home_usage": convertToKwh(
+                            val=data.get("totalImportedEnergy") or None,
+                            unit=data.get("totalImportedEnergyUnit") or "",
+                        ),
+                    }
+                )
+            elif source == "grid":
+                entry.update(
+                    {
+                        "solar_to_grid": convertToKwh(
+                            val=data.get("totalExportedEnergy") or None,
+                            unit=data.get("totalExportedEnergyUnit") or "",
+                        ),
+                        "grid_import": convertToKwh(
+                            val=data.get("totalImportedEnergy") or None,
+                            unit=data.get("totalImportedEnergyUnit") or "",
+                        ),
+                    }
+                )
+            elif source == "solar":
+                entry.update(
+                    {
+                        "solar_production": convertToKwh(
+                            val=data.get("totalExportedEnergy") or None,
+                            unit=data.get("totalExportedEnergyUnit") or "",
+                        ),
+                    }
+                )
+        for item in aggregate:
+            itemtype = str(item.get("type") or "").lower()
+            if source == "hes":
+                pass
+            elif source == "home":
+                if itemtype == "hes":
+                    if (
+                        percent := str(item.get("percent") or "").replace("%", "")
+                    ) and percent.isdigit():
+                        percent = str(float(percent) / 100)
+                    entry.update(
+                        {
+                            "battery_to_home": convertToKwh(
+                                val=item.get("value") or None,
+                                unit=item.get("unit"),
+                            ),
+                            "battery_percentage": percent,
+                        }
+                    )
+                elif itemtype == "solar":
+                    if (
+                        percent := str(item.get("percent") or "").replace("%", "")
+                    ) and percent.isdigit():
+                        percent = str(float(percent) / 100)
+                    entry.update(
+                        {
+                            "solar_to_home": convertToKwh(
+                                val=item.get("value") or None,
+                                unit=item.get("unit"),
+                            ),
+                            "solar_percentage": percent,
+                        }
+                    )
+                elif itemtype == "grid":
+                    if (
+                        percent := str(item.get("percent") or "").replace("%", "")
+                    ) and percent.isdigit():
+                        percent = str(float(percent) / 100)
+                    entry.update(
+                        {
+                            "grid_to_home": convertToKwh(
+                                val=item.get("value") or None,
+                                unit=item.get("unit"),
+                            ),
+                            "other_percentage": percent,
+                        }
+                    )
+            elif source == "grid":
+                if itemtype == "hes":
+                    entry.update(
+                        {
+                            "grid_to_battery": convertToKwh(
+                                val=item.get("value") or None,
+                                unit=item.get("unit"),
+                            ),
+                        }
+                    )
+            elif source == "solar":
+                if itemtype == "hes":
+                    entry.update(
+                        {
+                            "solar_to_battery": convertToKwh(
+                                val=item.get("value") or None,
+                                unit=item.get("unit"),
+                            ),
+                        }
+                    )
+                else:
+                    pass
+        return entry
+
+    async def get_disaster_support(
+        self, identifier: str, id_type: int = 2, fromFile: bool = False
+    ) -> dict:
+        """Get backup feature support info (auto disaster support, allowed country codes). @thomas
+
+        Example data:
+        {"support_auto_disaster": true,"support_country_code": [
+            {"code": "US","google_code": "ChIJCzYy5IS16lQRQrfeQ5K5Oxw"},
+            {"code": "PR","google_code": "ChIJ-aeSGyaWAowRGpsEGCjsNvM"}]}
+        """
+        data = {"identifier_id": identifier, "type": id_type}
+        self._logger.debug(
+            "Getting api %s site device disaster feature support for ID %s",
+            self.apisession.nickname,
+            identifier,
+        )
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_disaster_support_func']}_{identifier}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_CHARGING_ENDPOINTS["get_disaster_support_func"], json=data
+            )
+        # Add result to site or device details
+        result = resp.get("data") or {}
+        if id_type == 1:
+            # cache under device_details
+            self._update_dev({"device_sn": identifier, "disaster_support": result})
+        else:
+            # cache under site_details
+            self._update_site(identifier, {"disaster_support": result})
+        return result
+
+    async def get_device_disaster(
+        self, identifier: str, id_type: int = 2, fromFile: bool = False
+    ) -> dict:
+        """Get the manual/auto backup (disaster preparedness) configuration of a Power Panel site or stand alone PPS. @thomas
+
+        Verified on A17B1 Home Power Panel, id_type=2 for power panel sites, and AS220 id_type=1 for S2000 PPS
+        Example data:
+        {"auto_disaster_switch": false,"manual_disaster_switch": true,"disaster_details": [
+            {"uuid": "00000000-0000-0000-0000-000000000001","disaster_type": 1,"event": "","start_time": 1780988280,
+            "end_time": 1780991880,"charging_time": 36,"event_key": ""}]}
+        """
+        self._logger.debug(
+            "Getting api %s site device disaster config for ID %s",
+            self.apisession.nickname,
+            identifier,
+        )
+        data = {"identifier_id": identifier, "type": id_type}
+        if fromFile:
+            # For file data, verify first if there is a modified file to be used for testing
+            if not (
+                resp := await self.apisession.loadFromFile(
+                    Path(self.testDir())
+                    / f"{API_FILEPREFIXES['charging_get_site_device_disaster']}_modified_{identifier}.json"
+                )
+            ):
+                resp = await self.apisession.loadFromFile(
+                    Path(self.testDir())
+                    / f"{API_FILEPREFIXES['charging_get_site_device_disaster']}_{identifier}.json"
+                )
+        else:
+            resp = await self.apisession.request(
+                "post", API_CHARGING_ENDPOINTS["get_site_device_disaster"], json=data
+            )
+        if result := resp.get("data") or {}:
+            if id_type == 1:
+                # cache under device_details
+                self._update_dev({"device_sn": identifier, "device_disaster": result})
+            else:
+                # cache under site_details
+                self._update_site(identifier, {"device_disaster": result})
+        return result
+
+    async def get_device_disaster_status(
+        self, identifier: str, id_type: int = 2, fromFile: bool = False
+    ) -> dict:
+        """Get the live backup-preparedness status of a Power Panel site. @thomas
+
+        auto_disaster_status: 1 = progressing, 2 = inactive.
+        manual_disaster_status: 1 = progressing, 2 = inactive.
+        current_disaster_detail is only populated while a window is active.
+        Note: status flips to 1 only once start_time is reached, back to 2 after end_time.
+        Example data:
+        {"auto_disaster_status": 2,"manual_disaster_status": 1,"current_disaster_detail": {
+            "uuid": "00000000-0000-0000-0000-000000000001","disaster_type": 1,"event": "","start_time": 1780988280,
+            "end_time": 1780991880,"charging_time": 36,"event_key": ""}}
+        """
+        self._logger.debug(
+            "Getting api %s site device disaster status for ID %s",
+            self.apisession.nickname,
+            identifier,
+        )
+        data = {"identifier_id": identifier, "type": id_type}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_site_device_disaster_status']}_{identifier}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_CHARGING_ENDPOINTS["get_site_device_disaster_status"],
+                json=data,
+            )
+        if result := resp.get("data") or {}:
+            if id_type == 1:
+                # cache under device_details
+                self._update_dev(
+                    {"device_sn": identifier, "device_disaster_status": result}
+                )
+            else:
+                # cache under site_details
+                self._update_site(identifier, {"device_disaster_status": result})
+        return result
+
+    async def set_auto_disaster(
+        self,
+        identifier: str,
+        id_type: int = 2,
+        enable: bool = False,
+        toFile: bool = False,
+    ) -> dict:
+        """Disable or enable auto disaster (storm guard) for a Power Panel or device. @thomas
+
+        Notes: When disabled, the device may ramp power down gradually rather than cutting off instantly.
+        Returns the refreshed disaster configuration or an empty dict upon error
+        """
+        data = {
+            "identifier_id": identifier,
+            "type": id_type,
+            "auto_disaster_switch": bool(enable),
+        }
+        if toFile:
+            # change only relevant parts of existing status
+            if id_type == 1:
+                filedata = self.devices.get(identifier, {}).get("device_disaster") or {}
+            else:
+                filedata = (
+                    self.sites.get(identifier, {})
+                    .get("site_details", {})
+                    .get("device_disaster")
+                    or {}
+                )
+            filedata["auto_disaster_switch"] = bool(enable)
+            if not await self.apisession.saveToFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_site_device_disaster']}_modified_{identifier}.json",
+                data={"code": 0, "msg": "success!", "data": data},
+            ):
+                return {}
+        else:
+            code = (
+                await self.apisession.request(
+                    "post",
+                    API_CHARGING_ENDPOINTS["set_site_device_disaster"],
+                    json=data,
+                )
+            ).get("code")
+            if not isinstance(code, int) or int(code) != 0:
+                return {}
+        # return refreshed config and update cache
+        return await self.get_device_disaster(
+            identifier=identifier, id_type=id_type, fromFile=toFile
+        )
+
+    async def set_manual_backup(
+        self,
+        identifier: str,
+        id_type: int = 2,
+        enable: bool = False,
+        start_time: int | datetime | None = None,
+        end_time: int | datetime | None = None,
+        disaster_type: int = 1,
+        toFile: bool = False,
+    ) -> dict:
+        """Disable or enable manual backup mode for a Power Panel site over a time window. @thomas
+
+        Notes: When disabled, the device ramps power down gradually rather than cutting off instantly.
+        Disaster_type other than 1 is accepted but stored/returned as 1;
+        start_time / end_time are unix epoch seconds; end_time must be after start_time.
+        The server auto-generates the event uuid.
+        Returns the refreshed disaster configuration or an empty dict upon error
+        """
+        if isinstance(start_time, datetime):
+            start_time = int(start_time.timestamp())
+        elif not isinstance(start_time, int):
+            start_time = 0
+        if isinstance(end_time, datetime):
+            end_time = int(end_time.timestamp())
+        elif not isinstance(end_time, int):
+            end_time = 0
+        data = {
+            "identifier_id": identifier,
+            "type": id_type,
+            "manual_disaster_switch": bool(enable),
+        }
+        # When disabled, the payload MUST omit manual_disaster_detail.
+        # Sending manual_disaster_detail=None returns code:-1 'Failed to request.'.
+        if enable:
+            if end_time <= start_time:
+                self._logger.error(
+                    "Api %s error for set_manual_backup: start_time %s must be before end_time %s",
+                    self.apisession.nickname,
+                    start_time,
+                    end_time,
+                )
+                return {}
+            data["manual_disaster_detail"] = {
+                "disaster_type": disaster_type,
+                "start_time": start_time,
+                "end_time": end_time,
+            }
+        if toFile:
+            # change only relevant parts of existing status
+            if id_type == 1:
+                filedata = self.devices.get(identifier, {}).get("device_disaster") or {}
+            else:
+                filedata = (
+                    self.sites.get(identifier, {})
+                    .get("site_details", {})
+                    .get("device_disaster")
+                    or {}
+                )
+            filedata["manual_disaster_switch"] = bool(enable)
+            if details := data.get("manual_disaster_detail"):
+                if (filedetails := filedata.get("disaster_details")) and isinstance(
+                    filedetails, list
+                ):
+                    filedetails[0].update(details)
+                else:
+                    # Mock the details if it just got enabled without previous information
+                    filedetails = (
+                        {"uuid": "00000000-0000-0000-0000-000000000001"}
+                        | details
+                        | {"charging_time": 36, "event_key": ""}
+                    )
+                filedata["disaster_details"] = [filedetails]
+            else:
+                filedata["disaster_details"] = []
+            if not await self.apisession.saveToFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_site_device_disaster']}_modified_{identifier}.json",
+                data={"code": 0, "msg": "success!", "data": data},
+            ):
+                return {}
+        else:
+            code = (
+                await self.apisession.request(
+                    "post",
+                    API_CHARGING_ENDPOINTS["set_site_device_disaster"],
+                    json=data,
+                )
+            ).get("code")
+            if not isinstance(code, int) or int(code) != 0:
+                return {}
+        # return refreshed config and update cache
+        return await self.get_device_disaster(
+            identifier=identifier, id_type=id_type, fromFile=toFile
+        )
+
+    async def get_utility_rate_plan(
+        self, siteId: str, deviceSn: str, fromFile: bool = False
+    ) -> dict:
+        """Get the Time-of-Use (TOU) utility rate plan of a Power Panel site. @thomas
+
+        Verified on A17B1 Home Power Panel (owner account).
+        Returns peak_sessions[] (each with peak_valley_prices: buy price per time
+        period, peak_type 1-4, day_type) and fixed_price.
+
+        Example data:
+        {"peak_sessions": [{"id": 10001,"name": "Season 1","start_time": "2026-01-01 00:00:00","start_desc": "January",
+            "end_time": "2026-12-01 00:00:00","end_desc": "December","type": 2,"peak_valley_prices": [
+            {"id": 20001,"buy": 0.03,"energy_unit": "kWh","start_time_period": "00:00","end_time_period": "16:00","peak_type": 1,"day_type": 2},
+            {"id": 20002,"buy": 0.39,"energy_unit": "kWh","start_time_period": "16:00","end_time_period": "21:00","peak_type": 4,"day_type": 2},
+            {"id": 20006,"buy": 0.09,"energy_unit": "kWh","start_time_period": "07:00","end_time_period": "23:00","peak_type": 2,"day_type": 1}]}],
+        "fixed_price": null}
+        """
+        self._logger.debug(
+            "Getting api %s Power Panel utility rate plan", self.apisession.nickname
+        )
+        data = {"siteId": siteId, "sn": deviceSn}
+        if fromFile:
+            # For file data, verify first if there is a modified file to be used for testing
+            if not (
+                resp := await self.apisession.loadFromFile(
+                    Path(self.testDir())
+                    / f"{API_FILEPREFIXES['charging_get_utility_rate_plan']}_modified_{deviceSn}.json"
+                )
+            ):
+                resp = await self.apisession.loadFromFile(
+                    Path(self.testDir())
+                    / f"{API_FILEPREFIXES['charging_get_utility_rate_plan']}_{deviceSn}.json"
+                )
+        else:
+            resp = await self.apisession.request(
+                "post", API_CHARGING_ENDPOINTS["get_utility_rate_plan"], json=data
+            )
+        if result := resp.get("data") or {}:
+            # add to device cache
+            self._update_dev({"device_sn": deviceSn, "utility_rate_plan": result})
+        return result
+
+    async def get_monetary_units(self, deviceSn: str, fromFile: bool = False) -> dict:
+        """Get the list of supported monetary/price units (currencies) for the system. @thomas
+
+        Example data:
+        {"price_units": [{"price_unit": "$","is_default": true,"name": "AUD, CAD, USD"},
+            {"price_unit": "€","is_default": false,"name": "EUR"},{"price_unit": "£","is_default": false,"name": "GBP"}]}
+        """
+        data = {"sn": deviceSn}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_monetary_units']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_CHARGING_ENDPOINTS["get_monetary_units"], json=data
+            )
+        return resp.get("data") or {}
+
+    async def get_device_info(
+        self, deviceSns: list[str], fromFile: bool = False
+    ) -> dict:
+        """Get Wi-Fi / MAC binding info for the provided device serials. @thomas
+
+        Works for the Home Power Panel and its attached PPS serials.
+        Returns device_infos[] with device_type, ble_mac, wifi_bind_type, connect, site_id.
+
+        Example data:
+        {"device_infos": [
+            {"sn": "AZVABY0F00000001","device_type": "A17B1","ble_bind_type": 2,"ble_mac": "F49D8A000001","wifi_bind_type": 2,"connect": true,"site_id": "f6a1b2c3-d4e5-6789-abcd-ef0123456789"},
+            {"sn": "AZVBH30D00000001","device_type": "A1790","ble_bind_type": 2,"ble_mac": "E8EECC000001","wifi_bind_type": 2,"connect": false,"site_id": ""}]}
+        """
+        data = {"sns": list(deviceSns)}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_device_info']}_{next(iter(deviceSns), '')}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_CHARGING_ENDPOINTS["get_device_info"], json=data
+            )
+        result = resp.get("data") or {}
+        # update device cache with details
+        for device in result.get("device_infos") or []:
+            devdata = device.copy()
+            devdata["device_sn"] = devdata.pop("sn", "")
+            self._update_dev(devdata)
+        return result
+
+    async def get_wifi_info(self, deviceSn: str, fromFile: bool = False) -> dict:
+        """Get the Wi-Fi network (ssid, rssi) the given device is connected to. @thomas
+
+        Example data:
+        {"ssid": "wifi-network-1", "rssi": 100}
+        """
+        data = {"sn": deviceSn}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_wifi_info']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_CHARGING_ENDPOINTS["get_wifi_info"], json=data
+            )
+        result = resp.get("data") or {}
+        # update device cache with wifi details, since bind_devices does not report
+        # the rssi of the Power Panel itself
+        if result:
+            devdata = {"device_sn": deviceSn}
+            if str(result.get("ssid") or ""):
+                devdata["wifi_name"] = str(result.get("ssid"))
+            if str(result.get("rssi") or ""):
+                devdata["rssi"] = str(result.get("rssi"))
+            self._update_dev(devdata)
+        return result
+
+    async def get_installation_inspection(
+        self, siteId: str, deviceSn: str, fromFile: bool = False
+    ) -> dict:
+        """Get the installation/self-inspection status of a Power Panel site. @thomas
+
+        Returns latest_result, latest_time, latest_page (last App page viewed)
+        and need_self_inspection.
+
+        Example data:
+        {"latest_result": true, "latest_time": 1758515431, "latest_page": "/electricityScene", "need_self_inspection": true}
+        """
+        data = {"siteId": siteId, "sn": deviceSn}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_installation_inspection']}_{deviceSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post",
+                API_CHARGING_ENDPOINTS["get_installation_inspection"],
+                json=data,
+            )
+        return resp.get("data") or {}
+
+    async def get_device_sns(
+        self, mainSn: str, macs: list[str], fromFile: bool = False
+    ) -> dict:
+        """Resolve attached device MAC addresses to serial numbers for a Power Panel. @thomas
+
+        Returns {"mac_sn_map": {<mac>: <sn>}}; the main device's own MAC maps to "".
+
+        Example data:
+        {"mac_sn_map": {"E8EECC000001": "AZVBH30D00000001","E8EECC000002": "AZVBH30D00000002","F49D8A000001": ""}}
+        """
+        data = {"main_sn": mainSn, "macs": list(macs)}
+        if fromFile:
+            resp = await self.apisession.loadFromFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_sns']}_{mainSn}.json"
+            )
+        else:
+            resp = await self.apisession.request(
+                "post", API_CHARGING_ENDPOINTS["get_sns"], json=data
+            )
+        return resp.get("data") or {}
+
+    async def set_utility_rate_plan(
+        self,
+        siteId: str,
+        deviceSn: str,
+        peak_sessions: list,
+        fixed_price: float | None = None,
+        toFile: bool = False,
+    ) -> dict:
+        """Set (replace) the Time-of-Use (TOU) utility rate plan of a Power Panel site. @thomas
+
+        Two-step cloud flow, verified reversible on A17B1 (owner account):
+        preprocess_utility_rate_plan compiles the peak_sessions into a compact
+        "rule" string, then ack_utility_rate_plan commits
+        {rule, peak_sessions, fixed_price}. Returns the refreshed plan.
+
+        peak_sessions uses the same structure returned by get_utility_rate_plan
+        (each session has peak_valley_prices with buy/start_time_period/
+        end_time_period/peak_type/day_type).
+
+        Example "rule" returned by preprocess (compact schedule encoding):
+        [{"Sea":{"S":1,"E":12},"P1":[{"S":0,"E":16,"T":3},{"S":16,"E":21,"T":1},{"S":21,"E":23,"T":1},{"S":23,"E":24,"T":3}],
+          "P2":[{"S":0,"E":7,"T":3},{"S":7,"E":23,"T":2},{"S":23,"E":24,"T":3}]}]
+        Sea = season start/end month, P1/P2 = hourly segments for day_type 2/1,
+        S/E = hour boundaries (0-24), T = price tier (T3 = off-peak, T2 = mid-peak,
+        T1 = peak). The rule string does NOT carry the prices, which is why ack
+        must include the full peak_sessions and fixed_price alongside it.
+        """
+        if not isinstance(peak_sessions, list):
+            self._logger.error("set_utility_rate_plan: peak_sessions must be a list")
+            return {}
+        data = {
+            "siteId": siteId,
+            "sn": deviceSn,
+            "peak_sessions": peak_sessions,
+            "fixed_price": fixed_price,
+        }
+        if toFile:
+            if not await self.apisession.saveToFile(
+                Path(self.testDir())
+                / f"{API_FILEPREFIXES['charging_get_utility_rate_plan']}_modified_{deviceSn}.json",
+                data={
+                    "code": 0,
+                    "msg": "success!",
+                    "data": {
+                        "peak_sessions": peak_sessions,
+                        "fixed_price": fixed_price,
+                    },
+                },
+            ):
+                return {}
+        else:
+            rule = (
+                (
+                    await self.apisession.request(
+                        "post",
+                        API_CHARGING_ENDPOINTS["preprocess_utility_rate_plan"],
+                        json=data,
+                    )
+                ).get("data")
+                or {}
+            ).get("rule")
+            code = (
+                await self.apisession.request(
+                    "post",
+                    API_CHARGING_ENDPOINTS["ack_utility_rate_plan"],
+                    json={
+                        "siteId": siteId,
+                        "sn": deviceSn,
+                        "rule": rule,
+                        "peak_sessions": peak_sessions,
+                        "fixed_price": fixed_price,
+                    },
+                )
+            ).get("code")
+            if not isinstance(code, int) or int(code) != 0:
+                return {}
+        # return refreshed plan and update cache
+        return await self.get_utility_rate_plan(
+            siteId=siteId, deviceSn=deviceSn, fromFile=toFile
+        )

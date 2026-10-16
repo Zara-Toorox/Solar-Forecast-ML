@@ -1,0 +1,2481 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""Default definitions required for the Anker Power/Solix Cloud API. @thomas"""
+
+from dataclasses import InitVar, asdict, dataclass
+from datetime import datetime
+from enum import Enum, IntEnum, StrEnum
+from typing import Any, ClassVar, Final
+
+# API servers per region. Country assignment not clear, defaulting to EU server
+API_SERVERS: Final[dict] = {
+    "eu": "https://ankerpower-api-eu.anker.com",
+    "com": "https://ankerpower-api.anker.com",
+}
+# The Api preset Key may be a region-specific AES-128 key the app provisions into its stored
+# userConfig ("presetKey"). It is a constant per region/build and never returned in a response.
+# It wraps the ECDH public keys and keys the key-exchange signature.
+API_PRESET_KEYS: Final[dict] = {
+    "eu": "e8ad18f61bbd3fbd52d5ed12d14d3b9c",  # Confirmed same key work is working
+    "com": "e8ad18f61bbd3fbd52d5ed12d14d3b9c",  # Confirmed same key work is working
+}
+API_LOGIN: Final[str] = "passport/login"
+API_KEY_EXCHANGE: Final[str] = "openapi/oauth/key/exchange"
+API_HEADERS: Final[dict] = {
+    "content-type": "application/json",
+    "model-type": "DESKTOP",
+    # "model-type": "PHONE",
+    # "app-version": "3.6.0",
+    "app-name": "anker_power",
+    "os-type": "android",
+}
+API_COUNTRIES: Final[dict] = {
+    "com": [
+        "DZ",
+        "LB",
+        "SY",
+        "EG",
+        "LY",
+        "TN",
+        "MA",
+        "JO",
+        "PS",
+        "AR",
+        "AU",
+        "BR",
+        "HK",
+        "IN",
+        "MX",  # TODO (#162): May need EU assignment
+        "NG",
+        "NZ",
+        "RU",
+        "ZA",
+        "KR",
+        "TW",
+        "US",
+        "CA",
+    ],
+    "eu": [
+        "DE",
+        "BE",
+        "EL",
+        "LT",
+        "PT",
+        "BG",
+        "ES",
+        "LU",
+        "CZ",
+        "FR",
+        "HU",
+        "SI",
+        "DK",
+        "HR",
+        "MT",
+        "SK",
+        "IT",
+        "NL",
+        "FI",
+        "EE",
+        "CY",
+        "AT",
+        "SE",
+        "IE",
+        "LV",
+        "PL",
+        "UK",
+        "IS",
+        "NO",
+        "LI",
+        "CH",
+        "BA",
+        "ME",
+        "MD",
+        "MK",
+        "GE",
+        "AL",
+        "RS",
+        "TR",
+        "UA",
+        "XK",
+        "AM",
+        "BY",
+        "AZ",
+        "IL",
+        "RO",  # See #250, HA #443, #410
+        "JP",  # See #317, HA #557
+        "SG",  # See HA #593
+    ],
+}  # TODO(2): Expand or update list once ID assignments are wrong or missing
+
+"""Following are the Anker Power/Solix Cloud API power_service endpoints known so far. Some are common, others are mainly for balcony power systems"""
+API_ENDPOINTS: Final[dict] = {
+    # Power endpoints */v1/site/*
+    "homepage": "power_service/v1/site/get_site_homepage",  # Scene info for configured site(s), content as presented on App Home Page (mostly empty for shared accounts)
+    "site_list": "power_service/v1/site/get_site_list",  # List of available site ids for the user, will also show sites shared withe the account
+    "site_detail": "power_service/v1/site/get_site_detail",  # Information for given site_id, can also be used by shared accounts
+    "site_detail_by_sn": "power_service/v1/site/get_site_detail_by_sn",  # needs owner, {"device_sn": deviceSn}, site_info from site list response
+    "site_rules": "power_service/v1/site/get_site_rules",  # Information for supported power site types and their min and max qty per device model types
+    "scene_info": "power_service/v1/site/get_scen_info",  # Scene info for provided site id (contains most information as the App home screen, with some but not all device details)
+    "user_devices": "power_service/v1/site/list_user_devices",  # List Device details of owned devices, not all device details information included
+    "charging_devices": "power_service/v1/site/get_charging_device",  # List of Portable Power Station devices?
+    "get_device_parm": "power_service/v1/site/get_site_device_param",  # Get settings of a device for the provided site id and param type (e.g. Schedules), types [1 2 3 4 5 6 7 12 13 16 18 20 23 24 25 26 27 28 29 30 31 32 33 34 35]
+    "set_device_parm": "power_service/v1/site/set_site_device_param",  # Apply provided settings to a device for the provided site id and param type (e.g. Schedules),
+    "energy_analysis": "power_service/v1/site/energy_analysis",  # Fetch energy data for given time frames
+    "home_load_chart": "power_service/v1/site/get_home_load_chart",  # Fetch data as displayed in home load chart for schedule adjustments for given site_id and optional device SN (empty if solarbank not connected)
+    "wifi_list": "power_service/v1/site/get_wifi_info_list",  # List of available networks for provided site id
+    "get_site_price": "power_service/v1/site/get_site_price",  # List defined power price and CO2 for given site, works only for site owner account
+    "update_site_price": "power_service/v1/site/update_site_price",  # Update power price and CO2 for given site, works only for site owner account
+    "get_forecast_schedule": "power_service/v1/site/get_schedule",  # get remaining energy and negative price slots, works as member, {"site_id": siteId}
+    "get_co2_ranking": "power_service/v1/site/co2_ranking",  # get CO2 ranking for SB2/3 site_id, works as member, {"site_id": siteId}
+    "get_site_power_limit": "power_service/v1/site/get_power_limit",  # needs owner, lists power limits for system
+    "get_site_csv_export": "power_service/v1/site/site_data_exported",  # works for member, but system must support csv export, {"site_id": siteId, "start_time": "2026-03-14", "end_time": "2026-03-15"}, filename and URL for CSV download
+    # Power endpoints */v1/app/*
+    "get_auto_upgrade": "power_service/v1/app/get_auto_upgrade",  # List of Auto-Upgrade configuration and enabled devices, only works for site owner account
+    "set_auto_upgrade": "power_service/v1/app/set_auto_upgrade",  # Set/Enable Auto-Upgrade configuration, works only for site owner account
+    "bind_devices": "power_service/v1/app/get_relate_and_bind_devices",  # List with details of locally connected/bound devices, includes firmware version, works only for owner account
+    "get_device_load": "power_service/v1/app/device/get_device_home_load",  # Get defined device schedule (same data as provided with device param query)
+    "set_device_load": "power_service/v1/app/device/set_device_home_load",  # Set defined device schedule, Accepts the new schedule, but does NOT change it? Maybe future use for schedules per device
+    "get_ota_info": "power_service/v1/app/compatible/get_ota_info",  # Get OTA status for solarbank and/or inverter serials
+    "get_ota_update": "power_service/v1/app/compatible/get_ota_update",  # Get info of available OTA update
+    "solar_info": "power_service/v1/app/compatible/get_compatible_solar_info",  # Solar inverter definition for solarbanks, works only with owner account
+    "get_cutoff": "power_service/v1/app/compatible/get_power_cutoff",  # Get Power Cutoff settings (Min SOC) for provided site id and device sn, works only with owner account
+    "set_cutoff": "power_service/v1/app/compatible/set_power_cutoff",  # Set Min SOC for device, only works for owner accounts
+    "compatible_process": "power_service/v1/app/compatible/get_compatible_process",  # contains solar_info plus OTA processing codes, works only with owner account
+    "get_device_fittings": "power_service/v1/app/get_relate_device_fittings",  # Device fittings for given site id and device sn. Shows Accessories like Solarbank 0W Switch info
+    "get_upgrade_record": "power_service/v1/app/get_upgrade_record",  # get list of firmware update history
+    "check_upgrade_record": "power_service/v1/app/check_upgrade_record",  # show an upgrade record for the device, types 1-3 show different info, only works for owner account
+    "get_device_attributes": "power_service/v1/app/device/get_device_attrs",  # for solarbank and/or smart meter? {"device_sn":sn,"attributes":["rssi","pv_power_limit","legal_power_limit","power_limit_option","power_limit_option_real","switch_0w"]}
+    "set_device_attributes": "power_service/v1/app/device/set_device_attrs",  # attr name may be different than for get, {"device_sn":sn,"attributes":{"pv_power_limit":800,"ac_power_limit":1200,"power_limit":800}}
+    "get_config": "power_service/v1/app/get_config",  # shows empty config list, also for shared account
+    "get_installation": "power_service/v1/app/compatible/get_installation",  # shows install_mode and solar_sn, also for shared account
+    "set_installation": "power_service/v1/app/compatible/set_installation",  # not explored yet
+    "get_third_platforms": "power_service/v1/app/third/platform/list",  # list supported third party device models
+    "get_token_by_userid": "power_service/v1/app/get_token_by_userid",  # get token for authenticated user. Is that the token to be used to query shelly status?
+    "get_shelly_status": "power_service/v1/app/get_user_op_shelly_status",  # get op_list with correct token
+    "get_device_income": "power_service/v1/app/device/get_device_income",  # {"device_sn": deviceSn, "start_time": "00:00"})) # Get income data for device, works for member
+    "get_device_group": "power_service/v1/app/group/get_group_devices",  # works as member, shows whether device is grouped with sub devices, {"device_sn": deviceSn}
+    "get_device_charge_order_stats": "power_service/v1/app/order/get_charge_order_stats",  # works as member, date_type[week month year all], show EV_charger stats, {"device_sn":deviceSn,"date_type":"all","start_date":"","end_date":""}))
+    "get_device_charge_order_stats_list": "power_service/v1/app/order/get_charge_order_stats_list",  # works as member, date_type[week month year all], order_Status unknown, {"device_sn":deviceSn,"order_status":1,"date_type":"all","start_date":"","end_date":"","page":0,"page_size":10}
+    "get_ocpp_endpoint_list": "power_service/v1/app/get_ocpp_endpoint_list",  # lists ocpp endpoints used by Anker, including source number per endpoint
+    "get_device_ocpp_info": "power_service/v1/app/get_ocpp_info",  # works as member also for empty device SN, {"device_sn": deviceSn}, list device endpoint source number, default 0 if nothing found explicitly? (Useful only for EV charger devices)
+    "get_device_rfid_cards": "power_service/v1/rfid/get_device_cards",  # needs owner. get rfid cards (for EV charger?), {"device_sn": deviceSn}
+    "get_vehicle_brands": "power_service/v1/app/get_brand_list",  # get vehicle brand list
+    "get_vehicle_brand_models": "power_service/v1/app/get_models",  # get model list for given brand, {"brand_name": "BMW"}
+    "get_vehicle_model_years": "power_service/v1/app/get_model_years",  # get productive year list for given model, {"brand_name": "BMW", "model_name": "iX3"}
+    "get_vehicle_year_attributes": "power_service/v1/app/get_model_list",  # get attributes for model and productive year, {"brand_name": "BMW", "model_name": "iX3", "productive_year": 2023}
+    "get_user_vehicles": "power_service/v1/app/vehicle/get_vehicle_list",  # list of vehicles with details for account
+    "get_user_vehicle_details": "power_service/v1/app/vehicle/get_vehicle_detail",  # details for given vehicle id, {"vehicle_id": vehicleId}
+    "vehicle_add": "power_service/v1/app/vehicle/add_vehicle",  # add vehicles to account, {"user_vehicle_info": [{"vehicle_name": "MyCar","brand": "Audi","model": "eTron","productive_year": 2024}]}
+    "vehicle_update": "power_service/v1/app/vehicle/update_vehicle",  # update any vehicle detail, {"vehicle_id": vehicleId, "vehicle_name": "MyCar","brand": "Audi","model": "eTron","productive_year": 2024, "battery_capacity": 80, "ac_max_charging_power": 11, "energy_consumption_per_100km": 18}
+    "vehicle_delete": "power_service/v1/app/vehicle/delete_vehicle",
+    "vehicle_set_charging": "power_service/v1/app/vehicle/set_charging_vehicle",  #  needs EV_Charger device, {"vehicle_id": vehicleId, "device_sn": deviceSn, "transaction_id": 1}
+    "vehicle_set_default": "power_service/v1/app/vehicle/set_default",  # set vehicle id as default, {"vehicle_id": vehicleId}
+    "get_currency_list": "power_service/v1/currency/get_list",  # get list of supported currencies for power sites
+    # Power endpoints */v1/device/*
+    "get_tamper_records": "power_service/v1/device/get_tamper_records",  # needs owner, not sure what it does, {"device_sn": deviceSn, "page_num": 1, "page_size": 10}
+    # Power endpoints */v2/device/*
+    "get_device_energy": "power_service/v2/device/energy_analysis", # works on newer PPS {"device_sn": deviceSn,"type": "week","start_time": "2026-09-21","end_time": "2026-09-27"}
+    # Power endpoints */v1/dynamic_price/*
+    "get_dynamic_price_sites": "power_service/v1/dynamic_price/check_available",  # Get available site id_s for dynamic prices of account, works as member but list empty
+    "get_dynamic_price_providers": "power_service/v1/dynamic_price/support_option",  # Get available provider list for device_pn and login country, works as member, {"device_pn": "A5102"}
+    "get_dynamic_price_details": "power_service/v1/dynamic_price/price_detail",  # {"area": "GER", "company": "Nordpool", "date": "1748908800", "device_sn": ""})) # works for members, device_sn may be empty, date is int posix timestamp as string
+    # Power endpoints */v1/*
+    "get_message_unread": "power_service/v1/get_message_unread",  # GET method to show if there are unread messages for account
+    "get_message": "power_service/v1/get_message",  # GET method to list Messages from certain time, not explored or used (last_time format unknown)
+    "get_product_categories": "power_service/v1/product_categories",  # GET method to list all supported products with details and web picture links
+    "get_product_accessories": "power_service/v1/product_accessories",  # GET method to list all supported products accessories with details and web picture links
+    # Power endpoints */v1/ai_ems/*
+    "get_ai_ems_status": "power_service/v1/ai_ems/get_status",  # Get status of AI learning mode and remaining seconds, works as member, {"site_id": siteId}))
+    "get_ai_ems_profit": "power_service/v1/ai_ems/profit",  # Type is unclear, may work as member,  {"site_id": siteId, "start_time": "00:00", "end_time": "24:00", "type": "grid"}))
+    # Power endpoints for extender systems with generator
+    "get_extender_system_pn_ota": "power_service/v1/app/get_extender_system_pn_ota",  # works for member, get PNs and required? firmware in relation to generator A7320?
+    "get_extender_system_list": "power_service/v1/app/get_extender_system_list",  # works for member but empty, may list only systems with generator?
+    "get_extender_system_detail": "power_service/v1/app/get_extender_system_detail",  # requires extender system, {"extender_system_id": siteId},
+    "get_extender_system_cumulative_data": "power_service/v1/app/get_extender_system_cumulative_data",  # works for member but no data, may require correct system type, {"extender_system_id": siteId, other?},
+    "get_device_bind_details": "power_service/v1/app/get_device_bind_details",  # works for member, {"device_sn_list": [deviceSn]}, provides extender system id
+    # App endpoints
+    "get_ota_batch": "app/ota/batch/check_update",  # get OTA information and latest version for device SN list, works also for shared accounts, but data only received for owner accounts
+    "get_mqtt_info": "app/devicemanage/get_user_mqtt_info",  # post method to list mqtt server and certificates for a site, not explored or used
+    "get_shared_device": "app/devicerelation/get_shared_device",  # works as member, list device sharing details, {"device_sn": deviceSn}, sharing works only for EV charger or any device?
+    # Endpoints for standalone Anker inverter devices
+    "get_device_pv_status": "charging_pv_svc/getPvStatus",  # post method get the current activity status and power generation of one or multiple devices
+    "get_device_pv_total_statistics": "charging_pv_svc/getPvTotalStatistics",  # post method the get total statistics (generated power, saved money, saved CO2) of a device
+    "get_device_pv_statistics": "charging_pv_svc/statisticsPv",  # post method to get detailed statistics on a daily, weekly, monthly or yearly basis
+    "get_device_pv_price": "charging_pv_svc/selectUserTieredElecPrice",  # post method to get defined price tiers for stand alone inverter (only first tier is applied for full day)
+    "set_device_pv_price": "charging_pv_svc/updateUserTieredElecPrice",  # post method to set price tiers for stand alone inverter (only first tier is applied for full day)
+    "set_device_pv_power": "charging_pv_svc/set_aps_power",  # post method to set stand alone inverter limit
+    # Endpoints for standalone Anker power charger devices
+    "charger_get_charging_modes": "mini_power/v1/app/charging/get_charging_mode_list",  # {"device_sn": deviceSn}
+    "charger_get_triggers": "mini_power/v1/app/egg/get_easter_egg_trigger_list",  # {"device_sn": deviceSn}
+    "charger_get_statistics": "mini_power/v1/app/power/get_day_power_data",  # {"device_sn": deviceSn, "device_model": "A2345", "date": "2025-02-27"} # working day str format unknown
+    "charger_get_device_setting": "mini_power/v1/app/setting/get_device_setting",  # {"device_sn": deviceSn}
+    "charger_get_screensavers": "mini_power/v1/app/style/get_clock_screensavers",  # works for {"product_code": "A2345"} => Prime charger
+    "charger_get_manual_screensavers": "mini_power/v1/app/style/get_manual_clock_screensavers",  # {"sn": deviceSn} # empty if no manual screensavers defined for device
+    "charger_get_port_remarks": "mini_power/v1/app/setting/get_port_remarks",  # list applied port labels {"device_sn": deviceSn}
+    "charger_set_port_remark": "mini_power/v1/app/setting/set_port_remark",  # label a port {"device_sn": deviceSn, "port_name": "C3", "remark": "test"}
+    "charger_get_protocol_status": "mini_power/v1/app/setting/get_protocol_status",  # get protocol details per mode {"device_sn": deviceSn})
+}
+
+"""Following are the Anker Power/Solix Cloud API charging_energy_service endpoints known so far. They are used for Power Panels."""
+API_CHARGING_ENDPOINTS: Final[dict] = {
+    "get_error_info": "charging_energy_service/get_error_infos",  # No input param needed, show errors for account?
+    "get_system_running_info": "charging_energy_service/get_system_running_info",  # Cumulative Home/System Energy Savings since Home creation date
+    "energy_statistics": "charging_energy_service/energy_statistics",  # Energy stats for PPS and Home Panel, # source type [solar hes grid home pps diesel]
+    "get_rom_versions": "charging_energy_service/get_rom_versions",  # Check for firmware update and download available packages, needs owner account
+    "get_device_info": "charging_energy_service/get_device_infos",  # Wifi and MAC infos for provided devices, needs owner account
+    "get_wifi_info": "charging_energy_service/get_wifi_info",  # Displays WiFi network connected to Home Power Panel, needs owner account
+    "get_installation_inspection": "charging_energy_service/get_installation_inspection",  # appears to say which page last viewed on App, needs owner account
+    "get_utility_rate_plan": "charging_energy_service/get_utility_rate_plan",  # needs owner account
+    "preprocess_utility_rate_plan": "charging_energy_service/preprocess_utility_rate_plan",  # needs owner, json={"siteId", "sn", "peak_sessions", "fixed_price"}, returns {"rule": compact tier schedule}
+    "ack_utility_rate_plan": "charging_energy_service/ack_utility_rate_plan",  # needs owner, json={"siteId", "sn", "rule", "peak_sessions", "fixed_price"}, commits the TOU plan (verified reversible on A17B1); rule drops prices, so full peak_sessions + fixed_price must be included
+    "report_device_data": "charging_energy_service/report_device_data",  # ctrol [0 1], works but data is null (may need owner account?)
+    "get_configs": "charging_energy_service/get_configs",  # json={"siteId": "SITEID", "sn": "POWERPANELSN", "param_types": []})) # needs owner account, list of parm types not clear
+    "get_sns": "charging_energy_service/get_sns",  # json={"main_sn": "POWERPANELSN","macs": ["F38001MAC001","F38002MAC002"]})) # needs owner account, Displays Serial Numbers of attached PPS in Home
+    "get_monetary_units": "charging_energy_service/get_world_monetary_unit",  # monetary unit list for system, needs owner account
+    # Power Panel disaster preparedness / backup mode (verified on A17B1 hardware, use type=2)
+    # Standalone PPS may be supported as well, charging_disaster_prepared endpoints also work on EU server
+    "get_disaster_support_func": "charging_disaster_prepared/get_support_func",  # {"identifier_id": siteId, "type": 2} or {"identifier_id": deviceSn, "type": 1}
+    "get_site_device_disaster": "charging_disaster_prepared/get_site_device_disaster",  # {"identifier_id": siteId, "type": 2} or {"identifier_id": deviceSn, "type": 1}
+    "get_site_device_disaster_status": "charging_disaster_prepared/get_site_device_disaster_status",  # {"identifier_id": siteId, "type": 2} or {"identifier_id": deviceSn, "type": 1}
+    "set_site_device_disaster": "charging_disaster_prepared/set_site_device_disaster",  # Auto On/Off: switch true/false; Manual ON: switch True + manual_disaster_detail; Manual OFF: switch False, omit detail
+}
+
+"""Following are the Anker Power/Solix Cloud API charging_hes_svc endpoints known so far. They are used for Home Energy Systems like X1."""
+API_HES_SVC_ENDPOINTS: Final[dict] = {
+    "get_product_info": "charging_hes_svc/get_device_product_info",  # List of Anker HES devices, works with shared account
+    "get_heat_pump_plan": "charging_hes_svc/get_heat_pump_plan_json",  # heat pump plan, works with shared account
+    "get_electric_plan_list": "charging_hes_svc/get_electric_utility_and_electric_plan_list",  # Energy plan if available for country & state combination, works with shared account
+    "get_system_running_info": "charging_hes_svc/get_system_running_info",  # system runtime info, works with shared account
+    "get_system_profit": "charging_hes_svc/get_system_profit_detail",  # works as member, {"siteId": siteId,"dateType": "year","start": "2025","end": ""} [day 2025-01-01, week, month 2025-01, year 2025], weekly syntax unklear
+    "energy_statistics": "charging_hes_svc/get_energy_statistics",  # Energy stats for HES, # source type [solar hes grid home pps evCharger otherLoad]
+    "get_monetary_units": "charging_hes_svc/get_world_monetary_unit",  # monetary unit list for system, works with shared account
+    "get_install_info": "charging_hes_svc/get_install_info",  # get system install info, works with shared account. Shows installation location
+    "get_wifi_info": "charging_hes_svc/get_wifi_info",  # get device wifi info, works with shared account
+    "get_installer_info": "charging_hes_svc/get_installer_info",  # no shared account access, Shows contact information of the installer
+    "get_system_running_time": "charging_hes_svc/get_system_running_time",  # no shared account access, needs HES site?
+    "get_mi_layout": "charging_hes_svc/get_mi_layout",  # no shared account access, needs HES site?
+    "get_conn_net_tips": "charging_hes_svc/get_conn_net_tips",  # no shared account access, needs HES site?
+    "get_hes_dev_info": "charging_hes_svc/get_hes_dev_info",  # works with shared account, lists hes device structure and SNs
+    "report_device_data": "charging_hes_svc/report_device_data",  # no shared account access, needs HES site and installer system?
+    "get_evcharger_standalone": "charging_hes_svc/get_user_bind_and_not_in_station_evchargers",  # works as member, but list may be empty
+    "get_evcharger_station_info": "charging_hes_svc/get_evcharger_station_info",  # works as member, {"evChargerSn": deviceSn, "featuretype": 1}, featuretype [1,2]
+}
+
+""" Other endpoints neither implemented nor explored: 97 + 79 used => 176
+    'power_service/v1/get_message_sn_list',  # get list of devices providing messages
+    'power_service/v1/get_message_not_disturb',  # get do not disturb messages settings
+    'power_service/v1/message_not_disturb',  # change do not disturb messages settings {"start_time": int(timedelta(hours=5).total_seconds()/60), "end_time": int(timedelta(hours=19,minutes=45).total_seconds()/60),
+        "disturb_switch": True, "disturb_scenes": {"boost_charging": True, "paused_car_charging": True,"paused_charging": True,"restore_charging": True,"smart_charging": True,"start_charging": True,"stop_charging": True}
+    'power_service/v1/read_message', # payload format unknown
+    'power_service/v1/add_message',
+    'power_service/v1/del_message',
+    'power_service/v1/dynamic_price/check_adjust',  # works for members, but only applies on owned devices?, not sure what it does, {}, lists owned SB3 device with status code but also others
+    'power_service/v1/rfid/save_device_card',
+    'power_service/v1/rfid/delete_device_card',
+    'power_service/v1/site/can_create_site',
+    'power_service/v1/site/create_site',
+    'power_service/v1/site/update_site',
+    'power_service/v1/site/delete_site',
+    'power_service/v1/site/add_charging_device',
+    'power_service/v1/site/update_charging_device',
+    'power_service/v1/site/reset_charging_device',
+    'power_service/v1/site/delete_charging_device',
+    'power_service/v1/site/add_site_devices',
+    'power_service/v1/site/delete_site_devices',
+    'power_service/v1/site/update_site_devices',
+    'power_service/v1/site/get_addable_site_list', # show to which defined site a given model type can be added
+    'power_service/v1/site/get_comb_addable_sites',
+    'power_service/v1/site/shift_power_site_type', # maybe to convert to different system type, {"site_id": siteId, "power_site_type": 11}
+    'power_service/v1/site/local_net',
+    'power_service/v1/site/set_device_feature', # Set device feature for site_id and smart_plug list, may require owner, usage unknown, {"site_id": siteId, "smart_plug" : [value]}) May be used for automatic control of plugs in smart mode?
+    'power_service/v1/site/site_data_check' # works for member, {"site_id": siteId, "current_time": "2025-12-10"}, check if site has data
+    'power_service/v1/site/get_site_list' # already used, but found twice in app package
+    'power_service/v1/site/electrician/add'
+    'power_service/v1/site/electrician/get' # needs owner, {"site_id": siteId}, shows electrician name and email
+    'power_service/v1/app/compatible/check_third_sn',
+    'power_service/v1/app/compatible/confirm_permissions_settings',
+    'power_service/v1/app/compatible/get_confirm_permissions', # works as member, {"device_model": "A17C0"} => "data": {"is_confirm": 1,"confirm_type": "APs"}
+    'power_service/v1/app/compatible/installation_popup',
+    'power_service/v1/app/compatible/save_compatible_solar',
+    'power_service/v1/app/compatible/set_ota_update',
+    'power_service/v1/app/compatible/save_ota_complete_status',
+    'power_service/v1/app/device/get_mes_device_info', # shows laser_sn field but no more info
+    'power_service/v1/app/device/get_relate_belong' # shows belonging of site type for given device
+    'power_service/v1/app/device/remove_param_config_key'
+    2*'power_service/v1/app/device/get_device_attrs'
+    2*'power_service/v1/app/device/set_device_attrs'
+    'power_service/v1/app/group/replace_group_devices',
+    2*'power_service/v1/app/group/get_group_devices'
+    'power_service/v1/app/group/save_group_devices',
+    'power_service/v1/app/group/force_save_group_devices',
+    'power_service/v1/app/group/delete_group_devices',
+    'power_service/v1/app/order/get_charging_order_list',  # may need member EV_Charger, Get all orders in range, {"device_sn": deviceSn, "start_time": "2026-02-09"}
+    'power_service/v1/app/order/get_charging_order_detail',  # # Data points for charts of order, also vehicle details {"device_sn": deviceSn, "order_id": orderId}
+    'power_service/v1/app/order/get_charging_order_sec_detail',  # may need real EV_Charger? {"order_id": orderId,"start_time": <timestamp>}
+    'power_service/v1/app/order/get_charging_order_sec_preview',  # may need real EV_Charger? {"order_id": orderId}
+    'power_service/v1/app/order/export_charge_order',
+    'power_service/v1/app/order/delete_charging_order',
+    'power_service/v1/app/after_sale/get_popup',  # works as site member, {"site_id": siteId}, get active pop ups with code
+    'power_service/v1/app/after_sale/check_popup',
+    'power_service/v1/app/after_sale/check_sn',  # checks whether any account device SN is eligible for replacement of battery (recall programs?)
+    'power_service/v1/app/after_sale/mark_sn',
+    'power_service/v1/app/share_site/anonymous_join_site',
+    'power_service/v1/app/share_site/delete_site_member',
+    'power_service/v1/app/share_site/invite_member',
+    'power_service/v1/app/share_site/delete_inviting_member',
+    'power_service/v1/app/share_site/get_invited_list',
+    'power_service/v1/app/share_site/join_site',
+    2*'power_service/v1/app/user/get_user_param', # works as member, {"params": []} parameters are unknown
+    2*"power_service/v1/app/user/set_user_param",
+    'power_service/v1/app/whitelist/feature/check', # Unclear what this is used for, requires check_list with objects for unknown feature_code e.g. {"check_list": [{"feature_code": "smartmeter", "product_code": "A17C5"}]}
+    'power_service/v1/app/set_extender_system_cumulative_data'
+    'power_service/v1/app/set_extender_system_name'
+    'power_service/v1/app/add_extender_system'
+    'power_service/v1/app/add_extender_system_device_list'
+    'power_service/v1/app/del_extender_system'
+    'power_service/v1/app/update_extender_system_strategy' # may change the extender strategy?
+    'power_service/v1/app/batch_add_extender_system_device'
+    'power_service/v1/app/batch_del_extender_system_device'
+    'power_service/v1/app/get_strategy_last_record' # may need owner access and correct system type {"extender_system_id": siteId, "strategy_type": 1},
+    'power_service/v1/app/get_phonecode_list',
+    'power_service/v1/app/get_annual_report',  # new report starting Jan 2025?
+    'power_service/v1/app/report_tlv_event',  # tamper event? unknown what events to report, {"device_sn": deviceSn, "events": [{}]}
+    'power_service/v1/app/shelly_ctrl_device', # {"device_sn": deviceSn, "op_type": "parameter", "value": value})) # Control shelly device settings, may require owner, usage known
+    'power_service/v1/app/upgrade_event_report', # post an entry to upgrade event report {"device_sn": deviceSn, others?},
+    'power_service/v1/app/upgrade_event_reports' # {"upgrade_even_device_infos": [???]},
+    'power_service/v1/app/mothly_report_show',  # This is no typo in the endpoint! Get link to actual html report, but App is required to view
+    'power_service/v1/app/mothly_report_list',  # This is no typo in the endpoint! List existing monthly reports {"site_id": siteId}
+    'power_service/v1/app/get_monthly_report_configs', # get the monthly report messages {"site_id": siteId}
+    'power_service/v1/app/set_monthly_report_configs', # configure the monthly report messages
+    'power_service/v1/app/get_device_last_exercise_log' # {"device_sn": deviceSn, "exercise_type": 3}
+    'power_service/v1/app/get_device_exercise_log' # {"device_sn": deviceSn, "exercise_type": 3, "page": 3, "page_size": 80}
+    'power_service/v1/app/get_parts_maintenance_logs'
+    'power_service/v1/app/get_parts_maintenance_plan'
+    'power_service/v1/app/get_oil_consumption_reminder_plan_details' # {"device_sn": deviceSn}
+    'power_service/v1/app/get_device_exercise_details' # {"device_sn": deviceSn}
+    'power_service/v1/app/batch_maintain_oil_engine_parts'
+    'power_service/v1/app/set_maintain_parts_notice_switch'
+    'power_service/v1/app/set_parts_maintenance_plan'
+    'power_service/v1/app/set_oil_machine_exercise_plan'
+    'power_service/v1/app/start_oil_machine_exercise'
+    'power_service/v1/app/switch_exercise_mode'
+    'power_service/v1/app/set_oil_consumption_reminder_switch'
+    'power_service/v1/app/set_oil_consumption_reminder_plan'
+    'power_service/v1/app/set_maintain_parts_ignore_reminders'
+
+related to power V2: 15 + 1 used => 16 total
+    'power_service/v2/app/get_custom_branch_icon' # get list of branch icons and url
+    'power_service/v2/app/get_hardware_relation'# shows empty list, {"sn_list": [deviceSn]}
+    'power_service/v2/platform_get_pn_region_code'# {"product_code": "AE103"})) SB4 => {"product_code": "AE103","region_codes": [{"country_code": "DE","states": [{"state_code": "DE","grid_code": 3,"grid_code_name": "VDE-AR-N 4105"}]},...]}
+    'power_service/v2/site/platform_energy_analysis_options'
+    'power_service/v2/app/set_device_pv_name'
+    'power_service/v2/device/energy_options' # shows earliest date for device # {"device_sn": deviceSn}))
+    'power_service/v2/device/energy_options_reconnect' # endpoint yet unknown on server
+    'power_service/v2/device/timeline/event' # {"device_sn": deviceSn})) => {"total_count": 0,"all_unlocked": false,"top_event": null,"statistics": {"stable_days": 0,"offgrid_consume": 0,"co2": 0},"list": []}
+    'power_service/v2/device/timeline/event/batch_read'
+    'power_service/v2/device/report_data'
+    'power_service/v2/platform_get_user_region_param' # {"product_code": "A17C5", "identifier_id": deviceSn, "scenario_type": 1})) # if supported, CC, grid code, advanced params settings for grid options
+    'power_service/v2/platform_set_user_region_param'
+    'power_service/v2/site/get_output_power_info' # {"device_sn": deviceSn})) # needs special owned device, maybe SB4, Max AC
+    'power_service/v2/site/platform_get_site_savings' # may need special site? {"site_id": siteId, "type": "week", "data_type": 1, "start_time": "2026-08-01, "end_time": "2026-08-04"}))
+    'power_service/v2/site/platform_get_site_scene'  # may need special site?
+
+related to micro inverter without system: 1 + 6 used => 7 total
+    'charging_pv_svc/getMiStatus',
+
+App related: 21 + 3 used => 24 total
+    'app/devicemanage/update_relate_device_info',
+    'app/cloudstor/get_app_up_token_general',
+    'app/cloudstor/get_app_up_token_without_login',
+    'app/logging/get_device_logging',
+    'app/logging/upload',
+    'app/logging/upload_pb_events',
+    'app/devicerelation/up_alias_name',  # Update Alias name of device? Fails with (10003) Failed to request
+    'app/devicerelation/un_relate_and_unbind_device',
+    'app/devicerelation/relate_device',
+    'app/devicerelation/device_invite', # Sharing of EV charger devices, {"nick_name": "lol***", "email": "<email>", "invites": [{"device_sn": deviceSn, "member_type": 1}]}
+    'app/devicerelation/confirm_invite', # accept invite
+    'app/devicerelation/ignore_invite',
+    'app/devicerelation/update_share',
+    'app/devicerelation/clear_share',
+    'app/news/get_popups',
+    'app/news/popup_record',
+    'app/push/clear_count',
+    'app/push/register_push_token',
+    'smart_service/v1/app/anka/get_entry_config',
+    'smart_service/v1/app/anka/get_menu_config',
+    'smart_service/v1/app/anka/set_entry_switch',
+
+Passport related: 30 + 0 used => 30 total
+    'passport/get_user_param', # specify param_type which must be parsable as list of int, but does not show anything in response
+    'passport/update_user_param',
+    'passport/get_subscriptions,  #  get user email, accept_survey, subscribe, phone_number, sms_subscribe
+    'passport/set_subscriptions',
+    'passport/get_profile', # get email, nickname, geokey, userid and some profile info
+    'passport/login',
+    'passport/logout',
+    'passport/update_profile',
+    'passport/change_password',
+    'passport/forget_password',
+    'passport/set_account_password',
+    'passport/validate_pass',
+    'passport/destroy_user',
+    'passport/phone_reset_password',
+    'passport/phone_verification_login',
+    'passport/phone_verification_regist',
+    'passport/phone_code_list',
+    'passport/external_login',
+    'passport/third_party_login',
+    'passport/freeze_account',
+    'passport/register',
+    'passport/resend_active_email',
+    'passport/validate_email', # verify if an email is already registered
+    'passport/terminal_id',
+    'passport/estimate_domain',
+    'passport/phone_bind_account',
+    'passport/phone_verification_code',
+    'passport/subscription_configs',  # get show_sms
+    'passport/discount_desc',  # get title, sub_title, button and sub_button
+
+PPS and Power Panel related: 4 + 14 used => 18 total
+    "charging_energy_service/sync_installation_inspection", # Unknown at this time
+    "charging_energy_service/sync_config",
+    "charging_energy_service/restart_peak_session",
+    "charging_energy_service/adjust_station_price_unit",
+
+    "charging_common_svc/location/get",  # Get default and identifier location for identifier_id, identifier_type, business_type with longitude, latitude, country_code, place_id, display_name, formatted_address
+    2*"charging_common_svc/location/set",  # Set default and identifier location
+    "charging_common_svc/location/support",
+
+Home Energy System related (X1): 45 + 20 used => 65 total
+    "charging_hes_svc/adjust_station_price_unit",
+    "charging_hes_svc/cancel_pop",
+    "charging_hes_svc/check_update",
+    "charging_hes_svc/check_device_bluetooth_password",
+    "charging_hes_svc/check_function",
+    "charging_hes_svc/device_command",
+    "charging_hes_svc/device_self_check",
+    "charging_hes_svc/deal_share_data",
+    "charging_hes_svc/download_energy_statistics",
+    "charging_hes_svc/enable_aiems_mode",
+    "charging_hes_svc/get_aiems_profit",
+    "charging_hes_svc/get_auto_disaster_prepare_status",
+    "charging_hes_svc/get_auto_disaster_prepare_detail",
+    "charging_hes_svc/get_back_up_history",
+    "charging_hes_svc/get_current_disaster_prepare_detail",
+    "charging_hes_svc/get_device_command",
+    "charging_hes_svc/get_device_pn_info",
+    "charging_hes_svc/get_device_card_list",
+    "charging_hes_svc/get_device_card_details",
+    "charging_hes_svc/get_device_self_check",
+    "charging_hes_svc/get_external_device_config",
+    "charging_hes_svc/get_history_setting", # needs owner
+    "charging_hes_svc/get_site_mi_list",
+    "charging_hes_svc/get_station_config_and_status",
+    "charging_hes_svc/get_station_evchargers",  # needs owner
+    "charging_hes_svc/get_system_device_time",
+    "charging_hes_svc/get_tou_price_plan_detail", # {"site_id": siteId, "template_id": 2, "template_name": "Test", "customer_segment_type": 1}
+    "charging_hes_svc/get_user_fault_info",
+    "charging_hes_svc/get_utility_rate_plan", # page not found?
+    "charging_hes_svc/get_vpp_check_code",
+    "charging_hes_svc/get_vpp_service_policy_by_agg_user",
+    "charging_hes_svc/update_device_info_by_app",
+    "charging_hes_svc/update_hes_utility_rate_plan",
+    "charging_hes_svc/update_wifi_config",
+    "charging_hes_svc/upload_device_status",
+    "charging_hes_svc/user_event_alarm",
+    "charging_hes_svc/user_fault_alarm",
+    "charging_hes_svc/ota",
+    "charging_hes_svc/quit_auto_disaster_prepare",
+    "charging_hes_svc/remove_user_fault_info",
+    "charging_hes_svc/restart_peak_session",
+    "charging_hes_svc/start",
+    2*"charging_hes_svc/set_station_evchargers",
+    "charging_hes_svc/set_evcharger_station_feature",
+    "charging_hes_svc/sync_back_up_history",
+    "charging_hes_svc/share_device/delete_installer_inviting_member",
+    "charging_hes_svc/share_device/invite_installer_member",
+    "charging_hes_svc/share_device/get_installer_invited_list",
+
+Home Energy System related (X1): 6 + 0 used => 6 total
+    "charging_hes_dynamic_price_svc/get_area_by_code", # needs owner
+    "charging_hes_dynamic_price_svc/get_price_company", # needs owner
+    "charging_hes_dynamic_price_svc/get_price", # needs owner
+    "charging_hes_dynamic_price_svc/save_time_of_use", # needs owner
+    "charging_hes_dynamic_price_svc/save_dynamic_price", # needs owner
+    "charging_hes_dynamic_price_svc/get_third_jump_url"
+
+Related to Storm Guard and manual backup plan for Power Panel sites and standalone PPS: 3 + 4 used => 7 total
+    'charging_disaster_prepared/clear',
+    'charging_disaster_prepared/quit_disaster_prepare',
+    'charging_disaster_prepared/disaster_detail', # 404 page not found (verified on A17B1 and with supported PPS device)
+
+related to Prime charger models: 18 + 13 used => 31 total
+    'mini_power/v1/app/charging/update_charging_mode',
+    'mini_power/v1/app/charging/add_charging_mode',
+    'mini_power/v1/app/charging/delete_charging_mode',
+    'mini_power/v1/app/setting/set_charging_mode_status',
+    'mini_power/v1/app/setting/get_charging_device_identity_new_status',
+    'mini_power/v1/app/setting/set_charging_device_identity_new_status',
+    'mini_power/v1/app/setting/set_charging_device_identity_status',
+    'mini_power/v1/app/setting/get_charging_device_identity_status_default_true',
+    'mini_power/v1/app/setting/set_charging_device_identity_status_default_true',
+    'mini_power/v1/app/setting/get_power_range_support_protocols',  # {"device_model": "A2345"} list empty
+    'mini_power/v1/app/setting/set_protocol_status',
+    'mini_power/v1/app/setting/get_port_protocol_status',
+    'mini_power/v1/app/setting/set_port_protocol_status',
+    'mini_power/v1/app/setting/set_mode_sub_status',
+    'mini_power/v1/app/setting/set_compatibility_status',
+    'mini_power/v1/app/egg/add_easter_egg_trigger_record',
+    'mini_power/v1/app/egg/report_easter_egg_trigger_status', # {"device_sn": deviceSn, "report_time": 1734969388, "egg_type": 1}
+    'mini_power/v1/app/style/add_manual_clock_screensavers',
+    'mini_power/v1/app/style/delete_manual_clock_screensavers',
+    'mini_power/v1/app/style/get_url', # get long from short url {"sn": deviceSn, "short_url": "/anker_power/edge/screen_saver/2026/07/27/4724xxxxxxxAsGf1ur.cropped_image.jpg"}
+    'mini_power/v1/app/style/get_screensaver_img_url', # get long url from id {"sn": deviceSn, "id": 41043, "type": "manual"}
+    'mini_power/v1/app/style/set_manual_clock_screensaver_name', # {"sn": deviceSn, "screensaver_id": 41043, "name": "Fireworks"}
+
+Structure of the JSON response for an API Login Request:
+An unexpired token_id must be used for API request, along with the gtoken which is an MD5 hash of the returned(encrypted) user_id.
+The combination of the provided token and MD5 hashed user_id authenticate the client to the server.
+The Login Response is cached in a JSON file per email user account and can be reused by this API class without further login request.
+
+ATTENTION: Anker allows only 1 active token on the server per user account. Any login for the same account (e.g. via Anker mobile App) will kickoff the token used in this Api instance and further requests are no longer authorized.
+Currently, the Api will re-authenticate automatically and therefore may kick off the other user that obtained the actual access token (e.g. kick out the App user again when used for regular Api requests)
+
+NOTES: Parallel Api instances should use different user accounts. They may work in parallel when all using the same cached authentication data. The first API instance with failed authorization will restart a new Login request and updates
+the cached JSON file. Other instances should recognize an update of the cached JSON file and will refresh their login credentials in the instance for the actual token and gtoken without new login request.
+"""
+
+# Following are the JSON filename prefixes for exported endpoint names as defined previously
+API_FILEPREFIXES: Final[dict] = {
+    # mqtt message prefixes
+    "mqtt_message": "mqtt_msg",
+    # power_service endpoint file prefixes
+    "homepage": "homepage",
+    "site_list": "site_list",
+    "bind_devices": "bind_devices",
+    "user_devices": "user_devices",
+    "charging_devices": "charging_devices",
+    "get_auto_upgrade": "auto_upgrade",
+    "get_config": "config",
+    "site_rules": "list_site_rules",
+    "get_installation": "installation",
+    "get_site_price": "price",
+    "get_site_power_limit": "power_limit",
+    "get_device_parm": "device_parm",
+    "get_product_categories": "list_products",
+    "get_product_accessories": "list_accessories",
+    "get_third_platforms": "list_third_platforms",
+    "get_token_by_userid": "get_token",
+    "get_shelly_status": "shelly_status",
+    "get_site_csv_export": "site_csv_export",  # works for member, but system must support csv export, {"site_id": siteId, "start_time": "2026-03-14", "end_time": "2026-03-15"}, filename and URL for CSV download
+    "scene_info": "scene",
+    "site_detail": "site_detail",
+    "site_detail_by_sn": "site_detail_sn",
+    "wifi_list": "wifi_list",
+    "energy_solarbank": "energy_solarbank",
+    "energy_solar_production": "energy_solar_production",
+    "energy_home_usage": "energy_home_usage",
+    "energy_grid": "energy_grid",
+    "energy_pps": "energy_pps",
+    "energy_ev_charger": "energy_ev_charger",
+    "energy_device": "energy_device",
+    "solar_info": "solar_info",
+    "compatible_process": "compatible_process",
+    "get_cutoff": "power_cutoff",
+    "get_device_fittings": "device_fittings",
+    "get_device_load": "device_load",
+    "get_ota_batch": "ota_batch",
+    "get_ota_update": "ota_update",
+    "get_ota_info": "ota_info",
+    "get_upgrade_record": "upgrade_record",
+    "check_upgrade_record": "check_upgrade_record",
+    "get_shared_device": "shared_device",
+    "get_device_attributes": "device_attrs",
+    "get_message_unread": "message_unread",
+    "get_currency_list": "currency_list",
+    "get_co2_ranking": "co2_ranking",
+    "get_forecast_schedule": "forecast_schedule",
+    "get_dynamic_price_sites": "dynamic_price_sites",
+    "get_dynamic_price_providers": "dynamic_price_providers",
+    "get_dynamic_price_details": "dynamic_price_details",
+    "get_device_income": "device_income",
+    "get_ai_ems_status": "ai_ems_status",
+    "get_ai_ems_profit": "ai_ems_profit",
+    "get_tamper_records": "tamper_records",
+    "get_device_rfid_cards": "rfid_cards",
+    "get_device_group": "device_group",
+    "get_device_charge_order_stats": "charge_order_stats",
+    "get_device_charge_order_stats_list": "charge_order_stats_list",
+    "get_ocpp_endpoint_list": "ocpp_endpoint_list",
+    "get_device_ocpp_info": "ocpp_info",
+    "get_vehicle_brands": "vehicle_brands",
+    "get_vehicle_brand_models": "vehicle_brand_models",
+    "get_vehicle_model_years": "vehicle_model_years",
+    "get_vehicle_year_attributes": "vehicle_year_attributes",
+    "get_user_vehicles": "user_vehicles",
+    "get_user_vehicle_details": "user_vehicle_details",
+    "get_extender_system_pn_ota": "extender_system_pn_ota",
+    "get_extender_system_list": "extender_system_list",
+    "get_extender_system_detail": "extender_system_detail",
+    "get_extender_system_cumulative_data": "extender_system_data",
+    "get_device_bind_details": "device_bind_details",
+    "api_account": "api_account",
+    "api_sites": "api_sites",
+    "api_devices": "api_devices",
+    # charging_pv_svc endpoint file prefixes
+    "get_device_pv_status": "device_pv_status",
+    "get_device_pv_total_statistics": "device_pv_total_statistics",
+    "get_device_pv_statistics": "device_pv_statistics",
+    "get_device_pv_price": "device_pv_price",
+    # power charger endpoint file prefixes
+    "charger_get_charging_modes": "charger_charging_modes",
+    "charger_get_triggers": "charger_triggers",
+    "charger_get_statistics": "charger_statistics",
+    "charger_get_device_setting": "charger_device_setting",
+    "charger_get_screensavers": "charger_screensavers",
+    "charger_get_manual_screensavers": "charger_manual_screensavers",
+    "charger_get_port_remarks": "charger_port_remarks",
+    "charger_get_protocol_status": "charger_protocol_status",
+    # charging_energy_service endpoint file prefixes
+    "charging_get_error_info": "charging_error_info",
+    "charging_get_system_running_info": "charging_system_running_info",
+    "charging_get_site_device_disaster": "charging_site_device_disaster",
+    "charging_get_site_device_disaster_status": "charging_site_device_disaster_status",
+    "charging_get_disaster_support_func": "charging_disaster_support_func",
+    "charging_energy_solar": "charging_energy_solar",
+    "charging_energy_hes": "charging_energy_hes",
+    "charging_energy_pps": "charging_energy_pps",
+    "charging_energy_home": "charging_energy_home",
+    "charging_energy_grid": "charging_energy_grid",
+    "charging_energy_diesel": "charging_energy_diesel",
+    "charging_energy_solar_today": "charging_energy_solar_today",
+    "charging_energy_hes_today": "charging_energy_hes_today",
+    "charging_energy_pps_today": "charging_energy_pps_today",
+    "charging_energy_home_today": "charging_energy_home_today",
+    "charging_energy_grid_today": "charging_energy_grid_today",
+    "charging_energy_diesel_today": "charging_energy_diesel_today",
+    "charging_get_rom_versions": "charging_rom_versions",
+    "charging_get_device_info": "charging_device_info",
+    "charging_get_wifi_info": "charging_wifi_info",
+    "charging_get_installation_inspection": "charging_installation_inspection",
+    "charging_get_utility_rate_plan": "charging_utility_rate_plan",
+    "charging_report_device_data": "charging_report_device_data",
+    "charging_get_configs": "charging_configs",
+    "charging_get_sns": "charging_sns",
+    "charging_get_monetary_units": "charging_monetary_units",
+    "hes_get_product_info": "hes_product_info",
+    "hes_get_heat_pump_plan": "hes_heat_pump_plan",
+    "hes_get_electric_plan_list": "hes_electric_plan",
+    "hes_get_system_running_info": "hes_system_running_info",
+    "hes_energy_solar": "hes_energy_solar",
+    "hes_energy_hes": "hes_energy_hes",
+    "hes_energy_pps": "hes_energy_pps",
+    "hes_energy_home": "hes_energy_home",
+    "hes_energy_grid": "hes_energy_grid",
+    "hes_energy_evCharger": "hes_energy_evCharger",
+    "hes_energy_otherLoad": "hes_energy_otherLoad",
+    "hes_energy_solar_today": "hes_energy_solar_today",
+    "hes_energy_hes_today": "hes_energy_hes_today",
+    "hes_energy_pps_today": "hes_energy_pps_today",
+    "hes_energy_home_today": "hes_energy_home_today",
+    "hes_energy_grid_today": "hes_energy_grid_today",
+    "hes_energy_evCharger_today": "hes_energy_evCharger_today",
+    "hes_energy_otherLoad_today": "hes_energy_otherLoad_today",
+    "hes_get_monetary_units": "hes_monetary_units",
+    "hes_get_install_info": "hes_install_info",
+    "hes_get_wifi_info": "hes_wifi_info",
+    "hes_get_installer_info": "hes_installer_info",
+    "hes_get_system_profit": "hes_system_profit",
+    "hes_get_system_running_time": "hes_system_running_time",
+    "hes_get_mi_layout": "hes_mi_layout",
+    "hes_get_conn_net_tips": "hes_conn_net_tips",
+    "hes_get_hes_dev_info": "hes_dev_info",
+    "hes_report_device_data": "hes_report_device_data",
+    "hes_get_evcharger_standalone": "hes_evcharger_standalone",
+    "hes_get_evcharger_station_info": "hes_evcharger_station_info",
+}
+
+
+""" Anker Solix Device overview
+Model  Name                                     Platform
+----------------------------------------------------------------------------------------------------
+A110A  26K Prime Power Bank                     Power Bank
+A110B  20K Prime Power Bank                     Power Bank
+A110G  20K Prime Power Bank                     Power Bank
+A1722  SOLIX C300                               Portable Power Station
+A1723  SOLIX C300X                              Portable Power Station
+A1725  SOLIX C200(X)                            Portable Power Station
+A1726  SOLIX C300 DC                            Portable Power Station
+A1727  SOLIX C200 DC                            Portable Power Station
+A1728  SOLIX C300X DC                           Portable Power Station
+A1729  SOLIX C200X DC                           Portable Power Station
+A1753  SOLIX C800                               Portable Power Station
+A1754  SOLIX C800 Plus                          Portable Power Station
+A1755  SOLIX C800X                              Portable Power Station
+A1761  SOLIX C1000(X)                           Portable Power Station
+A1762  Portable Power Station 1000              Portable Power Station
+A1763  SOLIX C1000 Gen 2                        Portable Power Station
+A1765  SOLIX C1000X Gen 2                       Portable Power Station
+A1770  F1200 (Bluetooth)                        Portable Power Station
+A1771  F1200 (Bluetooth and WLAN)               Portable Power Station
+A1772  SOLIX F1500                              Portable Power Station
+A1780  767 PowerHouse (SOLIX F2000)             Portable Power Station
+A1780P 767 Power House (SOLIX F2000) with WLAN  Portable Power Station
+A1781  SOLIX F2600                              Portable Power Station
+A1782  SOLIX F3000                              Portable Power Station
+A1783  SOLIX C2000 Gen 2                        Portable Power Station
+A1785  SOLIX C2000X Gen 2                       Portable Power Station
+A1790  SOLIX F3800                              Portable Power Station
+A1790P SOLIX F3800 Plus                         Portable Power Station
+A17A0  Powered Cooler 30                        Powered Cooler
+A17A1  Powered Cooler 40                        Powered Cooler
+A17A2  Powered Cooler 50                        Powered Cooler
+A17A3  SOLIX Everfrost 2 23L                    Powered Cooler
+A17A4  SOLIX Everfrost 2 40L                    Powered Cooler
+A17A5  SOLIX Everfrost 2 58L                    Powered Cooler
+A17B1  SOLIX Home Power Panel                   Home Backup System
+A17C0  Solarbank E1600                          Plug-in Home Battery
+A17C1  Solarbank 2 E1600 Pro                    Plug-in Home Battery
+A17C2  Solarbank 2 E1600 AC                     Plug-in Home Battery
+A17C3  Solarbank 2 E1600 Plus                   Plug-in Home Battery
+A17C5  Solarbank 3 E2700 Pro                    Plug-in Home Battery
+A17E2  Solarbank Max AC                         Plug-in Home Battery
+AE103  Solarbank 4 E5000 Pro                    Plug-in Home Battery
+AE111  Solarbank Max                            Plug-in Home Battery
+A17X7  Smart Meter                              Accessory
+A17X8  Smart Plug                               Accessory
+A1903  150W Charging Base                       Charger
+A2345  250W Prime Charger                       Charger
+A25X7  Prime Wireless Charger                   Charger
+A2687  160W Prime Charger                       Charger
+A5101  X1-P6K-US/S                              Residential Storage System
+A5102  X1-H(3.68~6)K-S                          Residential Storage System
+A5103  X1-H (5~12)K-T                           Residential Storage System
+A5140  MI60 Microinverter                       Plug-in Home Battery
+A5143  MI80 Microinverter(BLE)                  Plug-in Home Battery
+A5150  Microinverter                            Residential Storage System
+A5191  V1 Smart EV Charger                      Smart EV Charger
+A5220  X1 Battery Module                        Residential Storage System
+A5341  Backup Controller                        Residential Storage System
+A5450  Zigbee Dongle                            Residential Storage System
+AE113  XE 6/8kW                                 Residential Storage System
+A91B2  240W Charging Station                    Charger
+AE100  SOLIX Power Dock                         Plug-in Home Battery
+AE1R0  Anker SOLIX P1 Meter                     Accessory
+AE1X0  Smart Meter Gen 2                        Accessory
+AS100  C1000 Gen 2 LE                           Portable Power Station
+AS220  SOLIX S2000                              Portable Power Station
+AS510  SOLIX S5000                              Portable Power Station
+AS200  Alternator Charger                       Charger
+AX1S0  Power Dock Pro                           Residential Storage System
+AX170  Power Dock                               Home Backup System
+A17E1  Anker SOLIX E10                          Home Backup System
+A17X7US Smart Meter US                          Accessory
+A7320  SOLIX Smart Generator 5500               Smart Generator
+----------------------------------------------------------------------------------------------------
+"""
+
+LOGIN_RESPONSE: dict = {
+    "user_id": str,
+    "email": str,
+    "nick_name": str,
+    "auth_token": str,
+    "token_expires_at": int,
+    "avatar": str,
+    "mac_addr": str,
+    "domain": str,
+    "ab_code": str,
+    "token_id": int,
+    "geo_key": str,
+    "privilege": int,
+    "phone_code": str,
+    "phone": str,
+    "phone_number": str,
+    "phone_code_2fa": str,
+    "phone_2fa": str,
+    "server_secret_info": {"public_key": str},
+    "params": list,
+    "trust_list": list,
+    "fa_info": {"step": int, "info": str},
+    "country_code": str,
+    "ap_cloud_user_id": str,
+}
+
+# Define product codes for device model types that may have different features for supported control options
+PRODUCT_CODES: Final[dict] = {
+    "A5191": {
+        "name": "V1 Smart EV Charger",
+        "platform": "Smart EV Charger",
+        "product_codes": {
+            "DK2Z": {
+                "p_code": "DK2Z",
+                "sku": "A5191GZ2",
+                "custom_fields": {
+                    "phase": "three",
+                    "gunType": "socket",
+                    "standard": "eu",
+                    "ratedPower": 22,
+                    "delay_start": False,
+                    "ratedCurrent": 32,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": True,
+                    "second_charging_power": False,
+                },
+            },
+            "DJRA": {
+                "p_code": "DJRA",
+                "sku": "A5191GZ3",
+                "custom_fields": {
+                    "phase": "three",
+                    "gunType": "cable",
+                    "standard": "eu",
+                    "ratedPower": 22,
+                    "delay_start": False,
+                    "ratedCurrent": 32,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": False,
+                    "second_charging_power": False,
+                },
+            },
+            "DJJN": {
+                "p_code": "DJJN",
+                "sku": "A5191VZ0",
+                "custom_fields": {
+                    "phase": "single",
+                    "gunType": "socket",
+                    "standard": "eu",
+                    "ratedPower": 7.4,
+                    "delay_start": False,
+                    "ratedCurrent": 32,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": True,
+                    "second_charging_power": False,
+                },
+            },
+            "DK3A": {
+                "p_code": "DK3A",
+                "sku": "A5191VZ1",
+                "custom_fields": {
+                    "phase": "single",
+                    "gunType": "cable",
+                    "standard": "eu",
+                    "ratedPower": 7.4,
+                    "delay_start": False,
+                    "ratedCurrent": 32,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": False,
+                    "second_charging_power": False,
+                },
+            },
+            "DMEY": {
+                "p_code": "DMEY",
+                "sku": "A5191GZ4",
+                "custom_fields": {
+                    "phase": "three",
+                    "gunType": "socket",
+                    "standard": "eu",
+                    "ratedPower": 11,
+                    "delay_start": False,
+                    "ratedCurrent": 16,
+                    "tamper_proof": False,
+                    "certification": ["RoHS", "REACH", "CE"],
+                    "permanent_lock_gun": True,
+                    "second_charging_power": False,
+                },
+            },
+            "DMEZ": {
+                "p_code": "DMEZ",
+                "sku": "A5191GZ7",
+                "custom_fields": {
+                    "phase": "three",
+                    "gunType": "cable",
+                    "standard": "eu",
+                    "ratedPower": 11,
+                    "delay_start": False,
+                    "ratedCurrent": 16,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": False,
+                    "second_charging_power": False,
+                },
+            },
+            "DL4G": {
+                "p_code": "DL4G",
+                "sku": "A5191VZ2",
+                "custom_fields": {
+                    "phase": "single",
+                    "gunType": "socket",
+                    "standard": "uk",
+                    "ratedPower": 7.4,
+                    "delay_start": True,
+                    "ratedCurrent": 32,
+                    "tamper_proof": True,
+                    "certification": ["UKCA", "RoHS", "REACH"],
+                    "permanent_lock_gun": True,
+                    "second_charging_power": True,
+                },
+            },
+            "DKSH": {
+                "p_code": "DKSH",
+                "sku": "A5191VZ3",
+                "custom_fields": {
+                    "phase": "single",
+                    "gunType": "cable",
+                    "standard": "uk",
+                    "ratedPower": 7.4,
+                    "delay_start": True,
+                    "ratedCurrent": 32,
+                    "tamper_proof": True,
+                    "certification": ["UKCA", "RoHS", "REACH"],
+                    "permanent_lock_gun": False,
+                    "second_charging_power": True,
+                },
+            },
+            "DJRC": {
+                "p_code": "DJRC",
+                "sku": "A51913Z0",
+                "custom_fields": {
+                    "phase": "single",
+                    "gunType": "shutter",
+                    "standard": "eu",
+                    "ratedPower": 7.4,
+                    "delay_start": False,
+                    "ratedCurrent": 32,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": True,
+                    "second_charging_power": False,
+                },
+            },
+            "DK3C": {
+                "p_code": "DK3C",
+                "sku": "A51913Z1",
+                "custom_fields": {
+                    "phase": "three",
+                    "gunType": "shutter",
+                    "standard": "eu",
+                    "ratedPower": 22,
+                    "delay_start": False,
+                    "ratedCurrent": 32,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": True,
+                    "second_charging_power": False,
+                },
+            },
+            "DMNM": {
+                "p_code": "DMNM",
+                "sku": "A5191TZ1",
+                "custom_fields": {
+                    "phase": "single",
+                    "gunType": "cable",
+                    "standard": "eu",
+                    "ratedPower": 7.4,
+                    "delay_start": False,
+                    "ratedCurrent": 32,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": False,
+                    "second_charging_power": False,
+                },
+            },
+            "DMNN": {
+                "p_code": "DMNN",
+                "sku": "A5191TZ2",
+                "custom_fields": {
+                    "phase": "three",
+                    "gunType": "cable",
+                    "standard": "eu",
+                    "ratedPower": 22,
+                    "delay_start": False,
+                    "ratedCurrent": 32,
+                    "tamper_proof": False,
+                    "certification": ["CE", "RoHS", "REACH"],
+                    "permanent_lock_gun": False,
+                    "second_charging_power": False,
+                },
+            },
+        },
+    },
+}
+
+
+class SolixDeviceType(Enum):
+    """Enumeration for Anker Solix device types. @thomas"""
+
+    ACCOUNT = "account"
+    SYSTEM = "system"
+    VIRTUAL = "virtual"
+    SOLARBANK = "solarbank"
+    COMBINER_BOX = "combiner_box"
+    INVERTER = "inverter"
+    SMARTMETER = "smartmeter"
+    SMARTPLUG = "smartplug"
+    PPS = "pps"
+    POWERPANEL = "powerpanel"
+    POWERCOOLER = "powercooler"
+    HES = "hes"
+    HOME_BACKUP = "home_backup"
+    GENERATOR = "generator"
+    SOLARBANK_PPS = "solarbank_pps"
+    CHARGER = "charger"
+    POWERBANK = "powerbank"
+    EV_CHARGER = "ev_charger"
+    VEHICLE = "vehicle"
+
+
+class SolixParmType(Enum):
+    """Enumeration for Anker Solix Parameter types. @thomas"""
+
+    SOLARBANK_SCHEDULE = "4"
+    SOLARBANK_2_SCHEDULE = "6"
+    SOLARBANK_SCHEDULE_ENFORCED = "9"  # No longer supported by cloud as of July 2025
+    SOLARBANK_TARIFF_SCHEDULE = "12"
+    SOLARBANK_AUTHORIZATIONS = "13"
+    SOLARBANK_POWERDOCK = "16"  # get power dock SN
+    SOLARBANK_STATION = "18"  # station settings for site, like SOC reserve and grid export switch, works for systems that support power dock, Not used with Gen 4
+    SOLARBANK_POWER_LIMIT = "19"  # cannot be queried, but only set. get_power_limit query will show active data
+    # SOLARBANK_EV_CHARGER = "23" # EV Charger switch?
+    SOLARBANK_3RD_PARTY_PV = "26"  # third party PV settings for site
+    SOLARBANK_SOC = "27"  # Gen 4 SOC settings (no longer in 18)
+    SOLARBANK_GRID_EXPORT = "28"  # Gen 4 grid export settings (no longer in 18)
+    SOLARBANK_CT_CONFIG = "29"  # Smartmeter Gen 2 CT configuration
+    SOLARBANK_PEAK_SHAVING = (
+        "30"  # Gen 4 peak_shaving_soc, peak_shaving_switch\, peak_shaving_upper_limit
+    )
+    # SOLARBANK_BACKUP = "33" # backup install and ats setting
+
+
+class SolarbankPowerMode(IntEnum):
+    """Int Enumeration for Anker Solix Solarbank 1 Power setting modes. @thomas"""
+
+    unknown = 0
+    normal = 1
+    advanced = 2
+
+
+class SolarbankDischargePriorityMode(IntEnum):
+    """Int Enumeration for Anker Solix Solarbank 1 Discharge priority setting modes. @thomas"""
+
+    unknown = -1
+    off = 0
+    on = 1
+
+
+class SolarbankSchedulePresetType(IntEnum):
+    """Int Enumeration for Anker Solix Solarbank 3 schedule preset power types. @thomas"""
+
+    unknown = -1
+    supply = 0
+    ac_charge = 1
+
+
+class SolarbankAiemsStatus(IntEnum):
+    """Int Enumeration for Anker Solix Solarbank Anker Intelligence status. @thomas"""
+
+    unknown = 0
+    untrained = 3
+    learning = 4
+    trained = 5
+
+
+class SolarbankAiemsRuntimeStatus(IntEnum):
+    """Int Enumeration for Anker Solix Solarbank Anker Intelligence runtime status. @thomas
+
+    Following combinations of ai_ems status abd ai_ems runtime information were seen:
+    - left_time > 0 with runtime status 0 => learning phase status 4 without runtime failure
+    - left_time < 0 with runtime status 1 => trained and continues collecting data
+    - left_time < 0 with runtime status 2 => untrained, most likely failure during learning or learning stopped
+    """
+
+    unknown = -1
+    inactive = 0
+    running = 1
+    failure = 2
+
+
+class SolixTariffTypes(IntEnum):
+    """Int Enumeration for Anker Solix Solarbank 2 AC / 3 Use Time Tariff Types. @thomas"""
+
+    UNKNOWN = 0  # Pseudo type to reflect no known tariff defined
+    PEAK = 1  # maximize PV and Battery usage, no AC charge
+    MID_PEAK = 2  # maximize PV and Battery usage, no AC charge
+    OFF_PEAK = 3  # maximize PV and Battery usage, no AC charge, discharge only above 80% SOC, Reserve charge utilized only for PEAK & MID PEAK times
+    VALLEY = (
+        4  # AC charge allowed, charge power depends on SOC and available VALLEY time
+    )
+
+
+class SolixPriceTypes(StrEnum):
+    """Str Enumeration for Anker Solix Solarbank 2 AC / 3 Use Time Tariff Types. @thomas"""
+
+    UNKNOWN = "unknown"
+    FIXED = "fixed"
+    USE_TIME = "use_time"
+    DYNAMIC = "dynamic"
+
+
+class SolixDayTypes(StrEnum):
+    """Str Enumeration for Anker Solix Solarbank 2 AC / 3 Use Time Day Types. @thomas"""
+
+    WEEKDAY = "weekday"
+    WEEKEND = "weekend"
+    ALL = "all"
+
+
+class SolarbankUsageMode(IntEnum):
+    """Int Enumeration for Anker Solix Solarbank 2/3 Power Usage modes. @thomas"""
+
+    unknown = 0  # AC output based on measured smart meter power
+    smartmeter = 1  # AC output based on measured smart meter power
+    smartplugs = 2  # AC output based on measured smart plug power
+    manual = 3  # manual time plan for home load output
+    backup = 4  # This is used to reflect active backup mode in scene_info, but this mode cannot be set directly in schedule and mode is just temporary
+    use_time = 5  # Use Time plan with AC types and smart meter
+    # smart_learning = 6  # TODO(SB3): To be confirmed
+    smart = 7  # Smart mode for AI based charging and discharging
+    time_slot = 8  # Time slot mode for dynamic tariffs
+
+
+@dataclass(frozen=True)
+class SolarbankRatePlan:
+    """Dataclass for Anker Solix Solarbank 2/3 rate plan types per usage mode. @thomas"""
+
+    # rate plan per usage mode
+    unknown: str = ""
+    smartmeter: str = ""  # does not use a plan
+    smartplugs: str = "blend_plan"
+    manual: str = "custom_rate_plan"
+    backup: str = "manual_backup"
+    use_time: str = "use_time"
+    # smart_learning: str = "" # TODO(SB3): To be confirmed if this is a valid mode and plan
+    smart: str = ""  # does not use a plan "ai_ems"
+    time_slot: str = "time_slot"
+
+
+@dataclass(frozen=True)
+class ApiEndpointServices:
+    """Dataclass to specify supported Api endpoint services. Each service type should be implemented with dedicated Api class. @thomas"""
+
+    # Note: The service endpoints may not be supported on every cloud server. It may depend on supported Anker products per geo
+    power: str = "power_service"
+    charging: str = "charging_energy_service"
+    hes_svc: str = "charging_hes_svc"
+
+
+@dataclass(frozen=True)
+class ApiCategories:
+    """Dataclass to specify supported Api categories for regular Api cache refresh cycles. @thomas"""
+
+    account_info: str = "account_info"
+    site_price: str = "site_price"
+    device_auto_upgrade: str = "device_auto_upgrade"
+    device_tag: str = "device_tag"
+    solar_energy: str = "solar_energy"
+    solarbank_energy: str = "solarbank_energy"
+    solarbank_fittings: str = "solarbank_fittings"
+    solarbank_cutoff: str = "solarbank_cutoff"
+    solarbank_solar_info: str = "solarbank_solar_info"
+    solarbank_pps_energy: str = "solarbank_pps_energy"
+    smartmeter_energy: str = "smartmeter_energy"
+    smartplug_energy: str = "smartplug_energy"
+    charger_energy: str = "charger_energy"
+    charger_usb_settings: str = "charger_usb_settings"
+    powerpanel_energy: str = "powerpanel_energy"
+    powerpanel_avg_power: str = "powerpanel_avg_power"
+    hes_energy: str = "hes_energy"
+    hes_avg_power: str = "hes_avg_power"
+    mqtt_devices: str = "mqtt_devices"
+
+
+@dataclass(frozen=True)
+class SolixDeviceNames:
+    """Dataclass for Anker Solix device names that are now provided via the various product list queries. @thomas"""
+
+    SHEM3: str = "Shelly 3EM"
+    SHEMP3: str = "Shelly Pro 3EM"
+    SHPPS: str = "Shelly Plus Plug S"
+    AE100: str = "Power Dock AE100"
+    ECOIR: str = "EverHome EcoTracker IR"
+
+
+@dataclass(frozen=True)
+class SolixDeviceCapacity:
+    """Dataclass for Anker Solix device battery capacities in Wh by Part Number. @thomas"""
+
+    A110A: int = 100  # Anker Prime Power Bank 300 W, 25Ah, 99,75 Wh
+    A110B: int = 72  # Anker Prime Power Bank 220 W, 20Ah, 72,4 Wh
+    A110G: int = 72  # Anker Prime Power Bank 220 W, 20Ah, 72,4 Wh
+    A17C0: int = 1600  # SOLIX Solarbank E1600
+    A17C1: int = 1600  # SOLIX Solarbank 2 E1600 Pro
+    BP1600: int = 1600  # Solarbank 2 Expansion BP1600 (This has no SN or product code)
+    _C1: int = 1600  # Solarbank 2 Expansion BP1600 type byte
+    _C2: int = 1600  # Solarbank 2 Expansion BP1600 type byte
+    A17C2: int = 1600  # SOLIX Solarbank 2 E1600 AC
+    A17C3: int = 1600  # SOLIX Solarbank 2 E1600 Plus
+    A17C5: int = 2688  # SOLIX Solarbank 3 E2700 Pro
+    DJF: int = 2688  # Solarbank 3 Expansion BP2700 product code
+    _C5: int = 2688  # Solarbank 3 Expansion BP2700 type byte
+    AE103: int = 5024  # SOLIX Solarbank 4 E5000 Pro
+    _AE: int = 5024  # Solarbank 4 Expansion BP5000 type byte
+    DMVS: int = 5024  # Solarbank 4 Expansion BP5000 product code
+    BS2: int = 5024  # Solarbank 4 Expansion BP5000 product code
+    BM2: int = 5024  # Solarbank 4 Expansion BP5000 product code
+    A17E2: int = 7000  # Solarbank Max AC
+    AE111: int = 7000  # Solarbank Max
+    BP7000: int = 7000  # TODO: Add product code for Solarbank Max AC Expansion
+    A1720: int = 256  # Anker PowerHouse 521 Portable Power Station
+    A1722: int = 288  # SOLIX C300 Portable Power Station
+    A1723: int = 288  # SOLIX C300X Portable Power Station
+    A1725: int = 230  # SOLIX C200(X) Portable Power Station
+    A1726: int = 288  # SOLIX C300 DC Portable Power Station
+    A1727: int = 192  # SOLIX C200 DC Portable Power Station
+    A1728: int = 288  # SOLIX C300X DC  Portable Power Station
+    A1729: int = 230  # SOLIX C200X DC Portable Power Station
+    A1751: int = 512  # Anker PowerHouse 535 Portable Power Station
+    A1753: int = 768  # SOLIX C800 Portable Power Station
+    A1754: int = 768  # SOLIX C800 Plus Portable Power Station
+    A1755: int = 768  # SOLIX C800X Portable Power Station
+    A1760: int = 1024  # Anker PowerHouse 555 Portable Power Station
+    A1761: int = 1056  # SOLIX C1000(X) Portable Power Station
+    A1762: int = 1056  # SOLIX Portable Power Station 1000
+    A1763: int = 1024  # SOLIX C1000 Gen 2 Portable Power Station
+    A1765: int = 1024  # SOLIX C1000X Gen 2 Portable Power Station
+    AS100: int = 1024  # SOLIX C1000 Gen 2 LE Portable Power Station
+    AS220: int = 2010  # SOLIX S2000 Portable Power Station
+    AS510: int = 5000  # SOLIX S5000 Portable Power Station
+    A1770: int = 1229  # Anker PowerHouse 757 Portable Power Station
+    A1771: int = 1229  # SOLIX F1200 Portable Power Station
+    A1772: int = 1536  # SOLIX F1500 Portable Power Station
+    A1780: int = 2048  # SOLIX F2000 Portable Power Station (PowerHouse 767)
+    A1780_1: int = 2048  # Expansion Battery for F2000
+    A1780P: int = (
+        2048  # SOLIX F2000 Plus Portable Power Station (PowerHouse 767) with WIFI
+    )
+    A1781: int = 2560  # SOLIX F2600 Portable Power Station
+    A1782: int = 3072  # SOLIX F3000 Portable Power Station with Smart Meter support
+    A1783: int = (
+        2048  # SOLIX C2000 Gen 2 Portable Power Station with Smart Meter support
+    )
+    A1785: int = (
+        2048  # SOLIX C2000X Gen 2 Portable Power Station with Smart Meter support
+    )
+    A1790: int = 3840  # SOLIX F3800 Portable Power Station
+    A1790_1: int = 3840  # SOLIX BP3800 Expansion Battery for F3800
+    A1790P: int = 3840  # SOLIX F3800 Plus Portable Power Station
+    A5220: int = 5000  # SOLIX X1 Battery module
+    AE113: int = 7000  # Solix XE
+    A17E1: int = 6144  # SOLIX E10 Controller, has no battery
+    DJXM: int = 6144  # SOLIX E10 Expansion Battery,
+
+
+@dataclass(frozen=True)
+class SolixSiteType:
+    """Dataclass for Anker Solix System/Site types according to the main device in site rules. @thomas"""
+
+    t_0 = SolixDeviceType.VIRTUAL.value  # Virtual site, only standalone inverter A5143
+    t_1 = SolixDeviceType.PPS.value  # Main A5143 + FS1200
+    t_2 = SolixDeviceType.SOLARBANK.value  # Main A17C0 SB1
+    t_3 = SolixDeviceType.HES.value  # Main A5103, Note: This is not listed in actual site rules, but X1 export showing type 3 instead of 9 as site rules say
+    t_4 = SolixDeviceType.POWERPANEL.value  # Main A17B1
+    t_5 = SolixDeviceType.SOLARBANK.value  # Main A17C1 SB2 Pro, can also add SB1
+    t_6 = SolixDeviceType.HES.value  # Main A5341 HES Backup Controller
+    t_7 = SolixDeviceType.HES.value  # Main A5101 HES
+    t_8 = SolixDeviceType.HES.value  # Main A5102 HES
+    t_9 = SolixDeviceType.HES.value  # Main A5103 HES
+    t_10 = SolixDeviceType.SOLARBANK.value  # Main A17C3 SB2 Plus, can also add SB1
+    t_11 = SolixDeviceType.SOLARBANK.value  # Main A17C2 SB2 AC
+    t_12 = (
+        SolixDeviceType.SOLARBANK.value
+    )  # Main A17C5 SB3 Pro, including power dock option for SB3 multisystems
+    t_13 = SolixDeviceType.SOLARBANK_PPS.value  # Main A1782 SOLIX F3000 Portable Power Station (Solarbank PPS) with Smart Meter support for US market
+    t_14 = SolixDeviceType.EV_CHARGER.value  # Main A5191 Smart EV Charger
+    t_15 = (
+        SolixDeviceType.HOME_BACKUP.value
+    )  # Main E10 A17E1 & A17X7US Smart Meter for US market
+    t_16 = (
+        SolixDeviceType.POWERBANK.value
+    )  # Main A1903 Charging base for power banks & 4 each A110A, A110B, A110G, A1341
+    t_17 = (
+        SolixDeviceType.HOME_BACKUP.value
+    )  # Only AX170: Power Dock US market to connect multiple E10
+    t_18 = SolixDeviceType.SOLARBANK.value  # Main AE100 Power Dock for SB2+, A17C1, A17C3, A17C5, A17X7, AE1X0, AE1R0, SHEM3, SHEMP3, ECOIR, A17X8, SHPPS, A5191
+    t_19 = SolixDeviceType.SOLARBANK.value  # Main A17E2 Solarbank Max AC with AE120, A17X7, AE1X0, AE1R0, SHEM3, SHEMP3, ECOIR, A17X8, SHPPS
+    t_20 = SolixDeviceType.SOLARBANK.value  # Main AE103 Solarbank 4 Pro with A17X7, AE1X0, AE1R0, SHEM3, SHEMP3, ECOIR, A17X8, SHPPS
+    t_21 = SolixDeviceType.SOLARBANK.value  # Main AE111 Solarbank Max with AE120, A17X7, AE1X0, AE1R0, SHEM3, SHEMP3, ECOIR, A17X8, SHPPS
+    t_22 = (
+        SolixDeviceType.SOLARBANK_PPS.value
+    )  # AS510 S5000 Portable Power Station with A17X7US
+    t_25 = (
+        SolixDeviceType.HES.value
+    )  # Main AE113 HES XE with SHEM3, SHEMP3, AE1X0, A17X7, AE120
+
+
+@dataclass(frozen=True)
+class SolixDeviceCategory:
+    """Dataclass for Anker Solix device types by Part Number to be used for standalone/unbound device categorization. @thomas"""
+
+    # Solarbanks
+    A17C0: str = (
+        SolixDeviceType.SOLARBANK.value + "_1"
+    )  # SOLIX Solarbank E1600, generation 1
+    A17C1: str = (
+        SolixDeviceType.SOLARBANK.value + "_2"
+    )  # SOLIX Solarbank 2 E1600 Pro, generation 2
+    A17C2: str = (
+        SolixDeviceType.SOLARBANK.value + "_2"
+    )  # SOLIX Solarbank 2 E1600 AC, generation 2
+    A17C3: str = (
+        SolixDeviceType.SOLARBANK.value + "_2"
+    )  # SOLIX Solarbank 2 E1600 Plus, generation 2
+    A17C5: str = (
+        SolixDeviceType.SOLARBANK.value + "_3"
+    )  # SOLIX Solarbank 3 E2700 Pro, generation 3
+    A17E2: str = (
+        SolixDeviceType.SOLARBANK.value + "_4"
+    )  # SOLIX Solarbank Max AC, generation 4
+    AE103: str = (
+        SolixDeviceType.SOLARBANK.value + "_4"
+    )  # SOLIX Solarbank 4 E5000 Pro, generation 4
+    # Station
+    AE111: str = (
+        SolixDeviceType.SOLARBANK.value + "_4"
+    )  # SOLIX Solarbank Max, generation 4
+    AE100: str = SolixDeviceType.COMBINER_BOX.value  # SOLIX Power Dock Solarbanks
+    AX1S0: str = SolixDeviceType.COMBINER_BOX.value  # Power Dock Pro HES system
+    AX170: str = SolixDeviceType.COMBINER_BOX.value  # Power Dock Home Backup
+    # Inverter
+    A5140: str = SolixDeviceType.INVERTER.value  # MI60 Inverter
+    A5143: str = SolixDeviceType.INVERTER.value  # MI80 Inverter
+    # Smart Meter
+    A17X7: str = SolixDeviceType.SMARTMETER.value  # SOLIX Smart Meter
+    A17X7US: str = SolixDeviceType.SMARTMETER.value  # SOLIX Smart Meter for US
+    AE1R0: str = SolixDeviceType.SMARTMETER.value  # SOLIX P1 Meter
+    SHEM3: str = SolixDeviceType.SMARTMETER.value  # Shelly 3EM Smart Meter
+    SHEMP3: str = SolixDeviceType.SMARTMETER.value  # Shelly 3EM Pro Smart Meter
+    ECOIR: str = SolixDeviceType.SMARTMETER.value  # EverHome EcoTracker IR
+    AE1X0: str = SolixDeviceType.SMARTMETER.value  # Smart Meter Gen 2
+    # Smart Plug
+    A17X8: str = SolixDeviceType.SMARTPLUG.value  # SOLIX Smart Plug Gen 1/2
+    SHPPS: str = SolixDeviceType.SMARTPLUG.value  # Shelly Smart Plug
+    # Portable Power Stations (PPS)
+    A1720: str = SolixDeviceType.PPS.value  # Anker PowerHouse 521 PPS
+    A1722: str = SolixDeviceType.PPS.value  # SOLIX C300 PPS
+    A1723: str = SolixDeviceType.PPS.value  # SOLIX C300X PPS
+    A1725: str = SolixDeviceType.PPS.value  # SOLIX C200(X) PPS
+    A1726: str = SolixDeviceType.PPS.value  # SOLIX C300 DC PPS
+    A1727: str = SolixDeviceType.PPS.value  # SOLIX C200 DC PPS
+    A1728: str = SolixDeviceType.PPS.value  # SOLIX C300X DC PPS
+    A1729: str = SolixDeviceType.PPS.value  # SOLIX C200X DC PPS
+    A1751: str = SolixDeviceType.PPS.value  # Anker PowerHouse 535 PPS
+    A1753: str = SolixDeviceType.PPS.value  # SOLIX C800 PPS
+    A1754: str = SolixDeviceType.PPS.value  # SOLIX C800 Plus PPS
+    A1755: str = SolixDeviceType.PPS.value  # SOLIX C800X PPS
+    A1760: str = SolixDeviceType.PPS.value  # Anker PowerHouse 555 PPS
+    A1761: str = SolixDeviceType.PPS.value  # SOLIX C1000(X) PPS
+    A1762: str = SolixDeviceType.PPS.value  # SOLIX PPS 1000
+    A1763: str = SolixDeviceType.PPS.value  # SOLIX C1000 Gen 2 PPS
+    A1765: str = SolixDeviceType.PPS.value  # SOLIX C1000X Gen 2 PPS
+    AS100: str = SolixDeviceType.PPS.value  # SOLIX C1000X Gen 2 LE PPS
+    AS220: str = SolixDeviceType.PPS.value  # SOLIX S2000 PPS
+    A1770: str = SolixDeviceType.PPS.value  # Anker PowerHouse 757 PPS
+    A1771: str = SolixDeviceType.PPS.value  # SOLIX F1200 PPS
+    A1772: str = SolixDeviceType.PPS.value  # SOLIX F1500 PPS
+    A1780: str = SolixDeviceType.PPS.value  # SOLIX F2000 PPS (PowerHouse 767) with Wifi
+    A1780P: str = SolixDeviceType.PPS.value  # SOLIX F2000 Plus PPS (PowerHouse 767)
+    A1781: str = SolixDeviceType.PPS.value  # SOLIX F2600 PPS
+    A1783: str = (
+        SolixDeviceType.PPS.value
+    )  # SOLIX C2000 Gen 2 PPS with Smart Meter support
+    A1785: str = (
+        SolixDeviceType.PPS.value
+    )  # SOLIX C2000X Gen 2 PPS with Smart Meter support
+    A1790: str = SolixDeviceType.PPS.value  # SOLIX F3800 PPS
+    A1790P: str = SolixDeviceType.PPS.value  # SOLIX F3800 Plus PPS
+    # Solarbank PPS devices
+    A1782: str = (
+        SolixDeviceType.SOLARBANK_PPS.value
+    )  # SOLIX F3000 PPS with SM support (US Market)
+    AS510: str = (
+        SolixDeviceType.SOLARBANK_PPS.value
+    )  # SOLIX S5000 PPS with SM support (US Market)
+    # Power Panels (Home_backup)
+    A17B1: str = (
+        SolixDeviceType.POWERPANEL.value
+    )  # SOLIX Home Power Panel for SOLIX F3800
+    # Home Backup devices
+    A17E1: str = (
+        SolixDeviceType.HOME_BACKUP.value
+    )  # SOLIX Home Backup system E10 Power Module (US Market)
+    # Home Energy System (HES)
+    A5101: str = SolixDeviceType.HES.value  # SOLIX X1 P6K US
+    A5102: str = SolixDeviceType.HES.value  # SOLIX X1 Energy module 1P H(3.68~6)K
+    A5103: str = SolixDeviceType.HES.value  # SOLIX X1 Energy module 3P H(5~12)K
+    A5150: str = SolixDeviceType.HES.value  # SOLIX X1 Microinverter
+    A5220: str = SolixDeviceType.HES.value  # SOLIX X1 Battery module
+    A5341: str = SolixDeviceType.HES.value  # SOLIX X1 Backup Controller
+    A5450: str = SolixDeviceType.HES.value  # SOLIX X1 Zigbee Dongle
+    AE113: str = SolixDeviceType.HES.value  # SOLIX XE 6/8kW
+    # Power Cooler
+    A17A0: str = SolixDeviceType.POWERCOOLER.value  # SOLIX Power Cooler 30
+    A17A1: str = SolixDeviceType.POWERCOOLER.value  # SOLIX Power Cooler 40
+    A17A2: str = SolixDeviceType.POWERCOOLER.value  # SOLIX Power Cooler 50
+    A17A3: str = SolixDeviceType.POWERCOOLER.value  # SOLIX Everfrost 2 23L
+    A17A4: str = SolixDeviceType.POWERCOOLER.value  # SOLIX Everfrost 2 40L
+    A17A5: str = SolixDeviceType.POWERCOOLER.value  # SOLIX Everfrost 2 58L
+    # Charging Stations
+    A1903: str = SolixDeviceType.CHARGER.value  # Anker 150W Prime Charger
+    A2345: str = SolixDeviceType.CHARGER.value  # Anker 250W Prime Charger
+    A2687: str = SolixDeviceType.CHARGER.value  # Anker 160W Prime Charger
+    A25X7: str = SolixDeviceType.CHARGER.value  # Prime Wireless Charger
+    A91B2: str = SolixDeviceType.CHARGER.value  # Anker 240W Charging Station
+    AS200: str = SolixDeviceType.CHARGER.value  # Alternator Charger
+    # Power Bank
+    A110A: str = (
+        SolixDeviceType.POWERBANK.value
+    )  # Anker Prime Power Bank 300 W, 25Ah, 92 Wh
+    A110B: str = (
+        SolixDeviceType.POWERBANK.value
+    )  # Anker Prime Power Bank 220 W, 20Ah, 74 Wh
+    A110G: str = (
+        SolixDeviceType.POWERBANK.value
+    )  # Anker Prime Power Bank 220 W, 20Ah, 74 Wh
+    # EV Charger
+    A5191: str = SolixDeviceType.EV_CHARGER.value  # SOLIX EV Charger
+    # Smart Generators
+    A7320: str = SolixDeviceType.GENERATOR.value  # SOLIX Smart Generator 5500
+
+
+@dataclass(frozen=True)
+class SolarbankDeviceMetrics:
+    """Dataclass for Anker Solarbank metrics which should be tracked in device details cache depending on model type. @thomas"""
+
+    # SOLIX Solarbank E1600, single MPPT without channel reporting
+    A17C0: ClassVar[set[str]] = set()
+    # SOLIX Solarbank 2 E1600 Pro, with 4 MPPT channel reporting and AC socket
+    A17C1: ClassVar[set[str]] = {
+        "sub_package_num",
+        "solar_power_1",
+        "solar_power_2",
+        "solar_power_3",
+        "solar_power_4",
+        "ac_power",
+        "to_home_load",
+        "pei_heating_power",
+        "power_limit",
+        "power_limit_option",
+        "charge_upper_limit",
+        "discharge_lower_limit",
+    }
+    # SOLIX Solarbank 2 E1600 AC, witho 2 MPPT channel and AC socket
+    A17C2: ClassVar[set[str]] = {
+        "sub_package_num",
+        "solar_power_1",
+        "solar_power_2",
+        "ac_power",
+        "to_home_load",
+        "pei_heating_power",
+        "micro_inverter_power",  # This is external inverter input, counts to Solar power
+        "micro_inverter_power_limit",
+        "micro_inverter_low_power_limit",
+        "grid_to_battery_power",
+        "other_input_power",  # This is AC input for charging typically
+        "power_limit",
+        "power_limit_option",
+        "charge_upper_limit",
+        "discharge_lower_limit",
+    }
+    # SOLIX Solarbank 2 E1600 Plus, with 2 MPPT
+    A17C3: ClassVar[set[str]] = {
+        "sub_package_num",
+        "solar_power_1",
+        "solar_power_2",
+        "to_home_load",
+        "pei_heating_power",
+        "power_limit",
+        "power_limit_option",
+        "charge_upper_limit",
+        "discharge_lower_limit",
+    }
+    # SOLIX Solarbank 3 E2700, with 4 MPPT channel and AC socket
+    A17C5: ClassVar[set[str]] = {
+        "sub_package_num",
+        "solar_power_1",
+        "solar_power_2",
+        "solar_power_3",
+        "solar_power_4",
+        "ac_power",
+        "to_home_load",
+        "pei_heating_power",
+        "grid_to_battery_power",
+        "other_input_power",  # This is AC input for charging typically
+        "power_limit",
+        "pv_power_limit",
+        "ac_input_limit",
+        "power_limit_option",
+        "charge_upper_limit",
+        "discharge_lower_limit",
+        "backup_reserve",
+        "backup_reserve_switch",
+    }
+    # SOLIX Solarbank 4 E5000, with 4 MPPT channel and AC socket
+    AE103: ClassVar[set[str]] = {
+        "sub_package_num",
+        "solar_power_1",
+        "solar_power_2",
+        "solar_power_3",
+        "solar_power_4",
+        "ac_power",
+        "to_home_load",
+        "pei_heating_power",
+        "grid_to_battery_power",
+        "other_input_power",  # This is AC input for charging typically
+        "power_limit",
+        "pv_power_limit",
+        "ac_input_limit",
+        "power_limit_option",
+        "charge_upper_limit",
+        "discharge_lower_limit",
+        "backup_reserve",
+        "backup_reserve_switch",
+    }
+    # SOLIX Solarbank Max AC
+    A17E2: ClassVar[set[str]] = {
+        "sub_package_num",
+        "ac_power",
+        "to_home_load",
+        "pei_heating_power",
+        "grid_to_battery_power",
+        "other_input_power",  # This is AC input for charging typically
+        "power_limit",
+        "pv_power_limit",
+        "ac_input_limit",
+        "power_limit_option",
+        "charge_upper_limit",
+        "discharge_lower_limit",
+        "backup_reserve",
+        "backup_reserve_switch",
+    }
+    # SOLIX Solarbank Max, with 3 high voltage MPPT channel and AC socket
+    AE111: ClassVar[set[str]] = {
+        "sub_package_num",
+        "solar_power_1",
+        "solar_power_2",
+        "solar_power_3",
+        "ac_power",
+        "to_home_load",
+        "pei_heating_power",
+        "grid_to_battery_power",
+        "other_input_power",  # This is AC input for charging typically
+        "power_limit",
+        "pv_power_limit",
+        "ac_input_limit",
+        "power_limit_option",
+        "charge_upper_limit",
+        "discharge_lower_limit",
+        "backup_reserve",
+        "backup_reserve_switch",
+    }
+    # SOLIX Solarbank PPS F3000, with 2 MPPT channels
+    A1782: ClassVar[set[str]] = {
+        "sub_package_num",
+        "solar_power_1",
+        "solar_power_2",
+        "to_home_load",
+        "grid_to_battery_power",
+        "power_limit",
+        "pv_power_limit",
+        "ac_input_limit",
+    }
+    # SOLIX Solarbank Power Dock centralized controls
+    AE100: ClassVar[set[str]] = {
+        "charge_upper_limit",
+        "discharge_lower_limit",
+        "backup_reserve",
+        "backup_reserve_switch",
+    }
+    # Inverter Output Settings
+    INVERTER_OUTPUT_OPTIONS: ClassVar[dict[str, Any]] = {
+        "A5143": ["600", "800"],
+        "A17C1": ["350", "600", "800", "1000"],
+        "A17C2": ["350", "600", "800", "1000"],
+        "A17C3": ["350", "600", "800", "1000"],
+        "A17C5": ["350", "600", "800", "1200"],
+        "AE103": ["600", "790", "800", "2500"],
+    }
+    MPPT_INPUT_OPTIONS: ClassVar[dict[str, Any]] = {
+        "A17C5": ["2000", "3600"],
+    }
+
+
+@dataclass(frozen=True)
+class SolixDefaults:
+    """Dataclass for Anker Solix defaults to be used. @thomas"""
+
+    # Output Power presets for Solarbank schedule timeslot settings
+    PRESET_MIN: int = 100
+    PRESET_MAX: int = 800
+    PRESET_DEF: int = 100
+    PRESET_NOSCHEDULE: int = 200
+    PRESET_MAX_MULTISYSTEM: int = 4800
+    PRESET_TYPE: int = SolarbankSchedulePresetType.supply.value
+    # Export Switch preset for Solarbank schedule timeslot settings
+    ALLOW_EXPORT: bool = True
+    # Preset power mode for Solarbank schedule timeslot settings
+    POWER_MODE: int = SolarbankPowerMode.normal.value
+    # Preset usage mode for Solarbank 2 schedules
+    USAGE_MODE: int = SolarbankUsageMode.manual.value
+    # Charge Priority limit preset for Solarbank schedule timeslot settings
+    CHARGE_PRIORITY_MIN: int = 0
+    CHARGE_PRIORITY_MAX: int = 100
+    CHARGE_PRIORITY_DEF: int = 80
+    # Discharge Priority preset for Solarbank schedule timeslot settings
+    DISCHARGE_PRIORITY_DEF: int = SolarbankDischargePriorityMode.off.value
+    # AC tariff settings for Use Time plan
+    TARIFF_DEF: int = SolixTariffTypes.OFF_PEAK.value
+    TARIFF_PRICE_DEF: str = "0.00"
+    TARIFF_SELL_PRICE_DEF: str = ""  # default to nothing in case not supported
+    TARIFF_WE_SAME: bool = True
+    CURRENCY_DEF: str = "€"
+    # Seconds delay for subsequent Api requests in methods to update the Api cache dictionaries
+    REQUEST_DELAY_MIN: float = 0.0
+    REQUEST_DELAY_MAX: float = 10.0
+    REQUEST_DELAY_DEF: float = 0.3
+    # Seconds timeout for all Api requests
+    REQUEST_TIMEOUT_MIN: int = 5
+    REQUEST_TIMEOUT_MAX: int = 60
+    REQUEST_TIMEOUT_DEF: int = 10
+    # Request limit per endpoint per minute
+    ENDPOINT_LIMIT_DEF: int = 10
+    # Seconds timeout for MQTT realtime trigger
+    TRIGGER_TIMEOUT_MIN: int = 30
+    TRIGGER_TIMEOUT_MAX: int = 600
+    TRIGGER_TIMEOUT_DEF: int = 300
+    # Inverter limit
+    MICRO_INVERTER_LIMIT_MIN: int = 0
+    MICRO_INVERTER_LIMIT_MAX: int = 800
+    # Dynamic tariff defaults
+    DYNAMIC_TARIFF_PRICE_FEE: ClassVar[dict[str, float]] = {
+        "UK": 0.1131,
+        "SE": 0.0643,
+        "AT": 0.11332,
+        "BE": 0.01316,
+        "FR": 0.1329,
+        "DE": 0.17895,
+        "PL": 0.0786,
+        "DEFAULT": 0,
+    }
+    DYNAMIC_TARIFF_SELL_FEE: ClassVar[dict[str, float]] = {
+        "UK": 0.03,
+        "SE": 0.2,
+        "AT": 0.0973,
+        "BE": 0.01305,
+        "FR": 0.127,
+        "DE": 0.0794,
+        "PL": 0,
+        "DEFAULT": 0,
+    }
+    DYNAMIC_TARIFF_PRICE_VAT: ClassVar[dict[str, float]] = {
+        "UK": 5,
+        "SE": 25,
+        "AT": 20,
+        "BE": 21,
+        "FR": 20,
+        "DE": 19,
+        "PL": 23,
+        "DEFAULT": 0,
+    }
+    PPS_BACKUP_SOC_DEF: int = 6
+    # SOLIX Devices supporting device energy queries
+    DEVICE_ENERGY: ClassVar[set[str]] = {
+        "A1763",  # C1000 Gen 2
+        "A1765",  # C1000X Gen 2
+        "AS100", # C1000X Gen 2 LE
+        "A1783", # C2000 Gen 2
+        "A1785", # C2000X Gen 2
+        "AS220", # S2000
+    }
+
+
+class SolixDeviceStatus(StrEnum):
+    """Str Enumeration for Anker Solix Device status. @thomas"""
+
+    # The device status code seems to be used for cloud connection status.
+    offline = "0"
+    online = "1"
+    unknown = "unknown"
+
+
+class SolarbankStatus(StrEnum):
+    """Str Enumeration for Anker Solix Solarbank status. @thomas"""
+
+    detection = "0"  # Rare for SB1, frequent for SB2 especially in combination with Smartmeter in the morning
+    protection_charge = "03"  # For SB2 only when there is charge while output below demand in detection mode
+    bypass = "1"  # Bypass solar without charge
+    bypass_discharge = (
+        "12"  # pseudo state for SB2 if discharging in bypass mode, not possible for SB1
+    )
+    discharge = "2"  # only seen if no solar available
+    charge = "3"  # normal charge for battery
+    charge_bypass = "31"  # pseudo state, the solarbank does not distinguish this
+    charge_ac = "32"  # pseudo state, the solarbank does not distinguish this
+    charge_priority = "37"  # pseudo state, the solarbank does not distinguish this, when no output power exists while preset is ignored
+    wakeup = "4"  # Not clear what happens during this state, but observed short intervals during night, probably hourly? resync with the cloud
+    cold_wakeup = "116"  # At cold temperatures, 116 was observed instead of 4. Not sure why this state is different at low temps?
+    fully_charged = "5"  # Seen for SB2 when SOC is 100%
+    full_bypass = "6"  # seen at cold temperature, when battery must not be charged and the Solarbank bypasses all directly to inverter, also solar power < 25 W. More often with SB2
+    standby = "7"
+    unknown = "unknown"
+    # TODO(SB3): Is there a new mode for AC charging? Can it be distinguished from existing values?
+
+
+class SolarbankPpsStatus(StrEnum):
+    """Str Enumeration for Anker Solix Solarbank PPS status. @thomas"""
+
+    # 0: Standby?; 1: Discharge; 2: Charge
+    standby = "0"
+    discharge = "1"
+    charge = "2"
+    unknown = "unknown"
+
+
+class SolarbankLightMode(StrEnum):
+    """Str Enumeration for Anker Solix Solarbank light modes. @thomas"""
+
+    normal = "0"
+    mood = "1"
+    unknown = "unknown"
+
+
+class SolarbankParallelTypes(StrEnum):
+    """Str Enumeration for Anker Solix Solarbank parallel types. @thomas"""
+
+    single = "single"
+    cascaded = "cascaded"  # For SB1 only if SB1 is attached to SB2 in single system
+    ae100 = "ae100"  # Solarbank power dock in use
+    ae100v2 = "ae100v2"
+    diy = "diy"  # Solarbank 3 parallel without power dock
+
+
+class SmartmeterStatus(StrEnum):
+    """Str Enumeration for Anker Solix Smartmeter status. @thomas"""
+
+    # TODO(#106) Update Smartmeter grid status description once known
+    ok = "0"  # normal grid state when smart meter is measuring
+    unknown = "unknown"
+
+
+class PowerdockStatus(StrEnum):
+    """Str Enumeration for Anker Solix Power Dock status. @thomas"""
+
+    # TODO(#AE100) Update status description once known
+    ok = "0"  # normal power dock state (AE100)
+    unknown = "unknown"
+
+
+class PowerdockChargingStatus(StrEnum):
+    """Str Enumeration for Anker Solix Power Dock charging status. @thomas"""
+
+    # TODO(#AX170) Update status description once known, is this only a half byte usage?
+    idle = "32"  # 0010 0000
+    charging = "48"  # 0011 0000
+    discharging = "64"  # 0100 0000
+    unknown = "unknown"
+
+
+class SolarbankGridStatus(StrEnum):
+    """Str Enumeration for Anker Solarbank grid status. @thomas"""
+
+    connected = "1"  # normal grid state
+    connecting = "3"  # Grid detected, going into normal state
+    disconnected = "6"  # No grid available
+    unknown = "unknown"
+
+
+class SolixGridStatus(StrEnum):
+    """Str Enumeration for Anker Solix grid status. @thomas"""
+
+    ok = "0"  # normal grid state when hes pcu grid status is ok
+    unknown = "unknown"
+
+
+class SolixPlantStatus(StrEnum):
+    """Str Enumeration for Anker Solix plant status. @thomas"""
+
+    # 1: On-grid; 2: Off-grid 3: Standby 4: Fault
+    on_grid = "1"
+    off_grid = "2"
+    standby = "3"
+    fault = "4"
+    unknown = "unknown"
+
+
+class SolixBatteryStatus(StrEnum):
+    """Str Enumeration for Anker Solix battery status. @thomas"""
+
+    # 0: Standby; 1: Charging; 2: Discharging; 3: Sleep
+    standby = "0"
+    charging = "1"
+    discharging = "2"
+    sleep = "3"
+    unknown = "unknown"
+
+
+class SolixPpsBatteryStatus(StrEnum):
+    """Str Enumeration for Anker Solix PPS battery status. @thomas"""
+
+    inactive = "0"
+    discharging = "1"
+    charging = "2"
+    unknown = "unknown"
+
+
+class SolixPpsWorkStatus(StrEnum):
+    """Str Enumeration for Anker Solix PPS working status. @thomas"""
+
+    # 0: Idle; 1: Discharge; 2: Charging; 3: Sleep, 4: Shutdown
+    idle = "0"
+    discharging = "1"
+    charging = "2"
+    sleep = "3"
+    shutdown = "4"
+    unknown = "unknown"
+
+
+class SolixBackupStatus(StrEnum):
+    """Str Enumeration for Anker Solix backup status. @thomas"""
+
+    inactive = "0"
+    planned_charge = "1"
+    storm_guard = "2"
+    unknown = "unknown"
+
+
+class SolixDisasterStatus(StrEnum):
+    """Str Enumeration for Anker Solix disaster status. @thomas"""
+
+    progressing = "1"
+    inactive = "2"
+    unknown = "unknown"
+
+
+class SolixRoleStatus(StrEnum):
+    """Str Enumeration for Anker Solix role status of devices. @thomas"""
+
+    # The device role status codes as used for HES devices
+    primary = "1"  # Master role in Api
+    subordinate = "2"  # Slave role in Api
+    unknown = "unknown"
+
+
+class SolixNetworkStatus(StrEnum):
+    """Str Enumeration for Anker Solix HES network status. @thomas"""
+
+    wifi = "1"  # wifi connection
+    lan = "2"  # lan/wired connection
+    mobile = "3"  # mobile/5G connection
+    unknown = "unknown"
+
+
+class SolixWorkingStatus(StrEnum):
+    """Str Enumeration for Anker Solix HES working status. @thomas"""
+
+    standby = "0"
+    running = "1"
+    unknown = "unknown"
+
+
+class SolixMode(StrEnum):
+    """Str Enumeration for Anker Solix HES mode. @thomas"""
+
+    off = "0"
+    on = "1"
+    auto = "2"
+    unknown = "unknown"
+
+
+class SolixPpsUsageMode(StrEnum):
+    """Str Enumeration for Anker Solix PPS usage mode. @thomas"""
+
+    # 0=Standard, 1=Time-of-Use, 2=Self-Consumption, 3=Custom
+    standard = "0"  # UPS mode
+    time_of_use = "1"
+    self_consumption = "2"
+    custom = "3"
+    unknown = "unknown"
+
+
+class SolixChargerUsageMode(StrEnum):
+    """Str Enumeration for Anker Solix charger usage mode. @thomas"""
+
+    ai_power = "1"
+    port_priority = "2"
+    dual_laptop = "3"
+    low_power = "4"
+    custom = "5"  # Only available if charging_mode_status enabled in device settings of A2345
+    unknown = "unknown"
+
+
+class SolixKnobMode(StrEnum):
+    """Str Enumeration for Anker Solix Knob mode. @thomas"""
+
+    forward = "0"
+    backward = "1"
+    unknown = "unknown"
+
+
+class SolixClockMode(StrEnum):
+    """Str Enumeration for Anker Solix Clock mode. @thomas"""
+
+    _12h = "0"
+    _24h = "1"
+    unknown = "unknown"
+
+
+class SolixDisplayTimeoutMode(StrEnum):
+    """Str Enumeration for Anker Solix display timeout mode. @thomas"""
+
+    _0 = "0"
+    _30 = "1"
+    _60 = "2"
+    _300 = "3"
+    _1800 = "4"
+    unknown = "unknown"
+
+
+class SolixSwitchMode(IntEnum):
+    """Int Enumeration for generic Anker Solix switch modes. @thomas"""
+
+    off = 0
+    on = 1
+    unknown = -1
+
+
+class SolixSwitchModeV2(StrEnum):
+    """Str Enumeration for generic Anker Solix switch modes V2. @thomas"""
+
+    on = "1"
+    off = "2"
+    unknown = "unknown"
+
+
+class SolixPpsOutputStatus(StrEnum):
+    """Str Enumeration for Anker Solix PPS output status. @thomas"""
+
+    smart = "0"
+    normal = "1"
+    unknown = "unknown"
+
+
+class SolixPpsOutputMode(StrEnum):
+    """Str Enumeration for Anker Solix PPS output modes. @thomas"""
+
+    normal = "1"
+    smart = "2"
+    unknown = "unknown"
+
+
+class SolixPpsOutputModeV2(StrEnum):
+    """Str Enumeration for new Anker Solix PPS output modes including models that use it. @thomas"""
+
+    normal = "0"
+    smart = "1"
+    unknown = "unknown"
+    A1763 = "A1763"
+    A1765 = "A1765"
+    A1782 = "A1782"
+    A1783 = "A1783"
+    A1785 = "A1785"
+
+
+class SolixPpsLoadMode(StrEnum):
+    """Str Enumeration for Anker Solix PPS load mode. @thomas"""
+
+    # 1: Charge; 2: Discharge
+    charge = "1"
+    discharge = "2"
+    unknown = "unknown"
+
+
+class SolixPpsChargingStatus(StrEnum):
+    """Str Enumeration for Anker Solix PPS charging status. @thomas"""
+
+    inactive = "0"
+    solar = "1"
+    input_power = "2"  # could be AC or DC input depending on device
+    both = "3"
+    unknown = "unknown"
+
+
+class SolixPpsDcChargingStatus(StrEnum):
+    """Str Enumeration for Anker Solix PPS DC charging status. @thomas"""
+
+    inactive = "0"
+    charging = "1"
+    unknown = "unknown"
+
+
+class SolixPpsPortStatus(StrEnum):
+    """Str Enumeration for Anker Solix PPS port status. @thomas"""
+
+    inactive = "0"
+    discharging = "1"
+    charging = "2"
+    standby = "3"
+    unknown = "unknown"
+
+
+class SolixPpsDisplayMode(StrEnum):
+    """Str Enumeration for Anker Solix PPS display and light modes. @thomas"""
+
+    off = "0"
+    low = "1"
+    medium = "2"
+    high = "3"
+    blinking = "4"
+    unknown = "unknown"
+
+
+class SolixChargerPortStatus(StrEnum):
+    """Str Enumeration for Anker Solix Charger port status. @thomas"""
+
+    inactive = "0"
+    active = "1"
+    unknown = "unknown"
+
+
+class SolixPhaseMode(StrEnum):
+    """Str Enumeration for Anker Solix Phase operation mode. @thomas"""
+
+    automatic = "0"
+    one_phase = "1"
+    # three_phase = "2"
+    unknown = "unknown"
+
+
+class SolixOcppConnectionStatus(StrEnum):
+    """Str Enumeration for OCPP connection status. @thomas"""
+
+    disconnected = "0"
+    connecting = "1"
+    connected = "2"
+    unknown = "unknown"
+
+
+class SolixConnectionStatus(StrEnum):
+    """Str Enumeration for generic connection status. @thomas"""
+
+    disconnected = "0"
+    connected = "1"
+    connecting = "2"
+    unknown = "unknown"
+
+
+class SolixChargerConnectionStatus(StrEnum):
+    """Str Enumeration for charger connection status. @thomas"""
+
+    connected = "0"
+    disconnected = "1"
+    connecting = "2"
+    unknown = "unknown"
+
+
+class SolixCpSignalStatus(StrEnum):
+    """Str Enumeration for CP Signal status. @thomas"""
+
+    a_12v = "0"
+    b1_9v = "3"
+    b2_9v = "4"
+    c1_6v = "5"
+    c2_6v = "6"
+    error = "7"
+    d1_3v = "8"
+    d2_3v = "9"
+    e_0v = "10"
+    f_minus_12v = "11"
+    unknown = "unknown"
+
+
+class SolixEvChargerStatus(StrEnum):
+    """Str Enumeration for EV Charger status. @thomas"""
+
+    standby = "0"
+    preparing = "1"
+    charging = "2"
+    charger_paused = "3"
+    vehicle_paused = "4"
+    completed = "5"
+    reserving = "6"
+    disabled = "7"
+    error = "8"
+    unknown = "unknown"
+
+
+class SolixEvChargerMode(StrEnum):
+    """Str Enumeration for EV Charger operational mode. @thomas"""
+
+    start_charge = "1"
+    stop_charge = "2"
+    skip_delay = "3"
+    boost_charge = "4"
+    unknown = "unknown"
+    wait_start = "wait_start"  # Virtual mode not usable as control value
+    wait_plug = "wait_plug"  # Virtual mode not usable as control value
+
+
+class SolixEvChargerWipeMode(StrEnum):
+    """Str Enumeration for EV Charger Smart Touch Wipe modes. @thomas"""
+
+    off = "0"
+    start_charge = "1"
+    stop_charge = "2"
+    boost_charge = "3"
+    unknown = "unknown"
+
+
+class SolixSmartTouchMode(StrEnum):
+    """Str Enumeration for EV Charger Smart Touch mode. @thomas"""
+
+    simple = "0"
+    anti_mistouch = "1"
+    unknown = "unknown"
+
+
+class SolixEvChargerSolarMode(StrEnum):
+    """Str Enumeration for EV Charger Solar charging mode. @thomas"""
+
+    solar_grid = "0"
+    solar_only = "1"
+    unknown = "unknown"
+
+
+class SolixScheduleWeekendMode(StrEnum):
+    """Str Enumeration for schedule weekend mode. @thomas"""
+
+    same = "1"
+    different = "2"
+    unknown = "unknown"
+
+
+class SolixChargerMode(StrEnum):
+    """Str Enumeration for charger mode types. @thomas"""
+
+    normal = "0"
+    reverse = "1"
+    unknown = "unknown"
+
+
+class SolixBatteryType(StrEnum):
+    """Str Enumeration for Battery types. @thomas"""
+
+    li_fe_po = "0"
+    lead_acid = "1"
+    unknown = "unknown"
+
+
+class SolixBatteryVoltageType(StrEnum):
+    """Str Enumeration for Battery Voltage types. @thomas"""
+
+    _12_v = "0"
+    _24_v = "1"
+    unknown = "unknown"
+
+
+class SolixPlugTimerMode(StrEnum):
+    """Str Enumeration for Smart Plug delayed toggle modes. @thomas"""
+
+    off = "0"
+    start = "1"
+    paused = "2"
+    running = "3"
+    unknown = "unknown"
+
+
+class SolixPortId(StrEnum):
+    """Str Enumeration for Solix Port Identifiers. @thomas"""
+
+    usbc_1 = "0"
+    usbc_2 = "1"
+    usbc_3 = "2"
+    usbc_4 = "3"
+    usba = "4"
+    unknown = "unknown"
+
+
+class SolixPortPriority(StrEnum):
+    """Str Enumeration for Solix Port Priorities. @thomas"""
+
+    off = "0"
+    c1 = "1"
+    c2 = "2"
+    c1_c2 = "3"
+    c3 = "4"
+    c1_c3 = "5"
+    c2_c3 = "6"
+    c4 = "8"
+    c1_c4 = "9"
+    c2_c4 = "10"
+    c3_c4 = "12"
+    unknown = "unknown"
+
+
+class SolixCircuitPriority(StrEnum):
+    """Str Enumeration for Solix Circuit Priority. @thomas"""
+
+    must_have = "1"
+    nice_to_have = "2"
+    unknown = "unknown"
+
+
+@dataclass
+class SolarbankTimeslot:
+    """Dataclass to define customizable attributes of an Anker Solix Solarbank time slot as used for the schedule definition or update. @thomas"""
+
+    start_time: datetime
+    end_time: datetime
+    appliance_load: int | None = (
+        None  # mapped to appliance_loads setting using a default 50% share for dual solarbank setups
+    )
+    device_load: int | None = (
+        None  # mapped to device load setting of provided solarbank serial
+    )
+    allow_export: bool | None = None  # mapped to the turn_on boolean
+    charge_priority_limit: int | None = None  # mapped to charge_priority setting
+    discharge_priority: int | None = None  # mapped to discharge priority setting
+
+
+@dataclass
+class Solarbank2Timeslot:
+    """Dataclass to define customizable attributes of an Anker Solix Solarbank 2/3 time slot as used for the schedule definition, update or deletion. @thomas"""
+
+    start_time: datetime | None
+    end_time: datetime | None
+    appliance_load: int | None = None  # mapped to timeslot preset value
+    charging_type: int | str | None = (
+        None  # mapped to value type, introduced April 2026
+    )
+    weekdays: set[int | str] | None = (
+        None  # set of weekday numbers or abbreviations where this slot applies, defaulting to all if None. sun = 0, sat = 6
+    )
+
+    def __post_init__(self) -> None:
+        """Init the dataclass with proper type of parameters. @thomas"""
+        if not isinstance(self.appliance_load, int | None):
+            self.appliance_load = (
+                int(self.appliance_load)
+                if str(self.appliance_load).replace(".", "", 1).lstrip("-").isdigit()
+                else None
+            )
+        if not isinstance(self.charging_type, int | None):
+            member: Enum | None = getattr(
+                SolarbankSchedulePresetType, str(self.charging_type), None
+            )
+            self.charging_type = (
+                member.value
+                if member
+                else int(self.charging_type)
+                if str(self.charging_type).replace(".", "", 1).isdigit()
+                else None
+            )
+
+
+@dataclass(order=True, kw_only=True)
+class SolixPriceProvider:
+    """Dataclass to define dynamic price provider attributes and representation of them. @thomas"""
+
+    country: str | None = None
+    company: str | None = None
+    area: str | None = None
+    provider: InitVar[dict | str | None] = None
+
+    def __post_init__(self, provider) -> None:
+        """Init the dataclass from an optional provider representation or priceinfo dictionary. @thomas"""
+        if isinstance(provider, dict):
+            self.country = provider.get("country")
+            self.company = provider.get("company")
+            self.area = provider.get("area")
+        elif isinstance(provider, str) and (keys := provider.split("/")):
+            self.country = s if (s := (keys[0:1] or [None])[0]) != "-" else None
+            self.company = s if (s := (keys[1:2] or [None])[0]) != "-" else None
+            self.area = s if (s := (keys[2:3] or [None])[0]) != "-" else None
+
+    def __str__(self) -> str:
+        """Print the class fields. @thomas"""
+        return f"{self.country or '-'}/{self.company or '-'}/{self.area or '-'}"
+
+    def asdict(self) -> dict:
+        """Return a dictionary representation of the class fields. @thomas"""
+        return asdict(self)
+
+
+@dataclass(order=True, kw_only=True)
+class SolixVehicle:
+    """Dataclass to define vehicle attributes and representation of them. @thomas"""
+
+    brand: str = ""
+    model: str = ""
+    productive_year: int = 0
+    model_id: int | None = None
+    battery_capacity: float = 0
+    ac_max_charging_power: float = 0
+    energy_consumption_per_100km: float = 0
+    vehicle: InitVar[dict | str | None] = None
+
+    def __post_init__(self, vehicle) -> None:
+        """Post init the dataclass from an optional vehicle representation or dictionary. @thomas"""
+        if isinstance(vehicle, dict):
+            self.update(attributes=vehicle)
+        elif isinstance(vehicle, str) and (keys := vehicle.split("/")):
+            self.update(
+                attributes={
+                    "brand:": s if (s := (keys[0:1] or [None])[0]) != "-" else "",
+                    "model": s if (s := (keys[1:2] or [None])[0]) != "-" else "",
+                    "productive_year": (keys[2:3] or [None])[0],
+                    "model_id": (keys[3:4] or [None])[0],
+                }
+            )
+        else:
+            # General type conversion for parameters as required
+            self.brand = str(self.brand) if self.brand else ""
+            self.model = str(self.model) if self.model else ""
+            self.productive_year = (
+                int(self.productive_year) if str(self.productive_year).isdigit() else 0
+            )
+            self.model_id = int(self.model_id) if str(self.model_id).isdigit() else None
+            self.battery_capacity = (
+                float(self.battery_capacity)
+                if str(self.battery_capacity).replace(".", "", 1).isdigit()
+                else 0
+            )
+            self.ac_max_charging_power = (
+                float(self.ac_max_charging_power)
+                if str(self.ac_max_charging_power).replace(".", "", 1).isdigit()
+                else 0
+            )
+            self.energy_consumption_per_100km = (
+                float(self.energy_consumption_per_100km)
+                if str(self.energy_consumption_per_100km).replace(".", "", 1).isdigit()
+                else 0
+            )
+
+    def __str__(self) -> str:
+        """Print the class fields. @thomas"""
+        return f"{(self.brand or '-')!s}/{(self.model or '-')!s}/{(self.productive_year or '-')!s}"
+
+    def idAttributes(self) -> str:
+        """Print the model ID with key attribute fields. @thomas"""
+        return f"{('-' if self.model_id is None else self.model_id)!s}/{(self.battery_capacity or '-')!s} kWh/{(self.ac_max_charging_power or '-')!s} kW"
+
+    def update(self, attributes: dict) -> None:
+        """Update attributes based on provided dictionary fields. @thomas"""
+        if isinstance(attributes, dict):
+            self.brand = (
+                str(brand)
+                if (brand := attributes.get("brand") or attributes.get("brand_name"))
+                else self.brand
+            )
+            self.model = (
+                str(model)
+                if (model := attributes.get("model") or attributes.get("model_name"))
+                else self.model
+            )
+            self.productive_year = (
+                int(year)
+                if str(year := attributes.get("productive_year")).isdigit()
+                else self.productive_year
+            )
+            self.model_id = (
+                int(mid)
+                if str(
+                    mid := attributes.get("id") or attributes.get("model_id")
+                ).isdigit()
+                else self.model_id
+            )
+            self.battery_capacity = (
+                float(capacity)
+                if str(capacity := attributes.get("battery_capacity"))
+                .replace(".", "", 1)
+                .isdigit()
+                else self.battery_capacity
+            )
+            self.ac_max_charging_power = (
+                float(limit)
+                if str(
+                    limit := attributes.get("ac_max_charging_power")
+                    or attributes.get("ac_max_power")
+                )
+                .replace(".", "", 1)
+                .isdigit()
+                else self.ac_max_charging_power
+            )
+            self.energy_consumption_per_100km = (
+                float(consumption)
+                if str(
+                    consumption := attributes.get("energy_consumption_per_100km")
+                    or attributes.get("hundred_fuel_consumption")
+                )
+                .replace(".", "", 1)
+                .isdigit()
+                else self.energy_consumption_per_100km
+            )
+
+    def asdict(self, skip_empty: bool = False) -> dict:
+        """Return a dictionary representation of the class fields. @thomas"""
+        d = asdict(self)
+        if skip_empty:
+            keys = d.keys()
+            for key in [key for key in keys if not d[key] or key == "id"]:
+                d.pop(key, None)
+        return d
+
+
+class Color(StrEnum):
+    """Str Enumeration defining ASCII colors. @thomas"""
+
+    BLACK = "\033[30m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    CYAN = "\033[36m"
+    MAG = "\033[35m"
+    WHITE = "\033[37m"
+    OFF = "\033[0m"
+
+
+class DeviceHexDataTypes(Enum):
+    """Enumeration for Anker Solix MQTT HEX data value types. @thomas"""
+
+    str = bytes.fromhex("00")  # various number of bytes, string (Base type)
+    ui = bytes.fromhex("01")  # 1 byte fix, unsigned int (Base type)
+    sile = bytes.fromhex("02")  # 2 bytes fix, signed int LE (Base type)
+    # var is always 4 bytes, but could be 1-4 * int, 1-2 * signed int LE or 4 Byte signed int LE
+    # mapping must specify "values" to indicate number of values in bytes from beginning. Default is 0 for 1 value in 4 bytes
+    var = bytes.fromhex("03")
+    # bin is multiple bytes, mostly 00 or 01 but also others, bitmap pattern for settings
+    # mapping must specify start byte string ("00"-"xx") for fields and field description is a list, since single field can be used for various named settings
+    # each named setting must describe a "mask" integer to indicate which bit(s) are relevant for the named setting, e.g. mask 0x64 => 0100 0000
+    bin = bytes.fromhex("04")
+    sfle = bytes.fromhex("05")  # 4 bytes, signed float LE (Base type)
+    # 06 can be many bytes, mix of Str and Byte values
+    # mapping must specify start byte string ("00"-"len-1") for fields, field description needs "type",
+    # with a DeviceHexDataTypes base type for value conversion (ui=1, sile=2, sfle=4 bytes).
+    # The optional LENGTH with int for byte count can be specified (default is 0 if no base type used),
+    # where Length of 0 indicates that first byte contains variable field length, e.g. for str type
+    strb = bytes.fromhex("06")
+    json = bytes.fromhex("FE")  # virtual type to mark json in string types
+    unk = bytes.fromhex("FF")  # unkonwn marker

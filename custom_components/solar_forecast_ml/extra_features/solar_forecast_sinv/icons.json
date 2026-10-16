@@ -1,0 +1,1359 @@
+{
+    "config": {
+        "step": {
+            "user_options": {
+                "sections": {
+                    "api_options": "mdi:api",
+                    "mqtt_options": "mdi:source-branch-sync",
+                    "test_options": "mdi:hammer-wrench"
+                }
+            }
+        }
+    },
+    "options": {
+        "step": {
+            "init": {
+                "sections": {
+                    "api_options": "mdi:api",
+                    "mqtt_options": "mdi:source-branch-sync",
+                    "test_options": "mdi:hammer-wrench"
+                }
+            }
+        }
+    },
+    "entity": {
+        "button": {
+            "refresh_device": {
+                "default": "mdi:cog-refresh"
+            },
+            "refresh_vehicles": {
+                "default": "mdi:car-search"
+            },
+            "restore_attributes": {
+                "default": "mdi:car-cog"
+            },
+            "mqtt_realtime_trigger": {
+                "default": "mdi:arrow-decision-auto"
+            },
+            "mqtt_status_request": {
+                "default": "mdi:arrow-decision"
+            },
+            "restart_device": {
+                "default": "mdi:power"
+            },
+            "shutdown_device": {
+                "default": "mdi:power-plug-off"
+            }
+        },
+        "binary_sensor": {
+            "wifi_connection": {
+                "default": "mdi:wifi-alert",
+                "state": {
+                    "on": "mdi:wifi",
+                    "off": "mdi:wifi-off"
+                }
+            },
+            "wired_connection": {
+                "default": "mdi:alert-box-outline",
+                "state": {
+                    "on": "mdi:ethernet-cable",
+                    "off": "mdi:ethernet-cable-off"
+                }
+            },
+            "mqtt_connection": {
+                "default": "mdi:weather-cloudy-alert",
+                "state": {
+                    "on": "mdi:cloud-refresh-variant",
+                    "off": "mdi:cloud-remove-outline"
+                }
+            },
+            "ai_ems_enabled": {
+                "default": "mdi:head-question-outline",
+                "state": {
+                    "on": "mdi:head-sync",
+                    "off": "mdi:head-outline"
+                }
+            },
+            "auto_switch": {
+                "default": "mdi:help-circle-outline",
+                "state": {
+                    "on": "mdi:auto-mode",
+                    "off": "mdi:gesture-tap"
+                }
+            },
+            "heating": {
+                "default": "mdi:thermometer-alert",
+                "state": {
+                    "on": "mdi:radiator",
+                    "off": "mdi:radiator-off"
+                }
+            },
+            "site_admin": {
+                "default": "mdi:account-alert",
+                "state": {
+                    "on": "mdi:account-check",
+                    "off": "mdi:account-cancel"
+                }
+            },
+            "has_unread_msg": {
+                "default": "mdi:message-question",
+                "state": {
+                    "on": "mdi:message-alert",
+                    "off": "mdi:message-check-outline"
+                }
+            },
+            "use_files": {
+                "default": "mdi:account-alert",
+                "state": {
+                    "on": "mdi:file-document-refresh-outline",
+                    "off": "mdi:web-sync"
+                }
+            },
+            "smart_charging": {
+                "default": "mdi:car-off",
+                "state": {
+                    "on": "mdi:car-electric",
+                    "off": "mdi:car-outline"
+                }
+            },
+            "connected_to_enodeapi": {
+                "default": "mdi:car-off",
+                "state": {
+                    "on": "mdi:car-connected",
+                    "off": "mdi:car-outline"
+                }
+            },
+            "plug_status": {
+                "default": "mdi:car-off",
+                "state": {
+                    "off": "mdi:power-plug-off",
+                    "on": "mdi:power-plug-battery"
+                }
+            },
+            "dc_generator_plug_status": {
+                "default": "mdi:help-box-outline",
+                "state": {
+                    "off": "mdi:power-plug-off",
+                    "on": "mdi:generator-portable"
+                }
+            },
+            "mqtt_local_mode": {
+                "default": "mdi:cloud-question-outline",
+                "state": {
+                    "on": "mdi:cloud-cancel-outline",
+                    "off": "mdi:cloud-upload-outline"
+                }
+            },
+            "disaster_support": {
+                "default": "mdi:earth-off",
+                "state": {
+                    "on": "mdi:earth",
+                    "off": "mdi:earth-off"
+                }
+            }
+        },
+        "datetime": {
+            "preset_manual_backup_start": {
+                "default": "mdi:clock-start"
+            },
+            "preset_manual_backup_end": {
+                "default": "mdi:clock-end"
+            }
+        },
+        "number": {
+            "mqtt_status_interval": {
+                "default": "mdi:repeat-off",
+                "range": {
+                    "0": "mdi:repeat-off",
+                    "1": "mdi:repeat"
+                }
+            },
+            "preset_system_output_power": {
+                "default": "mdi:home-lightning-bolt-outline"
+            },
+            "preset_device_output_power": {
+                "default": "mdi:generator-stationary"
+            },
+            "preset_charge_priority": {
+                "default": "mdi:battery-arrow-up-outline"
+            },
+            "system_price": {
+                "default": "mdi:cash-edit"
+            },
+            "preset_tariff_price": {
+                "default": "mdi:cash-edit"
+            },
+            "dynamic_price_fee": {
+                "default": "mdi:cash-plus"
+            },
+            "dynamic_price_vat": {
+                "default": "mdi:cash-plus"
+            },
+            "ac_max_charging_power": {
+                "default": "mdi:ev-station"
+            },
+            "energy_consumption_per_100km": {
+                "default": "mdi:car-electric"
+            },
+            "preset_ac_input_limit": {
+                "default": "mdi:speedometer"
+            },
+            "grid_export_limit": {
+                "default": "mdi:transmission-tower-import"
+            },
+            "min_soc": {
+                "default": "mdi:battery-heart-outline"
+            },
+            "max_soc": {
+                "default": "mdi:battery-heart"
+            },
+            "backup_soc": {
+                "default": "mdi:battery-lock"
+            },
+            "ac_output_timeout": {
+                "default": "mdi:clock-end"
+            },
+            "dc_output_timeout": {
+                "default": "mdi:clock-end"
+            },
+            "main_breaker_limit": {
+                "default": "mdi:alert-outline"
+            },
+            "max_evcharge_current": {
+                "default": "mdi:arrow-collapse-up"
+            },
+            "solar_evcharge_min_current": {
+                "default": "mdi:arrow-collapse-down"
+            },
+            "device_timeout": {
+                "default": "mdi:clock-end"
+            },
+            "charge_voltage_limit": {
+                "default": "mdi:speedometer"
+            },
+            "display_brightness": {
+                "default": "mdi:brightness-percent"
+            }
+        },
+        "select": {
+            "power_cutoff": {
+                "default": "mdi:battery-heart-outline"
+            },
+            "preset_usage_mode": {
+                "default": "mdi:account-clock",
+                "state": {
+                    "smartmeter": "mdi:refresh-auto",
+                    "smartplugs": "mdi:power-plug",
+                    "backup": "mdi:power-plug-battery-outline",
+                    "use_time": "mdi:battery-clock",
+                    "smart": "mdi:auto-mode",
+                    "time_slot": "mdi:update"
+                }
+            },
+            "preset_load_type": {
+                "default": "mdi:battery-unknown",
+                "state": {
+                    "supply": "mdi:home-battery-outline",
+                    "ac_charge": "mdi:power-plug-battery-outline"
+                }
+            },
+            "preset_tariff": {
+                "default": "mdi:cash-clock"
+            },
+            "system_price_unit": {
+                "default": "mdi:cash-edit"
+            },
+            "system_price_type": {
+                "default": "mdi:cash-edit",
+                "state": {
+                    "fixed": "mdi:cash-lock",
+                    "use_time": "mdi:cash-clock",
+                    "dynamic": "mdi:cash-sync"
+                }
+            },
+            "dynamic_price_provider": {
+                "default": "mdi:cash-sync"
+            },
+            "preset_inverter_limit": {
+                "default": "mdi:speedometer"
+            },
+            "max_load": {
+                "default": "mdi:speedometer"
+            },
+            "max_load_total": {
+                "default": "mdi:speedometer"
+            },
+            "preset_ac_input_limit": {
+                "default": "mdi:speedometer"
+            },
+            "preset_pv_input_limit": {
+                "default": "mdi:speedometer"
+            },
+            "device_timeout": {
+                "default": "mdi:clock-end"
+            },
+            "ac_smart_timeout": {
+                "default": "mdi:clock-end"
+            },
+            "ac_output_timeout": {
+                "default": "mdi:clock-end"
+            },
+            "min_soc": {
+                "default": "mdi:battery-heart-outline"
+            },
+            "max_soc": {
+                "default": "mdi:battery-heart"
+            },
+            "backup_soc": {
+                "default": "mdi:battery-lock"
+            },
+            "temp_unit": {
+                "default": "mdi:temperature-celsius",
+                "state": {
+                    "celsius": "mdi:temperature-celsius",
+                    "fahrenheit": "mdi:temperature-fahrenheit"
+                }
+            },
+            "light_mode": {
+                "default": "mdi:lightbulb-question-outline",
+                "state": {
+                    "normal": "mdi:lightbulb-on",
+                    "mood": "mdi:lightbulb-night",
+                    "off": "mdi:lightbulb-off-outline",
+                    "low": "mdi:lightbulb-on-30",
+                    "medium": "mdi:lightbulb-on-50",
+                    "high": "mdi:lightbulb-on-80",
+                    "blinking": "mdi:alarm-light"
+                }
+            },
+            "display_timeout": {
+                "default": "mdi:clock-end"
+            },
+            "display_mode": {
+                "default": "mdi:card-bulleted-settings-outline",
+                "state": {
+                    "off": "mdi:brightness-7",
+                    "low": "mdi:brightness-4",
+                    "medium": "mdi:brightness-6",
+                    "high": "mdi:brightness-5"
+                }
+            },
+            "ac_output_mode": {
+                "default": "mdi:flash-outline",
+                "state": {
+                    "nomral": "mdi:flash",
+                    "smart": "mdi:flash-auto"
+                }
+            },
+            "dc_12v_output_mode": {
+                "default": "mdi:flash-outline",
+                "state": {
+                    "nomral": "mdi:flash",
+                    "smart": "mdi:flash-auto"
+                }
+            },
+            "pps_usage_mode": {
+                "default": "mdi:cog-play",
+                "state": {
+                    "standard": "mdi:power-plug",
+                    "time_of_use": "mdi:battery-clock",
+                    "self_consumption": "mdi:refresh-auto",
+                    "custom": "mdi:account-clock"
+                }
+            },
+            "max_evcharge_current": {
+                "default": "mdi:arrow-collapse-up"
+            },
+            "solar_evcharge_min_current": {
+                "default": "mdi:arrow-collapse-down"
+            },
+            "light_brightness": {
+                "default": "mdi:lightbulb",
+                "state": {
+                    "0": "mdi:lightbulb-off-outline",
+                    "10": "mdi:lightbulb-on-10",
+                    "20": "mdi:lightbulb-on-20",
+                    "30": "mdi:lightbulb-on-30",
+                    "40": "mdi:lightbulb-on-40",
+                    "50": "mdi:lightbulb-on-50",
+                    "60": "mdi:lightbulb-on-60",
+                    "70": "mdi:lightbulb-on-70",
+                    "80": "mdi:lightbulb-on-80",
+                    "90": "mdi:lightbulb-on-90",
+                    "100": "mdi:lightbulb-on"
+                }
+            },
+            "wipe_up_mode": {
+                "default": "mdi:gesture-swipe-up"
+            },
+            "wipe_down_mode": {
+                "default": "mdi:gesture-swipe-down"
+            },
+            "smart_touch_mode": {
+                "default": "mdi:gesture-swipe"
+            },
+            "ev_charger_mode": {
+                "default": "mdi:car-electric"
+            },
+            "solar_evcharge_mode": {
+                "default": "mdi:solar-power"
+            },
+            "schedule_mode": {
+                "default": "mdi:clock-outline"
+            },
+            "weekend_mode": {
+                "default": "mdi:calendar-weekend",
+                "state": {
+                    "same": "mdi:calendar-week",
+                    "different": "mdi:calendar-weekend"
+                }
+            },
+            "charger_usage_mode": {
+                "default": "mdi:cog-play"
+            },
+            "charger_mode": {
+                "default": "mdi:car-battery",
+                "state": {
+                    "normal": "mdi:battery-positive",
+                    "reverse": "mdi:car-battery",
+                    "unknown": "mdi:battery-unknown"
+                }
+            },
+            "car_battery_type": {
+                "default": "mdi:car-battery"
+            },
+            "car_battery_voltage_type": {
+                "default": "mdi:car-battery"
+            },
+            "charge_power_limit": {
+                "default": "mdi:speedometer"
+            },
+            "reverse_power_limit": {
+                "default": "mdi:speedometer"
+            },
+            "vehicle_brand": {
+                "default": "mdi:car-info"
+            },
+            "vehicle_model": {
+                "default": "mdi:car-info"
+            },
+            "vehicle_year": {
+                "default": "mdi:car-info"
+            },
+            "vehicle_variant": {
+                "default": "mdi:car-info"
+            },
+            "display_theme": {
+                "default": "mdi:panorama-variant-outline"
+            },
+            "knob_mode": {
+                "default": "mdi:knob"
+            },
+            "clock_mode": {
+                "default": "mdi:progress-clock",
+                "state": {
+                    "12h": "mdi:hours-12",
+                    "24h": "mdi:hours-24"
+                }
+            },
+            "charger_port_priority": {
+                "default": "mdi:priority-high"
+            },
+            "priority_circuit_x": {
+                "default": "mdi:priority-high",
+                "state": {
+                    "must_have": "mdi:priority-high",
+                    "nice_to_have": "mdi:priority-low"
+                }
+            }
+        },
+        "sensor": {
+            "status_desc": {
+                "default": "mdi:cloud-alert",
+                "state": {
+                    "offline": "mdi:cloud-off",
+                    "online": "mdi:cloud-check-variant",
+                    "unknown": "mdi:cloud-question"
+                }
+            },
+            "charging_status_desc": {
+                "default": "mdi:battery-alert-variant",
+                "state": {
+                    "detection": "mdi:battery-sync",
+                    "protection_charge": "mdi:home-battery-outline",
+                    "bypass": "mdi:battery-remove",
+                    "bypass_discharge": "mdi:home-battery",
+                    "discharge": "mdi:battery-minus",
+                    "charge": "mdi:battery-plus",
+                    "charge_bypass": "mdi:home-battery",
+                    "charge_priority":  "mdi:home-battery-outline",
+                    "charge_ac": "mdi:power-plug-battery",
+                    "wakeup": "mdi:battery-clock",
+                    "cold_wakeup": "mdi:battery-clock",
+                    "fully_charged": "mdi:battery-check",
+                    "full_bypass": "mdi:battery-remove-outline",
+                    "standby": "mdi:battery-off",
+                    "unknown": "mdi:battery-unknown"
+                }
+            },
+            "hes_station_role": {
+                "default": "mdi:server-network-off",
+                "state": {
+                    "primary": "mdi:router-network",
+                    "subordinate": "mdi:server-network",
+                    "unknown": "mdi:help-network-outline"
+                }
+            },
+            "state_of_health": {
+                "default": "mdi:battery-heart-variant"
+            },
+            "bat_charge_power": {
+                "default": "mdi:battery-plus-variant"
+            },
+            "bat_discharge_power": {
+                "default": "mdi:battery-minus-variant"
+            },
+            "battery_power_signed": {
+                "default": "mdi:battery-charging"
+            },
+            "battery_power_signed_total": {
+                "default": "mdi:battery-charging"
+            },
+            "device_x_battery_power": {
+                "default": "mdi:battery-charging"
+            },
+            "dc_output_power": {
+                "default": "mdi:home-battery-outline"
+            },
+            "dc_output_power_total": {
+                "default": "mdi:home-battery-outline"
+            },
+            "output_power_total": {
+                "default": "mdi:home-battery-outline"
+            },
+            "ac_output_power": {
+                "default": "mdi:home-battery-outline"
+            },
+            "ac_output_power_total": {
+                "default": "mdi:home-battery-outline"
+            },
+            "device_output_power_signed_total": {
+                "default": "mdi:home-battery-outline"
+            },
+            "device_x_ac_output_power_signed": {
+                "default": "mdi:home-battery-outline"
+            },
+            "ac_to_home_load": {
+                "default": "mdi:home-import-outline"
+            },
+            "home_demand_total": {
+                "default": "mdi:home-lightning-bolt"
+            },
+            "home_load_power": {
+                "default": "mdi:home-lightning-bolt"
+            },
+            "other_solar_power": {
+                "default": "mdi:solar-panel"
+            },
+            "solar_power_total": {
+                "default": "mdi:solar-power"
+            },
+            "input_power": {
+                "default": "mdi:solar-power"
+            },
+            "solar_power_1": {
+                "default": "mdi:solar-panel"
+            },
+            "solar_power_2": {
+                "default": "mdi:solar-panel"
+            },
+            "solar_power_3": {
+                "default": "mdi:solar-panel"
+            },
+            "solar_power_4": {
+                "default": "mdi:solar-panel"
+            },
+            "device_x_pv_power": {
+                "default": "mdi:solar-panel"
+            },
+            "dc_input_power": {
+                "default": "mdi:lightning-bolt-circle"
+            },
+            "dc_input_power_total": {
+                "default": "mdi:lightning-bolt-circle"
+            },
+            "ac_input_power": {
+                "default": "mdi:power-plug-battery-outline"
+            },
+            "ac_input_power_total": {
+                "default": "mdi:power-plug-battery-outline"
+            },
+            "ac_socket": {
+                "default": "mdi:power-plug-battery"
+            },
+            "heating_power": {
+                "default": "mdi:sun-snowflake-variant"
+            },
+            "grid_to_battery_power": {
+                "default": "mdi:power-plug-battery"
+            },
+            "generator_power": {
+                "default": "mdi:generator-portable"
+            },
+            "generator_to_home_power": {
+                "default": "mdi:home-import-outline"
+            },
+            "generator_to_battery_power": {
+                "default": "mdi:fuel-cell"
+            },
+            "micro_inverter_power": {
+                "default": "mdi:sine-wave"
+            },
+            "micro_inverter_power_limit": {
+                "default": "mdi:flash-triangle-outline"
+            },
+            "all_power_limit": {
+                "default": "mdi:flash-triangle-outline"
+            },
+            "all_ac_input_limit": {
+                "default": "mdi:flash-triangle-outline"
+            },
+            "power_limit_option": {
+                "default": "mdi:flash-auto"
+            },
+            "fittings": {
+                "default": "mdi:tools"
+            },
+            "tag": {
+                "default": "mdi:tag-outline"
+            },
+            "err_code": {
+                "default": "mdi:alert-box",
+                "state": {
+                    "0": "mdi:checkbox-outline"
+                }
+            },
+            "active_scene_mode": {
+                "default": "mdi:alert-box-outline",
+                "state": {
+                    "unknown": "mdi:help-box-outline",
+                    "smartmeter": "mdi:numeric-1-box-outline",
+                    "smartplugs": "mdi:numeric-2-box-outline",
+                    "manual": "mdi:numeric-3-box-outline",
+                    "backup": "mdi:numeric-4-box-outline",
+                    "use_time": "mdi:numeric-5-box-outline",
+                    "dynamic_price": "mdi:numeric-6-box-outline",
+                    "smart": "mdi:numeric-7-box-outline",
+                    "time_slot": "mdi:numeric-8-box-outline"
+                }
+            },
+            "solar_forecast_today": {
+                "default": "mdi:sun-compass"
+            },
+            "solar_forecast_this_hour": {
+                "default": "mdi:sun-compass"
+            },
+            "discharged_energy": {
+                "default": "mdi:battery-minus-variant"
+            },
+            "charged_energy": {
+                "default": "mdi:battery-plus-variant"
+            },
+            "output_energy": {
+                "default": "mdi:home-battery"
+            },
+            "solar_energy": {
+                "default": "mdi:solar-power-variant"
+            },
+            "home_energy": {
+                "default": "mdi:home-lightning-bolt"
+            },
+            "consumed_energy": {
+                "default": "mdi:lightning-bolt-circle"
+            },
+            "device_efficiency": {
+                "default": "mdi:percent-box"
+            },
+            "battery_efficiency": {
+                "default": "mdi:percent-box-outline"
+            },
+            "grid_import_energy": {
+                "default": "mdi:home-lightning-bolt-outline"
+            },
+            "grid_export_energy": {
+                "default": "mdi:transmission-tower"
+            },
+            "discharge_power_avg": {
+                "default": "mdi:battery-minus-variant"
+            },
+            "charge_power_avg": {
+                "default": "mdi:battery-plus-variant"
+            },
+            "input_power_avg": {
+                "default": "mdi:solar-power"
+            },
+            "home_load_power_avg": {
+                "default": "mdi:home-lightning-bolt"
+            },
+            "ev_charge_power_avg": {
+                "default": "mdi:car-electric"
+            },
+            "grid_to_home_power_avg": {
+                "default": "mdi:home-import-outline"
+            },
+            "photovoltaic_to_grid_power_avg": {
+                "default": "mdi:transmission-tower-import"
+            },
+            "daily_discharge_energy": {
+                "default": "mdi:battery-minus-variant"
+            },
+            "daily_charge_energy": {
+                "default": "mdi:battery-plus-variant"
+            },
+            "daily_3rd_party_pv_to_grid": {
+                "default": "mdi:transmission-tower-import"
+            },
+            "daily_3rd_party_pv_to_bat": {
+                "default": "mdi:solar-power"
+            },
+            "daily_solar_production": {
+                "default": "mdi:solar-power-variant"
+            },
+            "daily_solar_production_pv1": {
+                "default": "mdi:solar-power-variant"
+            },
+            "daily_solar_production_pv2": {
+                "default": "mdi:solar-power-variant"
+            },
+            "daily_solar_production_pv3": {
+                "default": "mdi:solar-power-variant"
+            },
+            "daily_solar_production_pv4": {
+                "default": "mdi:solar-power-variant"
+            },
+            "daily_solar_production_inverter": {
+                "default": "mdi:power-socket-eu"
+            },
+            "daily_solar_to_home": {
+                "default": "mdi:solar-power"
+            },
+            "daily_solar_to_battery": {
+                "default": "mdi:solar-power"
+            },
+            "daily_ac_socket": {
+                "default": "mdi:power-plug-battery"
+            },
+            "daily_home_usage": {
+                "default": "mdi:home-lightning-bolt"
+            },
+            "daily_battery_to_home": {
+                "default": "mdi:home-battery"
+            },
+            "daily_smartplugs_total": {
+                "default": "mdi:lightning-bolt-circle"
+            },
+            "daily_grid_import": {
+                "default": "mdi:transmission-tower-export"
+            },
+            "daily_grid_to_home": {
+                "default": "mdi:home-import-outline"
+            },
+            "daily_grid_to_battery": {
+                "default": "mdi:power-plug-battery"
+            },
+            "daily_solar_to_grid": {
+                "default": "mdi:transmission-tower-import"
+            },
+            "daily_ev_charge": {
+                "default": "mdi:car-electric"
+            },
+            "daily_solar_share": {
+                "default": "mdi:percent-circle"
+            },
+            "daily_battery_share": {
+                "default": "mdi:percent-box"
+            },
+            "daily_grid_share": {
+                "default": "mdi:home-percent"
+            },
+            "solarbank_list": {
+                "default": "mdi:counter"
+            },
+            "solarbank_pps_list": {
+                "default": "mdi:counter"
+            },
+            "solar_list": {
+                "default": "mdi:counter"
+            },
+            "pps_list": {
+                "default": "mdi:counter"
+            },
+            "powerpanel_list": {
+                "default": "mdi:counter"
+            },
+            "smartmeter_list": {
+                "default": "mdi:counter"
+            },
+            "smartplug_list": {
+                "default": "mdi:counter"
+            },
+            "combiner_box_list": {
+                "default": "mdi:counter"
+            },
+            "charging_pile_list": {
+                "default": "mdi:counter"
+            },
+            "hes_list": {
+                "default": "mdi:counter"
+            },
+            "set_output_power": {
+                "default": "mdi:home-lightning-bolt-outline"
+            },
+            "set_power_mode": {
+                "default": "mdi:numeric-0-box-outline",
+                "state": {
+                    "normal": "mdi:numeric-1-box-outline",
+                    "advanced": "mdi:numeric-2-box-multiple-outline"
+                }
+            },
+            "solarbank_timestamp": {
+                "default": "mdi:weather-cloudy-clock"
+            },
+            "inverter_info": {
+                "default": "mdi:tune"
+            },
+            "sw_version": {
+                "default": "mdi:cog"
+            },
+            "sub_package_num": {
+                "default": "mdi:package",
+                "state": {
+                    "1": "mdi:package-check",
+                    "2": "mdi:package-check",
+                    "3": "mdi:package-check",
+                    "4": "mdi:package-check",
+                    "5": "mdi:package-check"
+                }
+            },
+            "battery_count": {
+                "default": "mdi:package"
+            },
+            "parallel_device_count": {
+                "default": "mdi:server"
+            },
+            "battery_status": {
+                "default": "mdi:battery-alert-variant",
+                "state": {
+                    "standby": "mdi:battery-off",
+                    "inactive": "mdi:battery-off",
+                    "charging": "mdi:battery-plus",
+                    "discharging": "mdi:battery-minus",
+                    "sleep": "mdi:battery-clock-outline",
+                    "unknown": "mdi:battery-unknown"
+                }
+            },
+            "dc_charging_status": {
+                "default": "mdi:battery-alert-variant",
+                "state": {
+                    "inactive": "mdi:battery-off",
+                    "charging": "mdi:battery-plus",
+                    "discharging": "mdi:battery-minus",
+                    "unknown": "mdi:battery-unknown"
+                }
+            },
+            "device_1_status": {
+                "default": "mdi:connection"
+            },
+            "plant_status": {
+                "default": "mdi:timeline-question",
+                "state": {
+                    "on_grid": "mdi:transmission-tower",
+                    "off_grid": "mdi:transmission-tower-off",
+                    "standby": "mdi:sleep",
+                    "fault": "mdi:alert",
+                    "unknown": "mdi:timeline-question"
+                }
+            },
+            "working_status": {
+                "default": "mdi:timeline-question",
+                "state": {
+                    "standby": "mdi:timeline-clock",
+                    "running": "mdi:timeline-check",
+                    "idle": "mdi:timeline-outline",
+                    "charging": "mdi:timeline-plus",
+                    "discharging": "mdi:timeline-minus-outline",
+                    "sleep": "mdi:power-sleep",
+                    "shutdown": "mdi:power-standby",
+                    "unknown": "mdi:timeline-question"
+                }
+            },
+            "backup_status": {
+                "default": "mdi:battery-alert-variant-outline",
+                "state": {
+                    "inactive": "mdi:power-plug-battery-outline",
+                    "planned_charge": "mdi:clock-fast",
+                    "storm_guard": "mdi:weather-lightning-rainy",
+                    "unknown": "mdi:battery-alert-variant-outline"
+                }
+            },
+            "total_co2_saving": {
+                "default": "mdi:sprout"
+            },
+            "total_saved_money": {
+                "default": "mdi:hand-coin"
+            },
+            "total_aiems_profit": {
+                "default": "mdi:hand-coin"
+            },
+            "aiems_runtime_status": {
+                "default": "mdi:head-question-outline",
+                "state": {
+                    "inactive": "mdi:head-outline",
+                    "running": "mdi:head-sync",
+                    "failure": "mdi:head-alert-outline"
+                }
+            },
+            "dynamic_price_total": {
+                "default": "mdi:account-cash"
+            },
+            "spot_price_mwh": {
+                "default": "mdi:cash-sync"
+            },
+            "set_system_output_power": {
+                "default": "mdi:home-lightning-bolt-outline"
+            },
+            "grid_status_desc": {
+                "default": "mdi:help-network-outline",
+                "state": {
+                    "ok": "mdi:meter-electric"
+                }
+            },
+            "grid_to_home_power": {
+                "default": "mdi:home-import-outline"
+            },
+            "photovoltaic_to_grid_power": {
+                "default": "mdi:transmission-tower-import"
+            },
+            "battery_to_grid_power": {
+                "default": "mdi:transmission-tower-import"
+            },
+            "battery_to_home_power": {
+                "default": "mdi:home-battery"
+            },
+            "pv_to_home_power": {
+                "default": "mdi:solar-power"
+            },
+            "pv_to_battery_power": {
+                "default": "mdi:solar-power"
+            },
+            "grid_power_signed": {
+                "default": "mdi:transmission-tower"
+            },
+            "grid_power_signed_l1": {
+                "default": "mdi:numeric-1-circle"
+            },
+            "grid_power_signed_l2": {
+                "default": "mdi:numeric-2-circle"
+            },
+            "grid_power_signed_l3": {
+                "default": "mdi:numeric-3-circle"
+            },
+            "phase": {
+                "default": "mdi:current-ac"
+            },
+            "data_timestamp": {
+                "default": "mdi:weather-cloudy-clock"
+            },
+            "mqtt_timestamp": {
+                "default": "mdi:weather-cloudy-clock"
+            },
+            "charge_power": {
+                "default": "mdi:battery-plus-variant"
+            },
+            "discharge_power": {
+                "default": "mdi:battery-minus-variant"
+            },
+            "sites_poll_time": {
+                "default": "mdi:weather-cloudy-clock"
+            },
+            "details_poll_time": {
+                "default": "mdi:clipboard-text-clock-outline"
+            },
+            "energy_poll_time": {
+                "default": "mdi:sun-clock-outline"
+            },
+            "update_timestamp": {
+                "default": "mdi:weather-cloudy-clock"
+            },
+            "mqtt_statistic": {
+                "default": "mdi:chart-bar-stacked"
+            },
+            "dc_12v_x_power": {
+                "default": "mdi:record-circle-outline"
+            },
+            "remaining_time_hours": {
+                "default": "mdi:timelapse"
+            },
+            "ip_address": {
+                "default": "mdi:ip"
+            },
+            "phase_operating_mode": {
+                "default": "mdi:help-circle",
+                "state": {
+                    "automatic": "mdi:star-four-points-circle",
+                    "one_phase": "mdi:numeric-1-circle",
+                    "three_phase": "mdi:numeric-3-circle"
+                }
+            },
+            "ocpp_connect_status": {
+                "default": "mdi:cloud-question-outline",
+                "state": {
+                    "disconnected": "mdi:cloud-off-outline",
+                    "connecting": "mdi:cloud-refresh-variant-outline",
+                    "connected": "mdi:cloud-check-variant-outline"
+                }
+            },
+            "cp_signal_status": {
+                "default": "mdi:state-machine"
+            },
+            "ev_charger_status": {
+                "default": "mdi:help-circle-outline",
+                "state": {
+                    "standby": "mdi:sleep",
+                    "preparing": "mdi:sync-circle",
+                    "charging": "mdi:car-electric",
+                    "charger_paused": "mdi:home-clock-outline",
+                    "vehicle_paused": "mdi:car-clock",
+                    "completed": "mdi:checkbox-marked-circle",
+                    "reserving": "mdi:pencil-circle-outline",
+                    "disabled": "mdi:close-circle-outline",
+                    "error": "mdi:alert-circle-outline"
+                }
+            },
+            "charging_start_timestamp": {
+                "default": "mdi:clock-start"
+            },
+            "charging_energy": {
+                "default": "mdi:car-battery"
+            },
+            "total_charge_cost": {
+                "default": "mdi:cash-multiple"
+            },
+            "total_saving": {
+                "default": "mdi:hand-coin"
+            },
+            "battery_voltage": {
+                "default": "mdi:car-battery"
+            },
+            "disaster_status": {
+                "default": "mdi:earth-remove",
+                "state": {
+                    "inactive": "mdi:earth-remove",
+                    "progressing": "mdi:earth-box-plus",
+                    "unknown": "mdi:earth-plus"
+                }
+            }
+        },
+        "switch": {
+            "auto_upgrade": {
+                "default": "mdi:sync-alert",
+                "state": {
+                    "on": "mdi:autorenew",
+                    "off": "mdi:autorenew-off"
+                }
+            },
+            "preset_allow_export": {
+                "default": "mdi:alert-box-outline",
+                "state": {
+                    "on": "mdi:export",
+                    "off": "mdi:card-off-outline"
+                }
+            },
+            "preset_discharge_priority": {
+                "default": "mdi:battery-alert",
+                "state": {
+                    "on": "mdi:battery-arrow-down",
+                    "off": "mdi:battery-clock"
+                }
+            },
+            "preset_backup_option": {
+                "default": "mdi:timer-alert-outline",
+                "state": {
+                    "off": "mdi:power-plug-battery-outline",
+                    "on": "mdi:power-plug-battery"
+                }
+            },
+            "storm_guard_switch": {
+                "default": "mdi:cloud-off-outline",
+                "state": {
+                    "off": "mdi:cloud-off-outline",
+                    "on": "mdi:weather-lightning-rainy"
+                }
+            },
+            "allow_grid_export": {
+                "default": "mdi:alert-box-outline",
+                "state": {
+                    "on": "mdi:transmission-tower-import",
+                    "off": "mdi:transmission-tower-off"
+                }
+            },
+            "backup_soc_switch": {
+                "default": "mdi:battery-heart-variant",
+                "state": {
+                    "off": "mdi:battery-heart-outline",
+                    "on": "mdi:battery-lock"
+                }
+            },
+            "mqtt_overlay": {
+                "default": "mdi:sync-alert",
+                "state": {
+                    "on": "mdi:download",
+                    "off": "mdi:download-off"
+                }
+            },
+            "ac_socket_switch": {
+                "default": "mdi:power-socket-eu"
+            },
+            "light_switch": {
+                "default": "mdi:lightbulb-question-outline",
+                "state": {
+                    "on": "mdi:lightbulb-on",
+                    "off": "mdi:lightbulb-off-outline"
+                }
+            },
+            "ac_output_power_switch": {
+                "default": "mdi:power-socket-eu"
+            },
+            "dc_output_power_switch": {
+                "default": "mdi:record-circle"
+            },
+            "energy_saving_switch": {
+                "default": "mdi:leaf-circle-outline",
+                "state": {
+                    "on": "mdi:leaf-circle",
+                    "off": "mdi:leaf-circle-outline"
+                }
+            },
+            "ac_fast_charge_switch": {
+                "default": "mdi:power-plug-battery"
+            },
+            "display_switch": {
+                "default": "mdi:card-bulleted-outline"
+            },
+            "port_memory_switch": {
+                "default": "mdi:memory"
+            },
+            "usbc_x_switch": {
+                "default": "mdi:usb-c-port"
+            },
+            "usba_x_switch": {
+                "default": "mdi:usb-port"
+            },
+            "plug_lock_switch": {
+                "default": "mdi:lock-question",
+                "state": {
+                    "on": "mdi:lock",
+                    "off": "mdi:lock-open-variant"
+                }
+            },
+            "auto_start_switch": {
+                "default": "mdi:flash-auto"
+            },
+            "auto_charge_restart_switch": {
+                "default": "mdi:refresh-auto"
+            },
+            "random_delay_switch": {
+                "default": "mdi:clock-start"
+            },
+            "ev_charger_mode_switch": {
+                "default": "mdi:car-electric"
+            },
+            "modbus_switch": {
+                "default": "mdi:router-network-wireless"
+            },
+            "light_off_schedule_switch": {
+                "default": "mdi:lightbulb-night-outline"
+            },
+            "load_balance_switch": {
+                "default": "mdi:arrow-decision-auto"
+            },
+            "solar_evcharge_switch": {
+                "default": "mdi:solar-power"
+            },
+            "auto_phase_switch": {
+                "default": "mdi:arrow-decision-auto-outline"
+            },
+            "charge_schedule_switch": {
+                "default": "mdi:clock-remove-outline",
+                "state": {
+                    "on": "mdi:clock-outline",
+                    "off": "mdi:clock-remove-outline"
+                }
+            },
+            "allow_refresh": {
+                "default": "mdi:sync-alert",
+                "state": {
+                    "on": "mdi:api",
+                    "off": "mdi:api-off"
+                }
+            },
+            "default_vehicle": {
+                "default": "mdi:car",
+                "state": {
+                    "on": "mdi:car-select",
+                    "off": "mdi:car"
+                }
+            },
+            "device_switch": {
+                "default": "mdi:power",
+                "state": {
+                    "on": "mdi:power",
+                    "off": "mdi:power-sleep"
+                }
+            },
+            "device_timeout_switch": {
+                "default": "mdi:timer-remove-outline",
+                "state": {
+                    "on": "mdi:timer-play-outline",
+                    "off": "mdi:timer-remove-outline"
+                }
+            },
+            "clock_switch": {
+                "default": "mdi:clock-remove-outline",
+                "state": {
+                    "on": "mdi:clock-digital",
+                    "off": "mdi:clock-remove-outline"
+                }
+            },
+            "holiday_switch": {
+                "default": "mdi:firework-off",
+                "state": {
+                    "on": "mdi:firework",
+                    "off": "mdi:firework-off"
+                }
+            },
+            "usb_x_timer_switch": {
+                "default": "mdi:timer-remove-outline",
+                "state": {
+                    "on": "mdi:timer-play-outline",
+                    "off": "mdi:timer-remove-outline"
+                }
+            },
+            "usb_x_start_switch": {
+                "default": "mdi:clock-start"
+            },
+            "usb_x_end_switch": {
+                "default": "mdi:clock-end"
+            },
+            "silent_mode_switch": {
+                "default": "mdi:volume-high",
+                "state": {
+                    "on": "mdi:volume-off",
+                    "off": "mdi:volume-high"
+                }
+            }
+        },
+        "text":{
+            "port_x_remark": {
+                "default": "mdi:note-text-outline"
+            },
+            "clock_display_weekdays": {
+                "default": "mdi:calendar-multiselect"
+            },
+            "usb_x_start_weekdays": {
+                "default": "mdi:calendar-multiselect"
+            },
+            "usb_x_end_weekdays": {
+                "default": "mdi:calendar-multiselect"
+            },
+            "silent_mode_weekdays": {
+                "default": "mdi:calendar-multiselect"
+            }
+        },
+        "time":{
+            "light_off_start_time": {
+                "default": "mdi:clock-start"
+            },
+            "light_off_end_time": {
+                "default": "mdi:clock-end"
+            },
+            "week_start_time": {
+                "default": "mdi:clock-start"
+            },
+            "week_end_time": {
+                "default": "mdi:clock-end"
+            },
+            "weekend_start_time": {
+                "default": "mdi:clock-start"
+            },
+            "weekend_end_time": {
+                "default": "mdi:clock-end"
+            },
+            "clock_display_start_time": {
+                "default": "mdi:clock-start"
+            },
+            "clock_display_end_time": {
+                "default": "mdi:clock-end"
+            },
+            "ac_output_timer_seconds": {
+                "default": "mdi:timer-edit-outline"
+            },
+            "usb_x_timer_seconds": {
+                "default": "mdi:timer-edit-outline"
+            },
+            "usb_x_start_time": {
+                "default": "mdi:clock-start"
+            },
+            "usb_x_end_time": {
+                "default": "mdi:clock-end"
+            },
+            "silent_mode_start_minutes": {
+                "default": "mdi:clock-start"
+            },
+            "silent_mode_end_minutes": {
+                "default": "mdi:clock-end"
+            },
+            "ac_output_timer": {
+                "default": "mdi:timer-edit-outline"
+            }
+        }
+    },
+    "services": {
+        "get_system_info": {"service": "mdi:text-box-search-outline"},
+        "get_device_info": {"service": "mdi:text-box-search"},
+        "export_systems": {"service": "mdi:cloud-print-outline"},
+        "get_solarbank_schedule": {"service": "mdi:sun-clock"},
+        "clear_solarbank_schedule": {
+            "service": "mdi:history",
+            "sections": {
+                "sb2_fields": "mdi:numeric-2-box-outline"
+              }
+        },
+        "set_solarbank_schedule": {
+            "service": "mdi:sun-clock",
+            "sections": {
+                "sb1_fields": "mdi:numeric-1-box-outline",
+                "sb2_fields": "mdi:numeric-2-box-outline",
+                "sb3_fields": "mdi:numeric-3-box-outline"
+              }
+        },
+        "update_solarbank_schedule": {
+            "service": "mdi:sun-clock",
+            "sections": {
+                "sb1_fields": "mdi:numeric-1-box-outline",
+                "sb2_fields": "mdi:numeric-2-box-outline",
+                "sb3_fields": "mdi:numeric-3-box-outline"
+              }
+        },
+        "modify_solix_backup_charge": {"service": "mdi:battery-clock"},
+        "modify_solix_use_time": {
+            "service": "mdi:cash-clock",
+            "sections": {
+                "sb_fields": "mdi:generator-stationary",
+                "pps_fields": "mdi:generator-mobile"
+              }
+        },
+        "api_request": {"service": "mdi:cloud-braces"}
+
+    }
+}

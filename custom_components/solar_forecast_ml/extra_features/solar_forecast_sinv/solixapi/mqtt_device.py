@@ -1,0 +1,1272 @@
+# ******************************************************************************
+# @copyright (C) 2026 Zara-Toorox - Solar Forecast S-INV
+# * This program is protected by a Proprietary Non-Commercial License.
+# 1. Personal and Educational use only.
+# 2. COMMERCIAL USE AND AI TRAINING ARE STRICTLY PROHIBITED.
+# 3. Clear attribution to "Zara-Toorox" is required.
+# * Full license terms: https://www.solarforecastml.com/license
+# * Based on ha-anker-solix by Thomas Luther (@thomluther), MIT License,
+#   Copyright (c) 2024 Thomas Luther. MIT notice: LICENSE-ha-anker-solix
+# ******************************************************************************
+
+"""MQTT basic device control methods for AnkerSolixApi. @thomas
+
+This module contains common control methods for Anker Solix MQTT device classes.
+Specific device classes should be inherited from this base class
+It also provides an MQTT device factory to create correct device class instance depending on specific device
+"""
+
+from __future__ import annotations  # noqa: TID251
+
+import contextlib
+from typing import TYPE_CHECKING, Any
+
+from .apitypes import DeviceHexDataTypes, SolixDefaults
+from .helpers import convert_time, round_by_factor
+from .mqtt import generate_mqtt_command
+from .mqttcmdmap import (
+    BYTES,
+    COMMAND_ENCODING,
+    COMMAND_LIST,
+    COMMAND_NAME,
+    LENGTH,
+    MASK,
+    MASK_STATE,
+    MASK_VALUE,
+    NAME,
+    STATE_CONVERTER,
+    STATE_NAME,
+    TYPE,
+    VALUE_DEFAULT,
+    VALUE_FOLLOWS,
+    VALUE_MAX,
+    VALUE_MAX_STATE,
+    VALUE_MIN,
+    VALUE_MIN_STATE,
+    VALUE_OPTIONS,
+    VALUE_OPTIONS_STATE,
+    VALUE_SKIP,
+    VALUE_STATE,
+    VALUE_STEP,
+    SolixMqttCommands,
+)
+from .mqttmap import SOLIXMQTTMAP
+from .mqtttypes import DeviceHexData, DeviceHexDataField, MqttCmdValidator
+
+if TYPE_CHECKING:
+    from .api import AnkerSolixApi
+
+# Define supported Models for this class
+MODELS = set()
+# Define possible controls per Model
+# Those commands are only supported once also described for a message type in the model mapping (except realtime trigger)
+# Models can be removed from a feature to block command usage even if message type is described in the mapping
+FEATURES = {
+    SolixMqttCommands.realtime_trigger: MODELS,
+}
+
+
+class SolixMqttDevice:
+    """Define the base class to handle an Anker Solix MQTT device for controls. @thomas"""
+
+    models: set = MODELS
+    features: dict = FEATURES
+    pn: str = ""
+
+    def __init__(self, api_instance: AnkerSolixApi, device_sn: str) -> None:
+        """Initialize. @thomas"""
+        self.api: AnkerSolixApi = api_instance
+        self.sn: str = device_sn or ""
+        self.pn: str = self.pn or ""
+        self.models = self.models or MODELS
+        self.features = self.features or FEATURES
+        self.testdir: str = self.api.testDir()
+        self.device: dict = {}
+        self.mqttdata: dict = {}
+        self.controls: dict = {}
+        self._map: dict = {}
+        self._filedata: dict = {}
+        self._last_publish: DeviceHexData | None = None
+        self.dynamic_descriptions: dict = {}
+        self._logger = api_instance.logger()
+        # initialize device data
+        self.update_device(device=self.api.devices.get(self.sn) or {})
+        # register callback for Api
+        self.api.register_device_callback(
+            deviceSn=self.sn,
+            func=self.update_device,
+            dynamic_descriptions=self.dynamic_descriptions,
+        )
+        # create list of supported commands and options
+        self._setup_controls()
+
+    def _setup_controls(self) -> None:
+        """Extract controls, parameters and value options for the device from the mapping description. @thomas
+
+        Example control structure:
+            "realtime_trigger": {"msg_type": "0057","topic": "req","command_name": "realtime_trigger","parameters": {
+                "set_realtime_trigger": {"value_options": {"off": 0,"on": 1}},
+                "trigger_timeout_sec": {"value_min": 60,"value_max": 600}}}
+        """
+        self._map = SOLIXMQTTMAP.get(self.pn) or {}
+        for cmd, pns in self.features.items():
+            if not pns or self.pn in pns:
+                # get defined message type for command
+                msg, fields = (
+                    [
+                        (k, v)
+                        for k, v in self._map.items()
+                        if cmd
+                        in [
+                            v.get(COMMAND_NAME),
+                            *v.get(COMMAND_LIST, []),
+                        ]
+                    ][:1]
+                    or [("", {})]
+                )[0]
+                # use default message type for update trigger command if not specified
+                msg = msg or (
+                    "0057" if cmd == SolixMqttCommands.realtime_trigger else ""
+                )
+                # control only if described for a message type in the mapping
+                if msg:
+                    try:
+                        control = {"msg_type": msg}
+                        # traverse all fields, use field descriptive name as parameter name and field byte as
+                        parameters = {}
+                        required_options = []
+                        required_number = None
+                        # get nested command fields if available
+                        fields = fields.get(cmd) or fields
+                        for key, items in fields.items():
+                            if len(key) > 2:
+                                # No bytefield key, use as is
+                                control[key] = items
+                            elif isinstance(items, dict):
+                                # extract all bytefield descriptions as parameter which have defined value keys
+                                subfields = items.get(BYTES, {})
+                                for itm in (
+                                    subfields
+                                    if isinstance(subfields, list)
+                                    else list(subfields.values())
+                                    if subfields
+                                    else [items]
+                                ):
+                                    # handle nested bitmask fields as well
+                                    for item in itm if isinstance(itm, list) else [itm]:
+                                        descriptors = {
+                                            k: v
+                                            for k, v in item.items()
+                                            if k
+                                            in [
+                                                VALUE_MIN,
+                                                VALUE_MAX,
+                                                VALUE_MIN_STATE,
+                                                VALUE_MAX_STATE,
+                                                MASK,
+                                                MASK_STATE,
+                                                MASK_VALUE,
+                                                VALUE_STEP,
+                                                VALUE_STATE,
+                                                VALUE_OPTIONS,
+                                                VALUE_OPTIONS_STATE,
+                                                VALUE_DEFAULT,
+                                                STATE_CONVERTER,
+                                                STATE_NAME,
+                                                VALUE_FOLLOWS,
+                                                VALUE_SKIP,
+                                                LENGTH,
+                                            ]
+                                        }
+                                        # check if valid parameter for command
+                                        if (name := item.get(NAME)) and descriptors:
+                                            # check if validator can be initialized, will throw ValueError or TypeError
+                                            if (
+                                                VALUE_STATE not in descriptors
+                                                and STATE_CONVERTER not in descriptors
+                                                and VALUE_DEFAULT not in descriptors
+                                                and VALUE_FOLLOWS not in descriptors
+                                            ):
+                                                # This is a required parameter, preliminary descriptor check
+                                                opt = descriptors.get(VALUE_OPTIONS)
+                                                MqttCmdValidator(
+                                                    min=descriptors.get(VALUE_MIN),
+                                                    max=descriptors.get(VALUE_MAX),
+                                                    step=descriptors.get(VALUE_STEP),
+                                                    options=opt,
+                                                )
+                                                required_options.append(opt)
+                                                if required_number is None:
+                                                    required_number = descriptors.get(
+                                                        VALUE_MIN, 0
+                                                    ) < descriptors.get(VALUE_MAX, 0)
+                                                else:
+                                                    required_number = False
+                                            # flag whether parameter is switch
+                                            descriptors["is_switch"] = bool(
+                                                isinstance(
+                                                    opt := descriptors.get(
+                                                        VALUE_OPTIONS
+                                                    ),
+                                                    dict,
+                                                )
+                                                and 2
+                                                <= len(opt)
+                                                <= 3  # tolerate a 3rd undefined option for a switch, which is not used
+                                                and "on" in opt
+                                                and "off" in opt
+                                            )
+                                            # flag whether parameter is number
+                                            descriptors["is_number"] = bool(
+                                                descriptors.get(VALUE_MIN, 0)
+                                                < descriptors.get(VALUE_MAX, 0)
+                                            )
+                                            # flag whether parameter is text
+                                            descriptors["is_text"] = (
+                                                item.get(TYPE)
+                                                == DeviceHexDataTypes.str.value
+                                                and not descriptors.get(VALUE_OPTIONS)
+                                            )
+                                            # add descriptors
+                                            parameters[name] = descriptors
+                                            # save reference to descriptor for dynamic updates if state was found
+                                            if (
+                                                state_name := descriptors.get(
+                                                    VALUE_MIN_STATE
+                                                )
+                                            ) is not None:
+                                                desc = self.dynamic_descriptions.get(
+                                                    state_name, {}
+                                                )
+                                                self.dynamic_descriptions[
+                                                    state_name
+                                                ] = {
+                                                    "key": VALUE_MIN,
+                                                    "desc": [
+                                                        *desc.get("desc", []),
+                                                        descriptors,
+                                                    ],
+                                                }
+                                            if (
+                                                state_name := descriptors.get(
+                                                    VALUE_MAX_STATE
+                                                )
+                                            ) is not None:
+                                                desc = self.dynamic_descriptions.get(
+                                                    state_name, {}
+                                                )
+                                                self.dynamic_descriptions[
+                                                    state_name
+                                                ] = {
+                                                    "key": VALUE_MAX,
+                                                    "desc": [
+                                                        *desc.get("desc", []),
+                                                        descriptors,
+                                                    ],
+                                                }
+                                            if (
+                                                state_name := descriptors.get(
+                                                    VALUE_OPTIONS_STATE
+                                                )
+                                            ) is not None:
+                                                desc = self.dynamic_descriptions.get(
+                                                    state_name, {}
+                                                )
+                                                self.dynamic_descriptions[
+                                                    state_name
+                                                ] = {
+                                                    "key": VALUE_OPTIONS,
+                                                    "desc": [
+                                                        *desc.get("desc", []),
+                                                        descriptors,
+                                                    ],
+                                                }
+                                            if (
+                                                state_name := descriptors.get(
+                                                    MASK_STATE
+                                                )
+                                            ) is not None:
+                                                desc = self.dynamic_descriptions.get(
+                                                    state_name, {}
+                                                )
+                                                self.dynamic_descriptions[
+                                                    state_name
+                                                ] = {
+                                                    "key": MASK_VALUE,
+                                                    "desc": [
+                                                        *desc.get("desc", []),
+                                                        descriptors,
+                                                    ],
+                                                }
+                        control["parameters"] = parameters
+                        # check if control is a switch with only "on" and "off" in single required option
+                        control["is_switch"] = bool(
+                            len(required_options) == 1
+                            and isinstance(opt := required_options[0], dict)
+                            and 2
+                            <= len(opt)
+                            <= 3  # tolerate a 3rd undefined option for a switch, which is not used
+                            and "on" in opt
+                            and "off" in opt
+                        )
+                        # check if control is text with empty required option
+                        control["is_text"] = bool(
+                            len(required_options) == 1
+                            and isinstance(opt := required_options[0], dict)
+                            and len(opt) == 0
+                        )
+                        # check if control is a single number control
+                        control["is_number"] = bool(required_number)
+                        self.controls[cmd] = control
+                    except (ValueError, TypeError) as e:
+                        self._logger.error(
+                            "MQTT device %s (%s) control setup error - Command '%s' has invalid description for parameter '%s': %s\n{%s}",
+                            self.sn,
+                            self.pn,
+                            cmd or "",
+                            name or "",
+                            str(descriptors or {}),
+                            str(e),
+                        )
+
+    def update_device(
+        self, device: dict, dynamic_descriptions: dict | None = None
+    ) -> None:
+        """Define callback for Api device updates. @thomas"""
+        if isinstance(device, dict) and device.get("device_sn") == self.sn:
+            # Validate device type or accept any if not defined
+            if not isinstance(dynamic_descriptions, dict):
+                dynamic_descriptions = {}
+            if (pn := device.get("device_pn")) in self.models or not self.models:
+                self.pn = pn
+                self.device = device
+                self.mqttdata = device.get("mqtt_data", {})
+                # update dynamic descriptions and controls if state values are changed
+                # prefer provided description states if any
+                merged = self.get_status(fromFile=True) | dynamic_descriptions
+                for state_name, dd in self.dynamic_descriptions.items():
+                    if (
+                        (state := merged.get(state_name)) is not None
+                        and str(state) != str(dd.get("last_value"))
+                        and (key := dd.get("key"))
+                        in [VALUE_MIN, VALUE_MAX, VALUE_STEP, VALUE_OPTIONS, MASK_VALUE]
+                    ):
+                        # update all dependent parameter descriptors
+                        for desc in dd.get("desc", []):
+                            if key == VALUE_OPTIONS:
+                                if isinstance(state, dict | list):
+                                    desc[key] = state
+                            elif key == MASK_VALUE:
+                                desc[key] = state
+                            elif (
+                                str(state)
+                                .replace("-", "", 1)
+                                .replace(".", "", 1)
+                                .isdigit()
+                            ):
+                                # adjust min and max values if there is a converter with deviations from states
+                                if key in [VALUE_MIN, VALUE_MAX] and (
+                                    converter := desc.get(STATE_CONVERTER)
+                                ):
+                                    # convert state to field value using converter
+                                    val = converter(
+                                        None,
+                                        float(state),
+                                        merged,
+                                    )
+                                    desc[key] = round_by_factor(
+                                        float(
+                                            val
+                                            if isinstance(val, int | float)
+                                            else state
+                                        ),
+                                        desc.get(VALUE_STEP, 1),
+                                    )
+                                else:
+                                    desc[key] = round_by_factor(
+                                        float(state), desc.get(VALUE_STEP, 1)
+                                    )
+                        # save applied state only if not mocked state to prevent update trigger from file messages
+                        if state_name not in self._filedata:
+                            dd["last_value"] = state
+            else:
+                self._logger.error(
+                    "Device %s (%s) is not in supported models %s for MQTT control",
+                    self.sn,
+                    self.pn,
+                    self.models,
+                )
+                self.pn = ""
+                self.device = {}
+                self.mqttdata = {}
+
+    def is_connected(self) -> bool:
+        """Return actual MQTT connection state for device. @thomas"""
+        return bool(self.api.mqttsession and self.api.mqttsession.is_connected())
+
+    def is_subscribed(self) -> bool:
+        """Return actual MQTT subscription state for device. @thomas"""
+        return bool(
+            self.is_connected()
+            and {s for s in self.api.mqttsession.subscriptions if self.sn in s}
+        )
+
+    def is_passive(self) -> bool:
+        """Return actual MQTT control state for device. @thomas"""
+        return bool(self.device.get("is_passive", False))
+
+    def get_filedata(self) -> dict:
+        """Return actual filedata cache for mocked states. @thomas"""
+        return self._filedata
+
+    def get_last_publish(self) -> DeviceHexData | None:
+        """Return last published command. @thomas"""
+        return self._last_publish
+
+    def get_cmd_parms(
+        self,
+        cmd: str,
+        defaults: bool = False,
+        state_parms: bool = False,
+        follow_parms: bool = False,
+        all: bool = False,
+    ) -> dict:
+        """Get dictionary with parameters and value descriptions for provided command. @thomas
+
+        If defaults is True, also normal parameters with a default value will be included.
+        If state_parms is True, only parameters that reuse existing state will be provided.
+        If follow_parms is True, only parameters that follow another parm will be provided, otherwise those are excluded
+        If all is True, all parameters will be included
+        """
+        if isinstance(cmd, str):
+            return {
+                p: desc
+                for p, desc in self.controls.get(cmd, {}).get("parameters", {}).items()
+                if all
+                or (
+                    not (state_parms or follow_parms)
+                    and (VALUE_DEFAULT not in desc or defaults)
+                    and VALUE_STATE not in desc
+                    and VALUE_FOLLOWS not in desc
+                )
+                or (defaults and VALUE_DEFAULT in desc)
+                or (state_parms and VALUE_STATE in desc)
+                or (follow_parms and VALUE_FOLLOWS in desc)
+            }
+        return {}
+
+    def get_cmd_parm_option_map(
+        self, cmd: str, parm: str | None = None, limit: int = 100
+    ) -> dict:
+        """Get dictionary with options mapping for first mandatory or the provided parameter. Option list or value range will be converted into dict if limit not exceeded. @thomas"""
+        if isinstance(cmd, str):
+            # first get parameter description
+            if isinstance(parm, str):
+                desc = self.get_cmd_parms(cmd=cmd, all=True).get(parm, {})
+            else:
+                desc = next(iter(self.get_cmd_parms(cmd=cmd).values()), {})
+            if not (options := desc.get(VALUE_OPTIONS, {})):
+                # create value range if less than 100 options
+                start = desc.get(VALUE_MIN, 0)
+                stop = desc.get(VALUE_MAX, 0)
+                step = desc.get(VALUE_STEP, 1)
+                # get required factor to use range with int
+                factor = 10 ** max(
+                    0, f"{step:.15f}".rstrip("0").rstrip(".")[::-1].find(".")
+                )
+                if (
+                    start < stop
+                    and len(
+                        rng := range(
+                            round(start * factor),
+                            round((stop + step) * factor),
+                            round(step * factor),
+                        )
+                    )
+                    <= limit
+                ):
+                    # limit last number to stop value
+                    options = (
+                        [round_by_factor(min(v / factor, stop), step) for v in rng]
+                        if factor != 1
+                        else [min(v, stop) for v in rng]
+                    )
+            if isinstance(options, dict):
+                return options
+            if isinstance(options, list | range):
+                return {str(item): item for item in options}
+        return {}
+
+    def get_cmd_parm_state_option(
+        self,
+        cmd: str,
+        parm: str | None = None,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get dictionary with command parameter state name and value converted into option string. @thomas"""
+        if isinstance(cmd, str):
+            # first get parameter description
+            if isinstance(parm, str):
+                desc = self.get_cmd_parms(cmd=cmd, all=True).get(parm, {})
+            else:
+                desc = next(iter(self.get_cmd_parms(cmd=cmd).values()), {})
+            if (
+                (options := desc.get(VALUE_OPTIONS, {}))
+                and isinstance(options, dict)
+                and (state_name := desc.get(STATE_NAME))
+                and (value := self.get_status(fromFile).get(state_name)) is not None
+            ):
+                # convert state to command option value
+                if callable(converter := desc.get(STATE_CONVERTER)):
+                    value = converter(None, value, None)
+                return {
+                    state_name: next(
+                        iter(k for k, v in options.items() if v == value), value
+                    )
+                }
+        return {}
+
+    def cmd_is_switch(self, cmd: str, parm: str | None = None) -> bool:
+        """Check whether the command is a single switch control. If parm is specified, it will check the given parameter. @thomas"""
+        if isinstance(cmd, str):
+            if isinstance(parm, str):
+                # use parameter flag
+                return bool(
+                    self.get_cmd_parms(cmd=cmd, all=True).get(parm, {}).get("is_switch")
+                )
+            # use control flag
+            return bool(self.controls.get(cmd, {}).get("is_switch"))
+        return False
+
+    def cmd_is_number(self, cmd: str, parm: str | None = None) -> bool:
+        """Check whether the command is a single number control. If parm is specified, it will check the given parameter. @thomas"""
+        if isinstance(cmd, str):
+            if isinstance(parm, str):
+                # use parameter flag
+                return bool(
+                    self.get_cmd_parms(cmd=cmd, all=True).get(parm, {}).get("is_number")
+                )
+            # use control flag
+            return bool(self.controls.get(cmd, {}).get("is_number"))
+        return False
+
+    def cmd_is_text(self, cmd: str, parm: str | None = None) -> bool:
+        """Check whether the command is a single text control. If parm is specified, it will check the given parameter. @thomas"""
+        if isinstance(cmd, str):
+            if isinstance(parm, str):
+                # use parameter flag
+                return bool(
+                    self.get_cmd_parms(cmd=cmd, all=True).get(parm, {}).get("is_text")
+                )
+            # use control flag
+            return bool(self.controls.get(cmd, {}).get("is_text"))
+        return False
+
+    def validate_cmd_value(
+        self, cmd: str, value: Any, parm: str | None = None
+    ) -> int | float | str | bool | list | None:
+        """Get validated command value for device control or None if anything invalid. @thomas
+
+        parm is required if the command may have more than one parameter without default value.
+        True is returned if command is valid but does not require parameter or value
+        """
+        if not (isinstance(cmd, str) and cmd in self.controls):
+            self._logger.error(
+                "MQTT device %s (%s) control error - Command not supported: '%s'",
+                self.sn,
+                self.pn,
+                cmd,
+            )
+            return None
+        if self.is_passive():
+            self._logger.error(
+                "MQTT device %s (%s) control error - Device is running in local mode",
+                self.sn,
+                self.pn,
+            )
+            return None
+        # get all normal command parameters with or without default depending on provided value
+        parms = self.get_cmd_parms(cmd=cmd, defaults=value is None)
+        if not parm:
+            if len(parms) > 1 or (not parms and value is not None):
+                s = "'" if isinstance(value, str) else ""
+                self._logger.error(
+                    "MQTT device %s (%s) control error - Parameter required %s to validate command '%s' value: %s",
+                    self.sn,
+                    self.pn,
+                    list(parms.keys()),
+                    cmd,
+                    s + str(value) + s,
+                )
+                return None
+            parm, desc = next(iter(parms.items()), (None, {}))
+        elif not (
+            isinstance(parm, str)
+            and (desc := self.get_cmd_parms(cmd=cmd, all=True).get(parm))
+        ):
+            self._logger.error(
+                "MQTT device %s (%s) control error - Command '%s' parameter '%s' is no supported parameter: %s",
+                self.sn,
+                self.pn,
+                cmd,
+                parm,
+                list(parms.keys()),
+            )
+            return None
+        # use default if value not provided
+        value = desc.get(VALUE_DEFAULT) if value is None else value
+        # if value is string make further conversions to get the actual value
+        if (desc.get(STATE_NAME, "")).endswith("_time"):
+            # special case for fields indicating (seconds), minutes, hours per byte
+            value = (
+                convert_time(hextime)
+                if isinstance(hextime := convert_time(value), bytes)
+                else None
+            )
+        elif isinstance(value, list | dict):
+            # special case for values with list and dict using a converter for binaries
+            if (converter := desc.get(STATE_CONVERTER)) is None or converter(
+                None, value, None
+            ) is None:
+                self._logger.error(
+                    "MQTT device %s (%s) control error - Command '%s' parameter '%s' value cannot be converted: %s",
+                    self.sn,
+                    self.pn,
+                    cmd,
+                    parm,
+                    value,
+                )
+                return None
+        elif desc.get("is_text"):
+            # limit text value if length specified
+            value = (
+                value[: abs(int(desc.get(LENGTH) or len(value)))]
+                if isinstance(value, str)
+                else None
+            )
+        # lookup state if value is string
+        elif (
+            isinstance(value, str)
+            and str(val := self.get_status(fromFile=True).get(value))
+            .replace("-", "", 1)
+            .replace(".", "", 1)
+            .isdigit()
+        ):
+            value = float(val)
+        # otherwise convert state value if converter defined but not an option parameter
+        elif (
+            (converter := desc.get(STATE_CONVERTER))
+            and callable(converter)
+            and VALUE_OPTIONS not in desc
+        ):
+            value = converter(None, value, self.get_status(fromFile=True))
+        if value is None:
+            if desc:
+                self._logger.error(
+                    "MQTT device %s (%s) control error - Command '%s' parameter '%s' value is invalid: %s",
+                    self.sn,
+                    self.pn,
+                    cmd,
+                    parm,
+                    value,
+                )
+                return None
+            # Valid command which does not require parameter or value, return True to indicate it is valid
+            return True
+        try:
+            # return validated parameter value or option
+            return (
+                MqttCmdValidator(
+                    min=desc.get(VALUE_MIN),
+                    max=desc.get(VALUE_MAX),
+                    step=desc.get(VALUE_STEP),
+                    options=desc.get(VALUE_OPTIONS),
+                ).check(value)
+                if value != desc.get(VALUE_DEFAULT)
+                and not isinstance(value, list | dict)
+                and not desc.get(STATE_NAME, "").endswith("_time")
+                and not desc.get("is_text")
+                else value
+            )
+        except (ValueError, TypeError) as err:
+            self._logger.error(
+                "MQTT device %s (%s) control error - Command '%s' parameter '%s' value error: %s",
+                self.sn,
+                self.pn,
+                cmd,
+                parm,
+                err,
+            )
+            return None
+
+    def _mock_mask_state(
+        self,
+        value: int,
+        mask_value: int,
+        description: dict,
+    ) -> int | None:
+        """Update the mask state for testing. @thomas"""
+
+        if (
+            (
+                isinstance(description, dict)
+                and isinstance(value, int)
+                and isinstance(mask_value, int)
+            )
+            and (mask := description.get(MASK)) is not None
+            and (
+                val := DeviceHexDataField().encode_value(
+                    value=value,
+                    fieldtype=description.get(TYPE, DeviceHexDataTypes.ui.value),
+                    desc=description,
+                )
+            )
+        ):
+            return (val[0] & mask) | (mask_value & ~mask)
+        return None
+
+    async def _send_mqtt_command(
+        self,
+        command: str,
+        parameters: dict | None = None,
+        description: str = "",
+        toFile: bool = False,
+    ) -> str | None:
+        """Send MQTT command to device. @thomas
+
+        Args:
+            self: The API instance
+            command: Command name
+            parameters: Command parameters
+            description: Human-readable description for logging
+            toFile: If True, skip publish and print decoded command (for testing compatibility)
+
+        Returns:
+            str | None: String with hex command if sent, None otherwise
+
+        """
+        # Fail commands if passive
+        if self.is_passive():
+            self._logger.error(
+                "MQTT device %s (%s) cannot be controlled while running in local mode",
+                self.sn,
+                self.pn,
+            )
+            return None
+        if not (
+            hexdata := generate_mqtt_command(
+                command=command,
+                parameters=parameters,
+                model=self.pn,
+                dynamic_descriptions=self.get_cmd_parms(cmd=command, all=True),
+            )
+        ):
+            self._logger.error(
+                "MQTT device %s (%s) failed to generate hex data for command %s",
+                self.sn,
+                self.pn,
+                command,
+            )
+            return None
+        if toFile:
+            # print the decoded command
+            self._logger.info(
+                "TESTMODE: MQTT device %s (%s) generated command: %s\n%s",
+                self.sn,
+                self.pn,
+                description,
+                hexdata.decode(),
+            )
+        else:
+            try:
+                # Ensure MQTT session is started and connected
+                if not self.is_connected() and not await self.api.startMqttSession():
+                    self._logger.error(
+                        "Failed to start MQTT session for device control"
+                    )
+                    return None
+                # Publish MQTT command
+                _, mqtt_info = self.api.mqttsession.publish(
+                    deviceDict=self.device,
+                    hexbytes=hexdata.hex(),
+                    encoding_type=self.controls.get(command, {}).get(COMMAND_ENCODING),
+                )
+                # Wait for publish completion with timeout
+                with contextlib.suppress(ValueError, RuntimeError):
+                    mqtt_info.wait_for_publish(timeout=5)
+                if not mqtt_info.is_published():
+                    self._logger.error(
+                        "MQTT device %s (%s) failed to publish command: %s",
+                        self.sn,
+                        self.pn,
+                        description,
+                    )
+                    return None
+            except (ValueError, RuntimeError) as err:
+                self._logger.error(
+                    "MQTT device %s (%s) got error while sending command: %s\n%s",
+                    self.sn,
+                    self.pn,
+                    description,
+                    err,
+                )
+                return None
+        if toFile:
+            self._logger.info(
+                "TESTMODE: MQTT device %s (%s) %s", self.sn, self.pn, description
+            )
+        else:
+            self._logger.debug("MQTT device %s (%s) %s", self.sn, self.pn, description)
+            self._last_publish = hexdata
+        return hexdata.hex()
+
+    async def run_command(  # noqa: C901
+        self,
+        cmd: str,
+        value: Any = None,
+        parm: str | None = None,
+        parm_map: dict | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Validate and send a supported device command that requires a single parameter value at most. @thomas
+
+        Args:
+            cmd: A supported device command name
+            value: Optional value for a parameter that is supported by the command
+            parm: Optional Parameter for the value if command parameter description is ambiguous
+            parm_map: Optional dictionary with parameter value mapping for multiple parameter commands
+            toFile: If True, skip publish and print decoded command (for testing compatibility)
+
+        Returns:
+            dict: Dictionary with mock status if message was published, None otherwise
+
+        Example:
+            await mydevice.run_command(cmd=realtime_trigger, value=300, parm="trigger_timeout_sec")
+
+        """
+        resp = None
+        dynamic_descriptions = False
+        if not isinstance(parm_map, dict):
+            parm_map = {}
+        # Validate command values
+        if cmd:
+            # merge individual parameters into parameter mapping
+            if parm:
+                parm_map[parm] = value
+            elif not parm_map:
+                parm_map[""] = value
+            # get required parameters without defaults
+            cmd_parms = self.get_cmd_parms(cmd=cmd)
+            req_parms = set(cmd_parms.keys())
+            parameters = {}
+            state_fields = {}
+            user_parms = {}
+            # first cycle through all provided parameters
+            for par, val in parm_map.items():
+                if (
+                    fieldvalue := self.validate_cmd_value(
+                        cmd=cmd, value=val, parm=par or None
+                    )
+                ) is None and ((cmd_parms or par or val is not None) or val is None):
+                    # Something is missing or invalid, error message was printed by validate method
+                    return None
+                # build parameter mapping for command with mock states and user description
+                if par:
+                    desc = self.get_cmd_parms(cmd=cmd, all=True).get(par, {})
+                else:
+                    # NOTE: At this point there can be max one required parameter, get the first one without defaults
+                    par, desc = next(iter(cmd_parms.items()), (None, {}))
+                # save fieldvalues and descriptions if parameter and value is valid for command
+                if par:
+                    # Validated Command parameters
+                    parameters[par] = fieldvalue
+                    # finally check if parameter to be skipped
+                    if (
+                        (skip_fn := desc.get(VALUE_SKIP))
+                        and callable(skip_fn)
+                        and skip_fn(
+                            parameters[par], self.get_status(fromFile=True) | parameters
+                        )
+                    ):
+                        parameters.pop(par, None)
+                    # Mock state
+                    elif state_name := desc.get(STATE_NAME):
+                        dynamic_descriptions |= state_name in self.dynamic_descriptions
+                        converter = desc.get(STATE_CONVERTER)
+                        state_value = (
+                            converter(
+                                fieldvalue,
+                                None,
+                                self.get_status(fromFile=True) | parameters,
+                            )
+                            if callable(converter)
+                            else fieldvalue
+                        )
+                        # special case to cut mocked time string to length of state string
+                        if (
+                            par.endswith("_time")
+                            and isinstance(state_value, str)
+                            and (
+                                length := len(
+                                    self.get_status(fromFile=True).get(state_name, "")
+                                )
+                            )
+                            > 0
+                        ):
+                            state_fields[state_name] = state_value[:length]
+                        # special case to convert binary back to state structure
+                        elif isinstance(state_value, bytes | bytearray) and converter:
+                            state_fields[state_name] = converter(
+                                state_value,
+                                None,
+                                self.get_status(fromFile=True) | parameters,
+                            )
+                        else:
+                            state_fields[state_name] = state_value
+                        # keep mocking of mask_value fields while bits are changed
+                        if (mask_value := desc.get(MASK_VALUE, "")) and (
+                            mask_state := desc.get(MASK_STATE, "")
+                        ):
+                            # actual mocked mask_value is tracked in state_fields
+                            val = self._mock_mask_state(
+                                value=state_value,
+                                mask_value=int(
+                                    str(state_fields.get(mask_state, ""))
+                                    or str(mask_value)
+                                    or 0
+                                ),
+                                description=desc,
+                            )
+                            if val is not None:
+                                state_fields[mask_state] = val
+                                dynamic_descriptions = True
+                    # generate generic user description and provided string value or field value
+                    user_parms[par] = val if isinstance(val, str) else fieldvalue
+                    # mark required parameter as defined
+                    req_parms.discard(par)
+            # add command parameters that may need current state value or have defaults
+            for par, desc in self.get_cmd_parms(
+                cmd=cmd, defaults=True, state_parms=True, follow_parms=False
+            ).items():
+                if (
+                    par not in parameters
+                    and (
+                        state := self.get_status(fromFile=True).get(
+                            desc.get(VALUE_STATE, ""), desc.get(VALUE_DEFAULT)
+                        )
+                    )
+                    is not None
+                ):
+                    # convert state if converter available
+                    if converter := desc.get(STATE_CONVERTER):
+                        state = (
+                            converter(
+                                None,
+                                state,
+                                self.get_status(fromFile=True) | parameters,
+                            )
+                            if callable(converter)
+                            else state
+                        )
+                    # limit text value if length specified
+                    if desc.get("is_text"):
+                        parameters[par] = str(state)[
+                            : abs(int(desc.get(LENGTH) or len(state)))
+                        ]
+                    # convert state to number format if valid number
+                    elif str(state).replace("-", "", 1).replace(".", "", 1).isdigit():
+                        parameters[par] = round_by_factor(
+                            float(state), desc.get(VALUE_STEP, 1)
+                        )
+                    else:
+                        parameters[par] = state
+                    # finally check if parameter to be skipped
+                    if (
+                        (skip_fn := desc.get(VALUE_SKIP))
+                        and callable(skip_fn)
+                        and skip_fn(
+                            parameters[par], self.get_status(fromFile=True) | parameters
+                        )
+                    ):
+                        parameters.pop(par, None)
+                    # Mock state
+                    elif state_name := desc.get(STATE_NAME):
+                        dynamic_descriptions |= state_name in self.dynamic_descriptions
+                        converter = desc.get(STATE_CONVERTER)
+                        state_value = (
+                            converter(
+                                parameters[par],
+                                None,
+                                self.get_status(fromFile=True) | parameters,
+                            )
+                            if callable(converter)
+                            else parameters[par]
+                        )
+                        state_fields[state_name] = state_value
+                        # keep mocking of mask_value fields while bits are changed
+                        if (mask_value := desc.get(MASK_VALUE, "")) and (
+                            mask_state := desc.get(MASK_STATE, "")
+                        ):
+                            # actual mocked mask_value is tracked in state_fields
+                            val = self._mock_mask_state(
+                                value=state_value,
+                                mask_value=int(
+                                    str(state_fields.get(mask_state, ""))
+                                    or str(mask_value)
+                                    or 0
+                                ),
+                                description=desc,
+                            )
+                            if val is not None:
+                                state_fields[mask_state] = val
+                                dynamic_descriptions = True
+                        # special case to convert binary back to state structure
+                        elif isinstance(state_value, bytes | bytearray) and converter:
+                            state_fields[state_name] = converter(
+                                state_value,
+                                None,
+                                self.get_status(fromFile=True) | parameters,
+                            )
+                    # mark required parameter as defined
+                    req_parms.discard(par)
+            # finally add command parameters that follow another parameter and convert their state
+            for par, desc in self.get_cmd_parms(cmd=cmd, follow_parms=True).items():
+                converter = desc.get(STATE_CONVERTER)
+                if par not in parameters:
+                    follows = desc.get(VALUE_FOLLOWS, "")
+                    if isinstance(options := desc.get(VALUE_OPTIONS), dict):
+                        # get follow state from option map
+                        state = options.get(parameters.get(follows, ""))
+                    else:
+                        # get follow value from cache or parameters
+                        state = (self.get_status(fromFile=True) | parameters).get(
+                            follows
+                        )
+                    # convert state if converter available
+                    state = (
+                        converter(
+                            None, state, self.get_status(fromFile=True) | parameters
+                        )
+                        if callable(converter)
+                        else state
+                    )
+                    # limit text value if length specified
+                    if desc.get("is_text"):
+                        parameters[par] = str(state)[
+                            : abs(int(desc.get(LENGTH) or len(state)))
+                        ]
+                    # convert state to number format if valid number
+                    elif str(state).replace("-", "", 1).replace(".", "", 1).isdigit():
+                        parameters[par] = round_by_factor(
+                            float(state), desc.get(VALUE_STEP, 1)
+                        )
+                    else:
+                        parameters[par] = state
+                else:
+                    # Convert state again for Follow parms with given value to consider all final set parameters
+                    parameters[par] = (
+                        converter(
+                            None,
+                            parameters[par],
+                            self.get_status(fromFile=True) | parameters,
+                        )
+                        if callable(converter)
+                        else parameters[par]
+                    )
+                # finally check if parameter to be skipped
+                if (
+                    (skip_fn := desc.get(VALUE_SKIP))
+                    and callable(skip_fn)
+                    and skip_fn(
+                        parameters[par], self.get_status(fromFile=True) | parameters
+                    )
+                ):
+                    parameters.pop(par, None)
+                # Mock state
+                elif state_name := desc.get(STATE_NAME):
+                    dynamic_descriptions |= state_name in self.dynamic_descriptions
+                    state_fields[state_name] = parameters[par]
+                    # keep mocking of mask_value fields while bits are changed
+                    if (mask_value := desc.get(MASK_VALUE, "")) and (
+                        mask_state := desc.get(MASK_STATE, "")
+                    ):
+                        # actual mocked mask_value is tracked in state_fields
+                        val = self._mock_mask_state(
+                            value=parameters[par],
+                            mask_value=int(
+                                str(state_fields.get(mask_state, ""))
+                                or str(mask_value)
+                                or 0
+                            ),
+                            description=desc,
+                        )
+                        if val is not None:
+                            state_fields[mask_state] = val
+                            dynamic_descriptions = True
+            # check if all required parameters are specified
+            if req_parms:
+                self._logger.error(
+                    "MQTT device %s (%s) control error - Command '%s' is missing required parameter(s): %s",
+                    self.sn,
+                    self.pn,
+                    cmd,
+                    list(req_parms),
+                )
+                return None
+            if not user_parms and value is not None:
+                user_parms = f"'{value}'" if isinstance(value, str) else value
+            # publish command with validated field values
+            if await self._send_mqtt_command(
+                command=cmd,
+                parameters=parameters,
+                description=f"sent command '{cmd}'{': ' + str(user_parms) if user_parms else ''}",
+                toFile=toFile,
+            ):
+                resp = state_fields
+                # add mock states for fields with depending values
+                if toFile:
+                    self._filedata.update(resp)
+                    # Trigger mocked dynamic description updates
+                    if dynamic_descriptions:
+                        self.update_device(self.device, resp)
+        return resp
+
+    async def realtime_trigger(
+        self,
+        timeout: int = SolixDefaults.TRIGGER_TIMEOUT_DEF,
+        state: bool | None = None,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Trigger device realtime data publish. @thomas
+
+        Args:
+            timeout: Seconds for realtime publish to stop
+            state: Set the state of the trigger, default will be on
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: dict with mocked state response, None otherwise
+
+        Example:
+            await mydevice.realtime_trigger(timeout=300)
+
+        """
+        # Validate parameters and publish command
+        parms = self.get_cmd_parms(cmd=SolixMqttCommands.realtime_trigger, all=True)
+        return await self.run_command(
+            cmd=SolixMqttCommands.realtime_trigger,
+            value=timeout if "trigger_timeout_sec" in parms else None,
+            parm="trigger_timeout_sec" if "trigger_timeout_sec" in parms else None,
+            parm_map={}
+            if state is None or "set_realtime_trigger" not in parms
+            else {"set_realtime_trigger": "on" if state else "off"},
+            toFile=toFile,
+        )
+
+    async def status_request(
+        self,
+        toFile: bool = False,
+    ) -> dict | None:
+        """Send device status_request. @thomas
+
+        Args:
+            toFile: If True, save mock response (for testing compatibility)
+
+        Returns:
+            dict: dict with mocked state response, None otherwise
+
+        Example:
+            await mydevice.status_request()
+
+        """
+        # Do not check whether status request fully supported for command, it will be sent with standard message type otherwise
+        if await self._send_mqtt_command(
+            command=SolixMqttCommands.status_request,
+            description="sent status request",
+            toFile=toFile,
+        ):
+            return {}
+        return None
+
+    def get_combined_cache(
+        self,
+        mqtt_unique: bool = False,
+        api_prio: bool = False,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get copy of combined values from device actual Api and MQTT cache. @thomas
+
+        Args:
+            mqtt_unique: If True, provide only MQTT values not included in Api cache
+            api_prio: If True, duplicate values will have the Api cache value, default is MQTT cache value
+            fromFile: If True, include mock MQTT cache while testing from files
+
+        Returns:
+            dict: Combined Api and MQTT data cache
+
+        Example:
+            mqtt_unique = mydevice.get_combined_cache(mqtt_unique=True)
+
+        """
+        mqttdata = self.mqttdata | (self._filedata if fromFile else {})
+        if mqtt_unique:
+            # find duplicate keys and remove them from MQTT cache copy
+            dup = set(self.device.keys()) & (set(mqttdata.keys()))
+            for k in dup:
+                mqttdata.pop(k, None)
+            return mqttdata
+        if api_prio:
+            data = mqttdata | self.device
+        else:
+            data = self.device | mqttdata
+        return data
+
+    def get_status(
+        self,
+        fromFile: bool = False,
+    ) -> dict:
+        """Get actual MQTT device cache status. @thomas
+
+        Args:
+            fromFile: If True, include mock status while testing from files
+
+        Returns:
+            dict: Device status with all extracted MQTT message fields from
+                Uses MQTT data cache for real-time values
+
+        Example:
+            status = mydevice.get_status()
+            print(f"AC Output: {status.get('switch_ac_output_power')}")
+            print(f"Battery SOC: {status.get('battery_soc')}%")
+
+        """
+        # Return copy of accumulated MQTT data cache, handle test mode
+        return self.mqttdata | (self._filedata if fromFile else {})
+
+    def print_status(
+        self,
+        fromFile: bool = False,
+    ) -> dict:
+        """Print and return actual MQTT device status. @thomas
+
+        Args:
+            fromFile: If True, include mock status while testing from files
+
+        Returns:
+            dict: Device status with all extracted MQTT message fields from
+                Uses MQTT data cache for real-time values
+
+        Example:
+            mydevice.print_status()
+
+        """
+        # Return accumulated MQTT data cache, handle test mode
+        data = self.get_status(fromFile=fromFile)
+        self._logger.info(
+            "MQTT device %s (%s) status%s:\n%s",
+            self.sn,
+            self.pn,
+            " with optional MQTT test control changes" if fromFile else "",
+            str(data),
+        )
+        return data
