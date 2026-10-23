@@ -107,6 +107,11 @@ class HoymilesDtuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._client: Any = None
         self._last: dict[str, Any] = {}
         self._misses: dict[str, int] = {}
+        # Session baseline. Three answers that do not fall further replace it;
+        # until then a lower reading is discarded.
+        self._accepted_energy: dict[str, float] = {}
+        self._invalid_logged = False
+        self._reset_pending: dict[str, hoymiles_dtu.ResetTrack] = {}
 
     async def _async_update_data(self) -> dict[str, Any]:
         if self._client is None:
@@ -130,6 +135,20 @@ class HoymilesDtuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for serial, device in self._last.items()
             }
         devices = hoymiles_dtu.build_devices(real, _serial_of)
+        if hoymiles_dtu.null_frame(devices):
+            # zeros are not a counter reading and break a reset streak
+            self._reset_pending.clear()
+            self._reject_invalid(hoymiles_dtu.NULL_FRAME)
+        drops = hoymiles_dtu.lifetime_drops(devices, self._accepted_energy)
+        if not self._confirm_resets(drops):
+            serial = next(iter(drops))
+            self._reject_invalid(
+                f"lifetime energy of {serial} dropped from "
+                f"{self._accepted_energy[serial]} to {drops[serial]}"
+            )
+        if devices:
+            self._invalid_logged = False
+        hoymiles_dtu.remember_energy(self._accepted_energy, devices)
         for serial, device in self._last.items():
             if serial in devices:
                 self._misses.pop(serial, None)
@@ -144,6 +163,38 @@ class HoymilesDtuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
         self._last = devices
         return devices
+
+    def _reject_invalid(self, reason: str) -> None:
+        """Discard this cycle and log the reason once per series. @zara"""
+        if not self._invalid_logged:
+            LOGGER.warning(
+                "Hoymiles DTU %s discarded an invalid data set: %s",
+                self.host,
+                reason,
+            )
+            self._invalid_logged = True
+        raise UpdateFailed(
+            f"Hoymiles DTU at {self.host} discarded an invalid data set: {reason}"
+        )
+
+    def _confirm_resets(self, drops: dict[str, float]) -> bool:
+        """Advance reset streaks. Return True when every drop may be published. @zara"""
+        for serial in list(self._reset_pending):
+            if serial not in drops:
+                self._reset_pending.pop(serial, None)
+        ready: list[str] = []
+        for serial, energy in drops.items():
+            count = hoymiles_dtu.advance_reset(self._reset_pending, serial, energy)
+            if count >= hoymiles_dtu.RESET_CONFIRMATIONS:
+                ready.append(serial)
+        if len(ready) < len(drops):
+            return False
+        for serial in ready:
+            self._accepted_energy[serial] = drops[serial]
+            self._reset_pending.pop(serial, None)
+        if ready:
+            LOGGER.info("Hoymiles DTU %s counter reset accepted", self.host)
+        return True
 
     async def _async_recheck_encryption(self) -> None:
         """Store changed encryption data so the next cycle can read again. @zara"""

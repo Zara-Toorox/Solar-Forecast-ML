@@ -71,6 +71,7 @@ from .const import (
     INCLUDE_CACHE,
     LOAD_TYPE,
     LOCAL_VENDORS,
+    is_hp_device_vendor,
     LOGGER,
     MQTT_OVERLAY,
     PLAN,
@@ -99,6 +100,11 @@ from .entity import (
 )
 from .external_meter import async_setup_external_meter
 from .local_sensor import async_setup_local_sensors
+from .hp_site import (
+    VENDOR_HP,
+    async_setup_hp_device_entities,
+    async_setup_hp_entities,
+)
 from .site import VENDOR_SITE, async_setup_site_entities
 from .solixapi.apitypes import (
     ApiCategories,
@@ -4218,6 +4224,12 @@ async def async_setup_entry(
     """Set up sensor platform. @thomas"""
     if entry.data.get(CONF_VENDOR) == VENDOR_SITE:
         await async_setup_site_entities(hass, entry, async_add_entities, "sensor")
+        return
+    if entry.data.get(CONF_VENDOR) == VENDOR_HP:
+        await async_setup_hp_entities(hass, entry, async_add_entities, "sensor")
+        return
+    if is_hp_device_vendor(entry.data.get(CONF_VENDOR)):
+        await async_setup_hp_device_entities(hass, entry, async_add_entities, "sensor")
         return
     if entry.data.get(CONF_VENDOR) in LOCAL_VENDORS:
         await async_setup_local_sensors(hass, entry, async_add_entities)

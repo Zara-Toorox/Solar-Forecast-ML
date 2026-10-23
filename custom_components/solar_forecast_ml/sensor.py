@@ -155,6 +155,7 @@ async def async_setup_entry(
         ExpectedDailyProductionSensor(coordinator, entry),
         ConservativePlanningForecastSensor(coordinator, entry),
         OperationalHybridForecastSensor(coordinator, entry),
+        HybridForecastStatusSensor(coordinator, entry),
         SolarForecastSensor(coordinator, entry, "remaining"),
         SolarForecastSensor(coordinator, entry, "tomorrow"),
         ForecastDayAfterTomorrowSensor(coordinator, entry),
@@ -192,7 +193,6 @@ async def async_setup_entry(
 
     if dev_active:
         dev_entities = [
-            HybridForecastStatusSensor(coordinator, entry),
             AverageAccuracy30DaysSensor(coordinator, entry),
             EvaluationCoverage7DaysSensor(coordinator, entry),
             EvaluationCoverage30DaysSensor(coordinator, entry),

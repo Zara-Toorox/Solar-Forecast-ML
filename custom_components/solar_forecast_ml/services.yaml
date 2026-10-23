@@ -196,6 +196,17 @@ run_adaptive_forecast:
   description: "Developer only or on advice."
   fields: {}
 
+set_adaptive_forecast_mode:
+  name: "Mittagskorrektur schalten"
+  description: "Schaltet die Mittagskorrektur ohne Neustart ein oder aus. Ein gespeicherter Wert bleibt gültig. Ohne gespeicherten Wert ist sie an. Die nächste Prüfung um 12:30 folgt sofort."
+  fields:
+    enabled:
+      name: "Aktiviert"
+      description: "An: die Prüfung darf korrigieren. Aus: sie speichert nur, dass die Mittagskorrektur aus ist."
+      required: true
+      selector:
+        boolean:
+
 run_operational_reforecast:
   name: "🔄 MDC Re-Forecast-Test Dev-Only"
   description: "Developer only or on advice."
@@ -242,7 +253,7 @@ set_operational_reforecast_mode:
       name: "Aktiviert"
       description: "Aktiviert oder deaktiviert den geplanten Hybrid-Modus."
       required: false
-      default: true
+      default: false
       selector:
         boolean:
 

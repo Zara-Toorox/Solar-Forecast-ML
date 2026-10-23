@@ -599,11 +599,12 @@ const _HomePage = {
                             <span class="metric-badge-label">{{ $t('home.forecastActualKpi') }}</span>
                         </div>
                     </div>
-                    <div class="metric-badge-card">
+                    <div class="metric-badge-card" :title="usesHybridDayTotal ? $t('home.forecastDayKpiHybridTitle') : ''">
                         <span class="metric-badge-icon">📉</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" style="color: #fbbf24">{{ forecastTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-value" style="color: #fbbf24">{{ forecastDayKpiValue }} <span class="unit">kWh</span></span>
                             <span class="metric-badge-label">{{ $t('home.forecastDayKpi') }}</span>
+                            <span v-if="usesHybridDayTotal" class="metric-badge-label" style="color: #38bdf8">{{ $t('home.forecastDayKpiHybrid') }}</span>
                         </div>
                     </div>
                     <div v-if="restOfDayForecastTotal != null" class="metric-badge-card" :title="$t('home.restOfDayKpiTitle')">
@@ -866,7 +867,7 @@ const _HomePage = {
         const panelGroupsData = reactive({ available: false, groups: {} });
         const pgChartRefs = reactive({});
         const pgChartInstances = {};
-        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], conservative: [], operationalTotal: null, conservativeTotal: null, actual: [], actualRaw: [], cleanEligible: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [] });
+        const forecastData = reactive({ hours: [], forecast: [], forecastRaw: [], hybrid: [], hybridAvailable: false, tfs: [], conservative: [], operationalTotal: null, conservativeTotal: null, actual: [], actualRaw: [], cleanEligible: [], confidence: [], ml_pct: [], method: [], temperature: [], radiation: [], clouds: [] });
         const weatherTrace = ref([]);
         const powerData = ref([]);
         const batterySocSensorConfigured = ref(false);
@@ -1327,6 +1328,7 @@ const _HomePage = {
             Prognose: true,
             P10: true,
             Hybrid: false,
+            TFS: true,
             IST: true,
             Unsicherheit: true,
         });
@@ -1401,6 +1403,13 @@ const _HomePage = {
             return sum.toFixed(1);
         });
 
+        const usesHybridDayTotal = computed(() => false);
+
+        const forecastDayKpiValue = computed(() => {
+            if (!usesHybridDayTotal.value) return forecastTotal.value;
+            return Number(forecastData.operationalTotal).toFixed(1);
+        });
+
         const restOfDayForecastTotal = computed(() => {
             if (!isSelectedToday.value) return null;
             if (!forecastData.hybrid.some(v => v != null)) return null;
@@ -1453,7 +1462,12 @@ const _HomePage = {
         });
 
         const hasHybridForecast = computed(() => {
-            return devOn.value && forecastData.hybrid.some(v => v != null);
+            return forecastData.hybridAvailable === true
+                && forecastData.hybrid.some(v => v != null);
+        });
+
+        const hasTfsForecast = computed(() => {
+            return devOn.value && forecastData.tfs.some(v => v != null);
         });
 
         const hasConservativeForecast = computed(() => {
@@ -2974,6 +2988,9 @@ const _HomePage = {
                     forecastData.hours = [];
                     forecastData.forecast = [];
                     forecastData.forecastRaw = [];
+                    forecastData.hybrid = [];
+                    forecastData.hybridAvailable = false;
+                    forecastData.operationalTotal = null;
                     forecastData.actual = [];
                     forecastData.actualRaw = [];
                     weatherTrace.value = [];
@@ -2986,6 +3003,9 @@ const _HomePage = {
                     forecastData.hours = [];
                     forecastData.forecast = [];
                     forecastData.forecastRaw = [];
+                    forecastData.hybrid = [];
+                    forecastData.hybridAvailable = false;
+                    forecastData.operationalTotal = null;
                     forecastData.actual = [];
                     forecastData.actualRaw = [];
                     weatherTrace.value = [];
@@ -2998,7 +3018,9 @@ const _HomePage = {
                 }
 
                 forecastData.hours = todayData.map(h => h.target_hour);
-                const rawFc = todayData.map(h => h.prediction_kwh ?? 0);
+                const rawFc = todayData.map(h => h.customer_prediction_kwh ?? h.prediction_kwh ?? 0);
+                const rawFinal = todayData.map(h => h.final_prediction_kwh ?? h.prediction_kwh ?? 0);
+                forecastData.finalForecast = rawFinal;
                 const rawAc = todayData.map(h => h.actual_kwh ?? null);
                 const trimmed = trimSolarWindow(rawAc, rawFc);
                 forecastData.forecastRaw = rawFc;
@@ -3006,19 +3028,22 @@ const _HomePage = {
                 forecastData.forecast = trimmed.forecast;
                 forecastData.actual = trimmed.actual;
                 const hybridPayload = res.data.hybrid || {};
-                const operationalTotal = Number(hybridPayload.total_kwh);
-                forecastData.operationalTotal = Number.isFinite(operationalTotal)
-                    ? operationalTotal
-                    : null;
                 const hybridHours = Array.isArray(hybridPayload.hourly) ? hybridPayload.hourly : [];
                 const hybridByHour = new Map(
                     hybridHours.map(h => [Number(h.target_hour), h.prediction_kwh ?? null])
                 );
-                forecastData.hybrid = todayData.map(h => (
+                const hybridSeries = todayData.map(h => (
                     hybridByHour.has(Number(h.target_hour))
                         ? hybridByHour.get(Number(h.target_hour))
                         : null
                 ));
+                const hybridTotal = Number(hybridPayload.total_kwh);
+                const hybridActive = hybridPayload.available === true
+                    && hybridSeries.some(v => v != null)
+                    && Number.isFinite(hybridTotal);
+                forecastData.hybridAvailable = hybridActive;
+                forecastData.operationalTotal = hybridActive ? hybridTotal : null;
+                forecastData.hybrid = hybridActive ? hybridSeries : hybridSeries.map(() => null);
                 const conservativePayload = res.data.conservative || {};
                 const conservativeTotal = Number(conservativePayload.total_kwh);
                 forecastData.conservativeTotal = Number.isFinite(conservativeTotal)
@@ -3034,6 +3059,7 @@ const _HomePage = {
                     if (!Number.isFinite(value)) return null;
                     return Math.min(Math.max(0, value), Math.max(0, rawFc[idx] ?? 0));
                 });
+                forecastData.tfs = todayData.map(h => h.tfs_kwh ?? null);
                 forecastData.cleanEligible = todayData.map(h => h.clean_evaluation_eligible !== false);
                 forecastData.confidence = todayData.map(h => h.confidence ?? 50);
                 forecastData.ml_pct = todayData.map(h => h.ml_contribution_percent ?? 0);
@@ -3114,6 +3140,7 @@ const _HomePage = {
                         const pred = forecastData.forecast[idx] ?? 0;
                         const conservative = forecastData.conservative[idx];
                         const hybrid = forecastData.hybrid[idx];
+                        const tfs = hasTfsForecast.value ? forecastData.tfs[idx] : null;
                         const actValue = actualRows[idx] ?? null;
                         const act = actValue == null ? null : Number(actValue);
                         const conf = forecastData.confidence[idx] ?? 0;
@@ -3131,6 +3158,7 @@ const _HomePage = {
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">' + t('common.forecast') + ':</span><span>' + pred.toFixed(2) + ' kWh</span></div>';
                         if (conservative != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#2dd4bf">' + t('home.p10') + ':</span><span>' + conservative.toFixed(2) + ' kWh</span></div>';
                         if (hybrid != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#38bdf8">' + t('home.hybrid') + ':</span><span>' + hybrid.toFixed(2) + ' kWh</span></div>';
+                        if (tfs != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#a855f7">' + t('home.tfs') + ':</span><span>' + Number(tfs).toFixed(2) + ' kWh</span></div>';
                         s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">' + t('common.actual') + ':</span><span>' + (act == null ? '--' : act.toFixed(2) + ' kWh') + '</span></div>';
                         if (delta != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('common.yield') + ' &Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
                         if (forecastError != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('solar.weeklyTable.forecastError') + ':</span><span style="color:' + forecastBandColor(parseFloat(forecastError)) + '">' + (parseFloat(forecastError) >= 0 ? '+' : '') + forecastError + '%</span></div>';
@@ -3222,6 +3250,17 @@ const _HomePage = {
                         connectNulls: false,
                         z: 5,
                     }] : []),
+                    ...(hasTfsForecast.value ? [{
+                        name: 'TFS',
+                        type: 'line',
+                        data: forecastData.tfs,
+                        lineStyle: { color: '#a855f7', width: 2, type: 'dotted', shadowColor: 'rgba(168,85,247,0.2)', shadowBlur: 6 },
+                        itemStyle: { color: '#a855f7' },
+                        symbol: 'none',
+                        smooth: true,
+                        connectNulls: false,
+                        z: 5,
+                    }] : []),
                     // IST line — only show up to current hour, null for future
                     {
                         name: 'IST',
@@ -3261,11 +3300,12 @@ const _HomePage = {
                     // Series names are stable internal identifiers ("Prognose"/"IST"/…)
                     // so legend selection state survives across locale changes;
                     // formatter renders the localized label.
-                    data: ['Prognose', ...(hasConservativeForecast.value ? ['P10'] : []), ...(hasHybridForecast.value ? ['Hybrid'] : []), 'IST', 'Unsicherheit'],
+                    data: ['Prognose', ...(hasConservativeForecast.value ? ['P10'] : []), ...(hasHybridForecast.value ? ['Hybrid'] : []), ...(hasTfsForecast.value ? ['TFS'] : []), 'IST', 'Unsicherheit'],
                     formatter: (name) => ({
                         Prognose: t('common.forecast'),
                         P10: t('home.p10'),
                         Hybrid: t('home.hybrid'),
+                        TFS: t('home.tfs'),
                         IST: t('common.actual'),
                         Unsicherheit: t('home.uncertainty'),
                     }[name] || name),
@@ -3273,6 +3313,7 @@ const _HomePage = {
                         Prognose: forecastLegendSelected.Prognose,
                         P10: forecastLegendSelected.P10,
                         Hybrid: forecastLegendSelected.Hybrid,
+                        TFS: forecastLegendSelected.TFS,
                         IST: forecastLegendSelected.IST,
                         Unsicherheit: forecastLegendSelected.Unsicherheit,
                     },
@@ -3640,7 +3681,7 @@ const _HomePage = {
             panelDayProgressTitle, panelGroupMetaLine, panelGroupMetaTitle,
             weatherTrace, hasWeatherTrace,
             currentTime, lastPowerUpdate,
-            isNightTime, forecastTotal, restOfDayForecastTotal, hybridForecastTotal, conservativeForecastTotal, hasHybridForecast, devOn, quality30Sentence,
+            isNightTime, forecastTotal, forecastDayKpiValue, usesHybridDayTotal, restOfDayForecastTotal, hybridForecastTotal, conservativeForecastTotal, hasHybridForecast, devOn, quality30Sentence,
             hasConservativeForecast,
             actualTotal, deviationPercent, deviationLabel, hybridDeviationPercent,
             hybridDeviationLabel, cleanEvalStats, todayLearningBasisLabel,

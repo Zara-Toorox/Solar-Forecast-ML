@@ -10,7 +10,7 @@
             emptyText: "S-INV ist eingerichtet, liefert aber noch keine Werte.",
             curtailed: "Abregelung aktiv",
             pvTotal: "PV gesamt",
-            anker: "Anker",
+            anker: "laut Anker-Cloud",
             mppt: "MPPT",
             voltage: "Spannung",
             current: "Strom",
@@ -62,6 +62,193 @@
             premiumTitle: "Premium-Funktion nicht freigeschaltet",
             premiumText: "Das Vergleichsdiagramm braucht eine aktive Premium-Lizenz.",
             unitNotice: "{id} ({unit}) wird ignoriert, die Einheit passt nicht.",
+            tabLive: "Live",
+            tabHeatPump: "Wärmepumpe",
+            tabMapping: "Zuordnung",
+            hpDerived: "abgeleitet",
+            hpOn: "ein",
+            hpOff: "aus",
+            hp_power_electric: "Elektrische Leistung",
+            hp_power_thermal: "Thermische Leistung",
+            hp_cop_live: "COP live",
+            hp_energy_electric_today: "Strom heute",
+            hp_energy_electric_total: "Strom gesamt",
+            hp_energy_thermal_today: "Wärme heute",
+            hp_energy_thermal_total: "Wärme gesamt",
+            hp_cop_total: "JAZ",
+            hp_temperature_outdoor: "Außentemperatur",
+            hp_temperature_flow: "Vorlauf",
+            hp_temperature_return: "Rücklauf",
+            hp_temperature_dhw: "Warmwasser",
+            hp_operating_mode: "Betriebsart",
+            hp_compressor_running: "Verdichter",
+            hp_aux_heater_active: "Heizstab",
+            tabsLabel: "Seitenbereiche",
+            mapLoading: "Zuordnung wird geladen",
+            mapError: "Die Zuordnung konnte nicht geladen werden.",
+            energyKept: "Preise, Kosten, Namen und Prognosequelle des Energie-Dashboards bleiben unverändert.",
+            mapAbsent: "S-INV ist nicht eingerichtet.",
+            mapEmpty: "Keine Zuordnung vorhanden.",
+            targetAbsent: "Diese Integration ist nicht eingerichtet.",
+            targetError: "Dieses Ziel konnte nicht gelesen werden.",
+            colField: "Feld",
+            colCurrent: "Aktueller Sensor",
+            colSinv: "S-INV-Sensor",
+            colAction: "Aktion",
+            notSet: "nicht eingetragen",
+            noCounterpart: "kein S-INV-Gegenstück",
+            derived: "abgeleitet",
+            setupOnly: "nur über die Einrichtung",
+            actionAdd: "hinzufügen",
+            actionReplace: "ersetzen",
+            actionKeep: "behalten",
+            actionConflict: "Konflikt",
+            reasonUnit: "Einheit passt nicht",
+            reasonDeviceClass: "Geräteklasse passt nicht",
+            reasonStateClass: "Zustandsklasse passt nicht",
+            reasonDouble: "Zweite Quelle derselben Energie",
+            reasonEnergyDaily: "EAI erwartet Tageszähler ohne kumulative Klasse",
+            targetEnergy: "Energie-Dashboard",
+            targetSfml: "SFML",
+            targetGpm: "GPM",
+            targetEai: "EAI",
+            targetWfai: "WFAI",
+            targetUnknown: "Weiteres Ziel",
+            fieldUnknown: "Sensorfeld",
+            mapAdmin: "Die Zuordnung ist nur für die Verwaltung sichtbar.",
+            apply: "Übernehmen",
+            undo: "Rückgängig",
+            confirmTitle: "Änderungen übernehmen",
+            confirmBody: "Diese Sensoren werden im Energie-Dashboard eingetragen.",
+            confirmYes: "Übernehmen",
+            confirmNo: "Abbrechen",
+            applyDone: "Die Zuordnung wurde übernommen.",
+            undoDone: "Die Zuordnung wurde zurückgesetzt.",
+            planChanged: "Die Zuordnung hat sich geändert. Nichts wurde geschrieben.",
+            prefsChanged: "Das Energie-Dashboard wurde inzwischen geändert. Nichts wurde zurückgesetzt.",
+            undoUsed: "Das wurde bereits rückgängig gemacht.",
+            applyFailed: "Das Energie-Dashboard konnte nicht gespeichert werden.",
+            undoFailed: "Die Zuordnung konnte nicht zurückgesetzt werden.",
+            incompleteSource: "Diese Quelle ist unvollständig. Nichts wurde geschrieben.",
+            batteryPair: "Lade- und Entladezähler werden nur zusammen übernommen.",
+            sfmlBattery: "Das aktiviert die Batterie-Erkennung (has_battery).",
+            sfmlPair: "PV-Batterie-Leistung und Ladestand werden nur zusammen übernommen.",
+            gpmGridCharge: "Batterieladung aus dem Netz.",
+            optionsReload: "Die Integration lädt sich über ihren eigenen Dialog neu.",
+            eaiKeep: "Die übrigen Wärmepumpen-, Wallbox- und Automationsfelder bleiben erhalten.",
+            flowOpen: "Ein Einrichtungsdialog ist bereits offen. Nichts wurde geschrieben.",
+            flowRejected: "Das Formular hat die Änderung abgelehnt. Nichts wurde geschrieben.",
+            missingValues: "Gespeicherte Tarifwerte fehlen. Nichts wurde geschrieben.",
+            optionsMismatch: "Die übrigen Einstellungen hätten sich geändert. Der vorherige Stand wurde angefordert.",
+            undoPartialSfml: "Sensoren bleiben eingetragen, Batterie-Erkennung wieder aus.",
+            undoPartialGpm: "Der Sensor bleibt als leerer Eintrag stehen.",
+            undoPartialEai: "Der Sensor bleibt als leeres Feld stehen.",
+            rollbackIncomplete: "Der vorherige Stand ließ sich nicht wiederherstellen. Es wurde nichts weiter versucht.",
+            selectRow: "Auswählen",
+            fields: {
+                energy: {
+                    grid: {
+                        stat_energy_from: "Netzbezugszähler",
+                        stat_energy_to: "Einspeisezähler",
+                        stat_rate: "Netzleistung",
+                        stat_cost: "Kosten Netzbezug",
+                        entity_energy_price: "Preis-Sensor Netzbezug",
+                        number_energy_price: "Preis Netzbezug",
+                        stat_compensation: "Vergütung Einspeisung",
+                        entity_energy_price_export: "Preis-Sensor Einspeisung",
+                        number_energy_price_export: "Preis Einspeisung",
+                        cost_adjustment_day: "Tägliche Kostenkorrektur",
+                        name: "Name Netz",
+                        power_config: {
+                            stat_rate: "Netzleistung",
+                            stat_rate_inverted: "Netzleistung, umgekehrtes Vorzeichen",
+                            stat_rate_from: "Leistung Netzbezug",
+                            stat_rate_to: "Leistung Einspeisung",
+                        },
+                    },
+                    solar: {
+                        stat_energy_from: "Solarzähler",
+                        stat_rate: "Solarleistung",
+                        config_entry_solar_forecast: "Prognosequelle",
+                        name: "Name Solar",
+                    },
+                    battery: {
+                        stat_energy_from: "Zähler Entladen",
+                        stat_energy_to: "Zähler Laden",
+                        stat_soc: "Ladestand",
+                        capacity: "Kapazität",
+                        name: "Name Akku",
+                        power_config: {
+                            stat_rate_from: "Leistung Entladen",
+                            stat_rate_to: "Leistung Laden",
+                            stat_rate_inverted: "Akkuleistung, umgekehrtes Vorzeichen",
+                        },
+                    },
+                },
+                sfml: {
+                    total_consumption_today: "Hausverbrauch heute",
+                    rain_sensor: "Regen",
+                    lux_sensor: "Helligkeit",
+                    temp_sensor: "Außentemperatur",
+                    wind_sensor: "Wind",
+                    humidity_sensor: "Luftfeuchte",
+                    pressure_sensor: "Luftdruck",
+                    solar_radiation_sensor: "Einstrahlung",
+                    group_1_sensor: "Modulgruppe 1",
+                    group_2_sensor: "Modulgruppe 2",
+                    group_3_sensor: "Modulgruppe 3",
+                    group_4_sensor: "Modulgruppe 4",
+                    solar_to_battery_sensor: "PV zum Akku",
+                    battery_soc_sensor: "Ladestand",
+                },
+                gpm: {
+                    battery_power_sensor: "Laden aus dem Netz",
+                },
+                eai: {
+                    wp_power_entity: "Wärmepumpenleistung",
+                    wp_energy_today: "Wärmepumpe heute",
+                    outdoor_temp_entity: "Außentemperatur",
+                    indoor_temp_entity: "Innentemperatur",
+                    target_temp_entity: "Solltemperatur",
+                    operation_mode_entity: "Betriebsart",
+                    compressor_entity: "Verdichter",
+                    heating_element_entity: "Heizstab",
+                    dhw_temp_entity: "Warmwasser",
+                    flow_temp_entity: "Vorlauf",
+                    return_temp_entity: "Rücklauf",
+                    starts_entity: "Starts",
+                    runtime_entity: "Laufzeit",
+                    runtime_heating_entity: "Laufzeit Heizen",
+                    runtime_dhw_entity: "Laufzeit Warmwasser",
+                    heating_element_power_entity: "Heizstableistung",
+                    heating_element_energy_today_entity: "Heizstab heute",
+                    thermal_energy_entity: "Wärmeenergie",
+                    jaz_entity: "JAZ",
+                    volume_flow_entity: "Volumenstrom",
+                    source_temp_entity: "Quellentemperatur",
+                    storage_temp_entity: "Speichertemperatur",
+                    storage_ambient_temp_entity: "Speicherumgebung",
+                    circulation_pump_entity: "Zirkulationspumpe",
+                    circulation_return_temp_entity: "Zirkulation Rücklauf",
+                    wallbox_power_entity: "Wallbox-Leistung",
+                    wallbox_energy_today_entity: "Wallbox heute",
+                    wallbox_connected_entity: "Wallbox verbunden",
+                    wallbox_charging_entity: "Wallbox lädt",
+                    ev_soc_entity: "Ladestand Fahrzeug",
+                    ev_required_energy_entity: "Bedarf Fahrzeug",
+                    ev_planned_distance_entity: "Geplante Strecke",
+                    electricity_price_entity: "Strompreis",
+                    feed_in_tariff_entity: "Einspeisetarif",
+                },
+                wfai: {
+                    temperature_sensor: "Temperatur",
+                    humidity_sensor: "Luftfeuchte",
+                    pressure_sensor: "Luftdruck",
+                    wind_speed_sensor: "Wind",
+                    wind_direction_sensor: "Windrichtung",
+                    rain_sensor: "Regen",
+                },
+            },
         },
         en: {
             loading: "Loading",
@@ -73,7 +260,7 @@
             emptyText: "S-INV is set up, but it is not reporting values yet.",
             curtailed: "Curtailment active",
             pvTotal: "PV total",
-            anker: "Anker",
+            anker: "per Anker cloud",
             mppt: "MPPT",
             voltage: "Voltage",
             current: "Current",
@@ -125,6 +312,193 @@
             premiumTitle: "Premium feature is locked",
             premiumText: "The comparison chart needs an active premium licence.",
             unitNotice: "{id} ({unit}) is ignored because the unit does not match.",
+            tabLive: "Live",
+            tabHeatPump: "Heat pump",
+            tabMapping: "Mapping",
+            hpDerived: "derived",
+            hpOn: "on",
+            hpOff: "off",
+            hp_power_electric: "Electric power",
+            hp_power_thermal: "Thermal power",
+            hp_cop_live: "COP live",
+            hp_energy_electric_today: "Electricity today",
+            hp_energy_electric_total: "Electricity total",
+            hp_energy_thermal_today: "Heat today",
+            hp_energy_thermal_total: "Heat total",
+            hp_cop_total: "SCOP",
+            hp_temperature_outdoor: "Outdoor temperature",
+            hp_temperature_flow: "Flow temperature",
+            hp_temperature_return: "Return temperature",
+            hp_temperature_dhw: "Hot water",
+            hp_operating_mode: "Operating mode",
+            hp_compressor_running: "Compressor",
+            hp_aux_heater_active: "Heating element",
+            tabsLabel: "Page sections",
+            mapLoading: "Loading mapping",
+            mapError: "The mapping could not be loaded.",
+            energyKept: "Prices, costs, names and the forecast source of the energy dashboard stay unchanged.",
+            mapAbsent: "S-INV is not set up.",
+            mapEmpty: "No mapping to show.",
+            targetAbsent: "This integration is not set up.",
+            targetError: "This target could not be read.",
+            colField: "Field",
+            colCurrent: "Current sensor",
+            colSinv: "S-INV sensor",
+            colAction: "Action",
+            notSet: "not set",
+            noCounterpart: "no S-INV counterpart",
+            derived: "derived",
+            setupOnly: "setup only",
+            actionAdd: "add",
+            actionReplace: "replace",
+            actionKeep: "keep",
+            actionConflict: "Conflict",
+            reasonUnit: "Unit does not match",
+            reasonDeviceClass: "Device class does not match",
+            reasonStateClass: "State class does not match",
+            reasonDouble: "A second source of the same energy",
+            reasonEnergyDaily: "EAI expects a daily counter without a cumulative class.",
+            targetEnergy: "Energy dashboard",
+            targetSfml: "SFML",
+            targetGpm: "GPM",
+            targetEai: "EAI",
+            targetWfai: "WFAI",
+            targetUnknown: "Other target",
+            fieldUnknown: "Sensor field",
+            mapAdmin: "Only an administrator can view the mapping.",
+            apply: "Apply",
+            undo: "Undo",
+            confirmTitle: "Apply changes",
+            confirmBody: "These sensors will be written to the energy dashboard.",
+            confirmYes: "Apply",
+            confirmNo: "Cancel",
+            applyDone: "The mapping was applied.",
+            undoDone: "The mapping was restored.",
+            planChanged: "The mapping changed. Nothing was written.",
+            prefsChanged: "The energy dashboard changed in the meantime. Nothing was restored.",
+            undoUsed: "This was already undone.",
+            applyFailed: "The energy dashboard could not be saved.",
+            undoFailed: "The mapping could not be restored.",
+            incompleteSource: "This source is incomplete. Nothing was written.",
+            batteryPair: "Charge and discharge meters are applied only together.",
+            sfmlBattery: "This turns on battery detection (has_battery).",
+            sfmlPair: "PV-to-battery power and state of charge are applied only together.",
+            gpmGridCharge: "Battery charging from the grid.",
+            optionsReload: "The integration reloads through its own dialog.",
+            eaiKeep: "The other heat-pump, wallbox, and automation fields stay as they are.",
+            flowOpen: "An options dialog is already open. Nothing was written.",
+            flowRejected: "The form rejected the change. Nothing was written.",
+            missingValues: "Stored tariff values are missing. Nothing was written.",
+            optionsMismatch: "Other settings would have changed. The previous options were requested again.",
+            undoPartialSfml: "The sensors stay saved, and battery detection is off again.",
+            undoPartialGpm: "The sensor stays as an empty entry.",
+            undoPartialEai: "The sensor stays as an empty field.",
+            rollbackIncomplete: "The previous options could not be restored. Nothing further was tried.",
+            selectRow: "Select",
+            fields: {
+                energy: {
+                    grid: {
+                        stat_energy_from: "Grid import meter",
+                        stat_energy_to: "Grid export meter",
+                        stat_rate: "Grid power",
+                        stat_cost: "Grid import cost",
+                        entity_energy_price: "Grid import price sensor",
+                        number_energy_price: "Grid import price",
+                        stat_compensation: "Grid export compensation",
+                        entity_energy_price_export: "Grid export price sensor",
+                        number_energy_price_export: "Grid export price",
+                        cost_adjustment_day: "Daily cost adjustment",
+                        name: "Grid name",
+                        power_config: {
+                            stat_rate: "Grid power",
+                            stat_rate_inverted: "Grid power, inverted sign",
+                            stat_rate_from: "Grid import power",
+                            stat_rate_to: "Grid export power",
+                        },
+                    },
+                    solar: {
+                        stat_energy_from: "Solar production meter",
+                        stat_rate: "Solar production power",
+                        config_entry_solar_forecast: "Forecast provider",
+                        name: "Solar name",
+                    },
+                    battery: {
+                        stat_energy_from: "Battery discharge meter",
+                        stat_energy_to: "Battery charge meter",
+                        stat_soc: "State of charge",
+                        capacity: "Battery capacity",
+                        name: "Battery name",
+                        power_config: {
+                            stat_rate_from: "Battery discharge power",
+                            stat_rate_to: "Battery charge power",
+                            stat_rate_inverted: "Battery power, inverted sign",
+                        },
+                    },
+                },
+                sfml: {
+                    total_consumption_today: "Household consumption today",
+                    rain_sensor: "Rain",
+                    lux_sensor: "Illuminance",
+                    temp_sensor: "Outdoor temperature",
+                    wind_sensor: "Wind speed",
+                    humidity_sensor: "Humidity",
+                    pressure_sensor: "Air pressure",
+                    solar_radiation_sensor: "Solar radiation",
+                    group_1_sensor: "Panel group 1",
+                    group_2_sensor: "Panel group 2",
+                    group_3_sensor: "Panel group 3",
+                    group_4_sensor: "Panel group 4",
+                    solar_to_battery_sensor: "PV to battery",
+                    battery_soc_sensor: "State of charge",
+                },
+                gpm: {
+                    battery_power_sensor: "Charge from the grid",
+                },
+                eai: {
+                    wp_power_entity: "Heat pump power",
+                    wp_energy_today: "Heat pump today",
+                    outdoor_temp_entity: "Outdoor temperature",
+                    indoor_temp_entity: "Indoor temperature",
+                    target_temp_entity: "Target temperature",
+                    operation_mode_entity: "Operation mode",
+                    compressor_entity: "Compressor",
+                    heating_element_entity: "Heating element",
+                    dhw_temp_entity: "Hot water",
+                    flow_temp_entity: "Flow temperature",
+                    return_temp_entity: "Return temperature",
+                    starts_entity: "Starts",
+                    runtime_entity: "Runtime",
+                    runtime_heating_entity: "Heating runtime",
+                    runtime_dhw_entity: "Hot water runtime",
+                    heating_element_power_entity: "Heating element power",
+                    heating_element_energy_today_entity: "Heating element today",
+                    thermal_energy_entity: "Thermal energy",
+                    jaz_entity: "JAZ",
+                    volume_flow_entity: "Volume flow",
+                    source_temp_entity: "Source temperature",
+                    storage_temp_entity: "Storage temperature",
+                    storage_ambient_temp_entity: "Storage ambient",
+                    circulation_pump_entity: "Circulation pump",
+                    circulation_return_temp_entity: "Circulation return",
+                    wallbox_power_entity: "Wallbox power",
+                    wallbox_energy_today_entity: "Wallbox today",
+                    wallbox_connected_entity: "Wallbox connected",
+                    wallbox_charging_entity: "Wallbox charging",
+                    ev_soc_entity: "Vehicle state of charge",
+                    ev_required_energy_entity: "Vehicle energy needed",
+                    ev_planned_distance_entity: "Planned distance",
+                    electricity_price_entity: "Electricity price",
+                    feed_in_tariff_entity: "Feed-in tariff",
+                },
+                wfai: {
+                    temperature_sensor: "Temperature",
+                    humidity_sensor: "Humidity",
+                    pressure_sensor: "Air pressure",
+                    wind_speed_sensor: "Wind speed",
+                    wind_direction_sensor: "Wind direction",
+                    rain_sensor: "Rain",
+                },
+            },
         },
         pl: {
             loading: "Ładowanie",
@@ -136,7 +510,7 @@
             emptyText: "S-INV jest skonfigurowane, ale nie podaje jeszcze wartości.",
             curtailed: "Ograniczenie aktywne",
             pvTotal: "PV łącznie",
-            anker: "Anker",
+            anker: "wg chmury Anker",
             mppt: "MPPT",
             voltage: "Napięcie",
             current: "Prąd",
@@ -188,6 +562,193 @@
             premiumTitle: "Funkcja Premium jest zablokowana",
             premiumText: "Wykres porównawczy wymaga aktywnej licencji Premium.",
             unitNotice: "{id} ({unit}) jest ignorowane, jednostka nie pasuje.",
+            tabLive: "Na żywo",
+            tabHeatPump: "Pompa ciepła",
+            tabMapping: "Przypisanie",
+            hpDerived: "wyliczone",
+            hpOn: "włączony",
+            hpOff: "wyłączony",
+            hp_power_electric: "Moc elektryczna",
+            hp_power_thermal: "Moc cieplna",
+            hp_cop_live: "COP na żywo",
+            hp_energy_electric_today: "Prąd dzisiaj",
+            hp_energy_electric_total: "Prąd łącznie",
+            hp_energy_thermal_today: "Ciepło dzisiaj",
+            hp_energy_thermal_total: "Ciepło łącznie",
+            hp_cop_total: "JAZ",
+            hp_temperature_outdoor: "Temperatura zewnętrzna",
+            hp_temperature_flow: "Zasilanie",
+            hp_temperature_return: "Powrót",
+            hp_temperature_dhw: "Ciepła woda",
+            hp_operating_mode: "Tryb pracy",
+            hp_compressor_running: "Sprężarka",
+            hp_aux_heater_active: "Grzałka",
+            tabsLabel: "Sekcje strony",
+            mapLoading: "Wczytywanie przypisania",
+            mapError: "Nie udało się wczytać przypisania.",
+            energyKept: "Ceny, koszty, nazwy i źródło prognozy panelu energii pozostają bez zmian.",
+            mapAbsent: "S-INV nie jest skonfigurowane.",
+            mapEmpty: "Brak przypisania.",
+            targetAbsent: "Ta integracja nie jest skonfigurowana.",
+            targetError: "Tego celu nie udało się odczytać.",
+            colField: "Pole",
+            colCurrent: "Obecny czujnik",
+            colSinv: "Czujnik S-INV",
+            colAction: "Akcja",
+            notSet: "nie ustawiono",
+            noCounterpart: "brak odpowiednika S-INV",
+            derived: "wyliczone",
+            setupOnly: "tylko w konfiguracji",
+            actionAdd: "dodaj",
+            actionReplace: "zastąp",
+            actionKeep: "zostaw",
+            actionConflict: "Konflikt",
+            reasonUnit: "Jednostka nie pasuje",
+            reasonDeviceClass: "Klasa urządzenia nie pasuje",
+            reasonStateClass: "Klasa stanu nie pasuje",
+            reasonDouble: "Drugie źródło tej samej energii",
+            reasonEnergyDaily: "EAI oczekuje licznika dziennego bez klasy skumulowanej.",
+            targetEnergy: "Panel energii",
+            targetSfml: "SFML",
+            targetGpm: "GPM",
+            targetEai: "EAI",
+            targetWfai: "WFAI",
+            targetUnknown: "Inny cel",
+            fieldUnknown: "Pole czujnika",
+            mapAdmin: "Przypisanie widzi tylko administrator.",
+            apply: "Zastosuj",
+            undo: "Cofnij",
+            confirmTitle: "Zastosuj zmiany",
+            confirmBody: "Te czujniki zostaną wpisane w panelu energii.",
+            confirmYes: "Zastosuj",
+            confirmNo: "Anuluj",
+            applyDone: "Przypisanie zostało zapisane.",
+            undoDone: "Przypisanie zostało cofnięte.",
+            planChanged: "Przypisanie się zmieniło. Nic nie zapisano.",
+            prefsChanged: "Panel energii zmienił się w międzyczasie. Nic nie cofnięto.",
+            undoUsed: "To zostało już cofnięte.",
+            applyFailed: "Panelu energii nie udało się zapisać.",
+            undoFailed: "Przypisania nie udało się cofnąć.",
+            incompleteSource: "To źródło jest niekompletne. Nic nie zapisano.",
+            batteryPair: "Liczniki ładowania i rozładowania są zapisywane tylko razem.",
+            sfmlBattery: "To włącza wykrywanie baterii (has_battery).",
+            sfmlPair: "Moc PV do baterii i stan naładowania są zapisywane tylko razem.",
+            gpmGridCharge: "Ładowanie baterii z sieci.",
+            optionsReload: "Integracja przeładowuje się przez własny dialog.",
+            eaiKeep: "Pozostałe pola pompy ciepła, wallboxa i automatyzacji zostają bez zmian.",
+            flowOpen: "Dialog opcji jest już otwarty. Nic nie zapisano.",
+            flowRejected: "Formularz odrzucił zmianę. Nic nie zapisano.",
+            missingValues: "Brak zapisanych wartości taryfy. Nic nie zapisano.",
+            optionsMismatch: "Pozostałe ustawienia zmieniłyby się. Poprzedni stan został zażądany.",
+            undoPartialSfml: "Czujniki pozostają zapisane, a wykrywanie baterii jest znowu wyłączone.",
+            undoPartialGpm: "Czujnik pozostaje jako pusty wpis.",
+            undoPartialEai: "Czujnik pozostaje jako puste pole.",
+            rollbackIncomplete: "Nie udało się przywrócić poprzedniego stanu. Nic więcej nie próbowano.",
+            selectRow: "Wybierz",
+            fields: {
+                energy: {
+                    grid: {
+                        stat_energy_from: "Licznik poboru z sieci",
+                        stat_energy_to: "Licznik oddawania do sieci",
+                        stat_rate: "Moc sieci",
+                        stat_cost: "Koszt poboru z sieci",
+                        entity_energy_price: "Czujnik ceny poboru",
+                        number_energy_price: "Cena poboru z sieci",
+                        stat_compensation: "Wynagrodzenie za oddawanie",
+                        entity_energy_price_export: "Czujnik ceny oddawania",
+                        number_energy_price_export: "Cena oddawania",
+                        cost_adjustment_day: "Dzienna korekta kosztów",
+                        name: "Nazwa sieci",
+                        power_config: {
+                            stat_rate: "Moc sieci",
+                            stat_rate_inverted: "Moc sieci, odwrócony znak",
+                            stat_rate_from: "Moc poboru z sieci",
+                            stat_rate_to: "Moc oddawania do sieci",
+                        },
+                    },
+                    solar: {
+                        stat_energy_from: "Licznik produkcji PV",
+                        stat_rate: "Moc produkcji PV",
+                        config_entry_solar_forecast: "Źródło prognozy",
+                        name: "Nazwa PV",
+                    },
+                    battery: {
+                        stat_energy_from: "Licznik rozładowania",
+                        stat_energy_to: "Licznik ładowania",
+                        stat_soc: "Stan naładowania",
+                        capacity: "Pojemność",
+                        name: "Nazwa akumulatora",
+                        power_config: {
+                            stat_rate_from: "Moc rozładowania",
+                            stat_rate_to: "Moc ładowania",
+                            stat_rate_inverted: "Moc akumulatora, odwrócony znak",
+                        },
+                    },
+                },
+                sfml: {
+                    total_consumption_today: "Zużycie domu dzisiaj",
+                    rain_sensor: "Deszcz",
+                    lux_sensor: "Natężenie światła",
+                    temp_sensor: "Temperatura na zewnątrz",
+                    wind_sensor: "Prędkość wiatru",
+                    humidity_sensor: "Wilgotność",
+                    pressure_sensor: "Ciśnienie",
+                    solar_radiation_sensor: "Promieniowanie",
+                    group_1_sensor: "Grupa modułów 1",
+                    group_2_sensor: "Grupa modułów 2",
+                    group_3_sensor: "Grupa modułów 3",
+                    group_4_sensor: "Grupa modułów 4",
+                    solar_to_battery_sensor: "PV do akumulatora",
+                    battery_soc_sensor: "Stan naładowania",
+                },
+                gpm: {
+                    battery_power_sensor: "Ładowanie z sieci",
+                },
+                eai: {
+                    wp_power_entity: "Moc pompy ciepła",
+                    wp_energy_today: "Pompa ciepła dzisiaj",
+                    outdoor_temp_entity: "Temperatura na zewnątrz",
+                    indoor_temp_entity: "Temperatura w pomieszczeniu",
+                    target_temp_entity: "Temperatura zadana",
+                    operation_mode_entity: "Tryb pracy",
+                    compressor_entity: "Sprężarka",
+                    heating_element_entity: "Grzałka",
+                    dhw_temp_entity: "Ciepła woda",
+                    flow_temp_entity: "Temperatura zasilania",
+                    return_temp_entity: "Temperatura powrotu",
+                    starts_entity: "Uruchomienia",
+                    runtime_entity: "Czas pracy",
+                    runtime_heating_entity: "Czas grzania",
+                    runtime_dhw_entity: "Czas ciepłej wody",
+                    heating_element_power_entity: "Moc grzałki",
+                    heating_element_energy_today_entity: "Grzałka dzisiaj",
+                    thermal_energy_entity: "Energia cieplna",
+                    jaz_entity: "JAZ",
+                    volume_flow_entity: "Przepływ",
+                    source_temp_entity: "Temperatura źródła",
+                    storage_temp_entity: "Temperatura zasobnika",
+                    storage_ambient_temp_entity: "Otoczenie zasobnika",
+                    circulation_pump_entity: "Pompa cyrkulacyjna",
+                    circulation_return_temp_entity: "Powrót cyrkulacji",
+                    wallbox_power_entity: "Moc wallboxa",
+                    wallbox_energy_today_entity: "Wallbox dzisiaj",
+                    wallbox_connected_entity: "Wallbox podłączony",
+                    wallbox_charging_entity: "Wallbox ładuje",
+                    ev_soc_entity: "Stan naładowania pojazdu",
+                    ev_required_energy_entity: "Energia potrzebna pojazdowi",
+                    ev_planned_distance_entity: "Planowany dystans",
+                    electricity_price_entity: "Cena prądu",
+                    feed_in_tariff_entity: "Taryfa oddawania",
+                },
+                wfai: {
+                    temperature_sensor: "Temperatura",
+                    humidity_sensor: "Wilgotność",
+                    pressure_sensor: "Ciśnienie",
+                    wind_speed_sensor: "Prędkość wiatru",
+                    wind_direction_sensor: "Kierunek wiatru",
+                    rain_sensor: "Deszcz",
+                },
+            },
         },
     };
 
@@ -198,7 +759,24 @@
     function text(key) {
         const lang = window.SFMLI18n?.current;
         const pack = TEXT[lang] || TEXT.en;
-        return pack[key] || TEXT.en[key] || key;
+        const value = pack[key] || TEXT.en[key];
+        return typeof value === "string" ? value : key;
+    }
+
+    function phrase(path) {
+        const lang = window.SFMLI18n?.current;
+        const found = walkText(TEXT[lang], path) || walkText(TEXT.en, path);
+        return found || "";
+    }
+
+    function walkText(root, path) {
+        let node = root;
+        const parts = String(path || "").split(".");
+        for (let index = 0; index < parts.length; index += 1) {
+            if (!node || typeof node !== "object") return "";
+            node = node[parts[index]];
+        }
+        return typeof node === "string" ? node : "";
     }
 
     function locale() {
@@ -559,6 +1137,12 @@
     window.SinvPage = {
         template: `
             <section class="sinv-page">
+                <nav class="sinv-tabs" role="tablist" :aria-label="text('tabsLabel')" @keydown="onMapTabKey">
+                    <button id="sinv-tab-live" type="button" role="tab" :aria-selected="pageTab === 'live' ? 'true' : 'false'" aria-controls="sinv-panel-live" :tabindex="pageTab === 'live' ? 0 : -1" :class="{ active: pageTab === 'live' }" @click="selectTab('live')">{{ text('tabLive') }}</button>
+                    <button v-if="hpInstalled" id="sinv-tab-heatpump" type="button" role="tab" :aria-selected="pageTab === 'heatpump' ? 'true' : 'false'" aria-controls="sinv-panel-heatpump" :tabindex="pageTab === 'heatpump' ? 0 : -1" :class="{ active: pageTab === 'heatpump' }" @click="selectTab('heatpump')">{{ text('tabHeatPump') }}</button>
+                    <button id="sinv-tab-mapping" type="button" role="tab" :aria-selected="pageTab === 'mapping' ? 'true' : 'false'" aria-controls="sinv-panel-mapping" :tabindex="pageTab === 'mapping' ? 0 : -1" :class="{ active: pageTab === 'mapping' }" @click="selectTab('mapping')">{{ text('tabMapping') }}</button>
+                </nav>
+                <div id="sinv-panel-live" v-show="pageTab === 'live'" role="tabpanel" aria-labelledby="sinv-tab-live">
                 <div v-if="loading" class="sinv-state" role="status">{{ text('loading') }}</div>
                 <div v-else-if="error" class="sinv-state" role="alert">
                     <strong>{{ text('error') }}</strong>
@@ -823,6 +1407,106 @@
                     </template>
                 </article>
                 </template>
+                </div>
+                <div v-if="hpInstalled" id="sinv-panel-heatpump" v-show="pageTab === 'heatpump'" role="tabpanel" aria-labelledby="sinv-tab-heatpump">
+                    <article class="sinv-card">
+                        <h3>{{ text('tabHeatPump') }}</h3>
+                        <div class="sinv-pair">
+                            <div v-for="reading in hpReadings" :key="reading.role" class="sinv-card">
+                                <span>{{ text(reading.role) }}</span>
+                                <strong>{{ hpValue(reading) }}</strong>
+                                <small v-if="reading.derived" class="sinv-fresh">{{ text('hpDerived') }}</small>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+                <div id="sinv-panel-mapping" v-show="pageTab === 'mapping'" role="tabpanel" aria-labelledby="sinv-tab-mapping">
+                    <div v-if="mapLoading" class="sinv-state" role="status">{{ text('mapLoading') }}</div>
+                    <div v-else-if="mapError" class="sinv-state" role="alert">
+                        <strong>{{ text('mapError') }}</strong>
+                        <button type="button" class="button secondary" @click="reloadMapping">{{ text('retry') }}</button>
+                    </div>
+                    <div v-else-if="mapForbidden" class="sinv-state" role="status">
+                        <strong>{{ text('mapAdmin') }}</strong>
+                    </div>
+                    <div v-else-if="!mapping || mapping.sinv_installed === false" class="sinv-state" role="status">
+                        <strong>{{ text('mapAbsent') }}</strong>
+                    </div>
+                    <div v-else-if="!mapTargets.length" class="sinv-state" role="status">
+                        <span>{{ text('mapEmpty') }}</span>
+                    </div>
+                    <div v-else class="sinv-map-stack">
+                        <p v-if="mapNotice && !noticeTarget" class="sinv-hint" role="status">{{ mapNotice }}</p>
+                        <article v-for="target in mapTargets" :key="target.id" class="sinv-card sinv-map-target">
+                            <h3>{{ targetTitle(target) }}</h3>
+                            <p v-if="targetBlocked(target)" class="sinv-hint">{{ target.read_error ? text('targetError') : text('targetAbsent') }}</p>
+                            <p v-else-if="!visibleRows(target).length" class="sinv-hint">{{ text('mapEmpty') }}</p>
+                            <div v-else class="sinv-table-wrap">
+                                <table class="sinv-map-table">
+                                    <thead>
+                                        <tr>
+                                            <th v-if="canWrite(target)" scope="col"><span class="sinv-visually-hidden">{{ text('selectRow') }}</span></th>
+                                            <th scope="col">{{ text('colField') }}</th>
+                                            <th scope="col">{{ text('colCurrent') }}</th>
+                                            <th scope="col">{{ text('colSinv') }}</th>
+                                            <th scope="col">{{ text('colAction') }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr v-for="(row, rowIndex) in visibleRows(target)" :key="row.field_id || rowIndex">
+                                            <td v-if="canWrite(target)">
+                                                <input v-if="canPick(target, row)" class="sinv-map-check" type="checkbox" :checked="isPicked(row)" :disabled="mapBusy" :aria-label="text('selectRow')" @change="togglePick(row)">
+                                            </td>
+                                            <td>
+                                                <span>{{ fieldLabel(target, row) }}</span>
+                                                <small v-if="row.flow_path === 'config_reconfigure'" class="sinv-map-note">{{ text('setupOnly') }}</small>
+                                                <small v-if="batteryAddMate(target, row)" class="sinv-map-note">{{ text('batteryPair') }}</small>
+                                                <small v-if="sfmlMate(target, row)" class="sinv-map-note">{{ text('sfmlPair') }}</small>
+                                                <small v-if="sfmlBatteryHint(target, row)" class="sinv-map-note">{{ text('sfmlBattery') }}</small>
+                                                <small v-if="gpmChargeHint(target, row)" class="sinv-map-note">{{ text('gpmGridCharge') }}</small>
+                                            </td>
+                                            <td>{{ sensorText(row.current) }}</td>
+                                            <td>
+                                                <span>{{ sensorText(row.sinv_entity_id) }}</span>
+                                                <small v-if="row.sinv_derived === true" class="sinv-map-note">{{ text('derived') }}</small>
+                                            </td>
+                                            <td>
+                                                <span class="sinv-map-status" :data-status="statusKind(row)">{{ actionLabel(row) }}</span>
+                                                <small v-if="row.action === 'conflict' && row.conflict_reason" class="sinv-map-note">{{ reasonLabel(row) }}</small>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <p v-if="target.id === 'energy' && !targetBlocked(target)" class="sinv-hint">{{ text('energyKept') }}</p>
+                            <div v-if="canWrite(target) && !targetBlocked(target)" class="sinv-map-actions">
+                                <p v-if="target.id === 'sfml' || target.id === 'gpm' || target.id === 'eai'" class="sinv-hint">{{ text('optionsReload') }}</p>
+                                <button type="button" class="button" :disabled="!picked.length || mapBusy" @click="openConfirm(target)">{{ text('apply') }}</button>
+                                <button type="button" class="button secondary" :disabled="!snapshotId || mapBusy" @click="undoMapping(target)">{{ text('undo') }}</button>
+                            </div>
+                            <p v-if="mapNotice && noticeTarget === target.id" class="sinv-hint" role="status">{{ mapNotice }}</p>
+                            <div v-if="confirmOpen && pendingTarget && pendingTarget.id === target.id" class="sinv-dialog" role="dialog" aria-modal="true" :aria-label="text('confirmTitle')">
+                                <h3>{{ text('confirmTitle') }}</h3>
+                                <p>{{ text('confirmBody') }}</p>
+                                <p v-if="pendingTarget && pendingTarget.id === 'sfml'">{{ text('sfmlBattery') }}</p>
+                                <p v-if="pendingTarget && pendingTarget.id === 'gpm'">{{ text('gpmGridCharge') }}</p>
+                                <p v-if="pendingTarget && pendingTarget.id === 'eai'">{{ text('eaiKeep') }}</p>
+                                <p v-if="pendingTarget && (pendingTarget.id === 'sfml' || pendingTarget.id === 'gpm' || pendingTarget.id === 'eai')">{{ text('optionsReload') }}</p>
+                                <ul>
+                                    <li v-for="row in pendingRows" :key="row.field_id">
+                                        <span>{{ fieldLabel(pendingTarget, row) }}</span>
+                                        <span>{{ sensorText(row.current) }}</span>
+                                        <span>{{ sensorText(row.sinv_entity_id) }}</span>
+                                    </li>
+                                </ul>
+                                <div class="sinv-map-actions">
+                                    <button type="button" class="button" :disabled="mapBusy" @click="confirmApply">{{ text('confirmYes') }}</button>
+                                    <button type="button" class="button secondary" :disabled="mapBusy" @click="closeConfirm">{{ text('confirmNo') }}</button>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                </div>
             </section>
         `,
         setup() {
@@ -830,6 +1514,23 @@
             const history = Vue.ref(null);
             const loading = Vue.ref(true);
             const error = Vue.ref("");
+            const pageTab = Vue.ref("live");
+            const mapping = Vue.ref(null);
+            const mapLoading = Vue.ref(false);
+            const mapError = Vue.ref("");
+            const mapForbidden = Vue.ref(false);
+            const mapNotice = Vue.ref("");
+            const noticeTarget = Vue.ref("");
+            const mapBusy = Vue.ref(false);
+            const picked = Vue.ref([]);
+            const snapshotId = Vue.ref("");
+            const confirmOpen = Vue.ref(false);
+            const pendingRows = Vue.ref([]);
+            const pendingTarget = Vue.ref(null);
+            const hp = Vue.ref(null);
+            const hpInstalled = Vue.computed(() => Boolean(hp.value && hp.value.installed === true));
+            const hpReadings = Vue.computed(() => (hp.value && Array.isArray(hp.value.readings) ? hp.value.readings : []));
+            let mapPending = false;
             const traces = Vue.reactive({});
             const premiumOn = Vue.computed(() => Boolean(history.value && history.value.premium === true));
             let alive = true;
@@ -854,6 +1555,19 @@
                     throw new Error(code || "request_failed");
                 }
                 return payload && payload.data ? payload.data : payload;
+            }
+
+            async function refreshHeatPump() {
+                try {
+                    const body = await read("/api/sfml_stats/sinv/heatpump");
+                    if (!alive) return;
+                    hp.value = body;
+                    if (pageTab.value === "heatpump" && !(body && body.installed === true)) pageTab.value = "live";
+                } catch (_err) {
+                    if (!alive) return;
+                    hp.value = { installed: false, readings: [] };
+                    if (pageTab.value === "heatpump") pageTab.value = "live";
+                }
             }
 
             async function refreshLive() {
@@ -893,6 +1607,306 @@
                 loading.value = !live.value;
                 refreshLive();
                 refreshHistory();
+            }
+
+            const mapTargets = Vue.computed(() => {
+                const rows = mapping.value && mapping.value.targets;
+                return Array.isArray(rows) ? rows : [];
+            });
+
+            async function refreshMapping() {
+                if (mapPending) return;
+                mapPending = true;
+                if (!mapping.value) mapLoading.value = true;
+                try {
+                    const body = await read("/api/sfml_stats/sinv/mapping");
+                    if (!alive) return;
+                    if (!body || typeof body !== "object" || Array.isArray(body)) {
+                        if (!mapping.value) mapError.value = "load";
+                        return;
+                    }
+                    mapping.value = body;
+                    mapError.value = "";
+                    mapForbidden.value = false;
+                } catch (err) {
+                    if (!alive) return;
+                    const message = String(err && err.message || "");
+                    if (message.includes("403") || (err && err.code === "admin_required")) {
+                        mapping.value = null;
+                        mapError.value = "";
+                        mapForbidden.value = true;
+                        return;
+                    }
+                    if (!mapping.value) mapError.value = "load";
+                } finally {
+                    mapPending = false;
+                    mapLoading.value = false;
+                }
+            }
+
+            function mapTabs() {
+                const tabs = ["live"];
+                if (hpInstalled.value) tabs.push("heatpump");
+                tabs.push("mapping");
+                return tabs;
+            }
+
+            function selectTab(name) {
+                if (mapTabs().indexOf(name) < 0) return;
+                pageTab.value = name;
+                if (name === "mapping" && !mapping.value && !mapError.value) refreshMapping();
+            }
+
+            function reloadMapping() {
+                mapping.value = null;
+                mapError.value = "";
+                mapForbidden.value = false;
+                refreshMapping();
+            }
+
+            function canWrite(target) {
+                return Boolean(target && (target.id === "energy" || target.id === "sfml" || target.id === "gpm" || target.id === "eai"));
+            }
+
+            function canPick(target, row) {
+                return Boolean(canWrite(target) && row && (row.action === "add" || row.action === "replace"));
+            }
+
+            function batteryAddMate(target, row) {
+                const id = String(row && row.field_id || "");
+                const match = id.match(/^(battery\.\d+)\.stat_energy_(from|to)$/);
+                if (!match || !row || row.action !== "add") return null;
+                const mateId = match[1] + ".stat_energy_" + (match[2] === "from" ? "to" : "from");
+                const mate = targetRows(target).find((item) => item && item.field_id === mateId);
+                if (!mate || mate.action !== "add") return null;
+                return mate;
+            }
+
+            function sfmlMate(target, row) {
+                if (!target || target.id !== "sfml" || !row) return null;
+                const id = String(row.field_id || "");
+                const match = id.match(/^(sfml\.\d+)\.(solar_to_battery_sensor|battery_soc_sensor)$/);
+                if (!match || (row.action !== "add" && row.action !== "replace")) return null;
+                const other = match[2] === "solar_to_battery_sensor" ? "battery_soc_sensor" : "solar_to_battery_sensor";
+                const mate = targetRows(target).find((item) => item && item.field_id === match[1] + "." + other);
+                if (!mate || (mate.action !== "add" && mate.action !== "replace")) return null;
+                return mate;
+            }
+
+            function sfmlBatteryHint(target, row) {
+                return Boolean(sfmlMate(target, row));
+            }
+
+            function gpmChargeHint(target, row) {
+                return Boolean(target && target.id === "gpm" && row && String(row.field_id || "").endsWith(".battery_power_sensor") && canPick(target, row));
+            }
+
+            function isPicked(row) {
+                return picked.value.indexOf(row && row.field_id) >= 0;
+            }
+
+            function togglePick(row) {
+                const target = (mapTargets.value || []).find((item) => targetRows(item).some((candidate) => candidate && candidate.field_id === row.field_id));
+                if (!canPick(target, row) || mapBusy.value) return;
+                const mate = batteryAddMate(target, row) || sfmlMate(target, row);
+                const ids = mate ? [row.field_id, mate.field_id] : [row.field_id];
+                const next = picked.value.slice();
+                const removing = next.indexOf(row.field_id) >= 0;
+                ids.forEach((id) => {
+                    const index = next.indexOf(id);
+                    if (removing && index >= 0) next.splice(index, 1);
+                    if (!removing && index < 0) next.push(id);
+                });
+                picked.value = next;
+            }
+
+            function openConfirm(target) {
+                const rows = targetRows(target).filter((row) => isPicked(row) && canPick(target, row));
+                if (!rows.length || mapBusy.value) return;
+                pendingTarget.value = target;
+                pendingRows.value = rows;
+                confirmOpen.value = true;
+            }
+
+            function closeConfirm() {
+                if (mapBusy.value) return;
+                confirmOpen.value = false;
+            }
+
+            function noticeFor(err, kind) {
+                const code = err && err.code;
+                if (code === "plan_changed") return text("planChanged");
+                if (code === "prefs_changed") return text("prefsChanged");
+                if (code === "snapshot_used") return text("undoUsed");
+                if (code === "incomplete_source") return text("incompleteSource");
+                if (code === "missing_values") return text("missingValues");
+                if (code === "flow_rejected") return text("flowRejected");
+                if (code === "flow_in_progress") return text("flowOpen");
+                if (code === "options_mismatch") return text("optionsMismatch");
+                if (code === "rollback_incomplete") {
+                    const raw = err && err.body && err.body.error && err.body.error.keys;
+                    const names = Array.isArray(raw) ? raw.filter((key) => typeof key === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(key)) : [];
+                    return names.length ? text("rollbackIncomplete") + " " + names.join(", ") : text("rollbackIncomplete");
+                }
+                if (String(err && err.message || "").includes("409")) return text(kind === "undo" ? "prefsChanged" : "planChanged");
+                return text(kind === "undo" ? "undoFailed" : "applyFailed");
+            }
+
+            async function confirmApply() {
+                const rows = pendingRows.value.map((row) => row.field_id).filter((id) => typeof id === "string");
+                const hash = mapping.value && mapping.value.plan_hash;
+                const targetId = pendingTarget.value && pendingTarget.value.id;
+                if (!rows.length || typeof hash !== "string" || mapBusy.value) return;
+                if (targetId !== "energy" && targetId !== "sfml" && targetId !== "gpm" && targetId !== "eai") return;
+                mapBusy.value = true;
+                mapNotice.value = "";
+                noticeTarget.value = targetId;
+                try {
+                    const response = await SFMLApi.postAuthenticated("/api/sfml_stats/sinv/mapping/apply", {
+                        target: targetId,
+                        rows,
+                        plan_hash: hash,
+                    });
+                    const envelope = response && response.data ? response.data : response;
+                    snapshotId.value = envelope && typeof envelope.snapshot_id === "string" ? envelope.snapshot_id : "";
+                    picked.value = [];
+                    pendingRows.value = [];
+                    confirmOpen.value = false;
+                    mapNotice.value = text("applyDone");
+                    mapping.value = null;
+                    await refreshMapping();
+                } catch (err) {
+                    mapNotice.value = noticeFor(err, "apply");
+                } finally {
+                    mapBusy.value = false;
+                }
+            }
+
+            async function undoMapping(target) {
+                if (!snapshotId.value || mapBusy.value) return;
+                mapBusy.value = true;
+                mapNotice.value = "";
+                noticeTarget.value = target && typeof target.id === "string" ? target.id : "";
+                try {
+                    const response = await SFMLApi.postAuthenticated("/api/sfml_stats/sinv/mapping/undo", {
+                        snapshot_id: snapshotId.value,
+                    });
+                    const envelope = response && response.data ? response.data : response;
+                    snapshotId.value = "";
+                    picked.value = [];
+                    mapNotice.value = envelope && envelope.restored === "partial"
+                        ? text(envelope.target === "gpm" ? "undoPartialGpm" : envelope.target === "eai" ? "undoPartialEai" : "undoPartialSfml")
+                        : text("undoDone");
+                    mapping.value = null;
+                    await refreshMapping();
+                } catch (err) {
+                    mapNotice.value = noticeFor(err, "undo");
+                } finally {
+                    mapBusy.value = false;
+                }
+            }
+
+            function onMapTabKey(event) {
+                const tabs = mapTabs();
+                const index = tabs.indexOf(pageTab.value);
+                if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+                const step = event.key === "ArrowRight" ? 1 : tabs.length - 1;
+                selectTab(tabs[(index + step) % tabs.length]);
+            }
+
+            function hpValue(reading) {
+                if (!reading) return "";
+                const raw = reading.state;
+                if (raw === null || raw === undefined || raw === "") return text("notSet");
+                if (raw === "on") return text("hpOn");
+                if (raw === "off") return text("hpOff");
+                const unit = typeof reading.unit === "string" && reading.unit ? " " + reading.unit : "";
+                return String(raw) + unit;
+            }
+
+            function targetRows(target) {
+                return target && Array.isArray(target.rows) ? target.rows : [];
+            }
+
+            // energy rows without an S-INV role are prices, costs and names the apply keeps
+            function visibleRows(target) {
+                const rows = targetRows(target);
+                if (!target || target.id !== "energy") return rows;
+                return rows.filter((row) => row && row.sinv_role);
+            }
+
+            function targetBlocked(target) {
+                return Boolean(target && (target.read_error || target.installed === false));
+            }
+
+            function targetTitle(target) {
+                const names = {
+                    energy: "targetEnergy",
+                    sfml: "targetSfml",
+                    gpm: "targetGpm",
+                    eai: "targetEai",
+                    wfai: "targetWfai",
+                };
+                const key = names[target && target.id];
+                return key ? text(key) : text("targetUnknown");
+            }
+
+            function fieldLabel(target, row) {
+                const parts = String(row && row.field_id || "").split(".");
+                let path = "";
+                if (target && target.id === "energy" && parts.length >= 3) {
+                    path = ["fields", "energy", parts[0]].concat(parts.slice(2)).join(".");
+                } else if (target && parts.length >= 3) {
+                    path = ["fields", target.id].concat(parts.slice(2)).join(".");
+                }
+                const translated = path ? phrase(path) : "";
+                if (translated) return translated;
+                const label = row && row.label;
+                if (typeof label === "string" && label && !/^[a-z0-9_]+$/.test(label)) return label;
+                return text("fieldUnknown");
+            }
+
+            function sensorText(value) {
+                if (value == null || value === "") return text("notSet");
+                if (Array.isArray(value)) {
+                    const parts = value.map((item) => (item == null ? "" : String(item))).filter(Boolean);
+                    return parts.length ? parts.join(", ") : text("notSet");
+                }
+                if (typeof value === "number" && Number.isFinite(value)) {
+                    return formatNumber(value, Number.isInteger(value) ? 0 : 2);
+                }
+                if (typeof value === "object") return text("notSet");
+                return String(value);
+            }
+
+            function statusKind(row) {
+                const action = row && row.action;
+                if (action === "add" || action === "replace" || action === "keep" || action === "conflict") return action;
+                return "none";
+            }
+
+            function actionLabel(row) {
+                const kind = statusKind(row);
+                if (kind === "add") return text("actionAdd");
+                if (kind === "replace") return text("actionReplace");
+                if (kind === "keep") return text("actionKeep");
+                if (kind === "conflict") return text("actionConflict");
+                return text("noCounterpart");
+            }
+
+            function reasonLabel(row) {
+                const reasons = {
+                    unit: "reasonUnit",
+                    device_class: "reasonDeviceClass",
+                    state_class: "reasonStateClass",
+                    double_count: "reasonDouble",
+                    invalid_power_unit: "reasonUnit",
+                    invalid_energy_unit: "reasonUnit",
+                    invalid_temperature_unit: "reasonUnit",
+                    energy_today_not_daily: "reasonEnergyDaily",
+                };
+                const key = reasons[row && row.conflict_reason];
+                return key ? text(key) : text("actionConflict");
             }
 
             function traceKey(device, channel) {
@@ -1039,7 +2053,11 @@
             Vue.onMounted(() => {
                 refreshLive();
                 refreshHistory();
-                liveTimer = window.setInterval(refreshLive, LIVE_MS);
+                refreshHeatPump();
+                liveTimer = window.setInterval(() => {
+                    refreshLive();
+                    refreshHeatPump();
+                }, LIVE_MS);
                 historyTimer = window.setInterval(refreshHistory, HISTORY_MS);
             });
             Vue.onUnmounted(() => {
@@ -1055,6 +2073,10 @@
                 formatClock, sparkPath, meterPath, meterChart, visibleMppt, extrema, rangeText, showGrid, showBattery,
                 sourceLine, dayGeometry, traceMode, setTrace, stats: channelStats, cellList, daySummary, calibrationText,
                 thermalRow, thermalChart, sparkChart, hasThermal, thermalSource, thermalValue, moduleLabel, compareGeometry, showPremium, premiumOn, reasonText,
+                pageTab, mapping, mapLoading, mapError, mapForbidden, mapNotice, noticeTarget, mapBusy, mapTargets, selectTab, reloadMapping, onMapTabKey,
+                hpInstalled, hpReadings, hpValue,
+                targetRows, visibleRows, targetBlocked, targetTitle, fieldLabel, sensorText, statusKind, actionLabel, reasonLabel,
+                picked, snapshotId, confirmOpen, pendingRows, pendingTarget, canWrite, canPick, batteryAddMate, sfmlMate, sfmlBatteryHint, gpmChargeHint, isPicked, togglePick, openConfirm, closeConfirm, confirmApply, undoMapping,
             };
         },
     };

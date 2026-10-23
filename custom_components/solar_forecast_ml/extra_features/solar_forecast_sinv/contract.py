@@ -29,6 +29,7 @@ while charging, signed grid power is positive while importing.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -120,6 +121,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "total_increasing",
         "Solar energy today",
         "Solarenergie heute",
+        note="device value wins; otherwise the rise of the installation total since local midnight",
     ),
     # Inverter and grid quality
     RoleSpec(
@@ -242,6 +244,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "measurement",
         "Solar to battery",
         "Solar zum Akku",
+        note="device value wins; otherwise derived from installation power",
     ),
     RoleSpec(
         "power_grid_to_battery",
@@ -251,6 +254,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "measurement",
         "Grid to battery",
         "Netz zum Akku",
+        note="device value wins; otherwise derived from installation power",
     ),
     RoleSpec(
         "power_battery_to_house",
@@ -260,6 +264,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "measurement",
         "Battery to house",
         "Akku zum Haus",
+        note="device value wins; otherwise derived from installation power",
     ),
     RoleSpec(
         "energy_battery_charge_total",
@@ -278,6 +283,26 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "total_increasing",
         "Battery discharged total",
         "Akku entladen gesamt",
+    ),
+    RoleSpec(
+        "energy_battery_charge_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Battery charged today",
+        "Akku geladen heute",
+        note="device value wins; otherwise the rise of the installation total since local midnight",
+    ),
+    RoleSpec(
+        "energy_battery_discharge_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Battery discharged today",
+        "Akku entladen heute",
+        note="device value wins; otherwise the rise of the installation total since local midnight",
     ),
     RoleSpec(
         "capacity_battery",
@@ -375,6 +400,26 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "Netzeinspeisung gesamt",
     ),
     RoleSpec(
+        "energy_grid_import_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Grid import today",
+        "Netzbezug heute",
+        note="device value wins; otherwise the rise of the installation total since local midnight",
+    ),
+    RoleSpec(
+        "energy_grid_export_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Grid export today",
+        "Netzeinspeisung heute",
+        note="device value wins; otherwise the rise of the installation total since local midnight",
+    ),
+    RoleSpec(
         "power_house",
         ("sensor",),
         "W",
@@ -391,6 +436,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "measurement",
         "Solar to house",
         "Solar zum Haus",
+        note="device value wins; otherwise derived from installation power",
     ),
     RoleSpec(
         "power_grid_to_house",
@@ -400,6 +446,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "measurement",
         "Grid to house",
         "Netz zum Haus",
+        note="device value wins; otherwise derived from installation power",
     ),
     RoleSpec(
         "energy_house_today",
@@ -409,6 +456,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "total_increasing",
         "House energy today",
         "Hausverbrauch heute",
+        note="device value wins; otherwise the rise of energy_house_total since local midnight",
     ),
     RoleSpec(
         "energy_house_total",
@@ -418,6 +466,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "total_increasing",
         "House energy total",
         "Hausverbrauch gesamt",
+        note="device value wins; otherwise solar + grid import + battery discharge - grid export - battery charge",
     ),
 )
 
@@ -499,6 +548,7 @@ AGG_SINGLE = "single"
 AGG_ANY = "any"
 AGG_ALL = "all"
 AGG_DEVICE = "device_only"
+AGG_DERIVED = "derived"
 
 _ROLE_RULES: dict[str, tuple[str, str]] = {
     # base: (device class, aggregation)
@@ -522,6 +572,8 @@ _ROLE_RULES: dict[str, tuple[str, str]] = {
     "power_battery_discharge": (CLASS_BATTERY, AGG_SUM),
     "energy_battery_charge_total": (CLASS_BATTERY, AGG_SUM),
     "energy_battery_discharge_total": (CLASS_BATTERY, AGG_SUM),
+    "energy_battery_charge_today": (CLASS_BATTERY, AGG_SUM),
+    "energy_battery_discharge_today": (CLASS_BATTERY, AGG_SUM),
     "capacity_battery": (CLASS_BATTERY, AGG_SUM),
     "temperature_battery": (CLASS_BATTERY, AGG_DEVICE),
     "battery_pack_soc": (CLASS_BATTERY, AGG_DEVICE),
@@ -532,6 +584,8 @@ _ROLE_RULES: dict[str, tuple[str, str]] = {
     "power_grid_export": (CLASS_GRID_METER, AGG_SINGLE),
     "energy_grid_import_total": (CLASS_GRID_METER, AGG_SINGLE),
     "energy_grid_export_total": (CLASS_GRID_METER, AGG_SINGLE),
+    "energy_grid_import_today": (CLASS_GRID_METER, AGG_SINGLE),
+    "energy_grid_export_today": (CLASS_GRID_METER, AGG_SINGLE),
     # house balance and energy flows describe the whole installation only;
     # the providing device keeps a hidden source entity
     "power_house": (CLASS_INVERTER, AGG_SINGLE),
@@ -548,6 +602,10 @@ SITE_ONLY_BASES = frozenset(
         "power_house",
         "energy_house_today",
         "energy_house_total",
+        "energy_grid_import_today",
+        "energy_grid_export_today",
+        "energy_battery_charge_today",
+        "energy_battery_discharge_today",
         "power_solar_to_battery",
         "power_grid_to_battery",
         "power_battery_to_house",
@@ -578,7 +636,9 @@ def aggregation(role: str) -> str:
 AGG_HOUSE_BALANCE = "house_plus_foreign_ac"
 # vendors whose power_house is grid + their own net AC (an energy balance), so that
 # generators of other entries can be added; flow sums (KOSTAL) or cloud values do not
-BALANCE_HOUSE_VENDORS = frozenset({"fronius", "huawei", "solax", "sungrow", "solakon"})
+BALANCE_HOUSE_VENDORS = frozenset(
+    {"fronius", "huawei", "solax", "sungrow", "solakon", "maxxisun"}
+)
 # device roles the installation reads without publishing a system entity for them
 BALANCE_SOURCE_BASES = frozenset({"power_ac_net"})
 # a device with any of these roles produces or stores energy on the AC side
@@ -651,3 +711,514 @@ def role_names(role: str) -> dict[str, str]:
     spec, channel = split
     nn = f"{channel:02d}" if channel is not None else ""
     return {"en": spec.name_en.format(nn=nn), "de": spec.name_de.format(nn=nn)}
+
+
+# --- S-INV HP (heat pumps). Separate from ROLE_SPECS so the inverter installation
+# never publishes these roles. Aggregate unique_id sinv:1:hp:<role>. ---
+
+HP_SERIAL = "hp"
+CLASS_HEAT_PUMP = "hp"
+# live COP needs more than this electric power; at or below it the ratio is ~0
+HP_COP_MIN_W = 1.0
+# lifetime COP needs more than this electric energy
+HP_COP_MIN_KWH = 0.001
+HP_OPERATING_MODES = (
+    "off",
+    "heating",
+    "cooling",
+    "dhw",
+    "defrost",
+    "pool",
+    "unknown",
+)
+
+# base, domains, unit, device_class, state_class, name_en, name_de, aggregation
+_HP_ROWS: tuple[tuple, ...] = (
+    (
+        "hp_power_electric",
+        ("sensor",),
+        "W",
+        "power",
+        "measurement",
+        "Electric power",
+        "Elektrische Leistung",
+        AGG_SUM,
+    ),
+    (
+        "hp_power_thermal",
+        ("sensor",),
+        "W",
+        "power",
+        "measurement",
+        "Thermal power",
+        "Thermische Leistung",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_electric_total",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Electric energy total",
+        "Elektrische Energie gesamt",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_electric_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Electric energy today",
+        "Elektrische Energie heute",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_electric_heating_total",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Electric energy heating total",
+        "Elektrische Energie Heizen gesamt",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_electric_heating_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Electric energy heating today",
+        "Elektrische Energie Heizen heute",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_electric_dhw_total",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Electric energy hot water total",
+        "Elektrische Energie Warmwasser gesamt",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_electric_dhw_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Electric energy hot water today",
+        "Elektrische Energie Warmwasser heute",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_thermal_total",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Thermal energy total",
+        "Thermische Energie gesamt",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_thermal_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Thermal energy today",
+        "Thermische Energie heute",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_thermal_heating_total",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Thermal energy heating total",
+        "Thermische Energie Heizen gesamt",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_thermal_heating_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Thermal energy heating today",
+        "Thermische Energie Heizen heute",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_thermal_dhw_total",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Thermal energy hot water total",
+        "Thermische Energie Warmwasser gesamt",
+        AGG_SUM,
+    ),
+    (
+        "hp_energy_thermal_dhw_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Thermal energy hot water today",
+        "Thermische Energie Warmwasser heute",
+        AGG_SUM,
+    ),
+    (
+        "hp_cop_live",
+        ("sensor",),
+        None,
+        None,
+        "measurement",
+        "Live COP",
+        "COP aktuell",
+        AGG_DERIVED,
+    ),
+    (
+        "hp_cop_total",
+        ("sensor",),
+        None,
+        None,
+        "measurement",
+        "Total COP",
+        "COP gesamt",
+        AGG_DERIVED,
+    ),
+    (
+        "hp_temperature_outdoor",
+        ("sensor",),
+        "°C",
+        "temperature",
+        "measurement",
+        "Outdoor temperature",
+        "Außentemperatur",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_temperature_flow",
+        ("sensor",),
+        "°C",
+        "temperature",
+        "measurement",
+        "Flow temperature",
+        "Vorlauftemperatur",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_temperature_return",
+        ("sensor",),
+        "°C",
+        "temperature",
+        "measurement",
+        "Return temperature",
+        "Rücklauftemperatur",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_temperature_dhw",
+        ("sensor",),
+        "°C",
+        "temperature",
+        "measurement",
+        "Hot water temperature",
+        "Warmwassertemperatur",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_temperature_storage",
+        ("sensor",),
+        "°C",
+        "temperature",
+        "measurement",
+        "Storage temperature",
+        "Speichertemperatur",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_temperature_source",
+        ("sensor",),
+        "°C",
+        "temperature",
+        "measurement",
+        "Source temperature",
+        "Quellentemperatur",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_temperature_indoor",
+        ("sensor",),
+        "°C",
+        "temperature",
+        "measurement",
+        "Indoor temperature",
+        "Raumtemperatur",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_temperature_target",
+        ("sensor",),
+        "°C",
+        "temperature",
+        "measurement",
+        "Target temperature",
+        "Solltemperatur",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_operating_mode",
+        ("sensor",),
+        None,
+        "enum",
+        None,
+        "Operating mode",
+        "Betriebsart",
+        AGG_SINGLE,
+    ),
+    (
+        "hp_compressor_running",
+        ("binary_sensor",),
+        None,
+        "running",
+        None,
+        "Compressor running",
+        "Verdichter läuft",
+        AGG_ANY,
+    ),
+    (
+        "hp_compressor_starts",
+        ("sensor",),
+        None,
+        None,
+        "total_increasing",
+        "Compressor starts",
+        "Verdichterstarts",
+        AGG_SUM,
+    ),
+    (
+        "hp_runtime_total",
+        ("sensor",),
+        "h",
+        "duration",
+        "total_increasing",
+        "Runtime total",
+        "Laufzeit gesamt",
+        AGG_SUM,
+    ),
+    (
+        "hp_runtime_heating",
+        ("sensor",),
+        "h",
+        "duration",
+        "total_increasing",
+        "Runtime heating",
+        "Laufzeit Heizen",
+        AGG_SUM,
+    ),
+    (
+        "hp_runtime_dhw",
+        ("sensor",),
+        "h",
+        "duration",
+        "total_increasing",
+        "Runtime hot water",
+        "Laufzeit Warmwasser",
+        AGG_SUM,
+    ),
+    (
+        "hp_aux_heater_active",
+        ("binary_sensor",),
+        None,
+        "heat",
+        None,
+        "Auxiliary heater",
+        "Zusatzheizung",
+        AGG_ANY,
+    ),
+    (
+        "hp_aux_heater_energy_total",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Auxiliary heater energy total",
+        "Zusatzheizung Energie gesamt",
+        AGG_SUM,
+    ),
+    (
+        "hp_aux_heater_energy_today",
+        ("sensor",),
+        "kWh",
+        "energy",
+        "total_increasing",
+        "Auxiliary heater energy today",
+        "Zusatzheizung Energie heute",
+        AGG_SUM,
+    ),
+    (
+        "hp_volume_flow",
+        ("sensor",),
+        "L/h",
+        None,
+        "measurement",
+        "Volume flow",
+        "Volumenstrom",
+        AGG_SINGLE,
+    ),
+)
+
+
+def _hp_spec(row: tuple) -> RoleSpec:
+    """Build one heat-pump role spec; the last column is the aggregation rule. @zara"""
+    return RoleSpec(*row[:7])
+
+
+HP_ROLE_SPECS: tuple[RoleSpec, ...] = tuple(_hp_spec(row) for row in _HP_ROWS)
+HP_SPEC_BY_BASE: dict[str, RoleSpec] = {spec.base: spec for spec in HP_ROLE_SPECS}
+HP_RULES: dict[str, str] = {row[0]: row[7] for row in _HP_ROWS}
+HP_COP_INPUTS: dict[str, tuple[str, str, float]] = {
+    "hp_cop_live": ("hp_power_thermal", "hp_power_electric", HP_COP_MIN_W),
+    "hp_cop_total": (
+        "hp_energy_thermal_total",
+        "hp_energy_electric_total",
+        HP_COP_MIN_KWH,
+    ),
+}
+
+
+def is_hp_role(role: str) -> bool:
+    """Return True for a heat-pump contract role. @zara"""
+    return role in HP_SPEC_BY_BASE
+
+
+def hp_aggregation(role: str) -> str:
+    """Return how heat-pump device values combine on S-INV HP. @zara"""
+    if role not in HP_RULES:
+        raise ValueError(f"unknown heat-pump role {role}")
+    return HP_RULES[role]
+
+
+def hp_has_system_entity(role: str) -> bool:
+    """Return True when S-INV HP publishes an aggregate for this role. @zara"""
+    return hp_aggregation(role) != AGG_DEVICE
+
+
+def hp_domain(role: str) -> str:
+    """Return the platform of a heat-pump role. @zara"""
+    spec = HP_SPEC_BY_BASE.get(role)
+    if spec is None:
+        raise ValueError(f"unknown heat-pump role {role}")
+    return spec.domains[0]
+
+
+def hp_role_names(role: str) -> dict[str, str]:
+    """English and German display names of a heat-pump role. @zara"""
+    spec = HP_SPEC_BY_BASE.get(role)
+    if spec is None:
+        raise ValueError(f"unknown heat-pump role {role}")
+    return {"en": spec.name_en, "de": spec.name_de}
+
+
+def _hp_object_suffix(role: str) -> str:
+    """Return the role key without the leading ``hp_`` used in object ids. @zara"""
+    if not is_hp_role(role) or not role.startswith("hp_"):
+        raise ValueError(f"unknown heat-pump role {role}")
+    return role[len("hp_") :]
+
+
+def hp_device_object_id(role: str, index: int) -> str:
+    """Object id of one heat pump: sinv_hp<nn>_<role without hp_>. @zara"""
+    if index < 1:
+        raise ValueError(f"invalid heat-pump device id {role} {index}")
+    return f"{OBJECT_ID_PREFIX}_{CLASS_HEAT_PUMP}{index:02d}_{_hp_object_suffix(role)}"
+
+
+def hp_system_object_id(role: str) -> str:
+    """Object id of the S-INV HP aggregate: sinv_hp_<role without hp_>. @zara"""
+    return f"{OBJECT_ID_PREFIX}_{HP_SERIAL}_{_hp_object_suffix(role)}"
+
+
+def hp_entry_serial(entry_id: str) -> str:
+    """Short ASCII device serial derived from a config entry id. @zara
+
+    The serial is not a host address. A DHCP change or a new host keeps the
+    same entry id, so entity unique_ids stay. Only letters and digits, at
+    most 12 characters. ``site`` and ``hp`` stay reserved for the aggregates.
+    """
+    cleaned = "".join(
+        char for char in str(entry_id).lower() if char.isascii() and char.isalnum()
+    )
+    short = cleaned[:12]
+    if len(short) < 4:
+        short = f"{short}hpdev"[:8]
+    if short in {SITE_SERIAL, HP_SERIAL}:
+        short = f"e{short}"
+    return short
+
+
+def hp_role_unique_id(serial: str, role: str) -> str:
+    """unique_id of one heat pump's role. Serials ``site`` and ``hp`` are reserved. @zara"""
+    if not is_hp_role(role):
+        raise ValueError(f"unknown heat-pump role {role}")
+    serial_l = str(serial).lower()
+    if serial_l in (SITE_SERIAL, HP_SERIAL):
+        raise ValueError(f"reserved serial {serial_l}")
+    return f"{UNIQUE_ID_PREFIX}{serial_l}:{role}"
+
+
+def hp_system_unique_id(role: str) -> str:
+    """unique_id of the S-INV HP aggregate: sinv:1:hp:<role>. @zara"""
+    if not is_hp_role(role):
+        raise ValueError(f"unknown heat-pump role {role}")
+    return f"{UNIQUE_ID_PREFIX}{HP_SERIAL}:{role}"
+
+
+def parse_hp_unique_id(unique_id: str) -> dict[str, str] | None:
+    """Split a heat-pump unique_id; inverter and vendor ids return None. @zara"""
+    if not isinstance(unique_id, str) or not unique_id.startswith(UNIQUE_ID_PREFIX):
+        return None
+    parts = unique_id[len(UNIQUE_ID_PREFIX) :].split(":")
+    if len(parts) != 2 or not is_hp_role(parts[1]):
+        return None
+    return {"serial": parts[0], "role": parts[1]}
+
+
+def hp_cop(
+    thermal: float | None, electric: float | None, minimum: float
+) -> float | None:
+    """Thermal divided by electric, or None when electric is missing or not above ``minimum``. @zara"""
+    if isinstance(thermal, bool) or isinstance(electric, bool):
+        return None
+    if not isinstance(thermal, int | float) or not isinstance(electric, int | float):
+        return None
+    thermal_f = float(thermal)
+    electric_f = float(electric)
+    if thermal_f != thermal_f or electric_f != electric_f:
+        return None
+    if thermal_f in (float("inf"), float("-inf")) or electric_f in (
+        float("inf"),
+        float("-inf"),
+    ):
+        return None
+    if thermal_f < 0 or electric_f <= minimum:
+        return None
+    return thermal_f / electric_f
+
+
+def hp_cop_roles(present: Iterable[str]) -> frozenset[str]:
+    """COP roles whose both inputs are present. @zara"""
+    roles = set(present)
+    found: set[str] = set()
+    for role, (thermal, electric, _minimum) in HP_COP_INPUTS.items():
+        if thermal in roles and electric in roles:
+            found.add(role)
+    return frozenset(found)

@@ -1402,6 +1402,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Forward entry setup to platforms @zara
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    try:
+        from .core.core_last_reset_statistics_repair import (
+            async_start_last_reset_statistics_repair,
+        )
+
+        await async_start_last_reset_statistics_repair(
+            hass,
+            entry,
+            getattr(coordinator, "data_manager", None),
+        )
+    except Exception as err:
+        _LOGGER.warning(
+            "last_reset statistics repair did not start: %s",
+            err,
+            exc_info=True,
+        )
+
     if coordinator.data_manager:
         from .data.sfml_astronomy_provider import (
             SFMLAstronomyProvider,
@@ -1556,6 +1573,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     Properly cleans up logging handlers on unload to prevent duplicate log entries.
     """
+    from .core.core_last_reset_statistics_repair import (
+        async_stop_last_reset_statistics_repair,
+    )
+
+    await async_stop_last_reset_statistics_repair(hass, entry.entry_id)
+
     from .astronomy.astronomy_cache_manager import reset_cache_manager
     from .core.core_dev_mode import unregister_dev_mode_services
 

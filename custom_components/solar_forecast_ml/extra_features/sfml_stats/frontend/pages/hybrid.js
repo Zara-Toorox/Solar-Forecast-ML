@@ -5,6 +5,7 @@ const HybridForecastPage = ((Vue) => {
     const { ref, reactive, computed, onMounted } = Vue;
 
     const ENDPOINT = "/api/sfml_stats/hybrid_forecast";
+    const MDC_ENDPOINT = "/api/sfml_stats/midday_correction";
     const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
     const MODE_LABEL_KEYS = {
         standard: "hybrid_forecast.modes.standard",
@@ -160,6 +161,11 @@ const HybridForecastPage = ((Vue) => {
             const saving = ref(false);
             const canWrite = ref(true);
             const notice = ref(null);
+            const mdcEnabled = ref(false);
+            const mdcKnown = ref(false);
+            const mdcLast = ref(null);
+            const mdcSaving = ref(false);
+            const mdcNotice = ref(null);
 
             const difference = computed(() => {
                 const left = numericOrNull(morningAnchor.value);
@@ -307,12 +313,113 @@ const HybridForecastPage = ((Vue) => {
                 }
             }
 
+            function reasonLabel(check) {
+                const code = check && check.reason_code ? String(check.reason_code) : "";
+                const key = code ? "mdc.reasons." + code : "";
+                const translated = key ? t(key) : "";
+                if (key && translated !== key) return translated;
+                if (check && check.reason_text) return String(check.reason_text);
+                return t("mdc.reasons.unknown");
+            }
+
+            function resultLabel(result) {
+                const key = "mdc.results." + String(result || "");
+                const translated = t(key);
+                return translated === key ? String(result || t("hybrid_forecast.notSet")) : translated;
+            }
+
+            function hourFacts(check) {
+                if (!check) return "";
+                const actual = numericOrNull(check.actual_kwh);
+                const predicted = numericOrNull(check.predicted_kwh);
+                const parts = [];
+                const hour = numericOrNull(check.analyzed_hour);
+                if (hour != null) parts.push(t("mdc.factHour", { hour: String(hour) }));
+                if (actual != null) parts.push(t("mdc.factActual", { actual: actual.toFixed(2) }));
+                if (predicted != null) parts.push(t("mdc.factPredicted", { predicted: predicted.toFixed(2) }));
+                const deviation = numericOrNull(check.deviation_percent);
+                if (deviation != null) {
+                    const signed = (deviation > 0 ? "+" : "") + deviation.toFixed(0);
+                    parts.push(t("mdc.factDeviation", { deviation: signed }));
+                }
+                return parts.join(", ");
+            }
+
+            async function loadMdc() {
+                try {
+                    const data = await SFMLApi.fetch(MDC_ENDPOINT, { forceRefresh: true, ttl: 0 });
+                    if (!data || data.success === false || typeof data.enabled !== "boolean") {
+                        throw new Error("load");
+                    }
+                    mdcEnabled.value = data.enabled === true;
+                    mdcKnown.value = true;
+                    mdcLast.value = data.last_check || null;
+                    mdcNotice.value = null;
+                } catch (_error) {
+                    mdcNotice.value = { kind: "error", text: t("mdc.loadFailed") };
+                }
+            }
+
+            function mdcErrorText(err) {
+                const raw = err && err.body && err.body.error;
+                const code = (err && err.code)
+                    || (typeof raw === "string" ? raw : (raw && raw.code))
+                    || "";
+                if (code === "not_applied") return { lock: false, text: t("mdc.notApplied") };
+                if (code === "admin_required" || code === "unauthorized") {
+                    return { lock: true, text: t("hybrid_forecast.adminRequired") };
+                }
+                if (
+                    code === "local_access_required"
+                    || code === "local_write_required"
+                    || code === "authentication_required"
+                ) {
+                    return { lock: true, text: t("hybrid_forecast.localRequired") };
+                }
+                if (code === "service_unavailable" || code === "service_call_failed") {
+                    return { lock: false, text: t("mdc.serviceUnavailable") };
+                }
+                return { lock: false, text: t("mdc.saveFailed") };
+            }
+
+            async function saveMdc(event) {
+                if (!canWrite.value || mdcSaving.value || !mdcKnown.value) {
+                    if (event && event.target) event.target.checked = mdcEnabled.value === true;
+                    return;
+                }
+                const next = event.target.checked === true;
+                const previous = mdcEnabled.value === true;
+                mdcEnabled.value = next;
+                mdcSaving.value = true;
+                try {
+                    const data = await SFMLApi.postAuthenticated(MDC_ENDPOINT, { enabled: next });
+                    if (!data || data.success !== true || data.enabled !== next) {
+                        mdcEnabled.value = previous;
+                        event.target.checked = previous;
+                        mdcNotice.value = { kind: "error", text: t("mdc.notApplied") };
+                        return;
+                    }
+                    mdcEnabled.value = data.enabled === true;
+                    mdcNotice.value = { kind: "ok", text: t("mdc.saved") };
+                    await loadMdc();
+                } catch (err) {
+                    mdcEnabled.value = previous;
+                    if (event && event.target) event.target.checked = previous;
+                    const mapped = mdcErrorText(err);
+                    mdcNotice.value = { kind: "error", text: mapped.text };
+                    if (mapped.lock) canWrite.value = false;
+                } finally {
+                    mdcSaving.value = false;
+                }
+            }
+
             onMounted(() => {
                 if (knownNonAdmin()) {
                     canWrite.value = false;
                     notice.value = { kind: "info", text: t("hybrid_forecast.adminRequired") };
                 }
                 loadState();
+                loadMdc();
             });
 
             return {
@@ -327,6 +434,15 @@ const HybridForecastPage = ((Vue) => {
                 saving,
                 canWrite,
                 notice,
+                mdcEnabled,
+                mdcKnown,
+                mdcLast,
+                mdcSaving,
+                mdcNotice,
+                reasonLabel,
+                resultLabel,
+                hourFacts,
+                saveMdc,
                 difference,
                 unchanged,
                 modes: Object.keys(MODE_LABEL_KEYS),
@@ -406,6 +522,27 @@ const HybridForecastPage = ((Vue) => {
                         </table>
                     </div>
                     <p class="hf-note">{{ $t('hybrid_forecast.runsHint') }}</p>
+                </div>
+
+                <div class="chart-card hf-card">
+                    <div class="chart-header">
+                        <span class="chart-title">{{ $t('mdc.title') }}</span>
+                    </div>
+                    <p class="hf-note">{{ $t('mdc.what') }}</p>
+                    <p class="hf-note">{{ $t('mdc.when') }}</p>
+                    <p class="hf-note">{{ $t('mdc.why') }}</p>
+                    <p class="hf-note">{{ $t('mdc.versusHybrid') }}</p>
+                    <p v-if="mdcNotice" class="hf-notice" :class="'hf-notice-' + mdcNotice.kind" role="status">{{ mdcNotice.text }}</p>
+                    <label class="hf-check">
+                        <input type="checkbox" :checked="mdcEnabled" @change="saveMdc" :disabled="!canWrite || mdcSaving || !mdcKnown">
+                        <span>{{ $t('mdc.switch') }} — {{ mdcEnabled ? $t('mdc.on') : $t('mdc.off') }}</span>
+                    </label>
+                    <div v-if="mdcLast">
+                        <p class="hf-note">{{ formatStamp(mdcLast.checked_at) }} — {{ resultLabel(mdcLast.result) }}</p>
+                        <p class="hf-note">{{ reasonLabel(mdcLast) }}</p>
+                        <p class="hf-note" v-if="hourFacts(mdcLast)">{{ hourFacts(mdcLast) }}</p>
+                    </div>
+                    <p class="hf-note" v-else>{{ $t('mdc.noCheck') }}</p>
                 </div>
 
                 <div v-if="loaded" class="chart-card hf-card">

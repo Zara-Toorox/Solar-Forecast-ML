@@ -277,6 +277,16 @@
       "name": "Run Adaptive Midday Correction",
       "description": "DEVELOPER ONLY or on ADVICE"
     },
+    "set_adaptive_forecast_mode": {
+      "name": "Switch midday correction",
+      "description": "Turns midday correction on or off without a restart. A stored value is kept. When nothing is stored, it stays on. The next 12:30 check follows immediately.",
+      "fields": {
+        "enabled": {
+          "name": "Enabled",
+          "description": "On: the check may correct. Off: it only records that midday correction is switched off."
+        }
+      }
+    },
     "run_weather_correction": {
       "name": "Rebuild Corrected Weather Forecast",
       "description": "DEVELOPER ONLY or on ADVICE"

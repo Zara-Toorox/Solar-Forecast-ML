@@ -117,13 +117,29 @@
                 "solax_local_modbus": "SolaX Hybrid / IES – réseau local (Modbus TCP)",
                 "sungrow_local_modbus": "Sungrow Hybrid (SH) – réseau local (Modbus TCP)",
                 "huawei_local_modbus": "Huawei SUN2000 – réseau local (Modbus TCP)",
-                "solakon_local_modbus": "Solakon ONE – réseau local (Modbus TCP)"
+                "solakon_local_modbus": "Solakon ONE – réseau local (Modbus TCP)",
+                "maxxisun_local_webhook": "Maxxisun MaxxiCharge - webhook local (CCU)",
+                "deye_solarman_v5": "Deye – Solarman V5",
+                "deye_modbus_tcp": "Deye – Modbus TCP",
+                "solplanet_modbus_tcp": "Solplanet – Modbus TCP"
             }
         },
         "ext_grid_power_sign": {
             "options": {
                 "positive_import": "+ signifie soutirage du réseau",
                 "positive_export": "+ signifie injection dans le réseau"
+            }
+        },
+        "hp_system": {
+            "options": {
+                "bosch_emsesp": "Bosch/Buderus (EMS-ESP)",
+                "hp_bridge": "Autre pompe à chaleur (intégration HA existante)",
+                "stiebel_isg": "Stiebel Eltron (ISG Modbus)"
+            }
+        },
+        "heating_circuit": {
+            "options": {
+                "none": "Aucun"
             }
         }
     },
@@ -134,6 +150,21 @@
                 "description": "Choisissez le système d'onduleur à connecter. La configuration correspondante démarre ensuite.",
                 "data": {
                     "system": "Systèmes pris en charge"
+                }
+            },
+            "kind": {
+                "title": "Onduleur ou pompe à chaleur",
+                "description": "Choisissez ce que vous voulez ajouter.",
+                "menu_options": {
+                    "inverter": "Onduleur",
+                    "heat_pump": "Pompe à chaleur"
+                }
+            },
+            "heat_pump": {
+                "title": "Pompe à chaleur",
+                "description": "Bosch/Buderus via EMS-ESP. Lecture seule, aucun mot de passe ni jeton requis.",
+                "data": {
+                    "system": "Systèmes de pompe à chaleur"
                 }
             },
             "credentials": {
@@ -336,6 +367,89 @@
                     "host": "Par exemple 192.168.1.98",
                     "unit_id": "Par défaut 1"
                 }
+            },
+            "maxxisun": {
+                "title": "Maxxisun MaxxiCharge (webhook)",
+                "description": "Dans l'application maxxisun, réglez Service cloud sur non et Utiliser un serveur local sur oui. Indiquez cette adresse comme route API : {webhook_url}. Adresse du réseau local, aucun accès externe n'est nécessaire. La CCU n'envoie qu'à une seule adresse, un fonctionnement parallèle direct avec MaxxiChargeConnect n'est pas possible. Firmware CCU .44 à .48."
+            },
+            "deye_solarman": {
+                "title": "Deye (Solarman V5)",
+                "description": "Adresse de l'enregistreur Deye sur le réseau local. Solarman V5 utilise le port TCP 8899. Le numéro de série imprimé sur le stick est obligatoire. S-INV lit uniquement les registres de maintien et n'écrit jamais. Le registre 0 choisit la famille : string 0x0200, hybride monophasé 0x0300, micro-onduleur 0x0400, hybride triphasé 0x0500 ou 0x0600.",
+                "data": {
+                    "host": "Adresse IP ou nom d'hôte",
+                    "port": "Port",
+                    "unit_id": "Identifiant d'unité",
+                    "logger_serial": "Numéro de série de l'enregistreur"
+                },
+                "data_description": {
+                    "host": "Par exemple 192.168.1.50",
+                    "port": "8899 par défaut",
+                    "unit_id": "1 par défaut",
+                    "logger_serial": "Le numéro décimal imprimé sur l'enregistreur, pas celui de l'onduleur"
+                }
+            },
+            "deye_modbus": {
+                "title": "Deye (Modbus TCP)",
+                "description": "Adresse de l'onduleur Deye sur le réseau local. Modbus TCP utilise le port 502 et l'identifiant d'unité 1 par défaut. S-INV lit uniquement et n'écrit jamais. Le registre 0 choisit la famille : string 0x0200, hybride monophasé 0x0300, micro-onduleur 0x0400, hybride triphasé 0x0500 ou 0x0600.",
+                "data": {
+                    "host": "Adresse IP ou nom d'hôte",
+                    "port": "Port",
+                    "unit_id": "Identifiant d'unité"
+                },
+                "data_description": {
+                    "host": "Par exemple 192.168.1.50",
+                    "port": "502 par défaut",
+                    "unit_id": "1 par défaut"
+                }
+            },
+            "solplanet": {
+                "title": "Solplanet (Modbus TCP)",
+                "description": "Adresse de l'onduleur Solplanet ou de l'Ai-logger sur le réseau local. Modbus TCP utilise le port 502 par défaut ; l'Ai-logger accepte aussi 9999. L'identifiant d'unité 3 est celui de l'onduleur, et un Ai-logger répond comme unité 239. S-INV lit uniquement les registres d'entrée et n'écrit jamais. L'Ai-Dongle sur le port 8484 n'est pas pris en charge.",
+                "data": {
+                    "host": "Adresse IP ou nom d'hôte",
+                    "port": "Port",
+                    "unit_id": "Identifiant d'unité"
+                },
+                "data_description": {
+                    "host": "Par exemple 192.168.1.50",
+                    "port": "502 par défaut, 9999 sur un Ai-logger",
+                    "unit_id": "3 par défaut, 239 pour un Ai-logger"
+                }
+            },
+            "emsesp": {
+                "title": "EMS-ESP",
+                "description": "Bosch/Buderus via EMS-ESP. Lecture seule, aucun mot de passe ni jeton requis.",
+                "data": {
+                    "host": "Hôte"
+                },
+                "data_description": {
+                    "host": "Nom d'hôte ou adresse IP, port facultatif. Pas de schéma, de chemin ni de mot de passe."
+                }
+            },
+            "emsesp_circuit": {
+                "title": "Circuit de chauffage",
+                "description": "La température ambiante et la consigne viennent de ce circuit. Aucun les omet.",
+                "data": {
+                    "heating_circuit": "Circuit de chauffage"
+                }
+            },
+            "hp_bridge": {
+                "title": "Autre pompe à chaleur",
+                "description": "Choisissez les capteurs de votre intégration de pompe à chaleur existante ; S-INV lit seulement."
+            },
+            "stiebel": {
+                "title": "Stiebel Eltron (ISG Modbus)",
+                "description": "Le logiciel ISG Modbus TCP/IP doit être actif ; S-INV lit seulement. L'ISG ne fournit pas la puissance électrique ; utilisez le pont ou un compteur.",
+                "data": {
+                    "host": "Hôte",
+                    "port": "Port",
+                    "unit_id": "Unité"
+                },
+                "data_description": {
+                    "host": "Nom d'hôte ou adresse IP. Pas de schéma, de chemin ni de mot de passe.",
+                    "port": "502, fixé par l'ISG",
+                    "unit_id": "1, fixé par l'ISG"
+                }
             }
         },
         "error": {
@@ -356,11 +470,39 @@
             "not_sungrow": "Aucun onduleur Sungrow ne répond en Modbus TCP à cette adresse.",
             "not_huawei": "Aucun onduleur Huawei ne répond en Modbus TCP à cette adresse. Modbus TCP est-il activé sur le dongle ?",
             "not_ahoy": "Aucune AhoyDTU ne répond à cette adresse.",
-            "not_solakon": "Aucun Solakon ONE ne répond en Modbus TCP à cette adresse."
+            "not_solakon": "Aucun Solakon ONE ne répond en Modbus TCP à cette adresse.",
+            "not_deye": "Aucune famille Deye prise en charge n'a répondu (string 0x0200, hybride monophasé 0x0300, micro-onduleur 0x0400, hybride triphasé 0x0500 ou 0x0600), ou le numéro de série de l'onduleur manque.",
+            "not_solplanet": "Aucun onduleur Solplanet n'a répondu (type 1 ou 3), ou le numéro de série manque.",
+            "solarman_timeout": "L'enregistreur Solarman V5 n'a pas répondu à temps. Les enregistreurs qui ne parlent que les commandes AT sur le port 48899 ne sont pas pris en charge.",
+            "logger_serial_mismatch": "Le numéro de série de l'enregistreur ne correspond pas au stick qui a répondu.",
+            "invalid_host": "Nom d'hôte ou adresse IP, port facultatif. Pas de schéma, de chemin ni de mot de passe.",
+            "emsesp_unreachable": "La passerelle EMS-ESP n'est pas joignable à cette adresse.",
+            "emsesp_duplicate": "Cette passerelle est déjà configurée.",
+            "hp_bridge_unit": "Cette unité ne correspond pas au rôle.",
+            "hp_bridge_domain": "Cette entité n'est pas un capteur ou un capteur binaire adapté.",
+            "hp_bridge_own": "Les entités publiées par S-INV ne peuvent pas être choisies.",
+            "hp_bridge_duplicate": "Cette entité est déjà utilisée pour un autre rôle.",
+            "hp_bridge_state_class": "Un compteur total exige la classe d'état total ou total_increasing.",
+            "hp_bridge_class": "La classe d'appareil ne correspond pas au rôle.",
+            "hp_bridge_role": "Rôle de pompe à chaleur inconnu.",
+            "hp_bridge_required": "Choisissez la puissance électrique ou le compteur d'énergie électrique.",
+            "emsesp_forbidden": "L'accès a été refusé (401/403). S-INV n'envoie ni mot de passe ni jeton.",
+            "emsesp_busy": "La passerelle EMS-ESP est occupée (HTTP 429). Attendez un instant et réessayez.",
+            "emsesp_no_heat_pump": "Aucune pompe à chaleur ne répond à cette adresse.",
+            "emsesp_bad_response": "La passerelle EMS-ESP n'a pas renvoyé de réponse lisible.",
+            "stiebel_unreachable": "L'ISG n'est pas joignable à cette adresse.",
+            "stiebel_modbus_inactive": "L'interface Modbus ne répond pas (par exemple une adresse illégale). Le logiciel ISG Modbus TCP/IP doit être actif.",
+            "stiebel_modbus_error": "L'ISG a refusé la requête.",
+            "stiebel_duplicate": "Cet ISG est déjà configuré."
         },
         "abort": {
             "already_configured": "Ce compte est déjà configuré",
-            "reconfig_successful": "Le compte de configuration a été modifié avec succès"
+            "reconfig_successful": "Le compte de configuration a été modifié avec succès",
+            "no_heat_pump": "Aucune pompe à chaleur n'est disponible pour le moment.",
+            "heat_pump_pending": "Cette pompe à chaleur ne peut pas encore être configurée.",
+            "hp_no_options": "L'agrégat pompe à chaleur n'a pas d'options.",
+            "emsesp_already_configured": "Cette passerelle est déjà configurée.",
+            "stiebel_already_configured": "Cet ISG est déjà configuré."
         }
     },
     "options": {
@@ -371,11 +513,14 @@
                 "data": {
                     "exclude": "Catégories d'entités exclues",
                     "scan_interval": "Intervalle d'interrogation (secondes)",
-                    "modbus": "Lire aussi via Modbus TCP (GEN24)"
+                    "modbus": "Lire aussi via Modbus TCP (GEN24)",
+                    "heating_circuit": "Circuit de chauffage",
+                    "host": "Hôte"
                 },
                 "data_description": {
                     "exclude": "En fonction des catégories d'entités sélectionnées (= exclues), le nombre de requêtes Api peut être réduit (en particulier pour les catégories d'énergie)",
-                    "modbus": "Lit en plus les valeurs SunSpec d'un GEN24 : énergie PV totale, puissance mesurée par MPPT et compteurs d'énergie de la batterie. Modbus TCP doit être activé sur l'onduleur (Communication → Modbus, port 502). S-INV lit uniquement. Si Modbus n'est pas joignable, seules les valeurs de la Solar API sont utilisées."
+                    "modbus": "Lit en plus les valeurs SunSpec d'un GEN24 : énergie PV totale, puissance mesurée par MPPT et compteurs d'énergie de la batterie. Modbus TCP doit être activé sur l'onduleur (Communication → Modbus, port 502). S-INV lit uniquement. Si Modbus n'est pas joignable, seules les valeurs de la Solar API sont utilisées.",
+                    "heating_circuit": "La température ambiante et la consigne viennent de ce circuit. Aucun les omet. L'intervalle le plus court est de 15 secondes."
                 },
                 "sections": {
                     "api_options": {
@@ -451,7 +596,7 @@
                     "install_count": "Participer au test BETA (comptage anonyme des installations)"
                 },
                 "data_description": {
-                    "install_count": "Activé par défaut pendant la BETA, désactivable à tout moment. Si activé, seul le numéro de version installé (p. ex. « S-INV 2.0.8 ») est envoyé une fois par jour à solarforecastml.com – aucune donnée propre à l'appareil ou à l'utilisateur, aucun identifiant, aucune mesure. Seul le nombre de signalements par jour et par version est enregistré. Votre adresse IP est techniquement visible lors de la transmission et conservée au plus deux jours sous forme de hachage chiffré pour la protection contre les abus. Détails : https://www.solarforecastml.com/en/privacy"
+                    "install_count": "Activé par défaut pendant la BETA, désactivable à tout moment. Si activé, seul le numéro de version installé (p. ex. « S-INV 3.0.0 ») est envoyé une fois par jour à solarforecastml.com – aucune donnée propre à l'appareil ou à l'utilisateur, aucun identifiant, aucune mesure. Seul le nombre de signalements par jour et par version est enregistré. Votre adresse IP est techniquement visible lors de la transmission et conservée au plus deux jours sous forme de hachage chiffré pour la protection contre les abus. Détails : https://www.solarforecastml.com/en/privacy"
                 },
                 "description": "Tableau de bord énergie : ajoutez vous-même les capteurs de cet appareil sous Paramètres → Tableaux de bord → Énergie – consommation du réseau `sensor.sinv_energy_grid_import_total`, injection `sensor.sinv_energy_grid_export_total`, production solaire `sensor.sinv_energy_solar_total`, batterie entrante `sensor.sinv_energy_battery_charge_total`, batterie sortante `sensor.sinv_energy_battery_discharge_total`. Utilisez uniquement ces capteurs de l'installation, sinon l'énergie est comptée deux fois."
             }
@@ -735,6 +880,12 @@
             },
             "sinv_state_curtailment": {
                 "name": "Bridage actif"
+            },
+            "sinv_hp_compressor_running": {
+                "name": "Compresseur en marche"
+            },
+            "sinv_hp_aux_heater_active": {
+                "name": "Appoint"
             }
         },
         "datetime": {
@@ -2815,6 +2966,12 @@
             "sinv_energy_battery_discharge_total": {
                 "name": "Batterie déchargée totale"
             },
+            "sinv_energy_battery_charge_today": {
+                "name": "Batterie chargée aujourd'hui"
+            },
+            "sinv_energy_battery_discharge_today": {
+                "name": "Batterie déchargée aujourd'hui"
+            },
             "sinv_capacity_battery": {
                 "name": "Capacité batterie"
             },
@@ -2845,6 +3002,12 @@
             "sinv_energy_grid_export_total": {
                 "name": "Injection réseau totale"
             },
+            "sinv_energy_grid_import_today": {
+                "name": "Soutirage réseau aujourd'hui"
+            },
+            "sinv_energy_grid_export_today": {
+                "name": "Injection réseau aujourd'hui"
+            },
             "sinv_power_house": {
                 "name": "Consommation maison"
             },
@@ -2859,6 +3022,111 @@
             },
             "sinv_energy_house_total": {
                 "name": "Consommation maison totale"
+            },
+            "sinv_hp_power_electric": {
+                "name": "Puissance électrique"
+            },
+            "sinv_hp_power_thermal": {
+                "name": "Puissance thermique"
+            },
+            "sinv_hp_energy_electric_total": {
+                "name": "Énergie électrique totale"
+            },
+            "sinv_hp_energy_electric_today": {
+                "name": "Énergie électrique aujourd'hui"
+            },
+            "sinv_hp_energy_electric_heating_total": {
+                "name": "Énergie électrique chauffage totale"
+            },
+            "sinv_hp_energy_electric_heating_today": {
+                "name": "Énergie électrique chauffage aujourd'hui"
+            },
+            "sinv_hp_energy_electric_dhw_total": {
+                "name": "Énergie électrique eau chaude totale"
+            },
+            "sinv_hp_energy_electric_dhw_today": {
+                "name": "Énergie électrique eau chaude aujourd'hui"
+            },
+            "sinv_hp_energy_thermal_total": {
+                "name": "Énergie thermique totale"
+            },
+            "sinv_hp_energy_thermal_today": {
+                "name": "Énergie thermique aujourd'hui"
+            },
+            "sinv_hp_energy_thermal_heating_total": {
+                "name": "Énergie thermique chauffage totale"
+            },
+            "sinv_hp_energy_thermal_heating_today": {
+                "name": "Énergie thermique chauffage aujourd'hui"
+            },
+            "sinv_hp_energy_thermal_dhw_total": {
+                "name": "Énergie thermique eau chaude totale"
+            },
+            "sinv_hp_energy_thermal_dhw_today": {
+                "name": "Énergie thermique eau chaude aujourd'hui"
+            },
+            "sinv_hp_cop_live": {
+                "name": "COP instantané"
+            },
+            "sinv_hp_cop_total": {
+                "name": "COP total"
+            },
+            "sinv_hp_temperature_outdoor": {
+                "name": "Température extérieure"
+            },
+            "sinv_hp_temperature_flow": {
+                "name": "Température de départ"
+            },
+            "sinv_hp_temperature_return": {
+                "name": "Température de retour"
+            },
+            "sinv_hp_temperature_dhw": {
+                "name": "Température eau chaude"
+            },
+            "sinv_hp_temperature_storage": {
+                "name": "Température du stockage"
+            },
+            "sinv_hp_temperature_source": {
+                "name": "Température de source"
+            },
+            "sinv_hp_temperature_indoor": {
+                "name": "Température intérieure"
+            },
+            "sinv_hp_temperature_target": {
+                "name": "Température de consigne"
+            },
+            "sinv_hp_operating_mode": {
+                "name": "Mode de fonctionnement",
+                "state": {
+                    "off": "Arrêt",
+                    "heating": "Chauffage",
+                    "cooling": "Refroidissement",
+                    "dhw": "Eau chaude",
+                    "defrost": "Dégivrage",
+                    "pool": "Piscine",
+                    "unknown": "Inconnu"
+                }
+            },
+            "sinv_hp_compressor_starts": {
+                "name": "Démarrages du compresseur"
+            },
+            "sinv_hp_runtime_total": {
+                "name": "Durée de fonctionnement totale"
+            },
+            "sinv_hp_runtime_heating": {
+                "name": "Durée de fonctionnement chauffage"
+            },
+            "sinv_hp_runtime_dhw": {
+                "name": "Durée de fonctionnement eau chaude"
+            },
+            "sinv_hp_aux_heater_energy_total": {
+                "name": "Énergie appoint totale"
+            },
+            "sinv_hp_aux_heater_energy_today": {
+                "name": "Énergie appoint aujourd'hui"
+            },
+            "sinv_hp_volume_flow": {
+                "name": "Débit"
             },
             "fronius_inverter_energy_total": {
                 "name": "Énergie AC de l'onduleur totale"
@@ -2968,6 +3236,54 @@
             "huawei_inverter_energy_today": {
                 "name": "Production du jour (AC)"
             },
+            "huawei_pv_input_01_voltage": {
+                "name": "Tension entrée PV 01"
+            },
+            "huawei_pv_input_01_current": {
+                "name": "Courant entrée PV 01"
+            },
+            "huawei_pv_input_02_voltage": {
+                "name": "Tension entrée PV 02"
+            },
+            "huawei_pv_input_02_current": {
+                "name": "Courant entrée PV 02"
+            },
+            "huawei_pv_input_03_voltage": {
+                "name": "Tension entrée PV 03"
+            },
+            "huawei_pv_input_03_current": {
+                "name": "Courant entrée PV 03"
+            },
+            "huawei_pv_input_04_voltage": {
+                "name": "Tension entrée PV 04"
+            },
+            "huawei_pv_input_04_current": {
+                "name": "Courant entrée PV 04"
+            },
+            "huawei_pv_input_05_voltage": {
+                "name": "Tension entrée PV 05"
+            },
+            "huawei_pv_input_05_current": {
+                "name": "Courant entrée PV 05"
+            },
+            "huawei_pv_input_06_voltage": {
+                "name": "Tension entrée PV 06"
+            },
+            "huawei_pv_input_06_current": {
+                "name": "Courant entrée PV 06"
+            },
+            "huawei_pv_input_07_voltage": {
+                "name": "Tension entrée PV 07"
+            },
+            "huawei_pv_input_07_current": {
+                "name": "Courant entrée PV 07"
+            },
+            "huawei_pv_input_08_voltage": {
+                "name": "Tension entrée PV 08"
+            },
+            "huawei_pv_input_08_current": {
+                "name": "Courant entrée PV 08"
+            },
             "solakon_load_power": {
                 "name": "Puissance de charge (appareil)"
             },
@@ -2976,6 +3292,48 @@
             },
             "solakon_ac_input_energy_total": {
                 "name": "Entrée AC totale"
+            },
+            "deye_rated_power": {
+                "name": "Puissance nominale"
+            },
+            "deye_running_state": {
+                "name": "État de fonctionnement"
+            },
+            "deye_battery_voltage": {
+                "name": "Tension de la batterie"
+            },
+            "deye_ac_energy_today": {
+                "name": "Production côté réseau du jour"
+            },
+            "deye_ac_energy_total": {
+                "name": "Production côté réseau totale"
+            },
+            "solplanet_rated_power": {
+                "name": "Puissance nominale"
+            },
+            "solplanet_firmware": {
+                "name": "Micrologiciel"
+            },
+            "solplanet_battery_voltage": {
+                "name": "Tension de batterie"
+            },
+            "solplanet_inverter_energy_today": {
+                "name": "Énergie onduleur du jour"
+            },
+            "solplanet_inverter_energy_total": {
+                "name": "Énergie onduleur totale"
+            },
+            "solplanet_voltage_grid_l2": {
+                "name": "Tension réseau L2"
+            },
+            "solplanet_voltage_grid_l3": {
+                "name": "Tension réseau L3"
+            },
+            "maxxisun_firmware_version": {
+                "name": "Version du firmware"
+            },
+            "maxxisun_wifi_signal": {
+                "name": "Signal Wi-Fi"
             },
             "zendure_battery_voltage": {
                 "name": "Tension de la batterie"
@@ -3542,6 +3900,9 @@
         },
         "site": {
             "name": "Installation S-INV"
+        },
+        "hp": {
+            "name": "S-INV HP"
         }
     }
 }

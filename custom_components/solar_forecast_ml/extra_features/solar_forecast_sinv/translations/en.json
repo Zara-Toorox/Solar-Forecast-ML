@@ -117,13 +117,29 @@
                 "solax_local_modbus": "SolaX Hybrid / IES – local network (Modbus TCP)",
                 "sungrow_local_modbus": "Sungrow Hybrid (SH) – local network (Modbus TCP)",
                 "huawei_local_modbus": "Huawei SUN2000 – local network (Modbus TCP)",
-                "solakon_local_modbus": "Solakon ONE – local network (Modbus TCP)"
+                "solakon_local_modbus": "Solakon ONE – local network (Modbus TCP)",
+                "maxxisun_local_webhook": "Maxxisun MaxxiCharge - local webhook (CCU)",
+                "deye_solarman_v5": "Deye – Solarman V5",
+                "deye_modbus_tcp": "Deye – Modbus TCP",
+                "solplanet_modbus_tcp": "Solplanet – Modbus TCP"
             }
         },
         "ext_grid_power_sign": {
             "options": {
                 "positive_import": "+ means import from the grid",
                 "positive_export": "+ means export to the grid"
+            }
+        },
+        "hp_system": {
+            "options": {
+                "bosch_emsesp": "Bosch/Buderus (EMS-ESP)",
+                "hp_bridge": "Other heat pump (existing HA integration)",
+                "stiebel_isg": "Stiebel Eltron (ISG Modbus)"
+            }
+        },
+        "heating_circuit": {
+            "options": {
+                "none": "None"
             }
         }
     },
@@ -134,6 +150,21 @@
                 "description": "Choose the inverter system you want to connect. The matching setup starts next.",
                 "data": {
                     "system": "Supported systems"
+                }
+            },
+            "kind": {
+                "title": "Inverter or heat pump",
+                "description": "Choose what you want to add.",
+                "menu_options": {
+                    "inverter": "Inverter",
+                    "heat_pump": "Heat pump"
+                }
+            },
+            "heat_pump": {
+                "title": "Heat pump",
+                "description": "Bosch/Buderus via EMS-ESP. Read only, no password or token required.",
+                "data": {
+                    "system": "Heat pump systems"
                 }
             },
             "credentials": {
@@ -336,6 +367,89 @@
                     "host": "For example 192.168.1.98",
                     "unit_id": "Default 1"
                 }
+            },
+            "maxxisun": {
+                "title": "Maxxisun MaxxiCharge (webhook)",
+                "description": "In the maxxisun app set Cloud service to no and Use local server to yes. Enter this address as the API route: {webhook_url}. The address is on the local network; no external access is required. The CCU sends to only one address, so it cannot push to MaxxiChargeConnect at the same time. CCU firmware .44 to .48."
+            },
+            "deye_solarman": {
+                "title": "Deye (Solarman V5)",
+                "description": "Address of the Deye data logger on the local network. Solarman V5 uses TCP port 8899. The logger serial printed on the stick is required. S-INV only reads holding registers and never writes. Device type 0 selects the family: string 0x0200, single-phase hybrid 0x0300, microinverter 0x0400, three-phase hybrid 0x0500 or 0x0600.",
+                "data": {
+                    "host": "IP address or host name",
+                    "port": "Port",
+                    "unit_id": "Unit id",
+                    "logger_serial": "Logger serial number"
+                },
+                "data_description": {
+                    "host": "For example 192.168.1.50",
+                    "port": "8899 by default",
+                    "unit_id": "1 by default",
+                    "logger_serial": "The decimal serial printed on the logger, not the inverter serial"
+                }
+            },
+            "deye_modbus": {
+                "title": "Deye (Modbus TCP)",
+                "description": "Address of the Deye inverter on the local network. Modbus TCP uses port 502 and unit id 1 by default. S-INV only reads holding registers and never writes. Device type 0 selects the family: string 0x0200, single-phase hybrid 0x0300, microinverter 0x0400, three-phase hybrid 0x0500 or 0x0600.",
+                "data": {
+                    "host": "IP address or host name",
+                    "port": "Port",
+                    "unit_id": "Unit id"
+                },
+                "data_description": {
+                    "host": "For example 192.168.1.50",
+                    "port": "502 by default",
+                    "unit_id": "1 by default"
+                }
+            },
+            "solplanet": {
+                "title": "Solplanet (Modbus TCP)",
+                "description": "Address of the Solplanet inverter or Ai-logger on the local network. Modbus TCP uses port 502 by default; the Ai-logger also accepts 9999. Unit id 3 is the inverter default, and an Ai-logger answers as unit 239. S-INV only reads input registers and never writes. The Ai-Dongle on port 8484 is not supported.",
+                "data": {
+                    "host": "IP address or host name",
+                    "port": "Port",
+                    "unit_id": "Unit id"
+                },
+                "data_description": {
+                    "host": "For example 192.168.1.50",
+                    "port": "502 by default, 9999 on an Ai-logger",
+                    "unit_id": "3 by default, 239 for an Ai-logger"
+                }
+            },
+            "emsesp": {
+                "title": "EMS-ESP",
+                "description": "Bosch/Buderus via EMS-ESP. Read only, no password or token required.",
+                "data": {
+                    "host": "Host"
+                },
+                "data_description": {
+                    "host": "Hostname or IP address, optional port. No scheme, path or password."
+                }
+            },
+            "emsesp_circuit": {
+                "title": "Heating circuit",
+                "description": "Room and target temperature come from this circuit. None leaves them out.",
+                "data": {
+                    "heating_circuit": "Heating circuit"
+                }
+            },
+            "hp_bridge": {
+                "title": "Other heat pump",
+                "description": "Choose the sensors of your existing heat-pump integration; S-INV only reads."
+            },
+            "stiebel": {
+                "title": "Stiebel Eltron (ISG Modbus)",
+                "description": "The ISG Modbus TCP/IP software must be enabled; S-INV only reads. The ISG does not provide electric power; use the bridge or a meter for that.",
+                "data": {
+                    "host": "Host",
+                    "port": "Port",
+                    "unit_id": "Unit"
+                },
+                "data_description": {
+                    "host": "Hostname or IP address. No scheme, path or password.",
+                    "port": "502, fixed by the ISG",
+                    "unit_id": "1, fixed by the ISG"
+                }
             }
         },
         "error": {
@@ -356,11 +470,39 @@
             "not_sungrow": "No Sungrow inverter answers Modbus TCP at this address.",
             "not_huawei": "No Huawei inverter answers Modbus TCP at this address. Is Modbus TCP enabled on the dongle?",
             "not_ahoy": "No AhoyDTU answers at this address.",
-            "not_solakon": "No Solakon ONE answers Modbus TCP at this address."
+            "not_solakon": "No Solakon ONE answers Modbus TCP at this address.",
+            "not_deye": "No supported Deye family answered (string 0x0200, single-phase hybrid 0x0300, microinverter 0x0400, three-phase hybrid 0x0500 or 0x0600), or the inverter serial was missing.",
+            "not_solplanet": "No Solplanet inverter answered (device type 1 or 3), or the serial number was missing.",
+            "solarman_timeout": "The Solarman V5 logger did not answer in time. Loggers that only speak AT commands on port 48899 are not supported.",
+            "logger_serial_mismatch": "The logger serial does not match the stick that answered.",
+            "invalid_host": "Enter a hostname or an IP address, with an optional port. No scheme, path or password.",
+            "emsesp_unreachable": "The EMS-ESP gateway could not be reached.",
+            "emsesp_duplicate": "This gateway is already set up.",
+            "hp_bridge_unit": "This unit does not match the role.",
+            "hp_bridge_domain": "This entity is not a sensor or binary sensor for the role.",
+            "hp_bridge_own": "Entities published by S-INV cannot be selected.",
+            "hp_bridge_duplicate": "This entity is already used for another role.",
+            "hp_bridge_state_class": "A total counter needs state class total or total_increasing.",
+            "hp_bridge_class": "The device class does not match the role.",
+            "hp_bridge_role": "Unknown heat-pump role.",
+            "hp_bridge_required": "Select electric power or the electric energy counter.",
+            "emsesp_forbidden": "Access was refused (401/403). S-INV sends no password and no token.",
+            "emsesp_busy": "The EMS-ESP gateway is busy (HTTP 429). Wait a moment and try again.",
+            "emsesp_no_heat_pump": "No heat pump answers at this address.",
+            "emsesp_bad_response": "The EMS-ESP gateway did not return a readable response.",
+            "stiebel_unreachable": "The ISG could not be reached at this address.",
+            "stiebel_modbus_inactive": "The Modbus interface did not answer (for example an illegal address). The ISG Modbus TCP/IP software must be enabled.",
+            "stiebel_modbus_error": "The ISG rejected the query.",
+            "stiebel_duplicate": "This ISG is already set up."
         },
         "abort": {
             "already_configured": "This account is already configured",
-            "reconfig_successful": "Configuration account successfully changed"
+            "reconfig_successful": "Configuration account successfully changed",
+            "no_heat_pump": "No heat pump is available yet.",
+            "heat_pump_pending": "This heat pump cannot be set up yet.",
+            "hp_no_options": "The heat pump aggregate has no options.",
+            "emsesp_already_configured": "This gateway is already set up.",
+            "stiebel_already_configured": "This ISG is already set up."
         }
     },
     "options": {
@@ -371,11 +513,14 @@
                 "data": {
                     "exclude": "Excluded entity categories",
                     "scan_interval": "Polling interval (seconds)",
-                    "modbus": "Also read via Modbus TCP (GEN24)"
+                    "modbus": "Also read via Modbus TCP (GEN24)",
+                    "heating_circuit": "Heating circuit",
+                    "host": "Host"
                 },
                 "data_description": {
                     "exclude": "Depending on selected (= excluded) entity categories, the number of Api requests can be reduced (especially for energy categories)",
-                    "modbus": "Additionally reads the SunSpec values of a GEN24: PV lifetime energy, measured power per MPPT and the battery energy counters. Modbus TCP must be enabled on the inverter (Communication → Modbus, port 502). S-INV only reads. If Modbus is not reachable, the Solar API values are used alone."
+                    "modbus": "Additionally reads the SunSpec values of a GEN24: PV lifetime energy, measured power per MPPT and the battery energy counters. Modbus TCP must be enabled on the inverter (Communication → Modbus, port 502). S-INV only reads. If Modbus is not reachable, the Solar API values are used alone.",
+                    "heating_circuit": "Room and target temperature come from this circuit. None leaves them out. Shortest interval is 15 seconds."
                 },
                 "sections": {
                     "api_options": {
@@ -451,7 +596,7 @@
                     "install_count": "Take part in the BETA test (anonymous install count)"
                 },
                 "data_description": {
-                    "install_count": "On by default during the BETA, can be switched off at any time. When on, only the installed version number (e.g. “S-INV 2.0.8”) is sent to solarforecastml.com once a day – no device- or user-specific data, no identifier, no measured values. Only how often each version was reported per day is stored. Your IP address is technically visible in transit and kept as an encrypted hash for abuse protection for at most two days. Details: https://www.solarforecastml.com/en/privacy"
+                    "install_count": "On by default during the BETA, can be switched off at any time. When on, only the installed version number (e.g. “S-INV 3.0.0”) is sent to solarforecastml.com once a day – no device- or user-specific data, no identifier, no measured values. Only how often each version was reported per day is stored. Your IP address is technically visible in transit and kept as an encrypted hash for abuse protection for at most two days. Details: https://www.solarforecastml.com/en/privacy"
                 },
                 "description": "Energy dashboard: add the sensors of this device yourself under Settings → Dashboards → Energy – grid consumption `sensor.sinv_energy_grid_import_total`, return to grid `sensor.sinv_energy_grid_export_total`, solar production `sensor.sinv_energy_solar_total`, battery in `sensor.sinv_energy_battery_charge_total`, battery out `sensor.sinv_energy_battery_discharge_total`. Use only these installation sensors, otherwise energy is counted twice."
             }
@@ -735,6 +880,12 @@
             },
             "sinv_state_curtailment": {
                 "name": "Curtailment active"
+            },
+            "sinv_hp_compressor_running": {
+                "name": "Compressor running"
+            },
+            "sinv_hp_aux_heater_active": {
+                "name": "Auxiliary heater"
             }
         },
         "datetime": {
@@ -3455,6 +3606,12 @@
             "sinv_energy_battery_discharge_total": {
                 "name": "Battery discharged total"
             },
+            "sinv_energy_battery_charge_today": {
+                "name": "Battery charged today"
+            },
+            "sinv_energy_battery_discharge_today": {
+                "name": "Battery discharged today"
+            },
             "sinv_capacity_battery": {
                 "name": "Battery capacity"
             },
@@ -3485,6 +3642,12 @@
             "sinv_energy_grid_export_total": {
                 "name": "Grid export total"
             },
+            "sinv_energy_grid_import_today": {
+                "name": "Grid import today"
+            },
+            "sinv_energy_grid_export_today": {
+                "name": "Grid export today"
+            },
             "sinv_power_house": {
                 "name": "House consumption"
             },
@@ -3499,6 +3662,111 @@
             },
             "sinv_energy_house_total": {
                 "name": "House energy total"
+            },
+            "sinv_hp_power_electric": {
+                "name": "Electric power"
+            },
+            "sinv_hp_power_thermal": {
+                "name": "Thermal power"
+            },
+            "sinv_hp_energy_electric_total": {
+                "name": "Electric energy total"
+            },
+            "sinv_hp_energy_electric_today": {
+                "name": "Electric energy today"
+            },
+            "sinv_hp_energy_electric_heating_total": {
+                "name": "Electric energy heating total"
+            },
+            "sinv_hp_energy_electric_heating_today": {
+                "name": "Electric energy heating today"
+            },
+            "sinv_hp_energy_electric_dhw_total": {
+                "name": "Electric energy hot water total"
+            },
+            "sinv_hp_energy_electric_dhw_today": {
+                "name": "Electric energy hot water today"
+            },
+            "sinv_hp_energy_thermal_total": {
+                "name": "Thermal energy total"
+            },
+            "sinv_hp_energy_thermal_today": {
+                "name": "Thermal energy today"
+            },
+            "sinv_hp_energy_thermal_heating_total": {
+                "name": "Thermal energy heating total"
+            },
+            "sinv_hp_energy_thermal_heating_today": {
+                "name": "Thermal energy heating today"
+            },
+            "sinv_hp_energy_thermal_dhw_total": {
+                "name": "Thermal energy hot water total"
+            },
+            "sinv_hp_energy_thermal_dhw_today": {
+                "name": "Thermal energy hot water today"
+            },
+            "sinv_hp_cop_live": {
+                "name": "Live COP"
+            },
+            "sinv_hp_cop_total": {
+                "name": "Total COP"
+            },
+            "sinv_hp_temperature_outdoor": {
+                "name": "Outdoor temperature"
+            },
+            "sinv_hp_temperature_flow": {
+                "name": "Flow temperature"
+            },
+            "sinv_hp_temperature_return": {
+                "name": "Return temperature"
+            },
+            "sinv_hp_temperature_dhw": {
+                "name": "Hot water temperature"
+            },
+            "sinv_hp_temperature_storage": {
+                "name": "Storage temperature"
+            },
+            "sinv_hp_temperature_source": {
+                "name": "Source temperature"
+            },
+            "sinv_hp_temperature_indoor": {
+                "name": "Indoor temperature"
+            },
+            "sinv_hp_temperature_target": {
+                "name": "Target temperature"
+            },
+            "sinv_hp_operating_mode": {
+                "name": "Operating mode",
+                "state": {
+                    "off": "Off",
+                    "heating": "Heating",
+                    "cooling": "Cooling",
+                    "dhw": "Hot water",
+                    "defrost": "Defrost",
+                    "pool": "Pool",
+                    "unknown": "Unknown"
+                }
+            },
+            "sinv_hp_compressor_starts": {
+                "name": "Compressor starts"
+            },
+            "sinv_hp_runtime_total": {
+                "name": "Runtime total"
+            },
+            "sinv_hp_runtime_heating": {
+                "name": "Runtime heating"
+            },
+            "sinv_hp_runtime_dhw": {
+                "name": "Runtime hot water"
+            },
+            "sinv_hp_aux_heater_energy_total": {
+                "name": "Auxiliary heater energy total"
+            },
+            "sinv_hp_aux_heater_energy_today": {
+                "name": "Auxiliary heater energy today"
+            },
+            "sinv_hp_volume_flow": {
+                "name": "Volume flow"
             },
             "fronius_inverter_energy_total": {
                 "name": "Inverter AC energy total"
@@ -3608,6 +3876,54 @@
             "huawei_inverter_energy_today": {
                 "name": "Yield today (AC)"
             },
+            "huawei_pv_input_01_voltage": {
+                "name": "PV input 01 voltage"
+            },
+            "huawei_pv_input_01_current": {
+                "name": "PV input 01 current"
+            },
+            "huawei_pv_input_02_voltage": {
+                "name": "PV input 02 voltage"
+            },
+            "huawei_pv_input_02_current": {
+                "name": "PV input 02 current"
+            },
+            "huawei_pv_input_03_voltage": {
+                "name": "PV input 03 voltage"
+            },
+            "huawei_pv_input_03_current": {
+                "name": "PV input 03 current"
+            },
+            "huawei_pv_input_04_voltage": {
+                "name": "PV input 04 voltage"
+            },
+            "huawei_pv_input_04_current": {
+                "name": "PV input 04 current"
+            },
+            "huawei_pv_input_05_voltage": {
+                "name": "PV input 05 voltage"
+            },
+            "huawei_pv_input_05_current": {
+                "name": "PV input 05 current"
+            },
+            "huawei_pv_input_06_voltage": {
+                "name": "PV input 06 voltage"
+            },
+            "huawei_pv_input_06_current": {
+                "name": "PV input 06 current"
+            },
+            "huawei_pv_input_07_voltage": {
+                "name": "PV input 07 voltage"
+            },
+            "huawei_pv_input_07_current": {
+                "name": "PV input 07 current"
+            },
+            "huawei_pv_input_08_voltage": {
+                "name": "PV input 08 voltage"
+            },
+            "huawei_pv_input_08_current": {
+                "name": "PV input 08 current"
+            },
             "solakon_load_power": {
                 "name": "Load power (device)"
             },
@@ -3616,6 +3932,48 @@
             },
             "solakon_ac_input_energy_total": {
                 "name": "AC input total"
+            },
+            "deye_rated_power": {
+                "name": "Rated power"
+            },
+            "deye_running_state": {
+                "name": "Running state"
+            },
+            "deye_battery_voltage": {
+                "name": "Battery voltage"
+            },
+            "deye_ac_energy_today": {
+                "name": "Grid-side generation today"
+            },
+            "deye_ac_energy_total": {
+                "name": "Grid-side generation total"
+            },
+            "solplanet_rated_power": {
+                "name": "Rated power"
+            },
+            "solplanet_firmware": {
+                "name": "Firmware"
+            },
+            "solplanet_battery_voltage": {
+                "name": "Battery voltage"
+            },
+            "solplanet_inverter_energy_today": {
+                "name": "Inverter energy today"
+            },
+            "solplanet_inverter_energy_total": {
+                "name": "Inverter energy total"
+            },
+            "solplanet_voltage_grid_l2": {
+                "name": "Grid voltage L2"
+            },
+            "solplanet_voltage_grid_l3": {
+                "name": "Grid voltage L3"
+            },
+            "maxxisun_firmware_version": {
+                "name": "Firmware version"
+            },
+            "maxxisun_wifi_signal": {
+                "name": "Wi-Fi signal"
             },
             "zendure_battery_voltage": {
                 "name": "Battery voltage"
@@ -4182,6 +4540,9 @@
         },
         "site": {
             "name": "S-INV installation"
+        },
+        "hp": {
+            "name": "S-INV HP"
         }
     }
 }

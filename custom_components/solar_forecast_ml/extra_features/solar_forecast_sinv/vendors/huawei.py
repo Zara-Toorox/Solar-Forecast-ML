@@ -15,7 +15,10 @@ Register map: Huawei SUN2000MA V100R001C20 Modbus Interface Definitions (identit
 inverters. Modbus TCP runs on the SDongle (port 502, Modbus TCP enabled in the
 FusionSolar app) or on the inverter's own access point (port 6607). All values are
 holding registers (function 0x03) at the documented address; 32-bit values are
-high word first.
+high word first. Register 30071 is the PV string count and 30072 the MPP tracker
+count (both already inside the identity block). Strings are published as one MPPT
+each, unless 30072 is at least 1, lower than the string count, and divides it:
+then consecutive inputs share a tracker.
 
 Documented signs used directly:
 - Meter active power 37113: positive = feeding the grid -> contract
@@ -76,6 +79,27 @@ class VendorSpec:
     name_de: str
 
 
+def _pv_input_specs() -> dict[str, VendorSpec]:
+    specs: dict[str, VendorSpec] = {}
+    for index in range(1, MAX_STRINGS + 1):
+        nn = f"{index:02d}"
+        specs[f"pv_input_{nn}_voltage"] = VendorSpec(
+            "V",
+            "voltage",
+            "measurement",
+            f"PV input {nn} voltage",
+            f"PV-Eingang {nn} Spannung",
+        )
+        specs[f"pv_input_{nn}_current"] = VendorSpec(
+            "A",
+            "current",
+            "measurement",
+            f"PV input {nn} current",
+            f"PV-Eingang {nn} Strom",
+        )
+    return specs
+
+
 VENDOR_SPECS: dict[str, VendorSpec] = {
     "device_status": VendorSpec(None, None, None, "Device status", "Gerätestatus"),
     "inverter_energy_total": VendorSpec(
@@ -88,6 +112,7 @@ VENDOR_SPECS: dict[str, VendorSpec] = {
     "inverter_energy_today": VendorSpec(
         "kWh", "energy", "total_increasing", "Yield today (AC)", "Tagesertrag (AC)"
     ),
+    **_pv_input_specs(),
 }
 
 
@@ -164,6 +189,101 @@ def _scaled(value: int | None, divisor: float) -> float | None:
     return None if value is None else value / divisor
 
 
+def _count(regs: dict[int, int], address: int) -> int | None:
+    """Non-negative integer register, or None when the value is not a count. @zara"""
+    value = regs.get(address)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def _pv_sample(regs: dict[int, int], index: int) -> tuple[float | None, float | None]:
+    """Scaled voltage (V) and current (A) of one PV input, or None if unreadable. @zara"""
+    base = 32016 + 2 * (index - 1)
+
+    def signed(address: int) -> int | None:
+        value = regs.get(address)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or not 0 <= value <= 0xFFFF
+        ):
+            return None
+        return struct.unpack(">h", struct.pack(">H", value))[0]
+
+    voltage = signed(base)
+    current = signed(base + 1)
+    return (
+        None if voltage is None else voltage / 10,
+        None if current is None else current / 100,
+    )
+
+
+def _inputs_per_mppt(strings: int, mppts: int | None) -> int | None:
+    """Return the inputs per tracker when 30072 groups the strings, else None. @zara"""
+    if mppts is None or mppts < 1 or mppts >= strings or strings % mppts != 0:
+        return None
+    return strings // mppts
+
+
+def _mppt_voltage(group: list[tuple[float | None, float | None]]) -> float | None:
+    """Return the first input's voltage, or the highest if that one is 0 V and another is live. @zara"""
+    first = group[0][0] if group else None
+    if first != 0:
+        return first
+    live = [
+        voltage for voltage, _current in group if voltage is not None and voltage > 0
+    ]
+    return max(live) if live else first
+
+
+def _publish_group(
+    device: HuaweiDevice,
+    mppt: int,
+    group: list[tuple[float | None, float | None]],
+    first_input: int,
+) -> None:
+    currents: list[float] = []
+    power = 0.0
+    measured = False
+    for offset, (voltage, current) in enumerate(group):
+        nn = f"{first_input + offset:02d}"
+        if voltage is not None:
+            device.vendor[f"pv_input_{nn}_voltage"] = round(voltage, 1)
+        if current is not None:
+            device.vendor[f"pv_input_{nn}_current"] = round(current, 2)
+            currents.append(current)
+        if voltage is not None and current is not None:
+            power += max(0.0, voltage * current)
+            measured = True
+    _set(device, indexed_role("voltage_solar_mppt", mppt), _mppt_voltage(group))
+    if currents:
+        _set(device, indexed_role("current_solar_mppt", mppt), sum(currents), 2)
+    if measured:
+        role = indexed_role("power_solar_mppt", mppt)
+        _set(device, role, power, 0)
+        device.derived.add(role)
+
+
+def _apply_pv(device: HuaweiDevice, regs: dict[int, int]) -> None:
+    """Publish MPPT roles, grouping inputs only when 30072 divides 30071. @zara"""
+    strings = min(_count(regs, 30071) or 0, MAX_STRINGS)
+    samples = [_pv_sample(regs, index) for index in range(1, strings + 1)]
+    per_mppt = _inputs_per_mppt(strings, _count(regs, 30072))
+    if per_mppt is None:
+        for index, (voltage, current) in enumerate(samples, start=1):
+            _set(device, indexed_role("voltage_solar_mppt", index), voltage)
+            _set(device, indexed_role("current_solar_mppt", index), current, 2)
+            if voltage is not None and current is not None:
+                role = indexed_role("power_solar_mppt", index)
+                _set(device, role, max(0.0, voltage * current), 0)
+                device.derived.add(role)
+        return
+    for mppt in range(1, strings // per_mppt + 1):
+        start = (mppt - 1) * per_mppt
+        _publish_group(device, mppt, samples[start : start + per_mppt], start + 1)
+
+
 def build_devices(regs: dict[int, int]) -> dict[str, HuaweiDevice]:
     """Parse identity and running registers into the inverter device. @zara"""
     ident = identity(regs)
@@ -176,16 +296,7 @@ def build_devices(regs: dict[int, int]) -> dict[str, HuaweiDevice]:
         manufacturer=NAME,
         model=ident["model"],
     )
-    strings = min(u16(regs, 30071) or 0, MAX_STRINGS)
-    for index in range(1, strings + 1):
-        voltage = _scaled(s16(regs, 32016 + 2 * (index - 1)), 10)
-        current = _scaled(s16(regs, 32017 + 2 * (index - 1)), 100)
-        _set(device, indexed_role("voltage_solar_mppt", index), voltage)
-        _set(device, indexed_role("current_solar_mppt", index), current, 2)
-        if voltage is not None and current is not None:
-            role = indexed_role("power_solar_mppt", index)
-            _set(device, role, max(0.0, voltage * current), 0)
-            device.derived.add(role)
+    _apply_pv(device, regs)
     _set(device, "power_solar", s32(regs, 32064), 0)  # kW x1000 = W
     active = s32(regs, 32080)
     _set(device, "power_inverter_ac_output", active, 0)

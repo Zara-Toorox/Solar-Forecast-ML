@@ -82,7 +82,7 @@ const _SolarPage = {
 
                 <!-- 4 KPI Cards -->
                 <div class="annual-kpi-grid">
-                    <div class="annual-kpi" style="--kpi-accent: var(--solar);">
+                    <div class="annual-kpi" style="--kpi-accent: var(--solar);" :title="$t('solar.kpi.measuredYieldHint')">
                         <div class="annual-kpi-value" style="color: var(--solar);">
                             {{ annualKpis.totalKwh }} kWh
                         </div>

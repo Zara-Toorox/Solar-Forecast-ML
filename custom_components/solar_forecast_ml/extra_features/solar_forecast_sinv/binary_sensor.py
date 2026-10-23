@@ -39,6 +39,7 @@ from .const import (
     ATTRIBUTION,
     CONF_VENDOR,
     CREATE_ALL_ENTITIES,
+    is_hp_device_vendor,
     DOMAIN,
     MQTT_OVERLAY,
     TEST_NUMBERVARIANCE,
@@ -54,6 +55,11 @@ from .entity import (
     get_AnkerSolixSubdeviceInfo,
     get_AnkerSolixSystemInfo,
     get_AnkerSolixVehicleInfo,
+)
+from .hp_site import (
+    VENDOR_HP,
+    async_setup_hp_device_entities,
+    async_setup_hp_entities,
 )
 from .site import VENDOR_SITE, async_setup_site_entities
 from .solixapi.apitypes import SolarbankAiemsStatus, SolixDeviceType, SolixNetworkStatus
@@ -352,6 +358,14 @@ async def async_setup_entry(
     """Set up binary sensor platform. @thomas"""
     if entry.data.get(CONF_VENDOR) == VENDOR_SITE:
         await async_setup_site_entities(
+            hass, entry, async_add_entities, "binary_sensor"
+        )
+        return
+    if entry.data.get(CONF_VENDOR) == VENDOR_HP:
+        await async_setup_hp_entities(hass, entry, async_add_entities, "binary_sensor")
+        return
+    if is_hp_device_vendor(entry.data.get(CONF_VENDOR)):
+        await async_setup_hp_device_entities(
             hass, entry, async_add_entities, "binary_sensor"
         )
         return

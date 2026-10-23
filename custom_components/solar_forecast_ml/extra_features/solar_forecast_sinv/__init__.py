@@ -40,7 +40,7 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.typing import ConfigType
 
-from . import api_client, energy_hint, external_meter, install_counter, site
+from . import api_client, energy_hint, external_meter, hp_site, install_counter, site
 from .config_flow import (
     CONF_API_ENCRYPTION,
     CONF_API_OPTIONS,
@@ -76,21 +76,29 @@ from .const import (
     LOCAL_VENDORS,
     LOGGER,
     PLATFORMS,
+    VENDOR_HP,
+    is_hp_device_vendor,
     REGISTERED_EXCLUDES,
     VENDOR_CONNECTIONS,
 )
 from .ahoy_coordinator import AhoyCoordinator
 from .coordinator import AnkerSolixDataUpdateCoordinator, Command
+from .deye_coordinator import DeyeCoordinator
+from .emsesp_coordinator import EmsespCoordinator
+from .hp_bridge_coordinator import HpBridgeCoordinator
 from .entity import async_migrate_legacy_entities
 from .fronius_coordinator import FroniusCoordinator
 from .hoymiles_dtu_coordinator import HoymilesDtuCoordinator
 from .huawei_coordinator import HuaweiCoordinator
 from .kostal_coordinator import KostalCoordinator
+from .maxxisun_coordinator import MaxxisunCoordinator
 from .opendtu_coordinator import OpenDtuCoordinator
 from .services import async_setup_services  # async_remove_services
 from .solakon_coordinator import SolakonCoordinator
+from .solplanet_coordinator import SolplanetCoordinator
 from .solax_coordinator import SolaxCoordinator
 from .solixapi.apitypes import ApiCategories, SolixDeviceType
+from .stiebel_isg_coordinator import StiebelCoordinator
 from .sungrow_coordinator import SungrowCoordinator
 from .zendure_coordinator import ZendureCoordinator
 
@@ -107,9 +115,17 @@ LOCAL_COORDINATORS = {
     "local_modbus_sungrow": SungrowCoordinator,
     "local_modbus_huawei": HuaweiCoordinator,
     "local_modbus_solakon": SolakonCoordinator,
+    "local_solarman_v5": DeyeCoordinator,
+    "local_modbus_deye": DeyeCoordinator,
+    "local_modbus_solplanet": SolplanetCoordinator,
     "local_ahoy": AhoyCoordinator,
+    "local_webhook_maxxisun": MaxxisunCoordinator,
+    "local_emsesp": EmsespCoordinator,
+    "ha_bridge": HpBridgeCoordinator,
+    "local_modbus_stiebel": StiebelCoordinator,
 }
 SITE_PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH]
+HP_PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
@@ -126,7 +142,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         install_counter.async_setup_install_counter(hass, entry)
         energy_hint.async_setup_energy_hint(hass, entry)
         return True
-    site.async_ensure_site_entry(hass)
+    if entry.data.get(CONF_VENDOR) == VENDOR_HP:
+        await hass.config_entries.async_forward_entry_setups(entry, HP_PLATFORMS)
+        return True
+    if is_hp_device_vendor(entry.data.get(CONF_VENDOR)):
+        hp_site.async_ensure_hp_entry(hass)
+    else:
+        site.async_ensure_site_entry(hass)
     external_meter.remember_applied(entry)
     if entry.data.get(CONF_VENDOR) in LOCAL_VENDORS:
         return await _async_setup_local_entry(hass, entry)
@@ -240,7 +262,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_setup_local_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up an instance on a local vendor API (Fronius Solar API, Zendure zenSDK). @zara"""
+    """Set up an instance on a local vendor API (Fronius, Zendure, maxxisun webhook). @zara"""
     coordinator_class = LOCAL_COORDINATORS.get(
         entry.data.get(CONF_CONNECTION), FroniusCoordinator
     )
@@ -248,7 +270,12 @@ async def _async_setup_local_entry(hass: HomeAssistant, entry: ConfigEntry) -> b
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
-    await hass.config_entries.async_forward_entry_setups(entry, LOCAL_PLATFORMS)
+    platforms = (
+        HP_PLATFORMS
+        if is_hp_device_vendor(entry.data.get(CONF_VENDOR))
+        else LOCAL_PLATFORMS
+    )
+    await hass.config_entries.async_forward_entry_setups(entry, platforms)
     return True
 
 
@@ -363,8 +390,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     #     async_remove_services(hass)
     if entry.data.get(CONF_VENDOR) == site.VENDOR_SITE:
         return await hass.config_entries.async_unload_platforms(entry, SITE_PLATFORMS)
+    if entry.data.get(CONF_VENDOR) == VENDOR_HP:
+        return await hass.config_entries.async_unload_platforms(entry, HP_PLATFORMS)
     if entry.data.get(CONF_VENDOR) in LOCAL_VENDORS:
-        return await hass.config_entries.async_unload_platforms(entry, LOCAL_PLATFORMS)
+        platforms = (
+            HP_PLATFORMS
+            if is_hp_device_vendor(entry.data.get(CONF_VENDOR))
+            else LOCAL_PLATFORMS
+        )
+        return await hass.config_entries.async_unload_platforms(entry, platforms)
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
     return unloaded
@@ -378,13 +412,14 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     if len(active) >= len(entries):
         ir.async_delete_issue(hass, DOMAIN, "duplicate_devices")
     site.async_remove_unused_site_entry(hass, entry)
+    hp_site.async_remove_unused_hp_entry(hass, entry)
 
 
 async def async_remove_config_entry_device(
     hass: HomeAssistant, config_entry: ConfigEntry, device_entry: DeviceEntry
 ) -> bool:
     """Support removal of devices but remove a config entry from a device only if the device is no longer active. @thomas"""
-    if config_entry.data.get(CONF_VENDOR) == site.VENDOR_SITE:
+    if config_entry.data.get(CONF_VENDOR) in (site.VENDOR_SITE, VENDOR_HP):
         return True
     if config_entry.data.get(CONF_VENDOR) in LOCAL_VENDORS:
         reported = getattr(config_entry, "runtime_data", None)

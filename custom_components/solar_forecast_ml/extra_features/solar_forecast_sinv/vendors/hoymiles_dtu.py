@@ -17,6 +17,12 @@ Scaling as used by the established hoymiles-wifi Home Assistant integration:
 power 0.1 W, voltage 0.1 V, current 0.01 A, frequency 0.01 Hz, temperature 0.1 °C,
 PV energies in Wh. ``sgs_data`` are single-phase inverters, ``tgs_data`` three-phase
 ones, ``pv_data`` the PV ports of all inverters.
+
+A whole answer is unusable when every inverter grid voltage is 0 or missing and
+every DC voltage is 0, or when a lifetime energy counter fell below the last
+accepted value of that device. The coordinator discards that answer. The same
+lower total is accepted only after it repeats for three answers without falling
+further. A null frame never counts toward those three.
 """
 
 from __future__ import annotations
@@ -34,6 +40,13 @@ CONNECTION_LOCAL = "local_dtu"
 DEFAULT_SCAN_SECONDS = 35
 # DTUs (above all the Wi-Fi ones) suffer from frequent polling
 MIN_SCAN_SECONDS = 30
+# Lifetime totals are integer Wh, published as kWh rounded to 3 decimals.
+# Half of that 0.001 kWh step is float residue around the rounding boundary,
+# not a counter reset. A full displayed step downwards is rejected.
+ENERGY_ROLLBACK_TOLERANCE_KWH = 0.0005
+# A lasting reset (firmware, swapped inverter, overflow) repeats the new total.
+# One low answer does not. Three readings that do not fall further adopt it.
+RESET_CONFIRMATIONS = 3
 POWER_ROLES_PREFIX = ("power_",)
 
 
@@ -136,13 +149,117 @@ def build_devices(
         device = devices[serial]
         device.roles["power_solar"] = round(totals.power)
         device.derived.add("power_solar")
-        if totals.energy_total > 0:
-            device.roles["energy_solar_total"] = round(totals.energy_total / 1000, 3)
+        # 0 stays visible so a wiped lifetime counter can be rejected before it
+        # is published; Home Assistant would otherwise book it as a reset
+        device.roles["energy_solar_total"] = round(totals.energy_total / 1000, 3)
         device.roles["energy_solar_today"] = round(totals.energy_daily / 1000, 3)
     for device in devices.values():
         if (net := ac_net_without_battery(device.roles)) is not None:
             device.roles["power_ac_net"] = net
     return devices
+
+
+def _finite(value: Any) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and value == value
+        and value not in (float("inf"), float("-inf"))
+    )
+
+
+NULL_FRAME = "null frame: grid voltage missing or 0 and every DC voltage is 0"
+
+
+@dataclass
+class ResetTrack:
+    """One discarded lifetime total and how many answers have held it. @zara"""
+
+    value: float
+    count: int
+
+
+def null_frame(devices: dict[str, HoymilesDevice]) -> bool:
+    """Return True when every grid voltage is 0 or missing and every DC voltage is 0. @zara"""
+    if not devices:
+        return False
+    grid_dead = all(
+        device.roles.get("voltage_grid", 0) == 0 for device in devices.values()
+    )
+    if not grid_dead:
+        return False
+    dc = [
+        value
+        for device in devices.values()
+        for role, value in device.roles.items()
+        if role.startswith("voltage_solar_mppt_")
+    ]
+    return all(value == 0 for value in dc)
+
+
+def lifetime_drops(
+    devices: dict[str, HoymilesDevice], accepted_energy: dict[str, float]
+) -> dict[str, float]:
+    """Return lifetime totals that fell below the accepted baseline. @zara"""
+    drops: dict[str, float] = {}
+    for serial, device in devices.items():
+        energy = device.roles.get("energy_solar_total")
+        previous = accepted_energy.get(serial)
+        if not _finite(energy) or not _finite(previous):
+            continue
+        if energy < previous - ENERGY_ROLLBACK_TOLERANCE_KWH:
+            drops[serial] = float(energy)
+    return drops
+
+
+def advance_reset(pending: dict[str, ResetTrack], serial: str, energy: float) -> int:
+    """Count this reading when it stays at or above the previous discard. @zara"""
+    track = pending.get(serial)
+    # Same rounding window as the baseline check: a full 0.001 kWh step down
+    # starts a new streak, float residue around one reading does not.
+    if track is not None and energy >= track.value - ENERGY_ROLLBACK_TOLERANCE_KWH:
+        count = track.count + 1
+    else:
+        count = 1
+    pending[serial] = ResetTrack(float(energy), count)
+    return count
+
+
+def invalid_frame(
+    devices: dict[str, HoymilesDevice], accepted_energy: dict[str, float]
+) -> str | None:
+    """Return why this answer must be discarded, or None when it is usable. @zara
+
+    A running inverter always measures grid voltage, so a set where every grid
+    voltage is 0 or missing and every DC voltage is 0 is a null frame. A
+    lifetime total below the last accepted value of the same device (beyond
+    rounding) would be stored as a counter reset until it has repeated.
+    """
+    if not devices:
+        return None
+    if null_frame(devices):
+        return NULL_FRAME
+    drops = lifetime_drops(devices, accepted_energy)
+    if not drops:
+        return None
+    serial = next(iter(drops))
+    return (
+        f"lifetime energy of {serial} dropped from "
+        f"{accepted_energy[serial]} to {drops[serial]}"
+    )
+
+
+def remember_energy(
+    accepted: dict[str, float], devices: dict[str, HoymilesDevice]
+) -> None:
+    """Keep the highest accepted lifetime total; a lower reading never replaces it. @zara"""
+    for serial, device in devices.items():
+        energy = device.roles.get("energy_solar_total")
+        if not _finite(energy):
+            continue
+        previous = accepted.get(serial)
+        if previous is None or energy > previous:
+            accepted[serial] = float(energy)
 
 
 def asleep(device: HoymilesDevice) -> HoymilesDevice:

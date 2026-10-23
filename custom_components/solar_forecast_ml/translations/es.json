@@ -210,6 +210,16 @@
       "name": "Ejecutar correccion adaptativa de mediodia",
       "description": "DEVELOPER ONLY or on ADVICE"
     },
+    "set_adaptive_forecast_mode": {
+      "name": "Cambiar la correccion del mediodia",
+      "description": "Activa o desactiva la correccion del mediodia sin reiniciar. Un valor guardado se respeta. Si no hay valor guardado, queda activada. La siguiente revision de las 12:30 la sigue de inmediato.",
+      "fields": {
+        "enabled": {
+          "name": "Activada",
+          "description": "Activada: la revision puede corregir. Desactivada: solo registra que la correccion del mediodia esta apagada."
+        }
+      }
+    },
     "run_weather_correction": {
       "name": "Recrear prevision meteorologica corregida",
       "description": "DEVELOPER ONLY or on ADVICE"

@@ -41,10 +41,16 @@ VENDOR_FRONIUS: Final[str] = "fronius"
 VENDOR_ZENDURE: Final[str] = "zendure"
 VENDOR_HOYMILES: Final[str] = "hoymiles"
 VENDOR_KOSTAL: Final[str] = "kostal"
+VENDOR_MAXXISUN: Final[str] = "maxxisun"
 VENDOR_SOLAX: Final[str] = "solax"
 VENDOR_SUNGROW: Final[str] = "sungrow"
 VENDOR_HUAWEI: Final[str] = "huawei"
 VENDOR_SOLAKON: Final[str] = "solakon"
+VENDOR_DEYE: Final[str] = "deye"
+VENDOR_SOLPLANET: Final[str] = "solplanet"
+VENDOR_EMSESP: Final[str] = "emsesp"
+VENDOR_HP_BRIDGE: Final[str] = "hp_bridge"
+VENDOR_STIEBEL: Final[str] = "stiebel_isg"
 # vendors read over a local network API, one instance per config entry
 LOCAL_VENDORS: Final[tuple[str, ...]] = (
     VENDOR_FRONIUS,
@@ -55,6 +61,12 @@ LOCAL_VENDORS: Final[tuple[str, ...]] = (
     VENDOR_SUNGROW,
     VENDOR_HUAWEI,
     VENDOR_SOLAKON,
+    VENDOR_MAXXISUN,
+    VENDOR_DEYE,
+    VENDOR_SOLPLANET,
+    VENDOR_EMSESP,
+    VENDOR_HP_BRIDGE,
+    VENDOR_STIEBEL,
 )
 VENDOR_CONNECTIONS: Final[dict[str, tuple[str, ...]]] = {
     "anker": ("cloud",),
@@ -66,6 +78,12 @@ VENDOR_CONNECTIONS: Final[dict[str, tuple[str, ...]]] = {
     VENDOR_SUNGROW: ("local_modbus_sungrow",),
     VENDOR_HUAWEI: ("local_modbus_huawei",),
     VENDOR_SOLAKON: ("local_modbus_solakon",),
+    VENDOR_MAXXISUN: ("local_webhook_maxxisun",),
+    VENDOR_DEYE: ("local_solarman_v5", "local_modbus_deye"),
+    VENDOR_SOLPLANET: ("local_modbus_solplanet",),
+    VENDOR_EMSESP: ("local_emsesp",),
+    VENDOR_HP_BRIDGE: ("ha_bridge",),
+    VENDOR_STIEBEL: ("local_modbus_stiebel",),
 }
 # First setup step: one list entry per supported system (vendor, connection)
 CONF_SYSTEM: Final[str] = "system"
@@ -81,7 +99,31 @@ SUPPORTED_SYSTEMS: Final[dict[str, tuple[str, str]]] = {
     "sungrow_local_modbus": (VENDOR_SUNGROW, "local_modbus_sungrow"),
     "huawei_local_modbus": (VENDOR_HUAWEI, "local_modbus_huawei"),
     "solakon_local_modbus": (VENDOR_SOLAKON, "local_modbus_solakon"),
+    "maxxisun_local_webhook": (VENDOR_MAXXISUN, "local_webhook_maxxisun"),
+    "deye_solarman_v5": (VENDOR_DEYE, "local_solarman_v5"),
+    "deye_modbus_tcp": (VENDOR_DEYE, "local_modbus_deye"),
+    "solplanet_modbus_tcp": (VENDOR_SOLPLANET, "local_modbus_solplanet"),
 }
+# Heat-pump systems. While this dict is empty the config flow keeps the
+# inverter list as the first step. A registered system shows the WR/HP menu.
+VENDOR_HP: Final[str] = "hp"
+HP_DEVICE_VENDORS: frozenset[str] = frozenset(
+    {VENDOR_EMSESP, VENDOR_HP_BRIDGE, VENDOR_STIEBEL}
+)
+SUPPORTED_HP_SYSTEMS: dict[str, tuple[str, str]] = {
+    "bosch_emsesp": (VENDOR_EMSESP, "local_emsesp"),
+    "hp_bridge": (VENDOR_HP_BRIDGE, "ha_bridge"),
+    "stiebel_isg": (VENDOR_STIEBEL, "local_modbus_stiebel"),
+}
+
+
+def is_hp_device_vendor(vendor: str | None) -> bool:
+    """Return True for a heat-pump device entry, not the HP aggregate. @zara"""
+    return bool(vendor) and vendor in HP_DEVICE_VENDORS
+
+
+CONF_WEBHOOK_ID: Final[str] = "webhook_id"
+CONF_LOGGER_SERIAL: Final[str] = "logger_serial"
 MANUFACTURER: Final[str] = "Anker"
 ATTRIBUTION: Final[str] = "Data provided by Anker Solix Api"
 ACCEPT_TERMS: Final[str] = "accept_terms"

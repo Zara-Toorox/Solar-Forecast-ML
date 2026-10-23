@@ -210,6 +210,16 @@
       "name": "Executer la correction adaptative de midi",
       "description": "DEVELOPER ONLY or on ADVICE"
     },
+    "set_adaptive_forecast_mode": {
+      "name": "Basculer la correction de midi",
+      "description": "Active ou desactive la correction de midi sans redemarrage. Une valeur enregistree est respectee. Sans valeur enregistree, elle reste activee. Le prochain controle de 12:30 suit immediatement.",
+      "fields": {
+        "enabled": {
+          "name": "Activee",
+          "description": "Activee : le controle peut corriger. Desactivee : il enregistre seulement que la correction de midi est coupee."
+        }
+      }
+    },
     "run_weather_correction": {
       "name": "Recreer la prevision meteo corrigee",
       "description": "DEVELOPER ONLY or on ADVICE"

@@ -203,6 +203,98 @@
         return wrapped;
     }
 
+    function rememberMissing(kept, selected, liveIds) {
+        const live = new Set(liveIds || []);
+        const next = (kept || []).filter((item) => item && !live.has(item.id));
+        const have = new Set(next.map((item) => item.id));
+        (selected || []).forEach((raw) => {
+            const id = String(raw || "");
+            if (!id || live.has(id) || have.has(id)) return;
+            next.push({ id, name: id, missing: true });
+            have.add(id);
+        });
+        return next;
+    }
+
+    function choiceTiles(kept, liveTiles) {
+        const tiles = liveTiles || [];
+        const live = new Set(tiles.map((item) => item.id));
+        return [...(kept || []).filter((item) => item && !live.has(item.id)), ...tiles];
+    }
+
+    function needsPresentClimate(selected, liveIds, kept) {
+        const live = new Set(liveIds || []);
+        const ids = (selected || []).map((id) => String(id || "")).filter(Boolean);
+        if (ids.some((id) => live.has(id))) return false;
+        if (ids.some((id) => !live.has(id))) return true;
+        return (kept || []).some((item) => item && !live.has(item.id));
+    }
+
+    function dropRemembered(kept, selected) {
+        const ids = new Set((selected || []).map((id) => String(id)));
+        return (kept || []).filter((item) => ids.has(item.id));
+    }
+
+    function settingsView(source) {
+        const body = source || {};
+        const limit = body.heating_limit_c;
+        const lift = body.lift_k;
+        return {
+            base_temp_c: Number(body.base_temp_c),
+            frost_floor_c: Number(body.frost_floor_c),
+            presence_entities: [...(body.presence_entities || [])].map((id) => String(id)).sort(),
+            away_delay_min: Number(body.away_delay_min),
+            outdoor_entity: body.outdoor_entity || "",
+            heating_limit_c: limit == null || limit === "" ? 15 : Number(limit),
+            vacation_start: body.vacation_start || "",
+            vacation_end: body.vacation_end || "",
+            lift_k: lift == null || lift === "" ? 1 : Number(lift),
+            lift_on_pv: body.lift_on_pv === true,
+            lift_on_cheap: body.lift_on_cheap === true,
+        };
+    }
+
+    function sameSettings(left, right) {
+        return JSON.stringify(settingsView(left)) === JSON.stringify(settingsView(right));
+    }
+
+    function cloneServerSettings(source) {
+        const view = settingsView(source);
+        view.presence_entities = [...(source?.presence_entities || [])].map((id) => String(id));
+        return view;
+    }
+
+    function settleSettings(state, incoming, adopt) {
+        const pending = cloneServerSettings(incoming);
+        if (!adopt && !sameSettings(state.form, state.accepted)) {
+            return { form: state.form, accepted: state.accepted, pending, dirty: true };
+        }
+        const form = cloneServerSettings(incoming);
+        const accepted = settingsView(form);
+        return { form, accepted, pending: cloneServerSettings(form), dirty: false };
+    }
+
+    function discardSettingsState(state) {
+        const form = cloneServerSettings(state.pending);
+        const accepted = settingsView(form);
+        return { form, accepted, pending: cloneServerSettings(form), dirty: false };
+    }
+
+    function writeSettings(target, source) {
+        const view = settingsView(source);
+        target.base_temp_c = view.base_temp_c;
+        target.frost_floor_c = view.frost_floor_c;
+        target.presence_entities = [...(source?.presence_entities || [])].map((id) => String(id));
+        target.away_delay_min = view.away_delay_min;
+        target.outdoor_entity = view.outdoor_entity;
+        target.heating_limit_c = view.heating_limit_c;
+        target.vacation_start = view.vacation_start;
+        target.vacation_end = view.vacation_end;
+        target.lift_k = view.lift_k;
+        target.lift_on_pv = view.lift_on_pv;
+        target.lift_on_cheap = view.lift_on_cheap;
+    }
+
     const blankRoom = () => ({
         id: "",
         name: "",
@@ -426,10 +518,13 @@
                                     <h4>{{ text('heating.presencePersons') }}</h4>
                                     <p>{{ text('heating.presencePersonsHint') }}</p>
                                     <div class="heating-tiles" role="group" :aria-label="text('heating.presencePersons')">
-                                        <label v-for="entity in persons" :key="'room-' + entity.id" class="heating-tile" :class="{ on: draft.presence_persons.includes(entity.id) }">
+                                        <label v-for="entity in roomPersonChoices" :key="'room-' + entity.id" class="heating-tile" :class="{ on: draft.presence_persons.includes(entity.id), missing: entity.missing }">
                                             <input type="checkbox" :value="entity.id" v-model="draft.presence_persons">
                                             <span class="heating-tile-mark" aria-hidden="true"></span>
-                                            <span class="heating-tile-name" :title="entity.id">{{ entity.name }}</span>
+                                            <span class="heating-tile-copy">
+                                                <span class="heating-tile-name" :title="entity.id">{{ entity.name }}</span>
+                                                <small v-if="entity.missing">{{ text('heating.entityMissing') }}</small>
+                                            </span>
                                         </label>
                                     </div>
                                 </div>
@@ -450,12 +545,16 @@
                                     <input v-model="climateQuery" type="search" :placeholder="text('heating.search')" :aria-label="text('heating.search')">
                                 </label>
                                 <div class="heating-tiles" role="group" :aria-label="text('heating.thermostats')">
-                                    <label v-for="entity in visibleClimates" :key="entity.id" class="heating-tile" :class="{ on: draft.climate_entities.includes(entity.id) }">
+                                    <label v-for="entity in climateChoices" :key="entity.id" class="heating-tile" :class="{ on: draft.climate_entities.includes(entity.id), missing: entity.missing }">
                                         <input type="checkbox" :value="entity.id" v-model="draft.climate_entities">
                                         <span class="heating-tile-mark" aria-hidden="true"></span>
-                                        <span class="heating-tile-name" :title="entity.id">{{ entity.name }}</span>
+                                        <span class="heating-tile-copy">
+                                            <span class="heating-tile-name" :title="entity.id">{{ entity.name }}</span>
+                                            <small v-if="entity.missing">{{ text('heating.entityMissing') }}</small>
+                                        </span>
                                     </label>
                                 </div>
+                                <p v-if="climateOnlyMissing" class="heating-missing-hint">{{ text('heating.errors.climate_required') }}</p>
                                 <div class="heating-fields">
                                     <label>{{ text('heating.sensor') }}
                                         <select v-model="draft.temp_sensor"><option value="">{{ text('heating.none') }}</option><option v-for="entity in sensors" :key="entity.id" :value="entity.id" :title="entity.id">{{ entity.name }}</option></select>
@@ -511,6 +610,10 @@
                         <header class="heating-manage-head">
                             <h3>{{ text('heating.tabs.settings') }}</h3>
                         </header>
+                        <div v-if="settingsDirty" class="heating-dirty" role="status">
+                            <span>{{ text('heating.unsaved') }}</span>
+                            <button type="button" @click="discardSettings">{{ text('heating.discard') }}</button>
+                        </div>
                         <div class="heating-editor">
                             <div class="heating-fields">
                                 <label>{{ text('heating.baseTemp') }}<small>{{ text('heating.baseTempHelp') }}</small><input v-model.number="settings.base_temp_c" type="number" min="5" max="30" step="0.5" required></label>
@@ -519,10 +622,13 @@
                             <section class="heating-section">
                                 <h4>{{ text('heating.persons') }}</h4>
                                 <div class="heating-tiles" role="group" :aria-label="text('heating.persons')">
-                                    <label v-for="entity in persons" :key="entity.id" class="heating-tile" :class="{ on: settings.presence_entities.includes(entity.id) }">
+                                    <label v-for="entity in settingsPersonChoices" :key="entity.id" class="heating-tile" :class="{ on: settings.presence_entities.includes(entity.id), missing: entity.missing }">
                                         <input type="checkbox" :value="entity.id" v-model="settings.presence_entities">
                                         <span class="heating-tile-mark" aria-hidden="true"></span>
-                                        <span class="heating-tile-name" :title="entity.id">{{ entity.name }}</span>
+                                        <span class="heating-tile-copy">
+                                            <span class="heating-tile-name" :title="entity.id">{{ entity.name }}</span>
+                                            <small v-if="entity.missing">{{ text('heating.entityMissing') }}</small>
+                                        </span>
                                     </label>
                                 </div>
                             </section>
@@ -577,6 +683,9 @@
                 outdoor_entity: "", heating_limit_c: 15, vacation_start: "", vacation_end: "",
                 lift_k: 1, lift_on_pv: false, lift_on_cheap: false,
             });
+            const acceptedSettings = Vue.ref(settingsView(settings));
+            const pendingSettings = Vue.ref(cloneServerSettings(settings));
+            const settingsDirty = Vue.computed(() => !sameSettings(settings, acceptedSettings.value));
             const boostDrafts = Vue.reactive({});
             const guideParts = ["watching", "temps", "schedule", "presence", "order", "boost", "vacation", "window", "lift", "season", "preheat", "manual"];
             const adviceParts = ["watching", "comfort", "setback", "frost", "schedule", "presence", "delay", "boost", "vacation", "window", "lift", "limit"];
@@ -603,15 +712,68 @@
                     name: String(item.attributes?.friendly_name || item.entity_id),
                 })).sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }) || left.id.localeCompare(right.id));
             }
+            const keptMissingClimates = Vue.ref([]);
+            const keptMissingRoomPersons = Vue.ref([]);
+            const keptSettingsPersons = Vue.ref([]);
             const climates = Vue.computed(() => namedEntities(entities.value.filter((item) => String(item.entity_id).startsWith("climate."))));
             const visibleClimates = Vue.computed(() => {
                 const query = climateQuery.value.trim().toLowerCase();
                 if (!query) return climates.value;
                 return climates.value.filter((item) => item.name.toLowerCase().includes(query) || item.id.toLowerCase().includes(query));
             });
+            const climateChoices = Vue.computed(() => choiceTiles(keptMissingClimates.value, visibleClimates.value));
+            const climateOnlyMissing = Vue.computed(() => needsPresentClimate(
+                draft.climate_entities,
+                climates.value.map((item) => item.id),
+                keptMissingClimates.value,
+            ));
             const sensors = Vue.computed(() => namedEntities(entities.value.filter((item) => String(item.entity_id).startsWith("sensor.") && item.attributes?.device_class === "temperature")));
             const windows = Vue.computed(() => namedEntities(entities.value.filter((item) => String(item.entity_id).startsWith("binary_sensor."))));
             const persons = Vue.computed(() => namedEntities(entities.value.filter((item) => String(item.entity_id).startsWith("person."))));
+            const roomPersonChoices = Vue.computed(() => choiceTiles(keptMissingRoomPersons.value, persons.value));
+            const settingsPersonChoices = Vue.computed(() => choiceTiles(keptSettingsPersons.value, persons.value));
+            Vue.watch(
+                () => (editorOpen.value
+                    ? `${draft.climate_entities.join("\0")}|${climates.value.map((item) => item.id).join("\0")}`
+                    : ""),
+                () => {
+                    if (!editorOpen.value) {
+                        keptMissingClimates.value = [];
+                        return;
+                    }
+                    keptMissingClimates.value = rememberMissing(
+                        keptMissingClimates.value,
+                        draft.climate_entities,
+                        climates.value.map((item) => item.id),
+                    );
+                },
+            );
+            Vue.watch(
+                () => (editorOpen.value
+                    ? `${draft.presence_persons.join("\0")}|${persons.value.map((item) => item.id).join("\0")}`
+                    : ""),
+                () => {
+                    if (!editorOpen.value) {
+                        keptMissingRoomPersons.value = [];
+                        return;
+                    }
+                    keptMissingRoomPersons.value = rememberMissing(
+                        keptMissingRoomPersons.value,
+                        draft.presence_persons,
+                        persons.value.map((item) => item.id),
+                    );
+                },
+            );
+            Vue.watch(
+                () => `${settings.presence_entities.join("\0")}|${persons.value.map((item) => item.id).join("\0")}`,
+                () => {
+                    keptSettingsPersons.value = rememberMissing(
+                        keptSettingsPersons.value,
+                        settings.presence_entities,
+                        persons.value.map((item) => item.id),
+                    );
+                },
+            );
             const outdoors = Vue.computed(() => namedEntities(entities.value.filter((item) => {
                 const id = String(item.entity_id);
                 if (id.startsWith("weather.")) return true;
@@ -623,22 +785,28 @@
                 return payload || {};
             }
 
-            function applyStatus(payload) {
+            function applyStatus(payload, adopt) {
                 const body = unwrap(payload);
                 status.value = body;
-                if (body.settings) {
-                    settings.base_temp_c = body.settings.base_temp_c;
-                    settings.frost_floor_c = body.settings.frost_floor_c;
-                    settings.presence_entities = [...(body.settings.presence_entities || [])];
-                    settings.away_delay_min = body.settings.away_delay_min;
-                    settings.outdoor_entity = body.settings.outdoor_entity || "";
-                    settings.heating_limit_c = body.settings.heating_limit_c ?? 15;
-                    settings.vacation_start = body.settings.vacation_start || "";
-                    settings.vacation_end = body.settings.vacation_end || "";
-                    settings.lift_k = body.settings.lift_k ?? 1;
-                    settings.lift_on_pv = body.settings.lift_on_pv === true;
-                    settings.lift_on_cheap = body.settings.lift_on_cheap === true;
-                }
+                if (!body.settings) return;
+                const incoming = cloneServerSettings(body.settings);
+                pendingSettings.value = incoming;
+                if (!adopt && !sameSettings(settings, acceptedSettings.value)) return;
+                writeSettings(settings, incoming);
+                acceptedSettings.value = settingsView(settings);
+                keptSettingsPersons.value = dropRemembered(
+                    keptSettingsPersons.value,
+                    settings.presence_entities,
+                );
+            }
+
+            function discardSettings() {
+                writeSettings(settings, pendingSettings.value);
+                acceptedSettings.value = settingsView(settings);
+                keptSettingsPersons.value = dropRemembered(
+                    keptSettingsPersons.value,
+                    settings.presence_entities,
+                );
             }
 
             async function refresh() {
@@ -766,6 +934,10 @@
             }
 
             async function saveRoom() {
+                if (climateOnlyMissing.value) {
+                    message.value = text("heating.errors.climate_required");
+                    return;
+                }
                 try {
                     const fields = roomPayload();
                     if (draft.id) await bridge.request("updateRoom", { id: draft.id, ...fields });
@@ -805,7 +977,7 @@
                         lift_k: settings.lift_k,
                         lift_on_pv: settings.lift_on_pv === true,
                         lift_on_cheap: settings.lift_on_cheap === true,
-                    }));
+                    }), true);
                 } catch (error) {
                     message.value = failureText(error);
                 }
@@ -1142,10 +1314,10 @@
             });
 
             return {
-                text, tabs, activeTab, loading, message, status, rooms, draft, settings, guideParts, adviceParts, boostChoices,
-                climates, visibleClimates, climateQuery, sensors, windows, persons, outdoors, weekdays: WEEKDAYS, pendingDelete, editorOpen, editorTitle, bridgeHost,
+                text, tabs, activeTab, loading, message, status, rooms, draft, settings, settingsDirty, guideParts, adviceParts, boostChoices,
+                climates, visibleClimates, climateChoices, climateOnlyMissing, climateQuery, sensors, windows, persons, roomPersonChoices, settingsPersonChoices, outdoors, weekdays: WEEKDAYS, pendingDelete, editorOpen, editorTitle, bridgeHost,
                 labelOf, entityLabels, displayName, uiPhrase, roomModeChip,
-                editRoom, beginAdd, beginEdit, cancelEditor, openManageAdd, saveRoom, askDelete, confirmDelete, saveSettings, toggleRoom, resumeRoom,
+                editRoom, beginAdd, beginEdit, cancelEditor, openManageAdd, saveRoom, askDelete, confirmDelete, saveSettings, discardSettings, toggleRoom, resumeRoom,
                 boostDraft, startBoost, clearBoost, clearVacation, vacationActive,
                 actualOf, setpointOf, lastWriteOf, formatTemp, formatNumber, formatTime, reasonText, onTabKey,
                 addWindow, toggleDay, seasonText, seasonTone, hvacText, presenceText, presenceKind,

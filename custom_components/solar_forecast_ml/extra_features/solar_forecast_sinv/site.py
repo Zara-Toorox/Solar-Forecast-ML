@@ -13,7 +13,9 @@ One config entry of its own owns the system entities, so they survive adding or
 removing inverter instances. Each system entity follows the device entities of its
 role (found through the entity registry by unique_id) and combines them by the
 aggregation rule of the contract. A missing device value makes the system value
-unavailable, so totals never drop.
+unavailable, so totals never drop. Daily counters and house energy are derived
+when no device reports them and their inputs exist. Power flows are derived
+the same way from the installation power when no device measures that flow.
 """
 
 from __future__ import annotations
@@ -33,10 +35,15 @@ from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import (
+    async_track_point_in_utc_time,
+    async_track_state_change_event,
+)
+from homeassistant.helpers.storage import Store
+from homeassistant.util import dt as dt_util
 
-from . import contract
-from .const import CONF_VENDOR, DOMAIN
+from . import contract, site_daily, site_flows
+from .const import CONF_VENDOR, DOMAIN, VENDOR_HP, is_hp_device_vendor
 from .entity import async_convert_draft_system_entries, async_reclaim_system_ids
 
 VENDOR_SITE = "site"
@@ -45,6 +52,7 @@ SITE_TITLE = "S-INV Anlage"
 SOURCES_ATTR = "sinv_sources"
 AGGREGATION_ATTR = "sinv_aggregation"
 _FLOW_STARTED = f"{DOMAIN}_site_flow_started"
+_SITE_DAILY = f"{DOMAIN}.site_daily"
 _INDEX = re.compile(r"^sinv_[a-z]{2}(\d\d)_")
 
 
@@ -140,6 +148,62 @@ def aggregate_state(rule: str, states: list[bool | None]) -> bool | None:
     return any(states) if rule == contract.AGG_ANY else all(states)
 
 
+def installation_local_day() -> str:
+    """Local calendar day in the Home Assistant time zone. @zara"""
+    return site_daily.local_day(dt_util.as_local(dt_util.now()))
+
+
+def sensor_roles(sources: dict[str, list[Source]], existing: set[str]) -> set[str]:
+    """Sensor roles of the installation, including derived ones whose inputs exist. @zara"""
+    roles = set(sources)
+    roles.update(existing)
+    roles.update(site_daily.derived_roles(sources))
+    roles.update(site_flows.derived_flow_roles(sources))
+    return roles
+
+
+class SiteDaily:
+    """Persisted midnight baselines of one installation. @zara"""
+
+    def __init__(
+        self, tracker: site_daily.DailyTracker, store: Store | None = None
+    ) -> None:
+        """Keep the tracker and the store that reloads it after a restart. @zara"""
+        self.tracker = tracker
+        self._store = store
+
+    def update(self, role: str, total: float | None, day: str) -> float | None:
+        """Record a total and persist the baseline when it changed. @zara"""
+        before = self.tracker.snapshot()
+        value = self.tracker.update(role, total, day)
+        self._save_if_changed(before)
+        return value
+
+    def update_house(self, today: float | None, day: str) -> float | None:
+        """Record derived house today and persist the monotonic total when it changed. @zara"""
+        before = self.tracker.snapshot()
+        value = self.tracker.update_house(today, day)
+        self._save_if_changed(before)
+        return value
+
+    def _save_if_changed(self, before: dict[str, Any]) -> None:
+        if self._store is not None and self.tracker.snapshot() != before:
+            self._store.async_delay_save(self.tracker.snapshot, 1.0)
+
+
+async def ensure_site_daily(hass: HomeAssistant) -> SiteDaily:
+    """Load the installation baseline store once. @zara"""
+    holder = hass.data.get(_SITE_DAILY)
+    if isinstance(holder, SiteDaily):
+        return holder
+    store: Store = Store(hass, 1, _SITE_DAILY)
+    holder = SiteDaily(
+        site_daily.DailyTracker.from_snapshot(await store.async_load()), store
+    )
+    hass.data[_SITE_DAILY] = holder
+    return holder
+
+
 def collect_sources(entities) -> dict[str, list[Source]]:
     """Device entities per role with a system entity, ordered by device index. @zara"""
     sources: dict[str, list[Source]] = {}
@@ -215,16 +279,27 @@ def async_ensure_site_entry(hass: HomeAssistant) -> None:
     )
 
 
+def _keeps_inverter_site(entry: ConfigEntry) -> bool:
+    """Return True for an inverter instance. Heat-pump entries do not count. @zara"""
+    vendor = entry.data.get(CONF_VENDOR)
+    return (
+        vendor != VENDOR_SITE
+        and vendor != VENDOR_HP
+        and not is_hp_device_vendor(vendor)
+    )
+
+
 @callback
 def async_remove_unused_site_entry(hass: HomeAssistant, removed: ConfigEntry) -> None:
     """Remove the installation entry together with the last device instance. @zara
 
     Called after ``removed`` left ``hass.config_entries``. Disabled device
     instances still count, so the installation stays while any instance exists.
+    Heat-pump entries do not keep or remove this installation.
     """
     entries = hass.config_entries.async_entries(DOMAIN, include_ignore=False)
     if removed.data.get(CONF_VENDOR) != VENDOR_SITE and any(
-        entry.data.get(CONF_VENDOR) != VENDOR_SITE for entry in entries
+        _keeps_inverter_site(entry) for entry in entries
     ):
         return
     # a later first instance creates the installation entry again
@@ -251,6 +326,8 @@ async def async_setup_site_entities(
     domain: str,
 ) -> None:
     """Create system entities for roles with device sources, now and when new ones appear. @zara"""
+    if domain == "sensor":
+        await ensure_site_daily(hass)
     async_convert_draft_system_entries(hass)
     async_reclaim_system_ids(hass)
     registry = er.async_get(hass)
@@ -258,7 +335,8 @@ async def async_setup_site_entities(
 
     @callback
     def refresh(_event: Event | None = None) -> None:
-        roles = set(collect_sources(registry.entities.values()))
+        sources = collect_sources(registry.entities.values())
+        existing: set[str] = set()
         # system entries converted from first-draft ids still belong to the device
         # entry until this entry adopts them, so the whole registry is scanned
         for item in registry.entities.values():
@@ -272,7 +350,12 @@ async def async_setup_site_entities(
                 and parsed.get("role")
                 and parsed["serial"] == contract.SITE_SERIAL
             ):
-                roles.add(parsed["role"])
+                existing.add(parsed["role"])
+        roles = (
+            sensor_roles(sources, existing)
+            if domain == "sensor"
+            else set(sources) | existing
+        )
         new = [
             (SiteBinarySensor if domain == "binary_sensor" else SiteSensor)(role)
             for role in sorted(roles)
@@ -306,7 +389,9 @@ class _SiteEntity:
         # power_house: net AC sources of generators outside the meter owner's system
         self._balance: list[Source] | None = None
         self._balance_used = False
+        self._all_sources: dict[str, list[Source]] = {}
         self._unsub_states = None
+        self._unsub_midnight = None
         self._attr_unique_id = contract.system_unique_id(role)
         self._attr_translation_key = f"sinv_{spec.base}"
         self._attr_translation_placeholders = (
@@ -333,6 +418,7 @@ class _SiteEntity:
             )
         )
         self.async_on_remove(self._unsubscribe)
+        self.async_on_remove(self._cancel_midnight)
 
     @callback
     def _registry_changed(self, _event: Event) -> None:
@@ -349,33 +435,50 @@ class _SiteEntity:
     def _resubscribe(self) -> None:
         registry = er.async_get(self.hass)
         all_sources = collect_sources(registry.entities.values())
+        self._all_sources = all_sources
         self._sources = all_sources.get(self.role, [])
         self._capacity = {
             source.serial: source.entity_id
             for source in all_sources.get("capacity_battery", [])
         }
-        if self.role == "power_house":
+        house = all_sources.get("power_house", [])
+        if self.role == "power_house" or (
+            not self._sources and self.role in site_flows.FLOW_ROLES
+        ):
             generators = [
                 source
                 for base in sorted(contract.GENERATOR_BASES)
                 for source in all_sources.get(base, [])
             ]
             owner = (
-                self.hass.config_entries.async_get_entry(self._sources[0].entry_id)
-                if len(self._sources) == 1 and self._sources[0].entry_id
+                self.hass.config_entries.async_get_entry(house[0].entry_id)
+                if len(house) == 1 and house[0].entry_id
                 else None
             )
             self._balance = house_balance_plan(
-                self._sources,
+                house,
                 all_sources.get("power_ac_net", []),
                 generators,
                 owner.data.get(CONF_VENDOR) if owner is not None else None,
             )
+        else:
+            self._balance = None
         self._unsubscribe()
         tracked = [source.entity_id for source in self._sources]
         if self.role == "battery_soc":
             tracked.extend(self._capacity.values())
         tracked.extend(source.entity_id for source in self._balance or [])
+        if not self._sources and self.role in site_daily.DERIVED_ROLES:
+            for input_role in site_daily.input_roles(self.role, self._all_sources):
+                tracked.extend(
+                    source.entity_id for source in self._all_sources.get(input_role, [])
+                )
+        if not self._sources and self.role in site_flows.FLOW_ROLES:
+            has_battery = site_daily.battery_present(self._all_sources)
+            for input_role in site_flows.flow_inputs(self.role, has_battery):
+                tracked.extend(
+                    source.entity_id for source in self._all_sources.get(input_role, [])
+                )
         if tracked:
 
             @callback
@@ -385,15 +488,77 @@ class _SiteEntity:
             self._unsub_states = async_track_state_change_event(
                 self.hass, tracked, changed
             )
+        self._arm_midnight()
+
+    @callback
+    def _arm_midnight(self) -> None:
+        """Schedule the next local midnight for a derived day counter. @zara"""
+        if not self._is_derived() or self.role not in site_daily.MIDNIGHT_ROLES:
+            self._cancel_midnight()
+            return
+        if self._unsub_midnight is not None:
+            return
+        when = site_daily.next_local_midnight(dt_util.as_local(dt_util.now()))
+        self._unsub_midnight = async_track_point_in_utc_time(
+            self.hass, self._on_local_midnight, dt_util.as_utc(when)
+        )
+
+    @callback
+    def _on_local_midnight(self, _now) -> None:
+        """Rewrite the day counter at local midnight, then schedule the next one. @zara"""
+        self._unsub_midnight = None
+        self._arm_midnight()
+        self.async_write_ha_state()
+
+    @callback
+    def _cancel_midnight(self) -> None:
+        if self._unsub_midnight is not None:
+            self._unsub_midnight()
+            self._unsub_midnight = None
 
     @property
     def available(self) -> bool:
         """Available while every source reports a value. @zara"""
         return self._current() is not None
 
+    def _is_derived(self) -> bool:
+        if self._sources:
+            return False
+        return (
+            self.role in site_daily.DERIVED_ROLES or self.role in site_flows.FLOW_ROLES
+        )
+
+    def _derived_source_ids(self) -> list[str]:
+        """Device entities a derived installation value follows. @zara"""
+        if self.role in site_flows.FLOW_ROLES:
+            has_battery = site_daily.battery_present(self._all_sources)
+            sources = [
+                source.entity_id
+                for input_role in site_flows.flow_inputs(self.role, has_battery)
+                for source in self._all_sources.get(input_role, [])
+            ]
+            if self._balance:
+                sources.extend(source.entity_id for source in self._balance)
+            return sources
+        return [
+            source.entity_id
+            for input_role in site_daily.input_roles(self.role, self._all_sources)
+            for source in self._all_sources.get(input_role, [])
+        ]
+
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Contract attributes plus the device entities combined. @zara"""
+        if self._is_derived():
+            sources = self._derived_source_ids()
+            attributes: dict[str, Any] = {
+                contract.ATTR_CONTRACT: contract.CONTRACT_VERSION,
+                contract.ATTR_ROLE: self.role,
+                AGGREGATION_ATTR: contract.AGG_DERIVED,
+                SOURCES_ATTR: sources,
+                contract.ATTR_DERIVED: True,
+            }
+            return attributes
         balance = self._balance if self._balance_used else []
         return {
             contract.ATTR_CONTRACT: contract.CONTRACT_VERSION,
@@ -423,6 +588,8 @@ class SiteSensor(_SiteEntity, SensorEntity):
 
     def _current(self) -> float | None:
         if not self._sources:
+            if self._is_derived():
+                return self._derived_current()
             return None
         get = self.hass.states.get
         if self.role == "power_grid" and self._derived_grid():
@@ -433,17 +600,9 @@ class SiteSensor(_SiteEntity, SensorEntity):
             if imported is None or exported is None:
                 return None
             return imported - exported
-        if self._balance:
-            value, self._balance_used = house_balance(
-                _float(get(self._sources[0].entity_id)),
-                [_float(get(source.entity_id)) for source in self._balance],
-            )
-            return value
-        self._balance_used = False
         if self.role == "power_house":
-            # unclamped device values are energy balances; consumption is never negative
-            house = aggregate(self._rule, [_float(get(self._sources[0].entity_id))])
-            return None if house is None else max(0.0, house)
+            return self._house_power()
+        self._balance_used = False
         values = [_float(get(source.entity_id)) for source in self._sources]
         weights = None
         if self.role == "battery_soc":
@@ -454,6 +613,96 @@ class SiteSensor(_SiteEntity, SensorEntity):
                 for source in self._sources
             ]
         return aggregate(self._rule, values, weights)
+
+    def _house_power(self) -> float | None:
+        """Installation house power after the existing house rule, clamped at 0. @zara"""
+        house = self._all_sources.get("power_house")
+        if not house and self.role == "power_house":
+            house = self._sources
+        if not house:
+            self._balance_used = False
+            return None
+        get = self.hass.states.get
+        if self._balance:
+            value, self._balance_used = house_balance(
+                _float(get(house[0].entity_id)),
+                [_float(get(source.entity_id)) for source in self._balance],
+            )
+            return value
+        self._balance_used = False
+        raw = aggregate(
+            contract.aggregation("power_house"),
+            [_float(get(house[0].entity_id))],
+        )
+        return None if raw is None else max(0.0, raw)
+
+    def _role_value(self, role: str) -> float | None:
+        sources = self._all_sources.get(role, [])
+        if not sources:
+            return None
+        values = [_float(self.hass.states.get(source.entity_id)) for source in sources]
+        value = aggregate(contract.aggregation(role), values)
+        if value is None:
+            return None
+        return round(float(value), 3)
+
+    def _today_from_total(self, total_role: str) -> float | None:
+        return self._site_daily().update(
+            total_role, self._role_value(total_role), installation_local_day()
+        )
+
+    def _derived_house_today(self) -> float | None:
+        # a device lifetime counter still feeds the day; the component sum does not
+        if self._all_sources.get("energy_house_total"):
+            return self._today_from_total("energy_house_total")
+        has_battery = site_daily.battery_present(self._all_sources)
+        solar = self._today_from_total("energy_solar_total")
+        imported = self._today_from_total("energy_grid_import_total")
+        exported = self._today_from_total("energy_grid_export_total")
+        if has_battery:
+            charge = self._today_from_total("energy_battery_charge_total")
+            discharge = self._today_from_total("energy_battery_discharge_total")
+        else:
+            charge = 0.0
+            discharge = 0.0
+        return site_daily.house_energy_today(
+            solar, imported, exported, charge, discharge, has_battery
+        )
+
+    def _site_daily(self) -> SiteDaily:
+        holder = self.hass.data.get(_SITE_DAILY)
+        if isinstance(holder, SiteDaily):
+            return holder
+        holder = SiteDaily(site_daily.DailyTracker())
+        self.hass.data[_SITE_DAILY] = holder
+        return holder
+
+    def _derived_flow(self) -> float | None:
+        has_battery = site_daily.battery_present(self._all_sources)
+        flows = site_flows.derive_power_flows(
+            self._role_value("power_solar"),
+            self._role_value("power_battery_charge"),
+            self._role_value("power_battery_discharge"),
+            self._house_power(),
+            has_battery=has_battery,
+        )
+        return flows.get(self.role)
+
+    def _derived_current(self) -> float | None:
+        if self.role in site_flows.FLOW_ROLES:
+            return self._derived_flow()
+        if self.role == "energy_house_today":
+            return self._derived_house_today()
+        if self.role == "energy_house_total":
+            if self._all_sources.get("energy_house_total"):
+                return self._role_value("energy_house_total")
+            return self._site_daily().update_house(
+                self._derived_house_today(), installation_local_day()
+            )
+        total_role = site_daily.TODAY_FROM_TOTAL.get(self.role)
+        if total_role is None:
+            return None
+        return self._today_from_total(total_role)
 
     def _derived_grid(self) -> bool:
         registry = er.async_get(self.hass)

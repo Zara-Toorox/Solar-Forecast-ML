@@ -21,6 +21,7 @@ import voluptuous as vol
 from aiohttp import ClientError
 from awesomeversion import AwesomeVersion
 from homeassistant import config_entries
+from homeassistant.components import webhook
 from homeassistant.const import (
     CONF_COUNTRY_CODE,
     CONF_DELAY_TIME,
@@ -64,6 +65,7 @@ from .const import (
     CONF_API_OPTIONS,
     CONF_CONNECTION,
     CONF_ENDPOINT_LIMIT,
+    CONF_LOGGER_SERIAL,
     CONF_MQTT_OPTIONS,
     CONF_MQTT_TEST_SPEED,
     CONF_MQTT_USAGE,
@@ -72,6 +74,7 @@ from .const import (
     CONF_TEST_OPTIONS,
     CONF_TRIGGER_TIMEOUT,
     CONF_VENDOR,
+    CONF_WEBHOOK_ID,
     DEFAULT_VENDOR,
     DOMAIN,
     ERROR_DETAIL,
@@ -82,22 +85,36 @@ from .const import (
     MQ_LINK,
     MQTT_LINK,
     SHARED_ACCOUNT,
+    SUPPORTED_HP_SYSTEMS,
     SUPPORTED_SYSTEMS,
     TC_LINK,
     TERMS_LINK,
     TESTFOLDER,
     TESTMODE,
     VENDOR_CONNECTIONS,
+    VENDOR_DEYE,
+    VENDOR_EMSESP,
+    VENDOR_HP,
+    VENDOR_HP_BRIDGE,
     VENDOR_FRONIUS,
     VENDOR_HOYMILES,
     VENDOR_HUAWEI,
     VENDOR_KOSTAL,
+    VENDOR_MAXXISUN,
     VENDOR_SOLAKON,
+    VENDOR_SOLPLANET,
     VENDOR_SOLAX,
+    VENDOR_STIEBEL,
     VENDOR_SUNGROW,
     VENDOR_ZENDURE,
 )
 from .ahoy_coordinator import async_probe as async_probe_ahoy
+from .deye_coordinator import async_probe as async_probe_deye
+from .emsesp_coordinator import EmsespError
+from .emsesp_coordinator import async_probe as async_probe_emsesp
+from .emsesp_coordinator import setup_code as emsesp_setup_code
+from .emsesp_coordinator import host_in_use as emsesp_host_in_use
+from .emsesp_coordinator import normalize_host as normalize_emsesp_host
 from .fronius_coordinator import CONF_MODBUS, MODBUS_DEFAULT, async_probe
 from .hoymiles_dtu_coordinator import async_probe as async_probe_hoymiles_dtu
 from .huawei_coordinator import async_probe as async_probe_huawei
@@ -106,20 +123,35 @@ from .kostal_coordinator import CONF_UNIT_ID
 from .kostal_coordinator import async_probe as async_probe_kostal
 from .modbus_tcp import ModbusError
 from .opendtu_coordinator import async_probe as async_probe_opendtu
+from .hp_site import HP_TITLE, HP_UNIQUE_ID
 from .site import SITE_TITLE, SITE_UNIQUE_ID, VENDOR_SITE
 from .solakon_coordinator import async_probe as async_probe_solakon
+from .solplanet_coordinator import async_probe as async_probe_solplanet
 from .solax_coordinator import async_probe as async_probe_solax
 from .solixapi.apitypes import ApiCategories, SolixDeviceType
+from .stiebel_isg_coordinator import (
+    StiebelError,
+    async_probe as async_probe_stiebel,
+    normalize_host as normalize_stiebel_host,
+    same_target as stiebel_same_target,
+    setup_code as stiebel_setup_code,
+)
 from .sungrow_coordinator import async_probe as async_probe_sungrow
 from .vendors import (
     ahoy,
+    deye,
+    emsesp,
     fronius,
     hoymiles_dtu,
+    hp_bridge,
     huawei,
     kostal,
+    maxxisun,
     opendtu,
     solakon,
+    solplanet,
     solax,
+    stiebel_isg,
     sungrow,
     zendure,
 )
@@ -191,7 +223,13 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_system(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Create the installation entry that owns the system entities sinv_<role>. @zara"""
+        """Create the installation entry, or S-INV HP when the vendor is hp. @zara"""
+        if (user_input or {}).get(CONF_VENDOR) == VENDOR_HP:
+            await self.async_set_unique_id(HP_UNIQUE_ID)
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(
+                title=HP_TITLE, data={CONF_VENDOR: VENDOR_HP}
+            )
         await self.async_set_unique_id(SITE_UNIQUE_ID)
         self._abort_if_unique_id_configured()
         return self.async_create_entry(
@@ -206,6 +244,14 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler. @thomas"""
         if config_entry.data.get(CONF_VENDOR) == VENDOR_SITE:
             return SiteOptionsFlowHandler()
+        if config_entry.data.get(CONF_VENDOR) == VENDOR_HP:
+            return HpOptionsFlowHandler()
+        if config_entry.data.get(CONF_VENDOR) == VENDOR_EMSESP:
+            return EmsespOptionsFlowHandler()
+        if config_entry.data.get(CONF_VENDOR) == VENDOR_HP_BRIDGE:
+            return HpBridgeOptionsFlowHandler()
+        if config_entry.data.get(CONF_VENDOR) == VENDOR_STIEBEL:
+            return StiebelOptionsFlowHandler()
         if config_entry.data.get(CONF_VENDOR) in LOCAL_VENDORS:
             return LocalOptionsFlowHandler()
         return AnkerSolixOptionsFlowHandler(config_entry)
@@ -213,30 +259,292 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Step 1: choose one of the supported systems, then its own setup starts. @zara"""
+        """Step 1: inverter list, or a kind menu once a heat pump is registered. @zara
+
+        ``SUPPORTED_HP_SYSTEMS`` is empty until a manufacturer exists. The menu
+        is omitted then, so this step stays the inverter list exactly as before.
+        """
         if user_input and user_input.get(CONF_SYSTEM) in SUPPORTED_SYSTEMS:
-            self._vendor, self._connection = SUPPORTED_SYSTEMS[user_input[CONF_SYSTEM]]
-            if self._vendor == VENDOR_FRONIUS:
-                return await self.async_step_fronius()
-            if self._vendor == VENDOR_ZENDURE:
-                return await self.async_step_zendure()
-            if self._connection == opendtu.CONNECTION_LOCAL:
-                return await self.async_step_opendtu()
-            if self._connection == hoymiles_dtu.CONNECTION_LOCAL:
-                return await self.async_step_hoymiles_dtu()
-            if self._connection == kostal.CONNECTION_LOCAL:
-                return await self.async_step_kostal()
-            if self._connection == solax.CONNECTION_LOCAL:
-                return await self.async_step_solax()
-            if self._connection == sungrow.CONNECTION_LOCAL:
-                return await self.async_step_sungrow()
-            if self._connection == huawei.CONNECTION_LOCAL:
-                return await self.async_step_huawei()
-            if self._connection == solakon.CONNECTION_LOCAL:
-                return await self.async_step_solakon()
-            if self._connection == ahoy.CONNECTION_LOCAL:
-                return await self.async_step_ahoy()
-            return await self.async_step_credentials()
+            return await self._async_route_inverter(user_input[CONF_SYSTEM])
+        if not user_input and SUPPORTED_HP_SYSTEMS:
+            return await self.async_step_kind()
+        return self._async_show_inverter_form()
+
+    async def async_step_kind(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Show the inverter or heat-pump menu. @zara"""
+        return self.async_show_menu(
+            step_id="kind",
+            menu_options=["inverter", "heat_pump"],
+        )
+
+    async def async_step_inverter(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Inverter branch of the kind menu: the existing system list. @zara"""
+        if user_input and user_input.get(CONF_SYSTEM) in SUPPORTED_SYSTEMS:
+            return await self._async_route_inverter(user_input[CONF_SYSTEM])
+        return self._async_show_inverter_form()
+
+    async def async_step_heat_pump(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Heat-pump branch: its system list, or an abort while none is registered. @zara"""
+        if not SUPPORTED_HP_SYSTEMS:
+            return self.async_abort(reason="no_heat_pump")
+        if user_input and user_input.get(CONF_SYSTEM) in SUPPORTED_HP_SYSTEMS:
+            system = user_input[CONF_SYSTEM]
+            self._vendor, self._connection = SUPPORTED_HP_SYSTEMS[system]
+            if self._connection == emsesp.CONNECTION:
+                return await self.async_step_emsesp()
+            if self._connection == hp_bridge.CONNECTION:
+                return await self.async_step_hp_bridge()
+            if self._connection == stiebel_isg.CONNECTION:
+                return await self.async_step_stiebel()
+            return self.async_abort(reason="heat_pump_pending")
+        return self.async_show_form(
+            step_id="heat_pump",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_SYSTEM): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=list(SUPPORTED_HP_SYSTEMS),
+                            mode=selector.SelectSelectorMode.LIST,
+                            translation_key="hp_system",
+                        )
+                    )
+                }
+            ),
+        )
+
+    async def async_step_emsesp(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Ask for the EMS-ESP host and read it. @zara"""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                host = normalize_emsesp_host(str(user_input.get(CONF_HOST, "")))
+            except ValueError:
+                errors[CONF_HOST] = "invalid_host"
+            else:
+                try:
+                    self._emsesp = await async_probe_emsesp(
+                        async_get_clientsession(self.hass), host
+                    )
+                except (
+                    EmsespError,
+                    ClientError,
+                    TimeoutError,
+                    TypeError,
+                    ValueError,
+                ) as err:
+                    code = emsesp_setup_code(err)
+                    if not isinstance(err, EmsespError):
+                        LOGGER.warning("EMS-ESP %s at %s", code, host)
+                    errors[CONF_HOST] = code
+                else:
+                    if self._emsesp_host_taken(host):
+                        return self.async_abort(reason="emsesp_already_configured")
+                    return await self.async_step_emsesp_circuit()
+        return self.async_show_form(
+            step_id="emsesp",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_HOST, default=(user_input or {}).get(CONF_HOST, "")
+                    ): str
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_emsesp_circuit(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Choose the heating circuit, or skip when the gateway has none. @zara"""
+        found = self._emsesp
+        circuits = list(found["circuits"])
+        if user_input is None and circuits:
+            options = [emsesp.CIRCUIT_NONE, *circuits]
+            return self.async_show_form(
+                step_id="emsesp_circuit",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required(
+                            emsesp.CONF_CIRCUIT, default=circuits[0]
+                        ): selector.SelectSelector(
+                            selector.SelectSelectorConfig(
+                                options=options,
+                                mode=selector.SelectSelectorMode.DROPDOWN,
+                                translation_key="heating_circuit",
+                            )
+                        )
+                    }
+                ),
+            )
+        choice = circuits[0] if circuits else ""
+        if user_input is not None:
+            choice = str(user_input.get(emsesp.CONF_CIRCUIT) or "")
+        if choice == emsesp.CIRCUIT_NONE or choice not in circuits:
+            choice = ""
+        data = {
+            CONF_VENDOR: VENDOR_EMSESP,
+            CONF_CONNECTION: emsesp.CONNECTION,
+            CONF_HOST: found["host"],
+            emsesp.CONF_CIRCUIT: choice,
+            emsesp.CONF_CIRCUITS: circuits,
+        }
+        if found.get("unit"):
+            data[emsesp.CONF_HPPOWER_UNIT] = found["unit"]
+        return self.async_create_entry(
+            title=emsesp.NAME,
+            data=data,
+            options={
+                CONF_SCAN_INTERVAL: emsesp.DEFAULT_SCAN_SECONDS,
+                emsesp.CONF_CIRCUIT: choice,
+            },
+        )
+
+    def _emsesp_host_taken(
+        self, host: str, *, skip_entry_id: str | None = None
+    ) -> bool:
+        entries = []
+        config_entries = getattr(self.hass, "config_entries", None)
+        if config_entries is not None:
+            entries = config_entries.async_entries(DOMAIN)
+        return emsesp_host_in_use(entries, host, skip_entry_id=skip_entry_id)
+
+    def _bridge_schema(self, current: dict[str, Any] | None = None) -> vol.Schema:
+        current = current or {}
+        fields: dict[Any, Any] = {}
+        for spec in contract.HP_ROLE_SPECS:
+            domains = (
+                ["binary_sensor", "sensor"]
+                if spec.domains == ("binary_sensor",)
+                else list(spec.domains)
+            )
+            fields[
+                vol.Optional(
+                    spec.base, description={"suggested_value": current.get(spec.base)}
+                )
+            ] = selector.EntitySelector(selector.EntitySelectorConfig(domain=domains))
+        return vol.Schema(fields)
+
+    def _bridge_sources(
+        self, user_input: dict[str, Any]
+    ) -> dict[str, hp_bridge.Source]:
+        registry = er.async_get(self.hass)
+        chosen: dict[str, hp_bridge.Source] = {}
+        for role, entity_id in user_input.items():
+            if not entity_id or not contract.is_hp_role(role):
+                continue
+            listed = registry.async_get(entity_id)
+            state = self.hass.states.get(entity_id) if self.hass is not None else None
+            unit = None
+            if state is not None:
+                unit = state.attributes.get("unit_of_measurement")
+            if unit is None and listed is not None:
+                unit = getattr(listed, "unit_of_measurement", None)
+            chosen[role] = hp_bridge.Source(
+                entity_id=entity_id,
+                domain=entity_id.split(".", 1)[0],
+                platform=getattr(listed, "platform", "") or "",
+                unit=unit,
+                device_class=getattr(listed, "device_class", None) if listed else None,
+                state_class=getattr(listed, "state_class", None)
+                or (state.attributes.get("state_class") if state is not None else None),
+            )
+        return chosen
+
+    async def async_step_hp_bridge(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Ask which existing entities fill the heat-pump roles. @zara"""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            chosen = self._bridge_sources(user_input)
+            errors = hp_bridge.selection_errors(chosen)
+            if not errors:
+                mapping = {role: source.entity_id for role, source in chosen.items()}
+                return self.async_create_entry(
+                    title=hp_bridge.NAME,
+                    data={
+                        CONF_VENDOR: VENDOR_HP_BRIDGE,
+                        CONF_CONNECTION: hp_bridge.CONNECTION,
+                        hp_bridge.CONF_SOURCES: mapping,
+                    },
+                    options={hp_bridge.CONF_SOURCES: mapping},
+                )
+        return self.async_show_form(
+            step_id="hp_bridge",
+            data_schema=self._bridge_schema(user_input),
+            errors=errors,
+        )
+
+    async def async_step_stiebel(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Ask for the ISG and read one input register. Read only. @zara"""
+        errors: dict[str, str] = {}
+        current = user_input or {}
+        if user_input is not None:
+            try:
+                host = normalize_stiebel_host(str(user_input.get(CONF_HOST, "")))
+                port = int(user_input.get(CONF_PORT, stiebel_isg.DEFAULT_PORT))
+                unit_id = int(user_input.get(CONF_UNIT_ID, stiebel_isg.DEFAULT_UNIT_ID))
+                if not 1 <= port <= 65535 or not 0 <= unit_id <= 255:
+                    raise ValueError("invalid host")
+            except (TypeError, ValueError):
+                errors[CONF_HOST] = "invalid_host"
+            else:
+                try:
+                    await async_probe_stiebel(host, port, unit_id)
+                except StiebelError as err:
+                    errors[CONF_HOST] = stiebel_setup_code(err)
+                else:
+                    if self._stiebel_taken(host, port, unit_id):
+                        return self.async_abort(reason="stiebel_already_configured")
+                    return self.async_create_entry(
+                        title=stiebel_isg.NAME,
+                        data={
+                            CONF_VENDOR: VENDOR_STIEBEL,
+                            CONF_CONNECTION: stiebel_isg.CONNECTION,
+                            CONF_HOST: host,
+                            CONF_PORT: port,
+                            CONF_UNIT_ID: unit_id,
+                        },
+                        options={CONF_SCAN_INTERVAL: stiebel_isg.DEFAULT_SCAN_SECONDS},
+                    )
+        return self.async_show_form(
+            step_id="stiebel",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOST, default=current.get(CONF_HOST, "")): str,
+                    vol.Required(
+                        CONF_PORT,
+                        default=current.get(CONF_PORT, stiebel_isg.DEFAULT_PORT),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+                    vol.Required(
+                        CONF_UNIT_ID,
+                        default=current.get(CONF_UNIT_ID, stiebel_isg.DEFAULT_UNIT_ID),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+                }
+            ),
+            errors=errors,
+        )
+
+    def _stiebel_taken(self, host: str, port: int, unit_id: int) -> bool:
+        """Return True when this ISG target is already configured. @zara"""
+        entries = []
+        config_entries = getattr(self.hass, "config_entries", None)
+        if config_entries is not None:
+            entries = config_entries.async_entries(DOMAIN)
+        return stiebel_same_target(entries, host, port, unit_id, skip=None)
+
+    def _async_show_inverter_form(self) -> config_entries.FlowResult:
+        """Show the inverter system list (step id ``user``). @zara"""
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
@@ -251,6 +559,37 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 }
             ),
         )
+
+    async def _async_route_inverter(self, system: str) -> config_entries.FlowResult:
+        """Start the setup that belongs to one inverter system. @zara"""
+        self._vendor, self._connection = SUPPORTED_SYSTEMS[system]
+        if self._vendor == VENDOR_FRONIUS:
+            return await self.async_step_fronius()
+        if self._vendor == VENDOR_ZENDURE:
+            return await self.async_step_zendure()
+        if self._connection == opendtu.CONNECTION_LOCAL:
+            return await self.async_step_opendtu()
+        if self._connection == hoymiles_dtu.CONNECTION_LOCAL:
+            return await self.async_step_hoymiles_dtu()
+        if self._connection == kostal.CONNECTION_LOCAL:
+            return await self.async_step_kostal()
+        if self._connection == solax.CONNECTION_LOCAL:
+            return await self.async_step_solax()
+        if self._connection == sungrow.CONNECTION_LOCAL:
+            return await self.async_step_sungrow()
+        if self._connection == huawei.CONNECTION_LOCAL:
+            return await self.async_step_huawei()
+        if self._connection == solakon.CONNECTION_LOCAL:
+            return await self.async_step_solakon()
+        if self._connection == ahoy.CONNECTION_LOCAL:
+            return await self.async_step_ahoy()
+        if self._connection == maxxisun.CONNECTION_LOCAL:
+            return await self.async_step_maxxisun()
+        if self._connection in (deye.CONNECTION_SOLARMAN, deye.CONNECTION_MODBUS):
+            return await self.async_step_deye()
+        if self._connection == solplanet.CONNECTION_MODBUS:
+            return await self.async_step_solplanet()
+        return await self.async_step_credentials()
 
     async def async_step_fronius(
         self, user_input: dict[str, Any] | None = None
@@ -464,6 +803,136 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     default=values.get(CONF_UNIT_ID, solakon.DEFAULT_UNIT_ID),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=247)),
             },
+        )
+
+    async def async_step_solplanet(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Step for a Solplanet inverter: Modbus TCP input registers, read only. @zara"""
+        values = user_input or {}
+
+        async def probe(_session, host: str) -> dict[str, Any]:
+            return await async_probe_solplanet(
+                host,
+                int(values.get(CONF_PORT, solplanet.DEFAULT_PORT)),
+                int(values.get(CONF_UNIT_ID, solplanet.DEFAULT_UNIT_ID)),
+            )
+
+        return await self._async_local_step(
+            "solplanet",
+            VENDOR_SOLPLANET,
+            probe,
+            solplanet,
+            user_input,
+            error_key="not_solplanet",
+            extra_fields={
+                vol.Required(
+                    CONF_PORT, default=values.get(CONF_PORT, solplanet.DEFAULT_PORT)
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+                vol.Required(
+                    CONF_UNIT_ID,
+                    default=values.get(CONF_UNIT_ID, solplanet.DEFAULT_UNIT_ID),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=247)),
+            },
+        )
+
+    async def async_step_deye(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Step for a Deye hybrid: Solarman V5 or Modbus TCP, read only. @zara"""
+        solarman = self._connection == deye.CONNECTION_SOLARMAN
+        values = user_input or {}
+        default_port = (
+            deye.DEFAULT_PORT_SOLARMAN if solarman else deye.DEFAULT_PORT_MODBUS
+        )
+        errors: dict[str, str] = {}
+        if user_input:
+            host = str(user_input.get(CONF_HOST, "")).strip()
+            port = int(values.get(CONF_PORT, default_port))
+            unit_id = int(values.get(CONF_UNIT_ID, deye.DEFAULT_UNIT_ID))
+            logger_serial = int(values[CONF_LOGGER_SERIAL]) if solarman else None
+            try:
+                identity = await async_probe_deye(host, port, unit_id, logger_serial)
+            except TimeoutError:
+                errors[CONF_HOST] = "solarman_timeout" if solarman else "cannot_connect"
+            except (OSError, EOFError):
+                errors[CONF_HOST] = "cannot_connect"
+            except ModbusError as err:
+                errors[CONF_HOST] = (
+                    "logger_serial_mismatch"
+                    if solarman and "logger serial" in str(err)
+                    else "not_deye"
+                )
+            except (ValueError, TypeError, struct.error):
+                errors[CONF_HOST] = "not_deye"
+            else:
+                await self.async_set_unique_id(f"{VENDOR_DEYE}_{identity['serial']}")
+                self._abort_if_unique_id_configured(
+                    updates={CONF_HOST: host, **identity.get("data", {})}
+                )
+                return self.async_create_entry(
+                    title=identity["name"],
+                    data={
+                        CONF_VENDOR: VENDOR_DEYE,
+                        CONF_CONNECTION: self._connection,
+                        CONF_HOST: host,
+                        **identity.get("data", {}),
+                    },
+                    options={CONF_SCAN_INTERVAL: deye.DEFAULT_SCAN_SECONDS},
+                )
+        fields: dict[Any, Any] = {
+            vol.Required(CONF_HOST, default=values.get(CONF_HOST, "")): str,
+            vol.Required(
+                CONF_PORT, default=values.get(CONF_PORT, default_port)
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+            vol.Required(
+                CONF_UNIT_ID, default=values.get(CONF_UNIT_ID, deye.DEFAULT_UNIT_ID)
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=247)),
+        }
+        if solarman:
+            serial_default = values.get(CONF_LOGGER_SERIAL)
+            serial_key = (
+                vol.Required(CONF_LOGGER_SERIAL)
+                if serial_default is None
+                else vol.Required(CONF_LOGGER_SERIAL, default=serial_default)
+            )
+            fields[serial_key] = vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=0xFFFFFFFF)
+            )
+        return self.async_show_form(
+            step_id="deye_solarman" if solarman else "deye_modbus",
+            data_schema=vol.Schema(fields),
+            errors=errors,
+        )
+
+    async def async_step_maxxisun(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Step for maxxisun: show the webhook URL, no host field. @zara"""
+        if not getattr(self, "_webhook_id", None):
+            self._webhook_id = webhook.async_generate_id()
+        url = webhook.async_generate_url(
+            self.hass,
+            self._webhook_id,
+            allow_internal=True,
+            prefer_external=False,
+        )
+        if user_input is not None:
+            await self.async_set_unique_id(self._webhook_id)
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(
+                title="MaxxiCharge",
+                data={
+                    CONF_VENDOR: VENDOR_MAXXISUN,
+                    CONF_CONNECTION: self._connection,
+                    CONF_WEBHOOK_ID: self._webhook_id,
+                },
+                options={},
+            )
+        return self.async_show_form(
+            step_id="maxxisun",
+            data_schema=vol.Schema({}),
+            description_placeholders={"webhook_url": url},
         )
 
     async def _async_local_step(
@@ -897,6 +1366,188 @@ class ExternalMeterOptionsMixin:
         return None
 
 
+class EmsespOptionsFlowHandler(config_entries.OptionsFlow):
+    """Scan interval and heating circuit of one EMS-ESP gateway. @zara"""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Store the interval and the selected circuit. @zara"""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                host = normalize_emsesp_host(str(user_input.get(CONF_HOST, "")))
+            except (TypeError, ValueError):
+                errors[CONF_HOST] = "invalid_host"
+                host = ""
+            if host and self._host_taken(host):
+                errors[CONF_HOST] = "emsesp_duplicate"
+            if not errors:
+                circuit = str(user_input.get(emsesp.CONF_CIRCUIT) or "")
+                if circuit == emsesp.CIRCUIT_NONE:
+                    circuit = ""
+                data = dict(self.config_entry.data)
+                data[CONF_HOST] = host
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry, data=data
+                )
+                return self.async_create_entry(
+                    title="",
+                    data={
+                        CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                        emsesp.CONF_CIRCUIT: circuit,
+                    },
+                )
+            user_input = None
+        circuits = list(self.config_entry.data.get(emsesp.CONF_CIRCUITS) or [])
+        current = self.config_entry.options.get(
+            emsesp.CONF_CIRCUIT, self.config_entry.data.get(emsesp.CONF_CIRCUIT, "")
+        )
+        if current not in circuits:
+            current = emsesp.CIRCUIT_NONE
+        interval = self.config_entry.options.get(
+            CONF_SCAN_INTERVAL, emsesp.DEFAULT_SCAN_SECONDS
+        )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_HOST, default=self.config_entry.data.get(CONF_HOST, "")
+                    ): str,
+                    vol.Required(CONF_SCAN_INTERVAL, default=interval): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=emsesp.MIN_SCAN_SECONDS, max=300),
+                    ),
+                    vol.Required(
+                        emsesp.CONF_CIRCUIT, default=current
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[emsesp.CIRCUIT_NONE, *circuits],
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                            translation_key="heating_circuit",
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    def _host_taken(self, host: str) -> bool:
+        entries = []
+        config_entries = getattr(self.hass, "config_entries", None)
+        if config_entries is not None:
+            entries = config_entries.async_entries(DOMAIN)
+        return emsesp_host_in_use(
+            entries, host, skip_entry_id=self.config_entry.entry_id
+        )
+
+
+class HpBridgeOptionsFlowHandler(config_entries.OptionsFlow):
+    """Change which entities the heat-pump bridge reads. @zara"""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Store the role selection. @zara"""
+        current = dict(
+            self.config_entry.options.get(hp_bridge.CONF_SOURCES)
+            or self.config_entry.data.get(hp_bridge.CONF_SOURCES)
+            or {}
+        )
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            holder = AnkerSolixFlowHandler.__new__(AnkerSolixFlowHandler)
+            holder.hass = self.hass
+            chosen = holder._bridge_sources(user_input)
+            errors = hp_bridge.selection_errors(chosen)
+            if not errors:
+                mapping = {role: source.entity_id for role, source in chosen.items()}
+                return self.async_create_entry(
+                    title="", data={hp_bridge.CONF_SOURCES: mapping}
+                )
+        holder = AnkerSolixFlowHandler.__new__(AnkerSolixFlowHandler)
+        return self.async_show_form(
+            step_id="init",
+            data_schema=holder._bridge_schema(
+                current if user_input is None else user_input
+            ),
+            errors=errors,
+        )
+
+
+class StiebelOptionsFlowHandler(config_entries.OptionsFlow):
+    """Scan interval and ISG target. The entry id stays the device identity. @zara"""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Store host, port, unit and the scan interval. @zara"""
+        errors: dict[str, str] = {}
+        data = self.config_entry.data
+        if user_input is not None:
+            try:
+                host = normalize_stiebel_host(str(user_input.get(CONF_HOST, "")))
+                port = int(user_input.get(CONF_PORT, stiebel_isg.DEFAULT_PORT))
+                unit_id = int(user_input.get(CONF_UNIT_ID, stiebel_isg.DEFAULT_UNIT_ID))
+                seconds = int(user_input[CONF_SCAN_INTERVAL])
+                if not 1 <= port <= 65535 or not 0 <= unit_id <= 255:
+                    raise ValueError("invalid host")
+                if seconds < stiebel_isg.MIN_SCAN_SECONDS or seconds > 300:
+                    raise ValueError("invalid host")
+            except (TypeError, ValueError, KeyError):
+                errors[CONF_HOST] = "invalid_host"
+            else:
+                if self._target_taken(host, port, unit_id):
+                    errors[CONF_HOST] = "stiebel_duplicate"
+                else:
+                    updated = dict(data)
+                    updated[CONF_HOST] = host
+                    updated[CONF_PORT] = port
+                    updated[CONF_UNIT_ID] = unit_id
+                    self.hass.config_entries.async_update_entry(
+                        self.config_entry, data=updated
+                    )
+                    return self.async_create_entry(
+                        title="", data={CONF_SCAN_INTERVAL: seconds}
+                    )
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOST, default=data.get(CONF_HOST, "")): str,
+                    vol.Required(
+                        CONF_PORT, default=data.get(CONF_PORT, stiebel_isg.DEFAULT_PORT)
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+                    vol.Required(
+                        CONF_UNIT_ID,
+                        default=data.get(CONF_UNIT_ID, stiebel_isg.DEFAULT_UNIT_ID),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+                    vol.Required(
+                        CONF_SCAN_INTERVAL,
+                        default=self.config_entry.options.get(
+                            CONF_SCAN_INTERVAL, stiebel_isg.DEFAULT_SCAN_SECONDS
+                        ),
+                    ): vol.All(
+                        vol.Coerce(int),
+                        vol.Range(min=stiebel_isg.MIN_SCAN_SECONDS, max=300),
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    def _target_taken(self, host: str, port: int, unit_id: int) -> bool:
+        """Return True when another entry already uses this ISG target. @zara"""
+        entries = []
+        config_entries = getattr(self.hass, "config_entries", None)
+        if config_entries is not None:
+            entries = config_entries.async_entries(DOMAIN)
+        return stiebel_same_target(
+            entries, host, port, unit_id, skip=self.config_entry.entry_id
+        )
+
+
 class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsFlow):
     """Options of a local-API instance (Fronius, Zendure): polling interval. @zara"""
 
@@ -904,6 +1555,9 @@ class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsF
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Manage the polling interval in seconds. @zara"""
+        data = getattr(self.config_entry, "data", None) or {}
+        if data.get(CONF_CONNECTION) == maxxisun.CONNECTION_LOCAL:
+            return await self._async_finish_options(dict(self.config_entry.options))
         if user_input is not None:
             return await self._async_finish_options(
                 {**self.config_entry.options, **user_input}
@@ -918,6 +1572,9 @@ class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsF
             huawei.CONNECTION_LOCAL: huawei,
             solakon.CONNECTION_LOCAL: solakon,
             ahoy.CONNECTION_LOCAL: ahoy,
+            deye.CONNECTION_SOLARMAN: deye,
+            deye.CONNECTION_MODBUS: deye,
+            solplanet.CONNECTION_MODBUS: solplanet,
         }.get(self.config_entry.data.get(CONF_CONNECTION), fronius)
         current = self.config_entry.options.get(
             CONF_SCAN_INTERVAL, module.DEFAULT_SCAN_SECONDS
@@ -1319,6 +1976,16 @@ async def async_check_and_remove_devices(
                 serial,
             )
     return None
+
+
+class HpOptionsFlowHandler(config_entries.OptionsFlow):
+    """S-INV HP has no options until a heat-pump manufacturer exists. @zara"""
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Nothing to configure on the aggregate. @zara"""
+        return self.async_abort(reason="hp_no_options")
 
 
 class SiteOptionsFlowHandler(config_entries.OptionsFlow):

@@ -45,6 +45,11 @@
 .heating-tile.on .heating-tile-mark { border-color: var(--accent); background: var(--accent); }
 .heating-tile.on .heating-tile-mark::after { content: ""; width: 5px; height: 9px; border: solid var(--bg-app); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
 .heating-tile-name { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+.heating-tile-copy { display: grid; min-width: 0; }
+.heating-tile.missing { border-style: dashed; border-color: var(--warning); background: color-mix(in srgb, var(--warning) 10%, var(--bg-card)); }
+.heating-tile.missing small { color: var(--warning); font-size: .72rem; font-weight: 750; }
+.heating-missing-hint { margin: 0; color: var(--warning); font-weight: 700; }
+.heating-dirty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--warning); font-weight: 700; }
 .heating-switch { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; min-height: 44px; margin: 0; cursor: pointer; }
 .heating-switch input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
 .heating-switch-track { width: 44px; height: 26px; border-radius: 999px; border: 1px solid var(--border-default); background: color-mix(in srgb, var(--text-secondary) 22%, var(--bg-card)); position: relative; }
