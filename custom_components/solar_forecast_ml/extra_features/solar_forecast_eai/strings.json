@@ -1151,11 +1151,5 @@
         }
       }
     }
-  },
-  "services": {
-    "reset_consumption_model": {
-      "name": "Reset Consumption Model",
-      "description": "DEVELOPER ONLY or on ADVICE"
-    }
   }
 }

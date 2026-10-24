@@ -302,6 +302,24 @@ class DailyTracker:
             self._house = state
         return value
 
+    def published_house_today(self, today: float | None, day: str) -> float | None:
+        """High-water mark of the derived house day, or None if it cannot be computed. @zara
+
+        ``HouseAccum.last_today`` is already that mark: ``apply_house_total``
+        raises it only when the new sum is higher and replaces it on a new
+        local day. The same state feeds the monotonic house total, so the
+        total grows only by a new high. A missing sum is not a reading: the
+        stored mark is not returned, because an unavailable state is left out
+        of statistics while a repeated stale value would be stored as measured.
+        """
+        if today is None:
+            return None
+        self.update_house(today, day)
+        state = self._house
+        if state is None or state.day != day:
+            return None
+        return state.last_today
+
     def snapshot(self) -> dict[str, Any]:
         """JSON-ready baselines. @zara"""
         data: dict[str, Any] = {

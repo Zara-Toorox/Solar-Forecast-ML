@@ -326,18 +326,6 @@ WINTER_MONTHS = [11, 12, 1, 2]
 WINTER_CLOUD_PENALTY_FACTOR = 1.25
 WINTER_LOW_SUN_THRESHOLD = 25
 
-SERVICE_RETRAIN_AI_MODEL = "retrain_ai_model"
-SERVICE_RESET_AI_MODEL = "reset_ai_model"
-SERVICE_RESET_CONSUMPTION_MODEL = "reset_consumption_model"
-SERVICE_RUN_GRID_SEARCH = "run_grid_search"
-SERVICE_ANALYZE_FEATURE_IMPORTANCE = "analyze_feature_importance"
-SERVICE_RUN_ALL_DAY_END_TASKS = "run_all_day_end_tasks"
-SERVICE_TEST_MORNING_ROUTINE = "test_morning_routine"
-SERVICE_RUN_ADAPTIVE_FORECAST = "run_adaptive_forecast"
-SERVICE_RUN_WEATHER_CORRECTION = "run_weather_correction"
-SERVICE_REFRESH_MULTI_WEATHER = "refresh_multi_weather"
-SERVICE_SEND_DAILY_BRIEFING = "send_daily_briefing"
-
 REQUIRED_SENSORS = (
     CONF_WP_POWER_ENTITY,
     CONF_WP_ENERGY_TODAY,

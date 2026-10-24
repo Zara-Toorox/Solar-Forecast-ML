@@ -1167,11 +1167,5 @@
         }
       }
     }
-  },
-  "services": {
-    "reset_consumption_model": {
-      "name": "Verbrauchsmodell zuruecksetzen",
-      "description": "NUR ENTWICKLER oder auf EMPFEHLUNG"
-    }
   }
 }

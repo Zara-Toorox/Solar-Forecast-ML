@@ -186,6 +186,13 @@ class SiteDaily:
         self._save_if_changed(before)
         return value
 
+    def published_house_today(self, today: float | None, day: str) -> float | None:
+        """Persist the derived house day and return its high-water mark. @zara"""
+        before = self.tracker.snapshot()
+        value = self.tracker.published_house_today(today, day)
+        self._save_if_changed(before)
+        return value
+
     def _save_if_changed(self, before: dict[str, Any]) -> None:
         if self._store is not None and self.tracker.snapshot() != before:
             self._store.async_delay_save(self.tracker.snapshot, 1.0)
@@ -692,7 +699,13 @@ class SiteSensor(_SiteEntity, SensorEntity):
         if self.role in site_flows.FLOW_ROLES:
             return self._derived_flow()
         if self.role == "energy_house_today":
-            return self._derived_house_today()
+            raw = self._derived_house_today()
+            # a device lifetime counter's day does not dip; the component sum does
+            if self._all_sources.get("energy_house_total"):
+                return raw
+            return self._site_daily().published_house_today(
+                raw, installation_local_day()
+            )
         if self.role == "energy_house_total":
             if self._all_sources.get("energy_house_total"):
                 return self._role_value("energy_house_total")
