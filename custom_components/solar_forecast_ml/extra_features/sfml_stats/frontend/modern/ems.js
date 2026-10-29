@@ -545,33 +545,33 @@ const ModernEMSPage = {
             const valueFormatter = (value) => value == null ? "fehlend" : `${Number(value).toFixed(2)} kWh`;
             const energySeries = [
                 { name: "PV direkt ins Haus", type: "line", data: hours.map((point) => point.covered_kwh),
-                    lineStyle: { width: 0 }, areaStyle: { color: "rgba(80, 210, 156, .28)" }, symbol: "none", z: 1,
+                    lineStyle: { width: 0 }, areaStyle: { color: "rgba(80, 210, 156, .28)" }, itemStyle: { color: "#50d29c" }, symbol: "none", z: 1,
                     tooltip: { valueFormatter } },
                 ...(data.value?.components?.battery && hours.some((point) => point.battery_to_house_actual_kwh != null) ? [
                     { name: "Akku → Haus (IST)", type: "line", data: hours.map((point) => point.battery_to_house_actual_kwh),
-                        connectNulls: false, symbol: "none", lineStyle: { width: 3, color: "#b879ff" }, z: 3, tooltip: { valueFormatter } },
+                        connectNulls: false, symbol: "none", lineStyle: { width: 3, color: "#b879ff" }, itemStyle: { color: "#b879ff" }, z: 3, tooltip: { valueFormatter } },
                 ] : []),
                 ...(data.value?.components?.battery && hours.some((point) => point.battery_to_house_forecast_kwh != null) ? [
                     { name: "Akku → Haus (Prognose)", type: "line", data: hours.map((point) => point.battery_to_house_forecast_kwh),
-                        connectNulls: false, symbol: "none", lineStyle: { width: 2, type: "dashed", color: "#b879ff" }, z: 2, tooltip: { valueFormatter } },
+                        connectNulls: false, symbol: "none", lineStyle: { width: 2, type: "dashed", color: "#b879ff" }, itemStyle: { color: "#b879ff" }, z: 2, tooltip: { valueFormatter } },
                 ] : []),
                 { name: "PV-Ertrag", type: "line", data: hours.map((point) => point.pv_kwh),
-                    smooth: .25, symbol: "none", lineStyle: { width: 3, color: "#ffbf2f" }, areaStyle: { color: "rgba(255,191,47,.12)" }, z: 3,
+                    smooth: .25, symbol: "none", lineStyle: { width: 3, color: "#ffbf2f" }, areaStyle: { color: "rgba(255,191,47,.12)" }, itemStyle: { color: "#ffbf2f" }, z: 3,
                     tooltip: { valueFormatter } },
                 { name: "Bedarf", type: "line", data: hours.map((point) => point.demand_kwh),
-                    smooth: .2, symbol: "circle", symbolSize: 5, lineStyle: { width: 3, color: "#60c5ff" }, z: 4,
+                    smooth: .2, symbol: "circle", symbolSize: 5, lineStyle: { width: 3, color: "#60c5ff" }, itemStyle: { color: "#60c5ff" }, z: 4,
                     tooltip: { valueFormatter } },
             ];
             const gridSeries = [
                 { name: "Erwarteter Netzbezug", type: "line", data: hours.map((point) => point.expected_grid_import_kwh),
-                    connectNulls: false, symbol: "circle", symbolSize: 5, lineStyle: { width: 3, color: "#ff7f8f" }, areaStyle: { color: "rgba(255,127,143,.12)" }, z: 3,
+                    connectNulls: false, symbol: "circle", symbolSize: 5, lineStyle: { width: 3, color: "#ff7f8f" }, areaStyle: { color: "rgba(255,127,143,.12)" }, itemStyle: { color: "#ff7f8f" }, z: 3,
                     tooltip: { valueFormatter } },
                 { name: "PV-Potenzial nach Direktdeckung", type: "line", data: hours.map((point) => point.pv_potential_after_direct_kwh),
-                    connectNulls: false, symbol: "none", lineStyle: { width: 3, type: "dashed", color: "#61e2af" }, areaStyle: { color: "rgba(97,226,175,.1)" }, z: 2,
+                    connectNulls: false, symbol: "none", lineStyle: { width: 3, type: "dashed", color: "#61e2af" }, areaStyle: { color: "rgba(97,226,175,.1)" }, itemStyle: { color: "#61e2af" }, z: 2,
                     tooltip: { valueFormatter } },
                 ...(hours.some((point) => point.price_ct_kwh != null) ? [{
                     name: "Strompreis", type: "line", yAxisIndex: 1, data: hours.map((point) => point.price_ct_kwh),
-                    symbol: "none", lineStyle: { width: 2, type: "dotted", color: "#ffc95b" }, z: 5,
+                    symbol: "none", lineStyle: { width: 2, type: "dotted", color: "#ffc95b" }, itemStyle: { color: "#ffc95b" }, z: 5,
                     tooltip: { valueFormatter: (value) => value == null ? "fehlend" : `${Number(value).toFixed(2)} ct/kWh` },
                 }] : []),
             ];
@@ -590,7 +590,7 @@ const ModernEMSPage = {
                     itemStyle: { color: "#61e2af" }, z: 1, tooltip: { valueFormatter } },
                 ...(hours.some((point) => point.historical_grid_import_kwh != null) ? [{
                     name: "Typischer Netzbezug (90 Tage)", type: "line", data: hours.map((point) => point.historical_grid_import_kwh),
-                    connectNulls: false, symbol: "none", lineStyle: { width: 2, type: "dashed", color: "#ff7f8f" }, z: 4, tooltip: { valueFormatter },
+                    connectNulls: false, symbol: "none", lineStyle: { width: 2, type: "dashed", color: "#ff7f8f" }, itemStyle: { color: "#ff7f8f" }, z: 4, tooltip: { valueFormatter },
                 }] : []),
             ];
             const series = chartView.value === "grid" ? gridSeries : chartView.value === "allocation" ? allocationSeries : energySeries;

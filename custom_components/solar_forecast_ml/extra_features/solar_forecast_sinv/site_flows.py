@@ -46,14 +46,26 @@ def flow_inputs(role: str, has_battery: bool) -> tuple[str, ...]:
     if role in BATTERY_FLOW_ROLES and not has_battery:
         return ()
     if role == "power_solar_to_house":
+        if has_battery:
+            return ("power_solar", "power_house", "power_battery_charge")
         return ("power_solar", "power_house")
     if role in ("power_solar_to_battery", "power_grid_to_battery"):
         return ("power_solar", "power_house", "power_battery_charge")
     if role == "power_battery_to_house":
-        return ("power_solar", "power_house", "power_battery_discharge")
+        return (
+            "power_solar",
+            "power_house",
+            "power_battery_charge",
+            "power_battery_discharge",
+        )
     if role == "power_grid_to_house":
         if has_battery:
-            return ("power_solar", "power_house", "power_battery_discharge")
+            return (
+                "power_solar",
+                "power_house",
+                "power_battery_charge",
+                "power_battery_discharge",
+            )
         return ("power_solar", "power_house")
     return ()
 
@@ -82,9 +94,11 @@ def derive_power_flows(
 ) -> dict[str, float | None]:
     """Split installation power. A missing input stays None, never 0. @zara
 
-    Priority is PV to the house, then the remaining PV to the battery, then the
-    grid. Every finite input is clamped at 0 before the split. Without a battery
-    the charge and discharge terms are 0 and the battery flows are omitted.
+    While the battery charges, PV fills the battery first and the rest goes to
+    the house. Otherwise PV goes to the house first. The grid covers what
+    remains. Every finite input is clamped at 0 before the split. Without a
+    battery the charge and discharge terms are 0 and the battery flows are
+    omitted.
     """
     produced = _non_negative(solar)
     consumed = _non_negative(house)
@@ -94,16 +108,23 @@ def derive_power_flows(
     else:
         charging = 0.0
         discharging = 0.0
+    charging_first = charging is not None and charging > 0
     if produced is None or consumed is None:
         solar_to_house = None
-    else:
-        solar_to_house = min(produced, consumed)
-    if solar_to_house is None or charging is None or produced is None:
         solar_to_battery = None
         grid_to_battery = None
-    else:
-        solar_to_battery = min(charging, produced - solar_to_house)
+    elif charging_first:
+        solar_to_battery = min(charging, produced)
+        solar_to_house = min(produced - solar_to_battery, consumed)
         grid_to_battery = max(0.0, charging - solar_to_battery)
+    else:
+        solar_to_house = min(produced, consumed)
+        if charging is None:
+            solar_to_battery = None
+            grid_to_battery = None
+        else:
+            solar_to_battery = min(charging, produced - solar_to_house)
+            grid_to_battery = max(0.0, charging - solar_to_battery)
     if solar_to_house is None or discharging is None or consumed is None:
         battery_to_house = None
         grid_to_house = None

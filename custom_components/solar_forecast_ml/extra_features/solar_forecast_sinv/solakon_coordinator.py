@@ -18,9 +18,10 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import LOGGER
+from .const import DOMAIN, LOGGER
 from .kostal_coordinator import (
     CONF_UNIT_ID,
     CYCLE_TIMEOUT_SECONDS,
@@ -75,6 +76,23 @@ class SolakonCoordinator(DataUpdateCoordinator[dict[str, solakon.SolakonDevice]]
         self.unit_id = int(entry.data.get(CONF_UNIT_ID, solakon.DEFAULT_UNIT_ID))
         self._identity: dict[int, int] = {}
         self._optional = list(solakon.OPTIONAL_BLOCKS)
+        self._sign_book: solakon.BatterySigns | None = None
+        self._sign_store: Store | None = None
+
+    async def _battery_signs(self) -> solakon.BatterySigns:
+        """Load the per-serial sign store once. @zara"""
+        book = getattr(self, "_sign_book", None)
+        if book is not None:
+            return book
+        hass = getattr(self, "hass", None)
+        entry = getattr(self, "config_entry", None)
+        if hass is None or entry is None:
+            self._sign_book = solakon.BatterySigns()
+            return self._sign_book
+        store: Store = Store(hass, 1, f"{DOMAIN}.solakon_battery_sign.{entry.entry_id}")
+        self._sign_book = solakon.BatterySigns.from_snapshot(await store.async_load())
+        self._sign_store = store
+        return self._sign_book
 
     async def _async_update_data(self) -> dict[str, solakon.SolakonDevice]:
         try:
@@ -102,4 +120,32 @@ class SolakonCoordinator(DataUpdateCoordinator[dict[str, solakon.SolakonDevice]]
         devices = solakon.build_devices(regs)
         if not devices:
             raise UpdateFailed(f"Solakon at {self.host} reported no serial number")
+        book = await self._battery_signs()
+        for serial, device in devices.items():
+            if "energy_battery_charge_total" not in device.roles:
+                continue
+            event = book.observe(
+                serial,
+                device.battery_raw,
+                device.roles.get("energy_battery_charge_total"),
+                device.roles.get("energy_battery_discharge_total"),
+            )
+            solakon.publish_battery_power(device, book.get(serial))
+            if event == "determined":
+                LOGGER.info(
+                    "Solakon %s battery sign determined: %s after %s observations",
+                    serial,
+                    device.battery_sign,
+                    device.battery_sign_observations,
+                )
+            elif event == "redetermined":
+                LOGGER.info(
+                    "Solakon %s battery sign changed: %s after %s contrary observations",
+                    serial,
+                    device.battery_sign,
+                    solakon.SIGN_REVISIONS,
+                )
+        store = getattr(self, "_sign_store", None)
+        if store is not None:
+            store.async_delay_save(book.snapshot, 1.0)
         return devices

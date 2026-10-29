@@ -63,7 +63,7 @@ const ModernEAIPage = {
                 <div class="eai-wow-grid">
                     <article v-if="devOn" class="eai-card wow-card accent"><span class="eyebrow">Warum läuft sie gerade?</span><h3>{{ whyNow.headline || "Noch keine Erklärung verfügbar" }}</h3><p>{{ whyNow.explanation }}</p><ul><li v-for="item in whyNow.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(whyNow.confidence_percent, " % Vertrauen") }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Tägliches Energie-Briefing</span><h3>{{ briefing.headline || "Briefing wird vorbereitet" }}</h3><p>{{ briefing.summary }}</p><ol><li v-for="item in briefing.actions || []" :key="item">{{ item }}</li></ol></article>
-                    <article class="eai-card wow-card"><span class="eyebrow">Bestes Wärmepumpen-PV-Fenster</span><h3>{{ windowLabel }}</h3><strong class="wow-number">{{ format(optimization.pv_surplus_kwh, " kWh") }}</strong><p>{{ optimizationExplanation.summary || optimization.recommendation || "Noch kein belastbares Wärmepumpen-PV-Fenster erkannt." }}</p><ul><li v-for="item in optimizationExplanation.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(optimizationExplanation.confidence_percent, " % Vertrauen") }}</span></footer></article>
+                    <article class="eai-card wow-card"><span class="eyebrow">Bestes Wärmepumpen-PV-Fenster</span><h3>{{ windowLabel }}<span v-if="windowProvisional"> vorläufig</span></h3><strong class="wow-number">{{ format(optimization.pv_surplus_kwh, " kWh") }}</strong><p>{{ optimizationExplanation.summary || optimization.recommendation || "Noch kein belastbares Wärmepumpen-PV-Fenster erkannt." }}</p><ul><li v-for="item in optimizationExplanation.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(windowConfidence, " % Vertrauen") }}</span><span v-if="coldStartHint">{{ coldStartHint }}</span></footer></article>
                     <article class="eai-card wow-card"><span class="eyebrow">Betriebsbeobachtung</span><h3>{{ healthStatus.title }}</h3><p>{{ healthStatus.text }}</p></article>
                     <article v-if="devOn" class="eai-card wow-card"><span class="eyebrow">Gebäude-Fingerabdruck</span><h3>{{ buildingStatus.title }}</h3><p>{{ buildingStatus.text }}</p><div class="learning"><span :style="{ width: buildingStatus.progress + '%' }"></span></div></article>
                 </div>
@@ -85,9 +85,9 @@ const ModernEAIPage = {
             <div v-else-if="activeTab === 'forecast'" class="eai-card forecast-card">
                 <header><div><span class="eyebrow">72 Stunden · mit Unsicherheitsband</span><h3>Wärmepumpenbedarf und PV-Potenzial</h3></div></header>
                 <div class="forecast-intelligence">
-                    <div class="confidence-orbit" :style="confidenceOrbitStyle"><div><strong>{{ format(forecastUncertainty.confidence_percent, " %") }}</strong><span>Vertrauen</span></div></div>
-                    <div class="forecast-explanation"><span class="eyebrow">KEPLER erklärt die Empfehlung</span><h4>{{ optimizationExplanation.headline || "Prognose wird eingeordnet" }}</h4><p>{{ optimizationExplanation.summary || forecastUncertainty.explanation }}</p><ul><li v-for="item in optimizationExplanation.evidence || []" :key="item">{{ item }}</li></ul></div>
-                    <div class="uncertainty-facts"><span>Mittlere Unsicherheit</span><strong>± {{ format(forecastUncertainty.average_percent, " %") }}</strong><small>Das Band zeigt die aktuelle Modellspanne transparent und ist keine Garantie.</small></div>
+                    <div><div class="confidence-orbit" :style="confidenceOrbitStyle"><div><strong>{{ format(orbitConfidence, " %") }}</strong><span v-if="!splitConfidence">Vertrauen</span></div></div><span v-if="splitConfidence" style="display:block;margin-top:8px;max-width:9.5rem;text-align:center;color:var(--text-secondary);font-size:.75rem;line-height:1.3">Vertrauen (gewählte Stunde)</span></div>
+                    <div class="forecast-explanation"><span class="eyebrow">KEPLER erklärt die Empfehlung</span><h4>{{ optimizationExplanation.headline || "Prognose wird eingeordnet" }}</h4><p>{{ optimizationExplanation.summary || forecastUncertainty.explanation }}</p><ul><li v-for="item in optimizationExplanation.evidence || []" :key="item">{{ item }}</li></ul><small v-if="coldStartHint">{{ coldStartHint }}</small></div>
+                    <div class="uncertainty-facts"><span>Mittlere Unsicherheit</span><strong>± {{ format(forecastUncertainty.average_percent, " %") }}</strong><template v-if="horizonAverageConfidence != null"><span>Ø Vertrauen 72 h</span><strong>{{ format(horizonAverageConfidence, " %") }}</strong></template><small>Das Band zeigt die aktuelle Modellspanne transparent und ist keine Garantie.</small></div>
                 </div>
                 <div class="forecast-plot" aria-label="72-Stunden-Prognose"><div v-for="point in forecast.hours || []" :key="point.timestamp" class="forecast-column" tabindex="0" role="img" :title="forecastPointTitle(point)" :aria-label="forecastPointTitle(point)"><span class="forecast-band" :style="bandStyle(point)"></span><span class="forecast-value" :style="{ height: powerHeight(point.forecast_kw) }"></span><span v-if="point.actual_kw != null" class="actual-dot" :style="{ bottom: powerHeight(point.actual_kw) }"></span></div></div>
                 <div class="chart-legend"><span><i class="forecast-line"></i>Prognose</span><span><i class="actual-line"></i>Ist</span><span><i class="band-line"></i>Unsicherheit</span></div><p class="eai-caption">Haupttreiber: {{ (forecast.main_drivers || []).join(" · ") || "Nicht verfügbar" }}</p>
@@ -570,8 +570,38 @@ const ModernEAIPage = {
             return { ...source, headline: safeCustomerText(source.headline, "Prognose wird eingeordnet"), summary: safeCustomerText(source.summary || optimization.value.recommendation, "Noch kein belastbares Zeitfenster erkannt."), evidence: safeTextList(source.evidence) };
         });
         const forecastUncertainty = computed(() => forecast.value.uncertainty || {});
+        const finitePercent = (value) => {
+            const number = Number(value);
+            return Number.isFinite(number) ? Math.min(100, Math.max(0, number)) : null;
+        };
+        const selectedHourConfidence = computed(() => finitePercent(
+            optimization.value.selected_hour_confidence_percent
+            ?? optimizationExplanation.value.selected_hour_confidence_percent
+        ));
+        const horizonAverageConfidence = computed(() => finitePercent(
+            optimization.value.horizon_average_confidence_percent
+            ?? optimizationExplanation.value.horizon_average_confidence_percent
+            ?? forecastUncertainty.value.horizon_average_confidence_percent
+        ));
+        const splitConfidence = computed(() => selectedHourConfidence.value != null || horizonAverageConfidence.value != null);
+        const orbitConfidence = computed(() => {
+            if (selectedHourConfidence.value != null) return selectedHourConfidence.value;
+            if (splitConfidence.value) {
+                return finitePercent(optimization.value.confidence_percent ?? optimizationExplanation.value.confidence_percent);
+            }
+            return finitePercent(forecastUncertainty.value.confidence_percent);
+        });
+        const windowConfidence = computed(() => (
+            selectedHourConfidence.value != null
+                ? selectedHourConfidence.value
+                : optimizationExplanation.value.confidence_percent
+        ));
+        const confidenceOrigin = computed(() => optimization.value.confidence_origin || optimizationExplanation.value.confidence_origin || "");
+        const coldStartHint = computed(() => (
+            confidenceOrigin.value === "cold_start" ? "Lernphase – Vertrauen steigt mit Messdaten" : ""
+        ));
         const confidenceOrbitStyle = computed(() => {
-            const confidence = Math.min(100, Math.max(0, Number(forecastUncertainty.value.confidence_percent || 0)));
+            const confidence = Math.min(100, Math.max(0, Number(orbitConfidence.value) || 0));
             return { background: `conic-gradient(#45c7bb ${confidence}%, color-mix(in srgb, #45c7bb 12%, var(--bg-elevated)) 0)` };
         });
         const modeLabel = computed(() => {
@@ -580,7 +610,20 @@ const ModernEAIPage = {
             return ({ mock: "Premium-Demo", onboarding: "Lernphase", live: "Live", degraded: "Eingeschränkt", unavailable: "Nicht verfügbar" }[status.data_mode] || status.data_mode);
         });
         const notice = computed(() => status.data_mode === "degraded" ? { title: "Datenquelle eingeschränkt", text: "Fehlende Werte werden nicht erfunden oder als Null dargestellt." } : null);
-        const windowLabel = computed(() => optimization.value.available ? new Date(optimization.value.start).toLocaleTimeString(EAI_LOCALE, { hour: "2-digit", minute: "2-digit" }) : "Wird ermittelt");
+        const windowStart = computed(() => {
+            const start = optimization.value.start ? new Date(optimization.value.start) : null;
+            return start && Number.isFinite(start.getTime()) ? start : null;
+        });
+        const windowStatusProvisional = computed(() => (
+            optimization.value.window_status === "provisional"
+            || optimizationExplanation.value.window_status === "provisional"
+        ));
+        const windowProvisional = computed(() => windowStatusProvisional.value && windowStart.value != null);
+        const windowLabel = computed(() => {
+            const showTime = optimization.value.available === true || windowStatusProvisional.value;
+            if (!showTime || !windowStart.value) return "Wird ermittelt";
+            return windowStart.value.toLocaleTimeString(EAI_LOCALE, { hour: "2-digit", minute: "2-digit" });
+        });
         const overviewMetrics = computed(() => [
             ["Aktuelle elektrische Leistung", overview.value.current_power_kw, " kW"],
             [EAI_ACTIVE_LOCALE === "en" ? "Electrical energy today" : "Elektrische Energie heute", overview.value.energy_today_kwh, " kWh"],
@@ -781,7 +824,7 @@ const ModernEAIPage = {
             stopRefresh();
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         });
-        return { EAI_LOCALE, tabs, devOn, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
+        return { EAI_LOCALE, tabs, devOn, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, orbitConfidence, splitConfidence, horizonAverageConfidence, windowConfidence, coldStartHint, windowProvisional, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
     },
 };
 

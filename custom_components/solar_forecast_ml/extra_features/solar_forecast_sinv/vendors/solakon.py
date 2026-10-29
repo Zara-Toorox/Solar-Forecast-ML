@@ -17,12 +17,15 @@ values are high word first. "Faktor" is the divisor of the raw value.
 Documented signs used directly:
 - [Meter collection] active power 39168: positive = feeding the grid ->
   contract ``power_grid`` (positive import) = -39168
-Battery power: Battery 1 power 39230 (I32 W) is negative while charging. Not
-documented in the PDF; verified on an MQ2200-M-H (2026-10-15 13:39, two users'
-screenshots side by side with Solakon's integration): -953 W while charging at
-37 V and -25.5 A (V x I = -943 W) with PV 1535 W and AC output 501 W. The
-"[Energy storage module 1]" register 39162 read -510 W at that moment and is not
-the battery of the Solakon ONE. -> contract ``power_battery`` = -39230
+Battery power: Battery 1 power 39230 (I32 W) has no documented sign. An
+MQ2200-M-H on 2026-10-15 reported it negative while charging; a WF2000M on
+2026-10-24 reported it positive while charging. Solakon's own integration
+publishes the register unchanged. S-INV does not assume a model sign. It learns,
+per serial, whether a positive raw value is charging or discharging by watching
+which of the 0.01 kWh counters 39605 and 39609 rises while |39230| is at least
+20 W. Until two such periods agree, the three battery power roles stay
+unpublished. The "[Energy storage module 1]" register 39162 is not the battery
+of the Solakon ONE.
 BMS1 counts as present when 37002 reports online or when it reports a design
 energy and a state of health; MQ2200 firmware leaves 37002 unset.
 Grid roles need a meter or CT connected to the Solakon ONE (38801 = 1). The house
@@ -108,6 +111,10 @@ class SolakonDevice:
     roles: dict[str, Any] = field(default_factory=dict)
     vendor: dict[str, Any] = field(default_factory=dict)
     derived: set[str] = field(default_factory=set)
+    battery_raw: int | None = None
+    battery_sign: str = "undetermined"
+    battery_sign_observations: int = 0
+    battery_sign_conflicts: int = 0
 
 
 def u16(regs: dict[int, int], address: int) -> int | None:
@@ -268,12 +275,7 @@ def build_devices(regs: dict[int, int]) -> dict[str, SolakonDevice]:
         if _bms_present(regs, 37002, 37609):
             # highest cell temperature of BMS1
             _set(device, "temperature_battery", _scaled(s16(regs, 37617), 10))
-        raw = s32(regs, 39230)
-        battery = None if raw is None else -raw
-        if battery is not None:
-            _set(device, "power_battery", battery, 0)
-            _set(device, "power_battery_charge", max(0, battery), 0)
-            _set(device, "power_battery_discharge", max(0, -battery), 0)
+        device.battery_raw = s32(regs, 39230)
         _set(device, "energy_battery_charge_total", _scaled(u32(regs, 39605), 100), 2)
         _set(
             device,
@@ -293,3 +295,217 @@ def build_devices(regs: dict[int, int]) -> dict[str, SolakonDevice]:
         if value is not None:
             device.vendor[key] = round(value, 2)
     return {device.serial: device}
+
+
+# |39230| below this is not used as a sign sample: the watts are then comparable
+# to a quiet register. 20 W needs half an hour to move a 0.01 kWh counter.
+BATTERY_SIGN_W = 20
+# 39605 and 39609 are published in 0.01 kWh steps.
+COUNTER_STEP_KWH = 0.01
+# One counter step can be a torn read. Two steps in the same direction reject
+# that. A third would hide battery power for over an hour at 20 W.
+SIGN_CONFIRMATIONS = 2
+# One contrary step is the same kind of glitch and must not flip a decision
+# that already took two steps. Two contrary steps are the same evidence, and
+# only then does the direction change.
+SIGN_REVISIONS = 2
+_MIXED = 2
+_POWER_ROLES = (
+    "power_battery",
+    "power_battery_charge",
+    "power_battery_discharge",
+)
+
+
+def _raw_sign(raw: int | None) -> int:
+    if raw is None or abs(raw) < BATTERY_SIGN_W:
+        return 0
+    return 1 if raw > 0 else -1
+
+
+def _note_raw(state: BatteryWindow, raw: int | None) -> None:
+    sign = _raw_sign(raw)
+    if sign == 0:
+        return
+    if state.window_sign == 0:
+        state.window_sign = sign
+    elif state.window_sign != sign:
+        state.window_sign = _MIXED
+
+
+@dataclass
+class BatteryWindow:
+    """Open counter window and the learned sign of one Solakon serial. @zara"""
+
+    charge_sign: int | None = None
+    candidate: int | None = None
+    agrees: int = 0
+    conflicts: int = 0
+    window_charge: float | None = None
+    window_discharge: float | None = None
+    window_sign: int = 0
+
+    def snapshot(self) -> dict[str, Any]:
+        """JSON-ready sign and the still-open counter window. @zara"""
+        return {
+            "charge_sign": self.charge_sign,
+            "candidate": self.candidate,
+            "agrees": self.agrees,
+            "conflicts": self.conflicts,
+            "window_charge": self.window_charge,
+            "window_discharge": self.window_discharge,
+            "window_sign": self.window_sign,
+        }
+
+    @classmethod
+    def from_item(cls, raw: Any) -> BatteryWindow:
+        """Restore one serial, or an empty window when the item is unusable. @zara"""
+        if not isinstance(raw, dict):
+            return cls()
+        window = cls()
+        for name in ("charge_sign", "candidate"):
+            value = raw.get(name)
+            if value in (1, -1):
+                setattr(window, name, value)
+        for name in ("agrees", "conflicts", "window_sign"):
+            value = raw.get(name)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                setattr(window, name, value)
+        for name in ("window_charge", "window_discharge"):
+            value = raw.get(name)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                setattr(window, name, float(value))
+        return window
+
+
+class BatterySigns:
+    """Learned 39230 sign of every Solakon serial in one config entry. @zara"""
+
+    def __init__(self) -> None:
+        """Start with no device. @zara"""
+        self._devices: dict[str, BatteryWindow] = {}
+
+    def get(self, serial: str) -> BatteryWindow:
+        """Return the window of one serial, creating it when needed. @zara"""
+        return self._devices.setdefault(serial, BatteryWindow())
+
+    def snapshot(self) -> dict[str, Any]:
+        """JSON-ready signs. @zara"""
+        return {
+            "devices": {
+                serial: window.snapshot() for serial, window in self._devices.items()
+            }
+        }
+
+    @classmethod
+    def from_snapshot(cls, raw: Any) -> BatterySigns:
+        """Restore a snapshot written by ``snapshot``. @zara"""
+        book = cls()
+        if not isinstance(raw, dict):
+            return book
+        devices = raw.get("devices")
+        if not isinstance(devices, dict):
+            return book
+        for serial, item in devices.items():
+            if isinstance(serial, str) and serial:
+                book._devices[serial] = BatteryWindow.from_item(item)
+        return book
+
+    def observe(
+        self,
+        serial: str,
+        raw: int | None,
+        charge: float | None,
+        discharge: float | None,
+    ) -> str | None:
+        """Fold one poll into the open window. Return determined or redetermined. @zara
+
+        A counter step closes the period since the previous step. The raw sign
+        of that whole period, not of the closing poll alone, is the observation.
+        """
+        if not isinstance(charge, (int, float)) or isinstance(charge, bool):
+            return None
+        if not isinstance(discharge, (int, float)) or isinstance(discharge, bool):
+            return None
+        state = self.get(serial)
+        if state.window_charge is None or state.window_discharge is None:
+            state.window_charge = float(charge)
+            state.window_discharge = float(discharge)
+            state.window_sign = _raw_sign(raw)
+            return None
+        _note_raw(state, raw)
+        d_charge = float(charge) - state.window_charge
+        d_discharge = float(discharge) - state.window_discharge
+        if d_charge < -COUNTER_STEP_KWH / 2 or d_discharge < -COUNTER_STEP_KWH / 2:
+            state.window_charge = float(charge)
+            state.window_discharge = float(discharge)
+            state.window_sign = _raw_sign(raw)
+            return None
+        charge_up = d_charge >= COUNTER_STEP_KWH / 2
+        discharge_up = d_discharge >= COUNTER_STEP_KWH / 2
+        if not charge_up and not discharge_up:
+            return None
+        observation = None
+        if state.window_sign in (1, -1):
+            if charge_up and not discharge_up:
+                observation = state.window_sign
+            elif discharge_up and not charge_up:
+                observation = -state.window_sign
+        state.window_charge = float(charge)
+        state.window_discharge = float(discharge)
+        state.window_sign = _raw_sign(raw)
+        if observation is None:
+            return None
+        return _absorb(state, observation)
+
+
+def _absorb(state: BatteryWindow, observation: int) -> str | None:
+    if state.charge_sign is None:
+        if state.candidate in (None, observation):
+            state.candidate = observation
+            state.agrees += 1
+            state.conflicts = 0
+        else:
+            state.conflicts += 1
+            if state.conflicts < SIGN_REVISIONS:
+                return None
+            state.candidate = observation
+            state.agrees = state.conflicts
+            state.conflicts = 0
+        if state.agrees >= SIGN_CONFIRMATIONS:
+            state.charge_sign = state.candidate
+            return "determined"
+        return None
+    if observation == state.charge_sign:
+        state.conflicts = 0
+        state.agrees += 1
+        return None
+    state.conflicts += 1
+    if state.conflicts < SIGN_REVISIONS:
+        return None
+    state.charge_sign = observation
+    state.candidate = observation
+    state.agrees = state.conflicts
+    state.conflicts = 0
+    return "redetermined"
+
+
+def publish_battery_power(device: SolakonDevice, state: BatteryWindow) -> None:
+    """Publish battery power only after the sign is known. @zara"""
+    for role in _POWER_ROLES:
+        device.roles.pop(role, None)
+    device.battery_sign_observations = state.agrees
+    device.battery_sign_conflicts = state.conflicts
+    raw = device.battery_raw
+    if state.charge_sign not in (1, -1) or raw is None:
+        device.battery_sign = "undetermined"
+        return
+    battery = raw * state.charge_sign
+    _set(device, "power_battery", battery, 0)
+    _set(device, "power_battery_charge", max(0, battery), 0)
+    _set(device, "power_battery_discharge", max(0, -battery), 0)
+    device.battery_sign = (
+        "charging_when_raw_positive"
+        if state.charge_sign == 1
+        else "charging_when_raw_negative"
+    )

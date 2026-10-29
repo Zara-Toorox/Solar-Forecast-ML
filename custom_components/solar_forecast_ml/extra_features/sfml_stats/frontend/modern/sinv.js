@@ -113,6 +113,7 @@
             targetGpm: "GPM",
             targetEai: "EAI",
             targetWfai: "WFAI",
+            targetStats: "STATS",
             targetUnknown: "Weiteres Ziel",
             fieldUnknown: "Sensorfeld",
             mapAdmin: "Die Zuordnung ist nur für die Verwaltung sichtbar.",
@@ -135,6 +136,8 @@
             sfmlPair: "PV-Batterie-Leistung und Ladestand werden nur zusammen übernommen.",
             gpmGridCharge: "Batterieladung aus dem Netz.",
             optionsReload: "Die Integration lädt sich über ihren eigenen Dialog neu.",
+            statsSensors: "Die Sensoren werden über den Sensor-Schritt gespeichert. Die Übernahme gilt im laufenden Eintrag, ohne die Integration neu zu laden.",
+            statsOptionsPending: "STATS-Sensoren einmal in den STATS-Optionen speichern, danach ist die Übernahme möglich.",
             eaiKeep: "Die übrigen Wärmepumpen-, Wallbox- und Automationsfelder bleiben erhalten.",
             flowOpen: "Ein Einrichtungsdialog ist bereits offen. Nichts wurde geschrieben.",
             flowRejected: "Das Formular hat die Änderung abgelehnt. Nichts wurde geschrieben.",
@@ -247,6 +250,20 @@
                     wind_speed_sensor: "Wind",
                     wind_direction_sensor: "Windrichtung",
                     rain_sensor: "Regen",
+                },
+                stats: {
+                    sensor_home_consumption: "Hausverbrauch",
+                    sensor_solar_to_house: "PV zum Haus",
+                    sensor_solar_to_battery: "PV zum Akku",
+                    sensor_battery_to_house: "Akku zum Haus",
+                    sensor_grid_to_house: "Netz zum Haus",
+                    sensor_grid_to_battery: "Netz zum Akku",
+                    sensor_smartmeter_import: "Netzbezug",
+                    sensor_smartmeter_export: "Einspeisung",
+                    sensor_battery_power: "Akkuleistung",
+                    sensor_heatpump_power: "Wärmepumpe",
+                    sensor_heatingrod_power: "Heizstab",
+                    sensor_wallbox_power: "Wallbox",
                 },
             },
         },
@@ -363,6 +380,7 @@
             targetGpm: "GPM",
             targetEai: "EAI",
             targetWfai: "WFAI",
+            targetStats: "STATS",
             targetUnknown: "Other target",
             fieldUnknown: "Sensor field",
             mapAdmin: "Only an administrator can view the mapping.",
@@ -385,6 +403,8 @@
             sfmlPair: "PV-to-battery power and state of charge are applied only together.",
             gpmGridCharge: "Battery charging from the grid.",
             optionsReload: "The integration reloads through its own dialog.",
+            statsSensors: "Sensors are saved through the sensor step. The mapping applies in the running entry, without reloading the integration.",
+            statsOptionsPending: "Save the STATS sensors once in the STATS options. Applying the mapping is possible after that.",
             eaiKeep: "The other heat-pump, wallbox, and automation fields stay as they are.",
             flowOpen: "An options dialog is already open. Nothing was written.",
             flowRejected: "The form rejected the change. Nothing was written.",
@@ -497,6 +517,20 @@
                     wind_speed_sensor: "Wind speed",
                     wind_direction_sensor: "Wind direction",
                     rain_sensor: "Rain",
+                },
+                stats: {
+                    sensor_home_consumption: "House consumption",
+                    sensor_solar_to_house: "PV to house",
+                    sensor_solar_to_battery: "PV to battery",
+                    sensor_battery_to_house: "Battery to house",
+                    sensor_grid_to_house: "Grid to house",
+                    sensor_grid_to_battery: "Grid to battery",
+                    sensor_smartmeter_import: "Grid import",
+                    sensor_smartmeter_export: "Feed-in",
+                    sensor_battery_power: "Battery power",
+                    sensor_heatpump_power: "Heat pump",
+                    sensor_heatingrod_power: "Heating rod",
+                    sensor_wallbox_power: "Wallbox",
                 },
             },
         },
@@ -613,6 +647,7 @@
             targetGpm: "GPM",
             targetEai: "EAI",
             targetWfai: "WFAI",
+            targetStats: "STATS",
             targetUnknown: "Inny cel",
             fieldUnknown: "Pole czujnika",
             mapAdmin: "Przypisanie widzi tylko administrator.",
@@ -635,6 +670,8 @@
             sfmlPair: "Moc PV do baterii i stan naładowania są zapisywane tylko razem.",
             gpmGridCharge: "Ładowanie baterii z sieci.",
             optionsReload: "Integracja przeładowuje się przez własny dialog.",
+            statsSensors: "Czujniki są zapisywane w kroku czujników. Przejęcie obowiązuje w działającym wpisie, bez przeładowania integracji.",
+            statsOptionsPending: "Zapisz czujniki STATS raz w opcjach STATS. Potem przejęcie jest możliwe.",
             eaiKeep: "Pozostałe pola pompy ciepła, wallboxa i automatyzacji zostają bez zmian.",
             flowOpen: "Dialog opcji jest już otwarty. Nic nie zapisano.",
             flowRejected: "Formularz odrzucił zmianę. Nic nie zapisano.",
@@ -747,6 +784,20 @@
                     wind_speed_sensor: "Prędkość wiatru",
                     wind_direction_sensor: "Kierunek wiatru",
                     rain_sensor: "Deszcz",
+                },
+                stats: {
+                    sensor_home_consumption: "Zużycie domu",
+                    sensor_solar_to_house: "PV do domu",
+                    sensor_solar_to_battery: "PV do akumulatora",
+                    sensor_battery_to_house: "Akumulator do domu",
+                    sensor_grid_to_house: "Sieć do domu",
+                    sensor_grid_to_battery: "Sieć do akumulatora",
+                    sensor_smartmeter_import: "Pobór z sieci",
+                    sensor_smartmeter_export: "Oddawanie do sieci",
+                    sensor_battery_power: "Moc akumulatora",
+                    sensor_heatpump_power: "Pompa ciepła",
+                    sensor_heatingrod_power: "Grzałka",
+                    sensor_wallbox_power: "Wallbox",
                 },
             },
         },
@@ -1456,6 +1507,7 @@
                                         <tr v-for="(row, rowIndex) in visibleRows(target)" :key="row.field_id || rowIndex">
                                             <td v-if="canWrite(target)">
                                                 <input v-if="canPick(target, row)" class="sinv-map-check" type="checkbox" :checked="isPicked(row)" :disabled="mapBusy" :aria-label="text('selectRow')" @change="togglePick(row)">
+                                                <small v-else-if="row.options_pending === true" class="sinv-map-note">{{ text('statsOptionsPending') }}</small>
                                             </td>
                                             <td>
                                                 <span>{{ fieldLabel(target, row) }}</span>
@@ -1481,6 +1533,7 @@
                             <p v-if="target.id === 'energy' && !targetBlocked(target)" class="sinv-hint">{{ text('energyKept') }}</p>
                             <div v-if="canWrite(target) && !targetBlocked(target)" class="sinv-map-actions">
                                 <p v-if="target.id === 'sfml' || target.id === 'gpm' || target.id === 'eai'" class="sinv-hint">{{ text('optionsReload') }}</p>
+                                <p v-if="target.id === 'stats'" class="sinv-hint">{{ text('statsSensors') }}</p>
                                 <button type="button" class="button" :disabled="!picked.length || mapBusy" @click="openConfirm(target)">{{ text('apply') }}</button>
                                 <button type="button" class="button secondary" :disabled="!snapshotId || mapBusy" @click="undoMapping(target)">{{ text('undo') }}</button>
                             </div>
@@ -1492,6 +1545,7 @@
                                 <p v-if="pendingTarget && pendingTarget.id === 'gpm'">{{ text('gpmGridCharge') }}</p>
                                 <p v-if="pendingTarget && pendingTarget.id === 'eai'">{{ text('eaiKeep') }}</p>
                                 <p v-if="pendingTarget && (pendingTarget.id === 'sfml' || pendingTarget.id === 'gpm' || pendingTarget.id === 'eai')">{{ text('optionsReload') }}</p>
+                                <p v-if="pendingTarget && pendingTarget.id === 'stats'">{{ text('statsSensors') }}</p>
                                 <ul>
                                     <li v-for="row in pendingRows" :key="row.field_id">
                                         <span>{{ fieldLabel(pendingTarget, row) }}</span>
@@ -1665,11 +1719,11 @@
             }
 
             function canWrite(target) {
-                return Boolean(target && (target.id === "energy" || target.id === "sfml" || target.id === "gpm" || target.id === "eai"));
+                return Boolean(target && (target.id === "energy" || target.id === "sfml" || target.id === "gpm" || target.id === "eai" || target.id === "stats"));
             }
 
             function canPick(target, row) {
-                return Boolean(canWrite(target) && row && (row.action === "add" || row.action === "replace"));
+                return Boolean(canWrite(target) && row && row.writable === true && (row.action === "add" || row.action === "replace"));
             }
 
             function batteryAddMate(target, row) {
@@ -1742,6 +1796,7 @@
                 if (code === "missing_values") return text("missingValues");
                 if (code === "flow_rejected") return text("flowRejected");
                 if (code === "flow_in_progress") return text("flowOpen");
+                if (code === "stats_options_pending") return text("statsOptionsPending");
                 if (code === "options_mismatch") return text("optionsMismatch");
                 if (code === "rollback_incomplete") {
                     const raw = err && err.body && err.body.error && err.body.error.keys;
@@ -1757,7 +1812,7 @@
                 const hash = mapping.value && mapping.value.plan_hash;
                 const targetId = pendingTarget.value && pendingTarget.value.id;
                 if (!rows.length || typeof hash !== "string" || mapBusy.value) return;
-                if (targetId !== "energy" && targetId !== "sfml" && targetId !== "gpm" && targetId !== "eai") return;
+                if (targetId !== "energy" && targetId !== "sfml" && targetId !== "gpm" && targetId !== "eai" && targetId !== "stats") return;
                 mapBusy.value = true;
                 mapNotice.value = "";
                 noticeTarget.value = targetId;
@@ -1846,6 +1901,7 @@
                     gpm: "targetGpm",
                     eai: "targetEai",
                     wfai: "targetWfai",
+                    stats: "targetStats",
                 };
                 const key = names[target && target.id];
                 return key ? text(key) : text("targetUnknown");

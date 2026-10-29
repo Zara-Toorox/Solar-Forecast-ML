@@ -40,7 +40,15 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.typing import ConfigType
 
-from . import api_client, energy_hint, external_meter, hp_site, install_counter, site
+from . import (
+    api_client,
+    energy_hint,
+    external_meter,
+    hp_site,
+    install_counter,
+    site,
+    sleep,
+)
 from .config_flow import (
     CONF_API_ENCRYPTION,
     CONF_API_OPTIONS,
@@ -85,6 +93,7 @@ from .ahoy_coordinator import AhoyCoordinator
 from .coordinator import AnkerSolixDataUpdateCoordinator, Command
 from .deye_coordinator import DeyeCoordinator
 from .emsesp_coordinator import EmsespCoordinator
+from .enphase_coordinator import EnphaseCoordinator
 from .hp_bridge_coordinator import HpBridgeCoordinator
 from .entity import async_migrate_legacy_entities
 from .fronius_coordinator import FroniusCoordinator
@@ -95,6 +104,7 @@ from .maxxisun_coordinator import MaxxisunCoordinator
 from .opendtu_coordinator import OpenDtuCoordinator
 from .services import async_setup_services  # async_remove_services
 from .solakon_coordinator import SolakonCoordinator
+from .sigenergy_coordinator import SigenergyCoordinator
 from .solplanet_coordinator import SolplanetCoordinator
 from .solax_coordinator import SolaxCoordinator
 from .solixapi.apitypes import ApiCategories, SolixDeviceType
@@ -118,11 +128,21 @@ LOCAL_COORDINATORS = {
     "local_solarman_v5": DeyeCoordinator,
     "local_modbus_deye": DeyeCoordinator,
     "local_modbus_solplanet": SolplanetCoordinator,
+    "local_modbus_sigenergy": SigenergyCoordinator,
     "local_ahoy": AhoyCoordinator,
+    "local_envoy": EnphaseCoordinator,
     "local_webhook_maxxisun": MaxxisunCoordinator,
     "local_emsesp": EmsespCoordinator,
     "ha_bridge": HpBridgeCoordinator,
     "local_modbus_stiebel": StiebelCoordinator,
+}
+# Polled energy devices that may switch off at night; heat pumps and the push
+# webhook never sleep.
+SLEEP_CONNECTIONS = frozenset(LOCAL_COORDINATORS) - {
+    "local_webhook_maxxisun",
+    "local_emsesp",
+    "ha_bridge",
+    "local_modbus_stiebel",
 }
 SITE_PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH]
 HP_PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
@@ -263,10 +283,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def _async_setup_local_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up an instance on a local vendor API (Fronius, Zendure, maxxisun webhook). @zara"""
-    coordinator_class = LOCAL_COORDINATORS.get(
-        entry.data.get(CONF_CONNECTION), FroniusCoordinator
-    )
+    connection = entry.data.get(CONF_CONNECTION)
+    coordinator_class = LOCAL_COORDINATORS.get(connection, FroniusCoordinator)
+    guard = None
+    if connection in SLEEP_CONNECTIONS:
+        coordinator_class = sleep.sleep_aware(coordinator_class)
+        guard = sleep.SleepGuard(hass, entry)
+        await guard.async_load()
     coordinator = coordinator_class(hass, entry)
+    coordinator.sleep_guard = guard
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
@@ -413,6 +438,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         ir.async_delete_issue(hass, DOMAIN, "duplicate_devices")
     site.async_remove_unused_site_entry(hass, entry)
     hp_site.async_remove_unused_hp_entry(hass, entry)
+    await sleep.async_remove_store(hass, entry)
 
 
 async def async_remove_config_entry_device(

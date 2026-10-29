@@ -121,7 +121,9 @@
                 "maxxisun_local_webhook": "Maxxisun MaxxiCharge - lokaler Webhook (CCU)",
                 "deye_solarman_v5": "Deye – Solarman V5",
                 "deye_modbus_tcp": "Deye – Modbus TCP",
-                "solplanet_modbus_tcp": "Solplanet – Modbus TCP"
+                "solplanet_modbus_tcp": "Solplanet – Modbus TCP",
+                "enphase_local_envoy": "Enphase IQ8 / IQ-Mikrowechselrichter – IQ Gateway (lokales Netz)",
+                "sigenergy_modbus_tcp": "Sigenergy Sigen Hybrid / SigenStor – Modbus TCP"
             }
         },
         "ext_grid_power_sign": {
@@ -416,6 +418,42 @@
                     "unit_id": "Ab Werk 3, am Ai-Logger 239"
                 }
             },
+            "enphase": {
+                "title": "Enphase IQ Gateway",
+                "description": "IQ Gateway (Envoy, Software 7.x oder neuer) im lokalen Netz. S-INV liest die Mikrowechselrichter und, falls verbaut, die Produktions- und Verbrauchs-CTs über HTTPS; jeder Mikrowechselrichter wird ein eigenes Gerät. Das Gateway braucht einen Owner-Zugriffstoken: unter https://entrez.enphaseenergy.com anmelden, Anlage und Gateway-Seriennummer wählen und \"Create access token\" klicken. Ein Owner-Token gilt ein Jahr, ein Installateur-Token 12 Stunden. S-INV liest nur.",
+                "data": {
+                    "host": "IP-Adresse oder Hostname",
+                    "gateway_serial": "Seriennummer des Gateways",
+                    "access_token": "Zugriffstoken"
+                },
+                "data_description": {
+                    "host": "Zum Beispiel 192.168.1.80 oder envoy.local",
+                    "gateway_serial": "Steht in der Enphase App unter Geräte → Gateway (SN)",
+                    "access_token": "Den ganzen Token einfügen; er wird im Konfigurationseintrag gespeichert"
+                }
+            },
+            "enphase_reauth": {
+                "title": "Enphase-Zugriffstoken erneuern",
+                "description": "Das IQ Gateway {serial} hat den Zugriffstoken abgelehnt, oder du möchtest ihn ersetzen. Erstelle unter https://entrez.enphaseenergy.com einen neuen Token für dieses Gateway und füge ihn hier ein.",
+                "data": {
+                    "host": "IP-Adresse oder Hostname",
+                    "access_token": "Zugriffstoken"
+                }
+            },
+            "sigenergy": {
+                "title": "Sigenergy (Modbus TCP)",
+                "description": "Adresse des Sigen-Hybrid-Wechselrichters im lokalen Netz. Den Modbus-TCP-Server in der MySigen-App aktivieren und die Modbus-Adresse des Wechselrichters notieren. S-INV liest den Wechselrichter unter dieser Adresse und die Anlagenwerte (Netzsensor, Speicher, Verbrauch) unter der Anlagenadresse 247, nur Input-Register; es schreibt nie.",
+                "data": {
+                    "host": "IP-Adresse oder Hostname",
+                    "port": "Port",
+                    "unit_id": "Modbus-Adresse des Wechselrichters"
+                },
+                "data_description": {
+                    "host": "Zum Beispiel 192.168.1.60",
+                    "port": "Ab Werk 502",
+                    "unit_id": "Ab Werk 1, wie in der MySigen-App eingestellt (1–246)"
+                }
+            },
             "emsesp": {
                 "title": "EMS-ESP",
                 "description": "Bosch/Buderus über EMS-ESP. Liest nur, kein Passwort und kein Token nötig.",
@@ -473,6 +511,11 @@
             "not_solakon": "Unter dieser Adresse antwortet kein Solakon ONE über Modbus TCP.",
             "not_deye": "Kein unterstützter Deye-Gerätetyp hat geantwortet (String 0x0200, einphasiger Hybrid 0x0300, Mikro 0x0400, Drehstrom-Hybrid 0x0500 oder 0x0600), oder die Wechselrichter-Seriennummer fehlt.",
             "not_solplanet": "Kein Solplanet-Wechselrichter hat geantwortet (Gerätetyp 1 oder 3), oder die Seriennummer fehlt.",
+            "enphase_auth": "Das IQ Gateway hat den Token abgelehnt (abgelaufen, widerrufen oder für ein anderes Gateway).",
+            "enphase_token_invalid": "Der Token ist leer oder enthält ungültige Zeichen.",
+            "enphase_serial_invalid": "Bitte die Seriennummer des Gateways eingeben (nur Buchstaben und Ziffern).",
+            "not_enphase": "Unter dieser Adresse antwortet kein IQ Gateway mit lokaler API.",
+            "not_sigenergy": "Unter dieser Modbus-Adresse hat kein Sigenergy-Hybrid-Wechselrichter geantwortet, oder die Anlagenadresse 247 antwortet nicht.",
             "solarman_timeout": "Der Solarman-V5-Logger hat nicht rechtzeitig geantwortet. Logger, die nur AT-Befehle auf Port 48899 sprechen, werden nicht unterstützt.",
             "logger_serial_mismatch": "Die Logger-Seriennummer passt nicht zu dem Stick, der geantwortet hat.",
             "invalid_host": "Hostname oder IP-Adresse, optional mit Port. Kein Schema, kein Pfad, kein Passwort.",
@@ -502,7 +545,8 @@
             "heat_pump_pending": "Diese Wärmepumpe kann noch nicht eingerichtet werden.",
             "hp_no_options": "Das Wärmepumpen-Aggregat hat keine Optionen.",
             "emsesp_already_configured": "Dieses Gateway ist bereits eingerichtet.",
-            "stiebel_already_configured": "Dieses ISG ist bereits eingerichtet."
+            "stiebel_already_configured": "Dieses ISG ist bereits eingerichtet.",
+            "reauth_successful": "Der Zugriffstoken wurde aktualisiert."
         }
     },
     "options": {
@@ -596,7 +640,7 @@
                     "install_count": "Am BETA-Test teilnehmen (anonyme Installationszählung)"
                 },
                 "data_description": {
-                    "install_count": "Während der BETA ab Werk an, jederzeit abschaltbar. Ist der Schalter an, wird einmal täglich nur die installierte Versionsnummer (z. B. „S-INV 3.0.0“) an solarforecastml.com übermittelt – keine geräte- oder nutzerspezifischen Daten, keine Kennung, keine Messwerte. Gespeichert wird nur, wie oft jede Version pro Tag gemeldet wurde. Deine IP-Adresse ist bei der Übertragung technisch sichtbar und wird höchstens zwei Tage als verschlüsselter Hash zur Missbrauchsabwehr gehalten. Details: https://www.solarforecastml.com/de/privacy"
+                    "install_count": "Während der BETA ab Werk an, jederzeit abschaltbar. Ist der Schalter an, wird einmal täglich nur die installierte Versionsnummer (z. B. „S-INV 4.0.0“) an solarforecastml.com übermittelt – keine geräte- oder nutzerspezifischen Daten, keine Kennung, keine Messwerte. Gespeichert wird nur, wie oft jede Version pro Tag gemeldet wurde. Deine IP-Adresse ist bei der Übertragung technisch sichtbar und wird höchstens zwei Tage als verschlüsselter Hash zur Missbrauchsabwehr gehalten. Details: https://www.solarforecastml.com/de/privacy"
                 },
                 "description": "Energie-Dashboard: Trage die Sensoren dieses Geräts selbst unter Einstellungen → Dashboards → Energie ein – Netzbezug `sensor.sinv_energy_grid_import_total`, Netzeinspeisung `sensor.sinv_energy_grid_export_total`, Solarproduktion `sensor.sinv_energy_solar_total`, Akku in `sensor.sinv_energy_battery_charge_total`, Akku aus `sensor.sinv_energy_battery_discharge_total`. Nur diese Anlagen-Sensoren verwenden, sonst wird doppelt gezählt."
             }
@@ -3968,6 +4012,27 @@
             },
             "solplanet_voltage_grid_l3": {
                 "name": "Netzspannung L3"
+            },
+            "enphase_max_report_power": {
+                "name": "Höchste gemeldete Leistung"
+            },
+            "enphase_production_ct_power": {
+                "name": "Leistung Produktions-CT"
+            },
+            "enphase_meter_voltage": {
+                "name": "Spannung Netzanschluss"
+            },
+            "enphase_meter_frequency": {
+                "name": "Frequenz Netzanschluss"
+            },
+            "sigenergy_running_state": {
+                "name": "Betriebszustand"
+            },
+            "sigenergy_firmware": {
+                "name": "Firmware"
+            },
+            "sigenergy_ems_work_mode": {
+                "name": "EMS-Betriebsmodus"
             },
             "maxxisun_firmware_version": {
                 "name": "Firmware-Version"

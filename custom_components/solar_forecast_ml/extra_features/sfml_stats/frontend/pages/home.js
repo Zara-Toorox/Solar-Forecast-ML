@@ -323,11 +323,12 @@ const _HomePage = {
                     <span class="info-value" :style="{color: flow.battery_power > 0 ? 'var(--price-cheap)' : flow.battery_power < 0 ? '#f97316' : 'var(--text-secondary)'}">
                         {{ flow.battery_power > 0 ? '+' : '' }}{{ fmtW(flow.battery_power) }}
                     </span>
+                    <span v-if="flow.grid_to_battery > 10" class="info-value info-small" style="color: var(--price-expensive)">{{ $t('home.panel.batteryFromGrid', { value: fmtW(flow.grid_to_battery) }) }}</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">⚡ {{ $t('home.panel.grid') }}</span>
-                    <span class="info-value" :style="{color: flow.grid_to_house > 10 ? 'var(--price-expensive)' : flow.house_to_grid > 10 ? 'var(--price-cheap)' : 'var(--text-secondary)'}">
-                        <template v-if="flow.grid_to_house > 10">{{ fmtW(flow.grid_to_house) }} ↓</template>
+                    <span class="info-value" :style="{color: gridImportW > 10 ? 'var(--price-expensive)' : flow.house_to_grid > 10 ? 'var(--price-cheap)' : 'var(--text-secondary)'}">
+                        <template v-if="gridImportW > 10">{{ fmtW(gridImportW) }} ↓</template>
                         <template v-else-if="flow.house_to_grid > 10">{{ fmtW(flow.house_to_grid) }} ↑</template>
                         <template v-else>0 W</template>
                     </span>
@@ -1150,8 +1151,12 @@ const _HomePage = {
             };
         });
 
+        const gridImportW = computed(() => (
+            Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0)
+        ));
+
         const gridPowerAbsText = computed(() => {
-            const importW = Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0);
+            const importW = gridImportW.value;
             const exportW = Number(flow.house_to_grid || 0);
             if (exportW > 10) return fmtW(exportW);
             if (importW > 10) return fmtW(importW);
@@ -1159,7 +1164,7 @@ const _HomePage = {
         });
 
         const gridStateTextLocal = computed(() => {
-            const importW = Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0);
+            const importW = gridImportW.value;
             const exportW = Number(flow.house_to_grid || 0);
             if (exportW > 10) return localText('grid_export');
             if (importW > 10) return localText('grid_import');
@@ -1167,7 +1172,7 @@ const _HomePage = {
         });
 
         const gridStateColorClass = computed(() => {
-            const importW = Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0);
+            const importW = gridImportW.value;
             const exportW = Number(flow.house_to_grid || 0);
             if (exportW > 10) return 'export';
             if (importW > 10) return 'import';
@@ -3697,7 +3702,7 @@ const _HomePage = {
             getWeatherSymbol, statusChipClass, statusChipTitle,
             consumers, routes, batteryPowerText, batteryStateTextLocal,
             batteryStateClass, gridPowerAbsText, gridStateTextLocal,
-            gridStateColorClass, localText,
+            gridStateColorClass, gridImportW, localText,
             hasBatteryChart, batteryChartStats,
             getConsumerName,
             smartChargingLine, smartChargingHeadline, smartChargingWhy, smartChargingNext,
@@ -4609,22 +4614,13 @@ const _HomePage = {
             stroke-width: 1px;
             stroke-dasharray: 2 3;
         }
-        [data-theme="light"] .leader-line {
-            stroke: rgba(15, 23, 42, 0.25);
-        }
         .leader-line-separator {
             fill: none;
             stroke: rgba(255, 255, 255, 0.15);
             stroke-width: 1px;
         }
-        [data-theme="light"] .leader-line-separator {
-            stroke: rgba(15, 23, 42, 0.15);
-        }
         .leader-dot-circle {
             fill: rgba(255, 255, 255, 0.4);
-        }
-        [data-theme="light"] .leader-dot-circle {
-            fill: rgba(15, 23, 42, 0.4);
         }
 
         /* Route Paths and Glow */
@@ -4632,9 +4628,6 @@ const _HomePage = {
             fill: none;
             stroke: rgba(255, 255, 255, 0.08);
             stroke-linecap: round;
-        }
-        [data-theme="light"] .flow-route-bg {
-            stroke: rgba(15, 23, 42, 0.06);
         }
         .flow-route {
             fill: none;
@@ -4675,18 +4668,12 @@ const _HomePage = {
             fill: #ffffff;
             letter-spacing: -0.02em;
         }
-        [data-theme="light"] .val-main {
-            fill: #0f172a;
-        }
         .label-sub {
             font-family: var(--font-family);
             font-size: 11px;
             font-weight: 600;
             fill: #94a3b8;
             letter-spacing: 0.08em;
-        }
-        [data-theme="light"] .label-sub {
-            fill: #64748b;
         }
         .status-sub {
             font-family: var(--font-family);

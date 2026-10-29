@@ -121,7 +121,9 @@
                 "maxxisun_local_webhook": "Maxxisun MaxxiCharge - local webhook (CCU)",
                 "deye_solarman_v5": "Deye – Solarman V5",
                 "deye_modbus_tcp": "Deye – Modbus TCP",
-                "solplanet_modbus_tcp": "Solplanet – Modbus TCP"
+                "solplanet_modbus_tcp": "Solplanet – Modbus TCP",
+                "enphase_local_envoy": "Enphase IQ8 / IQ microinverters – IQ Gateway (local network)",
+                "sigenergy_modbus_tcp": "Sigenergy Sigen Hybrid / SigenStor – Modbus TCP"
             }
         },
         "ext_grid_power_sign": {
@@ -416,6 +418,42 @@
                     "unit_id": "3 by default, 239 for an Ai-logger"
                 }
             },
+            "enphase": {
+                "title": "Enphase IQ Gateway",
+                "description": "IQ Gateway (Envoy, software 7.x or later) on the local network. S-INV reads the microinverters and, where installed, the production and consumption CTs over HTTPS; each microinverter becomes its own device. The gateway needs an owner access token: sign in at https://entrez.enphaseenergy.com, select the system and the gateway serial, and choose \"Create access token\". An owner token is valid for one year, an installer token for 12 hours. S-INV only reads.",
+                "data": {
+                    "host": "IP address or host name",
+                    "gateway_serial": "Gateway serial number",
+                    "access_token": "Access token"
+                },
+                "data_description": {
+                    "host": "For example 192.168.1.80 or envoy.local",
+                    "gateway_serial": "Shown in the Enphase App under Devices → Gateway (SN)",
+                    "access_token": "Paste the whole token; it is stored in the configuration entry"
+                }
+            },
+            "enphase_reauth": {
+                "title": "Renew the Enphase access token",
+                "description": "The IQ Gateway {serial} refused the access token or you want to replace it. Create a new token for this gateway at https://entrez.enphaseenergy.com and paste it here.",
+                "data": {
+                    "host": "IP address or host name",
+                    "access_token": "Access token"
+                }
+            },
+            "sigenergy": {
+                "title": "Sigenergy (Modbus TCP)",
+                "description": "Address of the Sigen hybrid inverter on the local network. Enable Modbus TCP server in the MySigen app and note the inverter's Modbus address. S-INV reads the inverter at that address and the plant values (grid sensor, battery, load) at the plant address 247, input registers only; it never writes.",
+                "data": {
+                    "host": "IP address or host name",
+                    "port": "Port",
+                    "unit_id": "Inverter Modbus address"
+                },
+                "data_description": {
+                    "host": "For example 192.168.1.60",
+                    "port": "502 by default",
+                    "unit_id": "1 by default, as set in the MySigen app (1–246)"
+                }
+            },
             "emsesp": {
                 "title": "EMS-ESP",
                 "description": "Bosch/Buderus via EMS-ESP. Read only, no password or token required.",
@@ -473,6 +511,11 @@
             "not_solakon": "No Solakon ONE answers Modbus TCP at this address.",
             "not_deye": "No supported Deye family answered (string 0x0200, single-phase hybrid 0x0300, microinverter 0x0400, three-phase hybrid 0x0500 or 0x0600), or the inverter serial was missing.",
             "not_solplanet": "No Solplanet inverter answered (device type 1 or 3), or the serial number was missing.",
+            "enphase_auth": "The IQ Gateway refused the token (expired, revoked or for another gateway).",
+            "enphase_token_invalid": "The token contains invalid characters or is empty.",
+            "enphase_serial_invalid": "Enter the gateway serial number (letters and digits only).",
+            "not_enphase": "No IQ Gateway with the local API answers at this address.",
+            "not_sigenergy": "No Sigenergy hybrid inverter answered at this Modbus address, or the plant address 247 did not answer.",
             "solarman_timeout": "The Solarman V5 logger did not answer in time. Loggers that only speak AT commands on port 48899 are not supported.",
             "logger_serial_mismatch": "The logger serial does not match the stick that answered.",
             "invalid_host": "Enter a hostname or an IP address, with an optional port. No scheme, path or password.",
@@ -502,7 +545,8 @@
             "heat_pump_pending": "This heat pump cannot be set up yet.",
             "hp_no_options": "The heat pump aggregate has no options.",
             "emsesp_already_configured": "This gateway is already set up.",
-            "stiebel_already_configured": "This ISG is already set up."
+            "stiebel_already_configured": "This ISG is already set up.",
+            "reauth_successful": "The access token was updated."
         }
     },
     "options": {
@@ -596,7 +640,7 @@
                     "install_count": "Take part in the BETA test (anonymous install count)"
                 },
                 "data_description": {
-                    "install_count": "On by default during the BETA, can be switched off at any time. When on, only the installed version number (e.g. “S-INV 3.0.0”) is sent to solarforecastml.com once a day – no device- or user-specific data, no identifier, no measured values. Only how often each version was reported per day is stored. Your IP address is technically visible in transit and kept as an encrypted hash for abuse protection for at most two days. Details: https://www.solarforecastml.com/en/privacy"
+                    "install_count": "On by default during the BETA, can be switched off at any time. When on, only the installed version number (e.g. “S-INV 4.0.0”) is sent to solarforecastml.com once a day – no device- or user-specific data, no identifier, no measured values. Only how often each version was reported per day is stored. Your IP address is technically visible in transit and kept as an encrypted hash for abuse protection for at most two days. Details: https://www.solarforecastml.com/en/privacy"
                 },
                 "description": "Energy dashboard: add the sensors of this device yourself under Settings → Dashboards → Energy – grid consumption `sensor.sinv_energy_grid_import_total`, return to grid `sensor.sinv_energy_grid_export_total`, solar production `sensor.sinv_energy_solar_total`, battery in `sensor.sinv_energy_battery_charge_total`, battery out `sensor.sinv_energy_battery_discharge_total`. Use only these installation sensors, otherwise energy is counted twice."
             }
@@ -3968,6 +4012,27 @@
             },
             "solplanet_voltage_grid_l3": {
                 "name": "Grid voltage L3"
+            },
+            "enphase_max_report_power": {
+                "name": "Highest reported power"
+            },
+            "enphase_production_ct_power": {
+                "name": "Production CT power"
+            },
+            "enphase_meter_voltage": {
+                "name": "Grid point voltage"
+            },
+            "enphase_meter_frequency": {
+                "name": "Grid point frequency"
+            },
+            "sigenergy_running_state": {
+                "name": "Running state"
+            },
+            "sigenergy_firmware": {
+                "name": "Firmware"
+            },
+            "sigenergy_ems_work_mode": {
+                "name": "EMS work mode"
             },
             "maxxisun_firmware_version": {
                 "name": "Firmware version"

@@ -23,6 +23,7 @@ from awesomeversion import AwesomeVersion
 from homeassistant import config_entries
 from homeassistant.components import webhook
 from homeassistant.const import (
+    CONF_ACCESS_TOKEN,
     CONF_COUNTRY_CODE,
     CONF_DELAY_TIME,
     CONF_EXCLUDE,
@@ -94,6 +95,7 @@ from .const import (
     VENDOR_CONNECTIONS,
     VENDOR_DEYE,
     VENDOR_EMSESP,
+    VENDOR_ENPHASE,
     VENDOR_HP,
     VENDOR_HP_BRIDGE,
     VENDOR_FRONIUS,
@@ -102,6 +104,7 @@ from .const import (
     VENDOR_KOSTAL,
     VENDOR_MAXXISUN,
     VENDOR_SOLAKON,
+    VENDOR_SIGENERGY,
     VENDOR_SOLPLANET,
     VENDOR_SOLAX,
     VENDOR_STIEBEL,
@@ -115,6 +118,8 @@ from .emsesp_coordinator import async_probe as async_probe_emsesp
 from .emsesp_coordinator import setup_code as emsesp_setup_code
 from .emsesp_coordinator import host_in_use as emsesp_host_in_use
 from .emsesp_coordinator import normalize_host as normalize_emsesp_host
+from .enphase_coordinator import CONF_GATEWAY_SERIAL, EnphaseAuthError
+from .enphase_coordinator import async_probe as async_probe_enphase
 from .fronius_coordinator import CONF_MODBUS, MODBUS_DEFAULT, async_probe
 from .hoymiles_dtu_coordinator import async_probe as async_probe_hoymiles_dtu
 from .huawei_coordinator import async_probe as async_probe_huawei
@@ -126,6 +131,7 @@ from .opendtu_coordinator import async_probe as async_probe_opendtu
 from .hp_site import HP_TITLE, HP_UNIQUE_ID
 from .site import SITE_TITLE, SITE_UNIQUE_ID, VENDOR_SITE
 from .solakon_coordinator import async_probe as async_probe_solakon
+from .sigenergy_coordinator import async_probe as async_probe_sigenergy
 from .solplanet_coordinator import async_probe as async_probe_solplanet
 from .solax_coordinator import async_probe as async_probe_solax
 from .solixapi.apitypes import ApiCategories, SolixDeviceType
@@ -141,6 +147,7 @@ from .vendors import (
     ahoy,
     deye,
     emsesp,
+    enphase,
     fronius,
     hoymiles_dtu,
     hp_bridge,
@@ -148,6 +155,7 @@ from .vendors import (
     kostal,
     maxxisun,
     opendtu,
+    sigenergy,
     solakon,
     solplanet,
     solax,
@@ -589,6 +597,10 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_deye()
         if self._connection == solplanet.CONNECTION_MODBUS:
             return await self.async_step_solplanet()
+        if self._connection == enphase.CONNECTION_LOCAL:
+            return await self.async_step_enphase()
+        if self._connection == sigenergy.CONNECTION_MODBUS:
+            return await self.async_step_sigenergy()
         return await self.async_step_credentials()
 
     async def async_step_fronius(
@@ -836,6 +848,37 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
+    async def async_step_sigenergy(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Step for a Sigenergy hybrid: Modbus TCP, inverter and plant address, read only. @zara"""
+        values = user_input or {}
+
+        async def probe(_session, host: str) -> dict[str, Any]:
+            return await async_probe_sigenergy(
+                host,
+                int(values.get(CONF_PORT, sigenergy.DEFAULT_PORT)),
+                int(values.get(CONF_UNIT_ID, sigenergy.DEFAULT_UNIT_ID)),
+            )
+
+        return await self._async_local_step(
+            "sigenergy",
+            VENDOR_SIGENERGY,
+            probe,
+            sigenergy,
+            user_input,
+            error_key="not_sigenergy",
+            extra_fields={
+                vol.Required(
+                    CONF_PORT, default=values.get(CONF_PORT, sigenergy.DEFAULT_PORT)
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+                vol.Required(
+                    CONF_UNIT_ID,
+                    default=values.get(CONF_UNIT_ID, sigenergy.DEFAULT_UNIT_ID),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=246)),
+            },
+        )
+
     async def async_step_deye(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
@@ -904,6 +947,136 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(fields),
             errors=errors,
         )
+
+    async def async_step_deye_solarman(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Deye Solarman form; same probe and entry as the Deye step. @zara"""
+        return await self.async_step_deye(user_input)
+
+    async def async_step_deye_modbus(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Deye Modbus form; same probe and entry as the Deye step. @zara"""
+        return await self.async_step_deye(user_input)
+
+    async def _async_probe_enphase(
+        self, values: dict[str, Any], errors: dict[str, str]
+    ) -> dict[str, Any] | None:
+        """Probe an IQ Gateway with the entered token; fill errors on failure. @zara"""
+        try:
+            return await async_probe_enphase(
+                async_get_clientsession(self.hass, verify_ssl=False),
+                str(values.get(CONF_HOST, "")).strip(),
+                str(values.get(CONF_ACCESS_TOKEN, "")),
+                str(values.get(CONF_GATEWAY_SERIAL, "")),
+            )
+        except EnphaseAuthError:
+            errors[CONF_ACCESS_TOKEN] = "enphase_auth"
+        except (ClientError, TimeoutError, OSError):
+            errors[CONF_HOST] = "cannot_connect"
+        except ValueError as err:
+            text = str(err)
+            if "token" in text:
+                errors[CONF_ACCESS_TOKEN] = "enphase_token_invalid"
+            elif "serial" in text:
+                errors[CONF_GATEWAY_SERIAL] = "enphase_serial_invalid"
+            elif "address" in text:
+                errors[CONF_HOST] = "invalid_host"
+            else:
+                errors[CONF_HOST] = "not_enphase"
+        except TypeError:
+            errors[CONF_HOST] = "not_enphase"
+        return None
+
+    async def async_step_enphase(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Step for Enphase: IQ Gateway address, serial and owner token. @zara"""
+        values = user_input or {}
+        errors: dict[str, str] = {}
+        if user_input and (identity := await self._async_probe_enphase(values, errors)):
+            host = str(values[CONF_HOST]).strip()
+            await self.async_set_unique_id(f"{VENDOR_ENPHASE}_{identity['serial']}")
+            self._abort_if_unique_id_configured(
+                updates={CONF_HOST: host, **identity["data"]}
+            )
+            return self.async_create_entry(
+                title=identity["name"],
+                data={
+                    CONF_VENDOR: VENDOR_ENPHASE,
+                    CONF_CONNECTION: self._connection,
+                    CONF_HOST: host,
+                    **identity["data"],
+                },
+                options={CONF_SCAN_INTERVAL: enphase.DEFAULT_SCAN_SECONDS},
+            )
+        return self.async_show_form(
+            step_id="enphase",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOST, default=values.get(CONF_HOST, "")): str,
+                    vol.Required(
+                        CONF_GATEWAY_SERIAL,
+                        default=values.get(CONF_GATEWAY_SERIAL, ""),
+                    ): str,
+                    vol.Required(CONF_ACCESS_TOKEN): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_enphase_reauth(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Replace an expired or refused IQ Gateway token (and the address). @zara"""
+        entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id"))
+        errors: dict[str, str] = {}
+        if user_input:
+            values = {
+                **user_input,
+                CONF_GATEWAY_SERIAL: entry.data.get(CONF_GATEWAY_SERIAL, ""),
+            }
+            if identity := await self._async_probe_enphase(values, errors):
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data={
+                        **entry.data,
+                        CONF_HOST: str(values[CONF_HOST]).strip(),
+                        **identity["data"],
+                    },
+                    reason="reauth_successful",
+                )
+        return self.async_show_form(
+            step_id="enphase_reauth",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_HOST,
+                        default=(user_input or {}).get(
+                            CONF_HOST, entry.data.get(CONF_HOST, "")
+                        ),
+                    ): str,
+                    vol.Required(CONF_ACCESS_TOKEN): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.PASSWORD
+                        )
+                    ),
+                }
+            ),
+            errors=errors,
+            description_placeholders={
+                "serial": str(entry.data.get(CONF_GATEWAY_SERIAL, ""))
+            },
+        )
+
+    def _is_enphase_entry(self) -> bool:
+        entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id"))
+        return entry is not None and entry.data.get(CONF_VENDOR) == VENDOR_ENPHASE
 
     async def async_step_maxxisun(
         self, user_input: dict[str, Any] | None = None
@@ -1065,6 +1238,8 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.FlowResult:
         """Perform reauthentication upon an API authentication error. @thomas"""
 
+        if self._is_enphase_entry():
+            return await self.async_step_enphase_reauth()
         return await self.async_step_reauth_confirm()
 
     async def async_step_reconfigure(
@@ -1072,6 +1247,8 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.FlowResult:
         """Add reconfigure step to allow to reconfigure a config entry. @thomas"""
 
+        if self._is_enphase_entry():
+            return await self.async_step_enphase_reauth()
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
@@ -1575,6 +1752,8 @@ class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsF
             deye.CONNECTION_SOLARMAN: deye,
             deye.CONNECTION_MODBUS: deye,
             solplanet.CONNECTION_MODBUS: solplanet,
+            enphase.CONNECTION_LOCAL: enphase,
+            sigenergy.CONNECTION_MODBUS: sigenergy,
         }.get(self.config_entry.data.get(CONF_CONNECTION), fronius)
         current = self.config_entry.options.get(
             CONF_SCAN_INTERVAL, module.DEFAULT_SCAN_SECONDS

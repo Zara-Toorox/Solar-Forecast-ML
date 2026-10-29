@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import struct
 
 READ_HOLDING_REGISTERS = 0x03
@@ -25,6 +26,10 @@ READ_INPUT_REGISTERS = 0x04
 READ_FUNCTIONS = (READ_HOLDING_REGISTERS, READ_INPUT_REGISTERS)
 MAX_REGISTERS_PER_READ = 125
 CLOSE_TIMEOUT = 5.0
+# complete frames with a foreign transaction id skipped before the answer
+MAX_FOREIGN_FRAMES = 3
+
+_LOGGER = logging.getLogger(__package__)
 
 
 class ModbusError(Exception):
@@ -86,6 +91,44 @@ class ModbusTcpClient:
         """Close the connection. @zara"""
         await self.close()
 
+    def _header_error(
+        self, transaction: int, protocol: int, length: int, unit: int
+    ) -> ModbusError:
+        return ModbusError(
+            "unexpected Modbus TCP header: "
+            f"transaction {transaction} (sent {self._transaction}), "
+            f"protocol {protocol}, length {length}, "
+            f"unit {unit} (sent {self.unit_id})"
+        )
+
+    async def _read_answer(self, reader: asyncio.StreamReader) -> bytes:
+        """Return the PDU answering the current transaction. @zara"""
+        for _ in range(MAX_FOREIGN_FRAMES + 1):
+            header = await reader.readexactly(7)
+            transaction, protocol, length, unit = struct.unpack(">HHHB", header)
+            if protocol != 0 or not 2 <= length <= 254:
+                raise self._header_error(transaction, protocol, length, unit)
+            body = await reader.readexactly(length - 1)
+            if transaction == self._transaction:
+                if unit != self.unit_id:
+                    raise self._header_error(transaction, protocol, length, unit)
+                return body
+            # a late answer, e.g. to a request a gateway received just before it
+            # dropped the previous connection: the frame was read completely, so
+            # the stream stays in step and the right answer may still follow
+            _LOGGER.debug(
+                "Modbus %s:%s skipped foreign frame: transaction %s (sent %s), unit %s",
+                self.host,
+                self.port,
+                transaction,
+                self._transaction,
+                unit,
+            )
+        raise ModbusError(
+            f"no answer to transaction {self._transaction} after "
+            f"{MAX_FOREIGN_FRAMES} foreign frames"
+        )
+
     async def read(
         self, address: int, count: int, function: int = READ_HOLDING_REGISTERS
     ) -> list[int]:
@@ -115,20 +158,10 @@ class ModbusTcpClient:
         try:
             self._writer.write(request)
             await self._writer.drain()
-            header = await asyncio.wait_for(self._reader.readexactly(7), self.timeout)
-            transaction, protocol, length, unit = struct.unpack(">HHHB", header)
-            if (
-                transaction != self._transaction
-                or protocol != 0
-                or unit != self.unit_id
-                or not 2 <= length <= 254
-            ):
-                raise ModbusError("unexpected Modbus TCP header")
-            body = await asyncio.wait_for(
-                self._reader.readexactly(length - 1), self.timeout
-            )
+            async with asyncio.timeout(self.timeout):
+                body = await self._read_answer(self._reader)
         except (ModbusError, OSError, TimeoutError, EOFError):
-            # a late, foreign or half-read frame leaves the stream out of step:
+            # a malformed or half-read frame leaves the stream out of step:
             # the connection is never reused after it
             await self.close()
             raise

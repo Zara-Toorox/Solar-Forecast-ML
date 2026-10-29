@@ -35,6 +35,8 @@ TO_REDACT = {
     "host",
     "enc_rand",
     "webhook_id",
+    "access_token",
+    "gateway_serial",
     CONF_LOGGER_SERIAL,
 }
 

@@ -48,6 +48,8 @@ VENDOR_HUAWEI: Final[str] = "huawei"
 VENDOR_SOLAKON: Final[str] = "solakon"
 VENDOR_DEYE: Final[str] = "deye"
 VENDOR_SOLPLANET: Final[str] = "solplanet"
+VENDOR_ENPHASE: Final[str] = "enphase"
+VENDOR_SIGENERGY: Final[str] = "sigenergy"
 VENDOR_EMSESP: Final[str] = "emsesp"
 VENDOR_HP_BRIDGE: Final[str] = "hp_bridge"
 VENDOR_STIEBEL: Final[str] = "stiebel_isg"
@@ -64,6 +66,8 @@ LOCAL_VENDORS: Final[tuple[str, ...]] = (
     VENDOR_MAXXISUN,
     VENDOR_DEYE,
     VENDOR_SOLPLANET,
+    VENDOR_ENPHASE,
+    VENDOR_SIGENERGY,
     VENDOR_EMSESP,
     VENDOR_HP_BRIDGE,
     VENDOR_STIEBEL,
@@ -81,6 +85,8 @@ VENDOR_CONNECTIONS: Final[dict[str, tuple[str, ...]]] = {
     VENDOR_MAXXISUN: ("local_webhook_maxxisun",),
     VENDOR_DEYE: ("local_solarman_v5", "local_modbus_deye"),
     VENDOR_SOLPLANET: ("local_modbus_solplanet",),
+    VENDOR_ENPHASE: ("local_envoy",),
+    VENDOR_SIGENERGY: ("local_modbus_sigenergy",),
     VENDOR_EMSESP: ("local_emsesp",),
     VENDOR_HP_BRIDGE: ("ha_bridge",),
     VENDOR_STIEBEL: ("local_modbus_stiebel",),
@@ -103,6 +109,8 @@ SUPPORTED_SYSTEMS: Final[dict[str, tuple[str, str]]] = {
     "deye_solarman_v5": (VENDOR_DEYE, "local_solarman_v5"),
     "deye_modbus_tcp": (VENDOR_DEYE, "local_modbus_deye"),
     "solplanet_modbus_tcp": (VENDOR_SOLPLANET, "local_modbus_solplanet"),
+    "enphase_local_envoy": (VENDOR_ENPHASE, "local_envoy"),
+    "sigenergy_modbus_tcp": (VENDOR_SIGENERGY, "local_modbus_sigenergy"),
 }
 # Heat-pump systems. While this dict is empty the config flow keeps the
 # inverter list as the first step. A registered system shows the WR/HP menu.

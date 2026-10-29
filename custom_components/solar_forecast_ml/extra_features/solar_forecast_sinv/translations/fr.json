@@ -121,7 +121,9 @@
                 "maxxisun_local_webhook": "Maxxisun MaxxiCharge - webhook local (CCU)",
                 "deye_solarman_v5": "Deye – Solarman V5",
                 "deye_modbus_tcp": "Deye – Modbus TCP",
-                "solplanet_modbus_tcp": "Solplanet – Modbus TCP"
+                "solplanet_modbus_tcp": "Solplanet – Modbus TCP",
+                "enphase_local_envoy": "Micro-onduleurs Enphase IQ8 / IQ – IQ Gateway (réseau local)",
+                "sigenergy_modbus_tcp": "Sigenergy Sigen Hybrid / SigenStor – Modbus TCP"
             }
         },
         "ext_grid_power_sign": {
@@ -416,6 +418,42 @@
                     "unit_id": "3 par défaut, 239 pour un Ai-logger"
                 }
             },
+            "enphase": {
+                "title": "Enphase IQ Gateway",
+                "description": "IQ Gateway (Envoy, logiciel 7.x ou plus récent) sur le réseau local. S-INV lit les micro-onduleurs et, s'ils sont installés, les TC de production et de consommation via HTTPS ; chaque micro-onduleur devient son propre appareil. La passerelle exige un jeton d'accès propriétaire : connectez-vous sur https://entrez.enphaseenergy.com, choisissez l'installation et le numéro de série de la passerelle, puis \"Create access token\". Un jeton propriétaire est valable un an, un jeton installateur 12 heures. S-INV lit uniquement.",
+                "data": {
+                    "host": "Adresse IP ou nom d'hôte",
+                    "gateway_serial": "Numéro de série de la passerelle",
+                    "access_token": "Jeton d'accès"
+                },
+                "data_description": {
+                    "host": "Par exemple 192.168.1.80 ou envoy.local",
+                    "gateway_serial": "Indiqué dans l'app Enphase sous Appareils → Passerelle (SN)",
+                    "access_token": "Collez le jeton complet ; il est enregistré dans l'entrée de configuration"
+                }
+            },
+            "enphase_reauth": {
+                "title": "Renouveler le jeton d'accès Enphase",
+                "description": "La passerelle IQ {serial} a refusé le jeton d'accès, ou vous souhaitez le remplacer. Créez un nouveau jeton pour cette passerelle sur https://entrez.enphaseenergy.com et collez-le ici.",
+                "data": {
+                    "host": "Adresse IP ou nom d'hôte",
+                    "access_token": "Jeton d'accès"
+                }
+            },
+            "sigenergy": {
+                "title": "Sigenergy (Modbus TCP)",
+                "description": "Adresse de l'onduleur hybride Sigen sur le réseau local. Activez le serveur Modbus TCP dans l'app MySigen et notez l'adresse Modbus de l'onduleur. S-INV lit l'onduleur à cette adresse et les valeurs de l'installation (capteur réseau, batterie, consommation) à l'adresse d'installation 247, registres d'entrée uniquement ; il n'écrit jamais.",
+                "data": {
+                    "host": "Adresse IP ou nom d'hôte",
+                    "port": "Port",
+                    "unit_id": "Adresse Modbus de l'onduleur"
+                },
+                "data_description": {
+                    "host": "Par exemple 192.168.1.60",
+                    "port": "502 par défaut",
+                    "unit_id": "1 par défaut, comme réglé dans l'app MySigen (1–246)"
+                }
+            },
             "emsesp": {
                 "title": "EMS-ESP",
                 "description": "Bosch/Buderus via EMS-ESP. Lecture seule, aucun mot de passe ni jeton requis.",
@@ -473,6 +511,11 @@
             "not_solakon": "Aucun Solakon ONE ne répond en Modbus TCP à cette adresse.",
             "not_deye": "Aucune famille Deye prise en charge n'a répondu (string 0x0200, hybride monophasé 0x0300, micro-onduleur 0x0400, hybride triphasé 0x0500 ou 0x0600), ou le numéro de série de l'onduleur manque.",
             "not_solplanet": "Aucun onduleur Solplanet n'a répondu (type 1 ou 3), ou le numéro de série manque.",
+            "enphase_auth": "La passerelle IQ a refusé le jeton (expiré, révoqué ou destiné à une autre passerelle).",
+            "enphase_token_invalid": "Le jeton est vide ou contient des caractères non valides.",
+            "enphase_serial_invalid": "Saisissez le numéro de série de la passerelle (lettres et chiffres uniquement).",
+            "not_enphase": "Aucune passerelle IQ avec API locale ne répond à cette adresse.",
+            "not_sigenergy": "Aucun onduleur hybride Sigenergy n'a répondu à cette adresse Modbus, ou l'adresse d'installation 247 ne répond pas.",
             "solarman_timeout": "L'enregistreur Solarman V5 n'a pas répondu à temps. Les enregistreurs qui ne parlent que les commandes AT sur le port 48899 ne sont pas pris en charge.",
             "logger_serial_mismatch": "Le numéro de série de l'enregistreur ne correspond pas au stick qui a répondu.",
             "invalid_host": "Nom d'hôte ou adresse IP, port facultatif. Pas de schéma, de chemin ni de mot de passe.",
@@ -502,7 +545,8 @@
             "heat_pump_pending": "Cette pompe à chaleur ne peut pas encore être configurée.",
             "hp_no_options": "L'agrégat pompe à chaleur n'a pas d'options.",
             "emsesp_already_configured": "Cette passerelle est déjà configurée.",
-            "stiebel_already_configured": "Cet ISG est déjà configuré."
+            "stiebel_already_configured": "Cet ISG est déjà configuré.",
+            "reauth_successful": "Le jeton d'accès a été mis à jour."
         }
     },
     "options": {
@@ -596,7 +640,7 @@
                     "install_count": "Participer au test BETA (comptage anonyme des installations)"
                 },
                 "data_description": {
-                    "install_count": "Activé par défaut pendant la BETA, désactivable à tout moment. Si activé, seul le numéro de version installé (p. ex. « S-INV 3.0.0 ») est envoyé une fois par jour à solarforecastml.com – aucune donnée propre à l'appareil ou à l'utilisateur, aucun identifiant, aucune mesure. Seul le nombre de signalements par jour et par version est enregistré. Votre adresse IP est techniquement visible lors de la transmission et conservée au plus deux jours sous forme de hachage chiffré pour la protection contre les abus. Détails : https://www.solarforecastml.com/en/privacy"
+                    "install_count": "Activé par défaut pendant la BETA, désactivable à tout moment. Si activé, seul le numéro de version installé (p. ex. « S-INV 4.0.0 ») est envoyé une fois par jour à solarforecastml.com – aucune donnée propre à l'appareil ou à l'utilisateur, aucun identifiant, aucune mesure. Seul le nombre de signalements par jour et par version est enregistré. Votre adresse IP est techniquement visible lors de la transmission et conservée au plus deux jours sous forme de hachage chiffré pour la protection contre les abus. Détails : https://www.solarforecastml.com/en/privacy"
                 },
                 "description": "Tableau de bord énergie : ajoutez vous-même les capteurs de cet appareil sous Paramètres → Tableaux de bord → Énergie – consommation du réseau `sensor.sinv_energy_grid_import_total`, injection `sensor.sinv_energy_grid_export_total`, production solaire `sensor.sinv_energy_solar_total`, batterie entrante `sensor.sinv_energy_battery_charge_total`, batterie sortante `sensor.sinv_energy_battery_discharge_total`. Utilisez uniquement ces capteurs de l'installation, sinon l'énergie est comptée deux fois."
             }
@@ -3328,6 +3372,27 @@
             },
             "solplanet_voltage_grid_l3": {
                 "name": "Tension réseau L3"
+            },
+            "enphase_max_report_power": {
+                "name": "Puissance maximale signalée"
+            },
+            "enphase_production_ct_power": {
+                "name": "Puissance TC de production"
+            },
+            "enphase_meter_voltage": {
+                "name": "Tension au point de raccordement"
+            },
+            "enphase_meter_frequency": {
+                "name": "Fréquence au point de raccordement"
+            },
+            "sigenergy_running_state": {
+                "name": "État de fonctionnement"
+            },
+            "sigenergy_firmware": {
+                "name": "Firmware"
+            },
+            "sigenergy_ems_work_mode": {
+                "name": "Mode de fonctionnement EMS"
             },
             "maxxisun_firmware_version": {
                 "name": "Version du firmware"

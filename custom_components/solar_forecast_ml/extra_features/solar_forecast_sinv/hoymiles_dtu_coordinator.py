@@ -21,12 +21,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import LOGGER
+from .sleep import DeviceUnreachable
 from .vendors import hoymiles_dtu
 
 CONF_IS_ENCRYPTED = "is_encrypted"
 CONF_ENC_RAND = "enc_rand"
 ENCRYPTION_SETTLE_SECONDS = 2
 MISSES_BEFORE_ASLEEP = 3
+UNREADABLE_RETRY_SECONDS = 3
 
 
 def _dtu(host: str, is_encrypted: bool = False, enc_rand: str = "") -> Any:
@@ -113,27 +115,31 @@ class HoymilesDtuCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._invalid_logged = False
         self._reset_pending: dict[str, hoymiles_dtu.ResetTrack] = {}
 
+    async def _async_read(self) -> Any:
+        try:
+            return await self._client.async_get_real_data_new()
+        except (OSError, TimeoutError, ValueError) as err:
+            LOGGER.debug("Hoymiles DTU %s request failed: %s", self.host, err)
+            return None
+
     async def _async_update_data(self) -> dict[str, Any]:
         if self._client is None:
             self._client = _dtu(self.host, self._encrypted, self._enc_rand)
-        try:
-            real = await self._client.async_get_real_data_new()
-        except (OSError, TimeoutError, ValueError) as err:
-            real = None
-            LOGGER.debug("Hoymiles DTU %s request failed: %s", self.host, err)
+        real = await self._async_read()
+        if real is None and not _offline(self._client):
+            # a DTU serves one connection at a time; a request colliding with
+            # another client (app, second integration) reads as garbage once
+            await asyncio.sleep(UNREADABLE_RETRY_SECONDS)
+            real = await self._async_read()
         if real is None:
             if not _offline(self._client):
                 # the DTU answered but nothing could be read: encryption may have
                 # changed (firmware update); never report this as 0 W
                 await self._async_recheck_encryption()
                 raise UpdateFailed(f"Hoymiles DTU at {self.host} answer unreadable")
-            if not self._last:
-                raise UpdateFailed(f"Hoymiles DTU at {self.host} not reachable")
-            # the DTU is off (HMS-W built-in DTU at night): inverters read 0 W
-            return {
-                serial: hoymiles_dtu.asleep(device)
-                for serial, device in self._last.items()
-            }
+            # the DTU is off (HMS-W built-in DTU at night); sleep.SleepAware turns
+            # this into 0 W while the sun is low
+            raise DeviceUnreachable(f"Hoymiles DTU at {self.host} not reachable")
         devices = hoymiles_dtu.build_devices(real, _serial_of)
         if hoymiles_dtu.null_frame(devices):
             # zeros are not a counter reading and break a reset streak
