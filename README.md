@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="custom_components/solar_forecast_ml/brand/logo@2x.png" alt="Solar Forecast ML" width="180">
+  <img src="pictures/readme_header_hubble.png" alt="Solar Forecast ML powered by Hubble local AI" width="100%">
 </p>
 
 <h1 align="center">Solar Forecast ML</h1>
