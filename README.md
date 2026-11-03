@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="pictures/readme_header_hubble.png" alt="Solar Forecast ML powered by Hubble local AI" width="100%">
+  <img src="https://raw.githubusercontent.com/Zara-Toorox/Solar-Forecast-ML/main/pictures/readme_header_hubble.png" alt="Solar Forecast ML powered by Hubble local AI" width="100%">
 </p>
 
 <h1 align="center">Solar Forecast ML</h1>
@@ -89,15 +89,15 @@ The website has the [full suitability check](https://solarforecastml.com/en/suit
 
 STATS is a complete interface of its own — desktop and phone — with live energy flow, forecast quality, and Hubble explaining the day in plain language. Separately, it also ships six built-in Home Assistant dashboard cards that follow your theme.
 
-[![STATS Modern cockpit — live energy flow around the house](pictures/dashboard.png)](pictures/dashboard.png)
+[![STATS Modern cockpit — live energy flow around the house](https://raw.githubusercontent.com/Zara-Toorox/Solar-Forecast-ML/main/pictures/dashboard.png)](https://raw.githubusercontent.com/Zara-Toorox/Solar-Forecast-ML/main/pictures/dashboard.png)
 
 <p align="center"><sub>STATS Modern cockpit: live energy flow between solar, home, battery and grid, with weather, forecast quality and today’s profile.</sub></p>
 
-[![Daily forecast vs actual with accuracy band and shade windows](pictures/forecast.png)](pictures/forecast.png)
+[![Daily forecast vs actual with accuracy band and shade windows](https://raw.githubusercontent.com/Zara-Toorox/Solar-Forecast-ML/main/pictures/forecast.png)](https://raw.githubusercontent.com/Zara-Toorox/Solar-Forecast-ML/main/pictures/forecast.png)
 
 <p align="center"><sub>Forecast against measured production: accuracy band for the day, learned shade windows, and how reliable the forecast is right now.</sub></p>
 
-[![STATS Home with Hubble companion](pictures/home_hubble.png)](pictures/home_hubble.png)
+[![STATS Home with Hubble companion](https://raw.githubusercontent.com/Zara-Toorox/Solar-Forecast-ML/main/pictures/home_hubble.png)](https://raw.githubusercontent.com/Zara-Toorox/Solar-Forecast-ML/main/pictures/home_hubble.png)
 
 <p align="center"><sub>Home view with Hubble: short balance, efficiency chain, and a companion tip for the evening — mobile-ready layout.</sub></p>
 
