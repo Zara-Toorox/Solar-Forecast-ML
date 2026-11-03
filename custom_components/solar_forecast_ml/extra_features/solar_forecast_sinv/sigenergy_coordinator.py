@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import timedelta
+import struct
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -29,6 +30,9 @@ from .kostal_coordinator import (
 )
 from .modbus_tcp import READ_INPUT_REGISTERS, ModbusError, ModbusTcpClient
 from .vendors import sigenergy
+
+ERROR_INVERTER = "not_sigenergy_inverter"
+ERROR_PLANT = "not_sigenergy_plant"
 
 
 async def read_blocks(
@@ -55,21 +59,55 @@ def _client(host: str, port: int) -> ModbusTcpClient:
     )
 
 
+class ProbeError(ValueError):
+    """Probe failure naming the config flow error of the failed address. @zara"""
+
+    def __init__(self, message: str, error_key: str) -> None:
+        """Keep the translation key for the config flow. @zara"""
+        super().__init__(message)
+        self.error_key = error_key
+
+
+async def _probe_read(
+    client: ModbusTcpClient,
+    unit_id: int,
+    blocks: tuple[tuple[int, int], ...],
+    error_key: str,
+) -> dict[int, int]:
+    try:
+        return await read_blocks(client, unit_id, blocks)
+    except (ModbusError, struct.error) as err:
+        LOGGER.debug(
+            "Sigenergy probe %s:%s unit %s failed: %s",
+            client.host,
+            client.port,
+            unit_id,
+            err,
+        )
+        raise ProbeError(f"unit {unit_id}: {err}", error_key) from err
+
+
 async def async_probe(host: str, port: int, unit_id: int) -> dict[str, Any]:
     """Read the inverter identity and the plant address; raises if either fails. @zara"""
     async with (
         asyncio.timeout(CYCLE_TIMEOUT_SECONDS),
         _client(host.strip(), port) as client,
     ):
-        inverter = await read_blocks(client, unit_id, sigenergy.IDENTITY_BLOCKS)
-        plant = await read_blocks(
-            client, sigenergy.PLANT_UNIT_ID, sigenergy.PLANT_PROBE_BLOCKS
+        inverter = await _probe_read(
+            client, unit_id, sigenergy.IDENTITY_BLOCKS, ERROR_INVERTER
+        )
+        plant = await _probe_read(
+            client, sigenergy.PLANT_UNIT_ID, sigenergy.PLANT_PROBE_BLOCKS, ERROR_PLANT
         )
     ident = sigenergy.identity(inverter)
     if ident is None:
-        raise ValueError("no Sigenergy serial number")
+        LOGGER.debug("Sigenergy probe %s unit %s: no serial number", host, unit_id)
+        raise ProbeError("no Sigenergy serial number", ERROR_INVERTER)
     if not sigenergy.is_plant(plant):
-        raise ValueError("no Sigenergy plant at address 247")
+        LOGGER.debug(
+            "Sigenergy probe %s: plant grid sensor status %s", host, plant.get(30004)
+        )
+        raise ProbeError("no Sigenergy plant at address 247", ERROR_PLANT)
     return {**ident, "data": {CONF_PORT: port, CONF_UNIT_ID: unit_id}}
 
 

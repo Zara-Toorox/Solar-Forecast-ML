@@ -103,7 +103,8 @@ LP1_MPPT = (
     (186, 109, 110),
     (187, 111, 112),
 )
-# (voltage, current) for string and micro. Per-input power is marked computed.
+# (voltage, current) shared by string and micro. String publishes the pair only.
+# Micro power is U×I from this same block.
 PV_VI = (
     (109, 110),
     (111, 112),
@@ -529,13 +530,46 @@ def _build_string(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     return {device.serial: device}
 
 
+def _micro_pv(device: DeyeDevice, regs: dict[int, int]) -> None:
+    """Publish each micro PV voltage and current, and U×I when both are live. @zara
+
+    Voltage and current are set on their own, as for the string family. Power
+    of an input and the sum need both values inside the same bounds. 0 V is 0 W.
+    """
+    solar = 0.0
+    solar_seen = False
+    for index, (voltage_reg, current_reg) in enumerate(PV_VI, start=1):
+        # community map: 0.1 V and 0.1 A
+        voltage = _scaled(_word(regs, voltage_reg), 0.1, 0, MAX_PV_V)
+        current = _scaled(_word(regs, current_reg), 0.1, 0, MAX_PV_A)
+        _set(device, indexed_role("voltage_solar_mppt", index), voltage)
+        _set(device, indexed_role("current_solar_mppt", index), current)
+        if voltage is None or current is None:
+            continue
+        power = _between(voltage * current, 0, MAX_MPPT_W)
+        if power is None:
+            continue
+        role = indexed_role("power_solar_mppt", index)
+        _set(device, role, power, 0)
+        device.derived.add(role)
+        solar += round(power, 0)
+        solar_seen = True
+    if not solar_seen:
+        return
+    total = _between(solar, 0, MAX_POWER_W)
+    if total is None:
+        return
+    _set(device, "power_solar", total, 0)
+    device.derived.add("power_solar")
+
+
 def _build_micro(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     """Build a microinverter from the community micro table. @zara"""
     device = _shell(regs)
     if device is None:
         return {}
     _rated(device, regs)
-    _pv_channels(device, regs)
+    _micro_pv(device, regs)
     # community map: production today 60 and total 63/64, 0.1 kWh, low word first
     _set(device, "energy_solar_today", _energy(regs, 60, None, MAX_ENERGY_TODAY))
     _set(device, "energy_solar_total", _energy(regs, 63, 64, MAX_ENERGY_TOTAL))
@@ -551,7 +585,7 @@ def _build_micro(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     _set(device, "frequency_grid", _scaled(_word(regs, 79), 0.01, 45, 65), 2)
     # community map: radiator temperature 90, factor 0.01 °C on this family
     _set(device, "temperature_inverter", _scaled(_word(regs, 90), 0.01, 0, 120))
-    # PV power and DC total power are marked computed. No grid-power register.
+    # No grid-power register on this family.
     return {device.serial: device}
 
 

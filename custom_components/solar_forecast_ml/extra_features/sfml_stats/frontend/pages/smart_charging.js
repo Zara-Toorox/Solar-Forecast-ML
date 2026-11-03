@@ -58,10 +58,12 @@ const SmartChargingPage = ((Vue) => {
                 </div>
 
                 <div class="chart-card sc-status-card" style="margin-bottom: var(--space-lg);">
-                    <div class="sc-status-row">
-                        <span class="sc-status-ampel" :class="'sc-status-' + statusAmpel" aria-hidden="true"></span>
-                        <div class="sc-status-copy">
-                            <p class="sc-status-line">{{ statusHeadlineText }}</p>
+                    <div class="sc-hubble-row">
+                        <div class="sc-hubble-avatar" aria-hidden="true">
+                            <img class="sc-hubble-persona" src="/api/sfml_stats/static/modern/assets/hubble-persona-portrait.jpg" alt="" width="108" height="108">
+                        </div>
+                        <div class="sc-hubble-bubble" role="status" aria-live="polite">
+                            <p class="sc-status-line"><span class="sc-status-ampel" :class="'sc-status-' + statusAmpel" aria-hidden="true"></span>{{ statusHeadlineText }}</p>
                             <p class="sc-status-why" v-if="statusWhyText">{{ statusWhyText }}</p>
                             <p class="sc-status-next" v-if="statusNextText">{{ statusNextText }}</p>
                         </div>
@@ -829,15 +831,15 @@ const SmartChargingPage = ((Vue) => {
                 } else if (step && step.kind === 'next_hour') {
                     const time = statusHourLabel(step.hour);
                     if (time && step.soc != null) {
-                        next = t('smart_charging.status.nextHourThen')
+                        next = t('smart_charging.status.hubbleNextHourThen')
                             .replace('{time}', time)
                             .replace('{soc}', String(step.soc));
                     } else if (time) {
-                        next = t('smart_charging.status.nextHour').replace('{time}', time);
+                        next = t('smart_charging.status.hubbleNextHour').replace('{time}', time);
                     }
                 }
                 return {
-                    headline: t(charging ? 'smart_charging.status.charging' : 'smart_charging.status.idle'),
+                    headline: t(charging ? 'smart_charging.status.hubbleCharging' : 'smart_charging.status.hubbleIdle'),
                     why: catalogReason(whyCode),
                     next: next,
                 };
@@ -1721,6 +1723,36 @@ const SmartChargingPage = ((Vue) => {
             margin-top: 4px;
             color: var(--text-secondary, var(--text-primary));
         }
+        .sc-hubble-row { display: flex; align-items: center; gap: var(--space-lg, 20px); }
+        .sc-hubble-avatar {
+            flex: 0 0 108px; width: 108px; height: 108px; border-radius: 50%; padding: 3px;
+            background: radial-gradient(circle, rgba(62, 201, 255, 0.35), rgba(62, 201, 255, 0.05) 70%);
+            box-shadow: 0 0 14px rgba(62, 201, 255, 0.35);
+            animation: sc-hubble-breathe 4s ease-in-out infinite;
+        }
+        @keyframes sc-hubble-breathe {
+            0%, 100% { box-shadow: 0 0 10px rgba(62, 201, 255, 0.25); transform: scale(1); }
+            50% { box-shadow: 0 0 26px rgba(62, 201, 255, 0.6); transform: scale(1.025); }
+        }
+        .sc-hubble-persona { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: #05121a; }
+        .sc-hubble-bubble {
+            position: relative; flex: 1 1 auto; min-width: 0;
+            background: rgba(62, 201, 255, 0.05); border: 1px solid rgba(62, 201, 255, 0.22);
+            border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg, 20px);
+        }
+        .sc-hubble-bubble::before {
+            content: ""; position: absolute; left: -9px; top: 50%; width: 16px; height: 16px; margin-top: -8px;
+            background: #0b1d26; border-left: 1px solid rgba(62, 201, 255, 0.22); border-bottom: 1px solid rgba(62, 201, 255, 0.22);
+            transform: rotate(45deg);
+        }
+        .sc-status-card .sc-hubble-bubble .sc-status-line { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+        .sc-hubble-bubble .sc-status-ampel { margin-top: 0; }
+        @media (max-width: 560px) {
+            .sc-hubble-row { flex-direction: column; align-items: stretch; }
+            .sc-hubble-avatar { align-self: center; flex-basis: auto; width: 96px; height: 96px; }
+            .sc-hubble-bubble::before { left: 50%; top: -9px; margin: 0 0 0 -8px; transform: rotate(135deg); }
+        }
+        @media (prefers-reduced-motion: reduce) { .sc-hubble-avatar { animation: none; } }
         .sc-status-row {
             display: flex;
             align-items: flex-start;
@@ -1734,10 +1766,11 @@ const SmartChargingPage = ((Vue) => {
             flex-shrink: 0;
             background: var(--sc-ampel, var(--text-muted, #9ca3af));
         }
-        .sc-status-load { --sc-ampel: var(--success, #5bd8a6); }
-        .sc-status-wait { --sc-ampel: var(--info, #60c5ff); }
-        .sc-status-idle { --sc-ampel: var(--text-muted, #9ca3af); }
-        .sc-status-warn { --sc-ampel: var(--warning, #e9a94b); }
+        /* Shared status-dot scale: load=ok, wait=normal, idle=idle, warn=warn */
+        .sc-status-load { --sc-ampel: var(--status-ok, #22c55e); }
+        .sc-status-wait { --sc-ampel: var(--status-normal, #f59e0b); }
+        .sc-status-idle { --sc-ampel: var(--status-idle, #94a3b8); }
+        .sc-status-warn { --sc-ampel: var(--status-warn, #ef4444); }
         .sc-status-chips {
             margin-top: 12px;
             flex-wrap: wrap;

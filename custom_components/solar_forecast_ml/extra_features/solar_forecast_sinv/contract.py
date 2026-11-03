@@ -121,7 +121,7 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         "total_increasing",
         "Solar energy today",
         "Solarenergie heute",
-        note="device value wins; otherwise the rise of the installation total since local midnight",
+        note="vendor or gap-filler value on the device; the installation sums those, or derives the day from the installation total when no device reports it",
     ),
     # Inverter and grid quality
     RoleSpec(

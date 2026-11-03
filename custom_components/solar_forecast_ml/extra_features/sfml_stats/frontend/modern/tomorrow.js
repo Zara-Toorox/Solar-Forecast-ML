@@ -549,6 +549,7 @@ window.TomorrowPage = {
                         </template>
                     </div>
                 </header>
+                <hubble-say class="tomorrow-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
 
                 <section class="tomorrow-time-machine" :aria-busy="timelineLoading ? 'true' : 'false'" aria-labelledby="tomorrow-time-machine-title">
                         <div v-if="timelineLoading" class="tomorrow-timeline-loading" role="status">{{ copy.loadingText }}</div>
@@ -1116,8 +1117,14 @@ window.TomorrowPage = {
             window.removeEventListener("keydown", handleKeydown);
         });
 
+        const hT = (k, p) => (window.SFMLI18n?.t?.("hubbleSay." + k, p)) || k;
+        const hubbleSay = Vue.computed(() => {
+            const parts = [story.value?.narrative].filter(Boolean);
+            if (hasForecastQuality.value) parts.push(hT("tomorrow.quality", { quality: formatQuality(displayForecastAccuracy.value) }));
+            return { tone: "ok", headline: hT("tomorrow.head", { day: selectedWeekday.value || "" }), detail: parts.join(" ") };
+        });
         return {
-            loading, error, payload, pageReason, unavailable, selectedDate, selectedDay, heroPhotos, copy,
+            hubbleSay, loading, error, payload, pageReason, unavailable, selectedDate, selectedDay, heroPhotos, copy,
             selectedHour, selectedHourData, selectedHourLabel, timelineLoading, timelineError,
             timeMachineAvailable, timePhase, timePhaseLabel, energyState, gridFlowLabel, gridFlowValue,
             hasBatterySoc, hasHourlyFlows, hasForecastQuality, lockMessage, story,

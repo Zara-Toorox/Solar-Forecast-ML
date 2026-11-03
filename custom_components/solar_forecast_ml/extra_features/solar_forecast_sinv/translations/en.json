@@ -516,6 +516,8 @@
             "enphase_serial_invalid": "Enter the gateway serial number (letters and digits only).",
             "not_enphase": "No IQ Gateway with the local API answers at this address.",
             "not_sigenergy": "No Sigenergy hybrid inverter answered at this Modbus address, or the plant address 247 did not answer.",
+            "not_sigenergy_inverter": "No Sigenergy hybrid inverter answered at this Modbus address. Check the inverter address in the MySigen app and that this IP belongs to the hybrid inverter.",
+            "not_sigenergy_plant": "The inverter answered, but the plant address 247 did not. Is the Modbus TCP server enabled for the plant in the MySigen app?",
             "solarman_timeout": "The Solarman V5 logger did not answer in time. Loggers that only speak AT commands on port 48899 are not supported.",
             "logger_serial_mismatch": "The logger serial does not match the stick that answered.",
             "invalid_host": "Enter a hostname or an IP address, with an optional port. No scheme, path or password.",
@@ -640,7 +642,7 @@
                     "install_count": "Take part in the BETA test (anonymous install count)"
                 },
                 "data_description": {
-                    "install_count": "On by default during the BETA, can be switched off at any time. When on, only the installed version number (e.g. “S-INV 4.0.0”) is sent to solarforecastml.com once a day – no device- or user-specific data, no identifier, no measured values. Only how often each version was reported per day is stored. Your IP address is technically visible in transit and kept as an encrypted hash for abuse protection for at most two days. Details: https://www.solarforecastml.com/en/privacy"
+                    "install_count": "On by default during the BETA, can be switched off at any time. When on, only the installed version number (e.g. “S-INV 5.0.0”) is sent to solarforecastml.com once a day – no device- or user-specific data, no identifier, no measured values. Only how often each version was reported per day is stored. Your IP address is technically visible in transit and kept as an encrypted hash for abuse protection for at most two days. Details: https://www.solarforecastml.com/en/privacy"
                 },
                 "description": "Energy dashboard: add the sensors of this device yourself under Settings → Dashboards → Energy – grid consumption `sensor.sinv_energy_grid_import_total`, return to grid `sensor.sinv_energy_grid_export_total`, solar production `sensor.sinv_energy_solar_total`, battery in `sensor.sinv_energy_battery_charge_total`, battery out `sensor.sinv_energy_battery_discharge_total`. Use only these installation sensors, otherwise energy is counted twice."
             }
@@ -3085,14 +3087,6 @@
                     }
                 }
             },
-            "main_pack_soc": {
-                "name": "Main pack state of charge",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
             "exp_1_position": {
                 "name": "Expansion 1 position"
             },
@@ -3142,14 +3136,6 @@
                     }
                 }
             },
-            "expansion_1_temperature_1": {
-                "name": "Expansion 1 temperature 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
             "expansion_1_temperature_2": {
                 "name": "Expansion 1 temperature 2",
                 "state_attributes": {
@@ -3176,14 +3162,6 @@
             },
             "expansion_1_soh": {
                 "name": "Expansion 1 state of health",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
-            "expansion_1_soc": {
-                "name": "Expansion 1 state of charge",
                 "state_attributes": {
                     "unverified": {
                         "name": "Unverified"
@@ -3239,14 +3217,6 @@
                     }
                 }
             },
-            "expansion_2_temperature_1": {
-                "name": "Expansion 2 temperature 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
             "expansion_2_temperature_2": {
                 "name": "Expansion 2 temperature 2",
                 "state_attributes": {
@@ -3273,14 +3243,6 @@
             },
             "expansion_2_soh": {
                 "name": "Expansion 2 state of health",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
-            "expansion_2_soc": {
-                "name": "Expansion 2 state of charge",
                 "state_attributes": {
                     "unverified": {
                         "name": "Unverified"
@@ -3336,14 +3298,6 @@
                     }
                 }
             },
-            "expansion_3_temperature_1": {
-                "name": "Expansion 3 temperature 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
             "expansion_3_temperature_2": {
                 "name": "Expansion 3 temperature 2",
                 "state_attributes": {
@@ -3370,14 +3324,6 @@
             },
             "expansion_3_soh": {
                 "name": "Expansion 3 state of health",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
-            "expansion_3_soc": {
-                "name": "Expansion 3 state of charge",
                 "state_attributes": {
                     "unverified": {
                         "name": "Unverified"
@@ -3433,14 +3379,6 @@
                     }
                 }
             },
-            "expansion_4_temperature_1": {
-                "name": "Expansion 4 temperature 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
             "expansion_4_temperature_2": {
                 "name": "Expansion 4 temperature 2",
                 "state_attributes": {
@@ -3467,14 +3405,6 @@
             },
             "expansion_4_soh": {
                 "name": "Expansion 4 state of health",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
-            "expansion_4_soc": {
-                "name": "Expansion 4 state of charge",
                 "state_attributes": {
                     "unverified": {
                         "name": "Unverified"
@@ -3530,14 +3460,6 @@
                     }
                 }
             },
-            "expansion_5_temperature_1": {
-                "name": "Expansion 5 temperature 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
             "expansion_5_temperature_2": {
                 "name": "Expansion 5 temperature 2",
                 "state_attributes": {
@@ -3564,14 +3486,6 @@
             },
             "expansion_5_soh": {
                 "name": "Expansion 5 state of health",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Unverified"
-                    }
-                }
-            },
-            "expansion_5_soc": {
-                "name": "Expansion 5 state of charge",
                 "state_attributes": {
                     "unverified": {
                         "name": "Unverified"

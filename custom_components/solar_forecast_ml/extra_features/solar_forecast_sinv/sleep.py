@@ -12,10 +12,13 @@
 Micro inverters with a built-in DTU, PV-side data loggers and small string
 inverters drop off the network at night. A device that is not reachable at all
 while the sun is low, and that has neither battery nor grid values, is asleep:
-power reads 0 W and the energy counters keep their last reading. Every other
-value is unavailable. The last good reading of every device is stored per
-config entry, so a restart at night starts asleep instead of failing setup.
-During the day, or for an answer that cannot be read, the failure stays visible.
+power reads 0 W, lifetime energy counters keep their last reading, and day
+counters keep it only on the same local day and read 0 afterwards. Every other
+value is unavailable. The last good reading of every device, including the
+local day of that reading, is stored per config entry, so a restart at night
+starts asleep instead of failing setup. A stored reading without a day does
+not publish day counters. During the day, or for an answer that cannot be
+read, the failure stays visible.
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from . import site_daily
 from .const import DOMAIN, LOGGER
 
 # Inverters start a few degrees above the horizon; below that an unreachable
@@ -68,6 +72,7 @@ class SleepingDevice:
     roles: dict[str, Any] = field(default_factory=dict)
     vendor: dict[str, Any] = field(default_factory=dict)
     derived: set[str] = field(default_factory=set)
+    day: str | None = None
 
 
 def is_unreachable(err: BaseException) -> bool:
@@ -96,13 +101,19 @@ def may_sleep(device: Any) -> bool:
     return not any(role.startswith(AWAKE_ROLE_PREFIXES) for role in roles)
 
 
-def asleep(device: Any) -> Any:
-    """Copy of a device at night: power 0 W, counters kept, everything else gone. @zara"""
-    roles = {
-        role: 0 if role.startswith("power_") else value
-        for role, value in device.roles.items()
-        if role.startswith(("power_", "energy_"))
-    }
+def asleep(
+    device: Any,
+    measured_day: str | None = None,
+    today: str | None = None,
+) -> Any:
+    """Copy of a device at night: power 0 W, totals kept, day counters 0 when the days differ. @zara"""
+    new_day = measured_day != today
+    roles: dict[str, Any] = {}
+    for role, value in device.roles.items():
+        if role.startswith("power_"):
+            roles[role] = 0
+        elif role.startswith("energy_"):
+            roles[role] = 0 if role.endswith("_today") and new_day else value
     derived = {role for role in device.derived if role in roles}
     return replace(device, roles=roles, vendor={}, derived=derived)
 
@@ -120,8 +131,8 @@ def sun_is_low(hass: HomeAssistant, now: datetime | None = None) -> bool:
     return isinstance(value, int | float) and value < SLEEP_ELEVATION
 
 
-def snapshot(devices: dict[str, Any]) -> dict[str, Any]:
-    """JSON-ready identity, power roles and counter readings of each device. @zara"""
+def snapshot(devices: dict[str, Any], day: str | None = None) -> dict[str, Any]:
+    """JSON-ready identity, power roles, counters and local day of each device. @zara"""
     result: dict[str, Any] = {}
     for serial, device in devices.items():
         energy = {
@@ -132,7 +143,7 @@ def snapshot(devices: dict[str, Any]) -> dict[str, Any]:
             and not isinstance(value, bool)
             and math.isfinite(value)
         }
-        result[serial] = {
+        item = {
             "kind": device.kind,
             "name": device.name,
             "manufacturer": device.manufacturer,
@@ -140,11 +151,14 @@ def snapshot(devices: dict[str, Any]) -> dict[str, Any]:
             "power": sorted(role for role in device.roles if role.startswith("power_")),
             "energy": energy,
         }
+        if day is not None:
+            item["day"] = day
+        result[serial] = item
     return result
 
 
 def restore(raw: Any) -> dict[str, SleepingDevice]:
-    """Rebuild sleeping devices from a snapshot; broken items are dropped. @zara"""
+    """Rebuild sleeping devices from a snapshot; broken items and undated day counters are dropped. @zara"""
     devices: dict[str, SleepingDevice] = {}
     if not isinstance(raw, dict):
         return devices
@@ -158,6 +172,8 @@ def restore(raw: Any) -> dict[str, SleepingDevice]:
             continue
         if not isinstance(power, list) or not isinstance(energy, dict):
             continue
+        raw_day = item.get("day")
+        day = raw_day if isinstance(raw_day, str) and raw_day else None
         roles: dict[str, Any] = {
             role: 0
             for role in power
@@ -170,12 +186,15 @@ def restore(raw: Any) -> dict[str, SleepingDevice]:
                 and isinstance(value, int | float)
                 and not isinstance(value, bool)
                 and math.isfinite(value)
+                and (day is not None or not role.endswith("_today"))
             ):
                 roles[role] = float(value)
         if not roles:
             continue
         kind, name, manufacturer, model = texts
-        devices[serial] = SleepingDevice(serial, kind, name, manufacturer, model, roles)
+        devices[serial] = SleepingDevice(
+            serial, kind, name, manufacturer, model, roles, day=day
+        )
     return devices
 
 
@@ -184,6 +203,8 @@ def sleeping_devices(
     stored: dict[str, SleepingDevice],
     err: BaseException,
     sun_low: bool,
+    measured_day: str | None = None,
+    today: str | None = None,
 ) -> dict[str, Any] | None:
     """Devices to publish as asleep, or None when the failure must stand. @zara"""
     if not sun_low or not is_unreachable(err):
@@ -191,7 +212,10 @@ def sleeping_devices(
     devices = last or stored
     if not devices or not all(may_sleep(device) for device in devices.values()):
         return None
-    return {serial: asleep(device) for serial, device in devices.items()}
+    return {
+        serial: asleep(device, measured_day, today)
+        for serial, device in devices.items()
+    }
 
 
 def _store(hass: HomeAssistant, entry: ConfigEntry) -> Store:
@@ -213,6 +237,8 @@ class SleepGuard:
         self._last: dict[str, Any] | None = None
         self._stored: dict[str, SleepingDevice] = {}
         self._saved: dict[str, Any] | None = None
+        self._day: str | None = None
+        self._stored_day: str | None = None
         self._pending = False
         self.asleep = False
 
@@ -221,6 +247,8 @@ class SleepGuard:
         raw = await self._store.async_load()
         self._stored = restore(raw)
         self._saved = raw if isinstance(raw, dict) else None
+        days = {device.day for device in self._stored.values()}
+        self._stored_day = next(iter(days)) if len(days) == 1 else None
 
     def remember(self, devices: dict[str, Any]) -> None:
         """Keep a good reading and store it when every device may sleep. @zara"""
@@ -230,9 +258,10 @@ class SleepGuard:
         if not devices:
             return
         self._last = devices
+        self._day = site_daily.local_day(dt_util.as_local(dt_util.now()))
         if not all(may_sleep(device) for device in devices.values()):
             return
-        current = snapshot(devices)
+        current = snapshot(devices, self._day)
         if current == self._saved or self._pending:
             return
         self._pending = True
@@ -240,8 +269,15 @@ class SleepGuard:
 
     def sleeping(self, err: BaseException) -> dict[str, Any] | None:
         """Asleep devices for this failure, or None to let it stand. @zara"""
+        today = site_daily.local_day(dt_util.as_local(dt_util.now()))
+        measured = self._day if self._last is not None else self._stored_day
         devices = sleeping_devices(
-            self._last, self._stored, err, sun_is_low(self._hass)
+            self._last,
+            self._stored,
+            err,
+            sun_is_low(self._hass),
+            measured,
+            today,
         )
         if devices is not None and not self.asleep:
             LOGGER.info("%s asleep: %s", self._name(devices), err)
@@ -250,7 +286,7 @@ class SleepGuard:
 
     def _snapshot_for_save(self) -> dict[str, Any]:
         self._pending = False
-        self._saved = snapshot(self._last or {})
+        self._saved = snapshot(self._last or {}, self._day)
         return self._saved
 
     @staticmethod

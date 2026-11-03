@@ -470,6 +470,7 @@ const ModernQualityPage = {
             </div>
 
             <section v-else-if="activeSection === 'overview' && !devOn" class="iq-detail-section iq-public-results">
+                <hubble-say class="iq-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
                 <div class="iq-definition-grid">
                     <article>
                         <span>{{ copy.quality7 }}</span>
@@ -1014,8 +1015,17 @@ const ModernQualityPage = {
             publicChartInstance?.dispose();
         });
 
+        const hT = (k, p) => (window.SFMLI18n?.t?.("hubbleSay." + k, p)) || k;
+        const hubbleSay = Vue.computed(() => {
+            const q7 = Number(publicQuality7.value), q30 = Number(publicQuality30.value);
+            if (!Number.isFinite(q7) && !Number.isFinite(q30)) return { tone: "idle", headline: hT("quality.head"), detail: hT("quality.learning") };
+            const parts = [hT("quality.text", { q7: iqFormatNumber(publicQuality7.value), q30: iqFormatNumber(publicQuality30.value) })];
+            if (publicYesterdayKwh.value != null && publicYesterdayPercent.value != null) parts.push(hT("quality.yesterday", { kwh: iqFormatNumber(publicYesterdayKwh.value), percent: iqFormatNumber(publicYesterdayPercent.value) }));
+            const ref = Number.isFinite(q7) ? q7 : q30;
+            return { tone: ref >= 85 ? "ok" : ref >= 70 ? "normal" : "warn", headline: hT(ref >= 85 ? "quality.headGood" : "quality.head"), detail: parts.join(" ") };
+        });
         return {
-            copy, tabs, activeSection, loading, errors, dashboard, replay, models, heatmap, milestones, trends,
+            hubbleSay, copy, tabs, activeSection, loading, errors, dashboard, replay, models, heatmap, milestones, trends,
             devOn, quality30Sentence,
             replayDate, activeHourIndex, playing, playbackSpeed, replayChart, modelChart, trendChart, publicChart,
             publicQuality7, publicQuality30, publicYesterdayKwh, publicYesterdayPercent,

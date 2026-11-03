@@ -12,7 +12,7 @@ const ModernEAIPage = {
     template: `
         <section class="eai-page" aria-labelledby="eai-title">
             <div class="eai-hero">
-                <div><span class="eai-kicker">Energy AI · Premium</span><h2 id="eai-title">Wärmepumpe intelligent verstehen</h2><p>Erklärt den Betrieb, prognostiziert den Bedarf und findet die besten Energiezeitfenster.</p></div>
+                <div><span class="eai-kicker">Wärmepumpe · Premium</span><h2 id="eai-title">Wärmepumpe intelligent verstehen</h2><p>Erklärt den Betrieb, prognostiziert den Bedarf und findet die besten Energiezeitfenster.</p></div>
                 <div class="eai-state-badges"><span class="eai-badge" :class="status.data_mode">{{ modeLabel }}</span><span v-if="sampleReason !== 'feature_off'" class="eai-badge neutral">{{ capabilityLabel }}</span></div>
             </div>
 
@@ -31,6 +31,7 @@ const ModernEAIPage = {
 
             <nav class="eai-tabs" role="tablist" aria-label="EAI Bereiche" @keydown="handleTabKeydown"><button v-for="tab in tabs" :id="'eai-tab-' + tab.id" :key="tab.id" type="button" role="tab" :aria-selected="activeTab === tab.id ? 'true' : 'false'" :aria-controls="'eai-panel-' + tab.id" :tabindex="activeTab === tab.id ? 0 : -1" :class="{ active: activeTab === tab.id }" @click="selectTab(tab.id)">{{ tab.label }}</button></nav>
             <div class="eai-data-status" role="status"><strong>{{ dataStatus.title }}</strong><span>{{ dataStatus.text }}</span></div>
+            <hubble-say v-if="!loading" class="eai-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
             <div v-if="loading" class="eai-loading" role="status">EAI wird geladen …</div>
             <div v-else-if="error" class="eai-empty" role="alert"><strong>Daten nicht verfügbar</strong><span>{{ error }}</span></div>
 
@@ -824,7 +825,14 @@ const ModernEAIPage = {
             stopRefresh();
             document.removeEventListener("visibilitychange", handleVisibilityChange);
         });
-        return { EAI_LOCALE, tabs, devOn, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, orbitConfidence, splitConfidence, horizonAverageConfidence, windowConfidence, coldStartHint, windowProvisional, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
+        const hT = (k, p) => (window.SFMLI18n?.t?.("hubbleSay." + k, p)) || k;
+        const hubbleSay = Vue.computed(() => {
+            const parts = [whyNow.value.explanation];
+            if (briefing.value.actions?.length) parts.push(hT("eai.next", { action: briefing.value.actions[0] }));
+            const live = status.data_mode === "live";
+            return { tone: live ? "ok" : (status.data_mode === "degraded" ? "normal" : "demo"), headline: hT("eai.head", { headline: whyNow.value.headline }), detail: parts.filter(Boolean).join(" ") };
+        });
+        return { hubbleSay, EAI_LOCALE, tabs, devOn, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, orbitConfidence, splitConfidence, horizonAverageConfidence, windowConfidence, coldStartHint, windowProvisional, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
     },
 };
 

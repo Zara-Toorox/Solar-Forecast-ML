@@ -27,6 +27,11 @@ current of all strings (verified against the archive on a Symo 4.5-3-M,
 Datamanager 3.34.1-7, 2026-10-13). For these devices the per-string values come
 from the 5-minute archive (``Voltage_DC_String_n``/``Current_DC_String_n``) and
 ``UDC``/``IDC`` are not published as MPPT 1.
+One Datamanager can list several inverters. They share the cycle; site roles,
+the grid meter and the battery stay on the primary (the entry serial, otherwise
+the first listed inverter). With more than one inverter and no battery,
+``power_solar`` is that inverter's ``Inverters[<id>].P``; with a battery it is
+``Site.P_PV`` on the primary only.
 With Modbus TCP enabled on a GEN24 the coordinator adds SunSpec model 160
 (``sunspec_mppt``): the PV trackers give ``energy_solar_total`` and measured
 per-MPPT power, the battery port gives the battery energy counters.
@@ -140,6 +145,8 @@ class FroniusDevice:
     roles: dict[str, Any] = field(default_factory=dict)
     vendor: dict[str, Any] = field(default_factory=dict)
     derived: set[str] = field(default_factory=set)
+    # MPPT power taken from the Datamanager archive, not a live sample.
+    archive_mppt: set[str] = field(default_factory=set)
 
 
 def _data(response: Any) -> dict[str, Any] | None:
@@ -192,6 +199,39 @@ def _first_entry(data: dict[str, Any] | None) -> tuple[str, dict[str, Any]] | No
     return None
 
 
+def _device_id_key(device_id: Any) -> tuple[int, int | str]:
+    text = str(device_id)
+    if text.isascii() and text.isdigit():
+        return (0, int(text))
+    return (1, text)
+
+
+def _describe(device_id: str, info: dict[str, Any], serial: str) -> dict[str, str]:
+    return {
+        "device_id": device_id,
+        "serial": serial,
+        "name": str(info.get("CustomName") or "").strip() or f"{NAME} {serial}",
+        "dt": str(info.get("DT", "")),
+    }
+
+
+def inverter_identities(info_response: Any) -> list[dict[str, str]]:
+    """Return every inverter from GetInverterInfo, numerically by DeviceId. @zara"""
+    data = _data(info_response)
+    if not data:
+        return []
+    found: list[dict[str, str]] = []
+    for key in sorted(data, key=_device_id_key):
+        info = data[key]
+        if not isinstance(info, dict):
+            continue
+        serial = str(info.get("UniqueID") or "").strip()
+        if not serial:
+            continue
+        found.append(_describe(str(key), info, serial))
+    return found
+
+
 def inverter_identity(info_response: Any) -> dict[str, str] | None:
     """Return id, serial and name of the first inverter from GetInverterInfo. @zara"""
     entry = _first_entry(_data(info_response))
@@ -209,20 +249,67 @@ def inverter_identity(info_response: Any) -> dict[str, str] | None:
     }
 
 
-def build_devices(responses: dict[str, Any]) -> dict[str, FroniusDevice]:
-    """Build inverter, meter and battery devices from one polling cycle. @zara"""
-    devices: dict[str, FroniusDevice] = {}
-    identity = inverter_identity(responses.get("inverter_info"))
-    if identity is None:
-        return devices
-    flow = _data(responses.get("powerflow")) or {}
-    site = flow.get("Site") if isinstance(flow.get("Site"), dict) else {}
-    flow_inverters = (
-        flow.get("Inverters") if isinstance(flow.get("Inverters"), dict) else {}
-    )
-    flow_inverter = flow_inverters.get(identity["device_id"]) or {}
-    common = _data(responses.get("inverter")) or {}
+def _commons(responses: dict[str, Any], fallback_id: str | None) -> dict[str, Any]:
+    """CommonInverterData per DeviceId, or the single ``inverter`` document. @zara"""
+    if "inverters" in responses:
+        return {
+            str(device_id): response
+            for device_id, response in responses["inverters"].items()
+        }
+    if fallback_id is not None and "inverter" in responses:
+        return {fallback_id: responses["inverter"]}
+    return {}
 
+
+def _string_inputs(
+    responses: dict[str, Any], device_id: str
+) -> tuple[dict[int, tuple[float, float]], set[int]]:
+    """Archive strings for one inverter. @zara
+
+    With ``inverters``, ``dc_strings`` and ``dc_string_channels`` are keyed by
+    DeviceId. Otherwise ``dc_strings`` is the flat channel map.
+    """
+    if "inverters" in responses:
+        strings = (responses.get("dc_strings") or {}).get(device_id) or {}
+        known = (responses.get("dc_string_channels") or {}).get(device_id) or set()
+        return strings, set(known)
+    return responses.get("dc_strings") or {}, set(
+        responses.get("dc_string_channels") or ()
+    )
+
+
+def _primary_identity(
+    identities: list[dict[str, str]],
+    primary_serial: str | None,
+    listed: dict[str, str] | None,
+) -> dict[str, str]:
+    """Entry serial, otherwise the first listed inverter. @zara"""
+    if primary_serial:
+        for identity in identities:
+            if identity["serial"] == primary_serial:
+                return identity
+    if listed is not None:
+        for identity in identities:
+            if identity["device_id"] == listed["device_id"]:
+                return identity
+    return identities[0]
+
+
+def _fill_inverter(
+    identity: dict[str, str],
+    common: dict[str, Any],
+    flow_inverter: dict[str, Any],
+    site: dict[str, Any],
+    flow: dict[str, Any],
+    strings: dict[int, tuple[float, float]],
+    known: set[int],
+    *,
+    primary: bool,
+    multiple: bool,
+    reported: bool,
+    battery: bool,
+) -> FroniusDevice:
+    """Roles of one inverter; site roles only when it is the primary. @zara"""
     inverter = FroniusDevice(
         serial=identity["serial"],
         kind="inverter",
@@ -232,18 +319,21 @@ def build_devices(responses: dict[str, Any]) -> dict[str, FroniusDevice]:
         if identity["dt"]
         else "Fronius inverter",
     )
-    _set(inverter, "power_solar", _num(site.get("P_PV")), 0)
-    _set(inverter, "power_house", _neg(_num(site.get("P_Load"))), 0)
+    if multiple and battery:
+        if primary:
+            _set(inverter, "power_solar", _num(site.get("P_PV")), 0)
+    elif multiple:
+        _set(inverter, "power_solar", _num(flow_inverter.get("P")), 0)
+    else:
+        _set(inverter, "power_solar", _num(site.get("P_PV")), 0)
+    if primary:
+        _set(inverter, "power_house", _neg(_num(site.get("P_Load"))), 0)
     _set(inverter, "power_inverter_ac_output", _num(common.get("PAC")), 0)
     _set(inverter, "voltage_grid", _num(common.get("UAC")), 1)
     _set(inverter, "frequency_grid", _num(common.get("FAC")), 2)
+    night = _num(flow_inverter.get("P")) if multiple else _num(site.get("P_PV"))
     if needs_archive(common):
-        _archive_trackers(
-            inverter,
-            responses.get("dc_strings") or {},
-            responses.get("dc_string_channels") or set(),
-            _num(site.get("P_PV")),
-        )
+        _archive_trackers(inverter, strings, known, night)
     else:
         for channel in range(1, MAX_MPPT + 1):
             suffix = "" if channel == 1 else f"_{channel}"
@@ -267,30 +357,85 @@ def build_devices(responses: dict[str, Any]) -> dict[str, FroniusDevice]:
         inverter.vendor["inverter_state"] = str(status["InverterState"])
     if status.get("ErrorCode") is not None:
         inverter.vendor["inverter_error_code"] = status["ErrorCode"]
-    if (autonomy := _num(site.get("rel_Autonomy"))) is not None:
-        inverter.vendor["autonomy"] = round(autonomy, 1)
-    if (self_use := _num(site.get("rel_SelfConsumption"))) is not None:
-        inverter.vendor["self_consumption"] = round(self_use, 1)
-    devices[inverter.serial] = inverter
+    if primary:
+        if (autonomy := _num(site.get("rel_Autonomy"))) is not None:
+            inverter.vendor["autonomy"] = round(autonomy, 1)
+        if (self_use := _num(site.get("rel_SelfConsumption"))) is not None:
+            inverter.vendor["self_consumption"] = round(self_use, 1)
+    # one failed inverter must not be zeroed from the shared power-flow answer
+    if battery or (multiple and not reported):
+        return inverter
+    # without a battery the AC output is this inverter's net AC power; asleep
+    # at night it reports no PAC while the Datamanager answer for it exists
+    pac = _num(common.get("PAC"))
+    if pac is None and flow:
+        pac = 0.0
+    if pac is not None:
+        _set(inverter, "power_ac_net", pac, 0)
+    return inverter
 
+
+def build_devices(
+    responses: dict[str, Any], primary_serial: str | None = None
+) -> dict[str, FroniusDevice]:
+    """Build inverter, meter and battery devices from one polling cycle. @zara
+
+    ``inverters`` maps each DeviceId to its CommonInverterData document and
+    selects per-DeviceId ``dc_strings`` and ``dc_string_channels``. Without
+    that key, ``inverter`` is the document of the first listed inverter and
+    ``dc_strings`` is its flat channel map. Site roles, the meter and the
+    battery belong to ``primary_serial`` when that serial is listed, otherwise
+    to the first listed inverter.
+    """
+    info = responses.get("inverter_info")
+    identities = inverter_identities(info)
+    if not identities:
+        return {}
+    listed = inverter_identity(info)
+    primary = _primary_identity(identities, primary_serial, listed)
+    flow = _data(responses.get("powerflow")) or {}
+    site = flow.get("Site") if isinstance(flow.get("Site"), dict) else {}
+    flow_inverters = (
+        flow.get("Inverters") if isinstance(flow.get("Inverters"), dict) else {}
+    )
+    multiple = len(identities) > 1
+    commons = _commons(responses, None if listed is None else listed["device_id"])
+    battery = _battery(
+        _data(responses.get("storage")),
+        site,
+        flow_inverters.get(primary["device_id"]) or {},
+    )
     meter = _grid_meter(_data(responses.get("meter")))
+    devices: dict[str, FroniusDevice] = {}
+    ordered = [primary, *[item for item in identities if item["serial"] != primary["serial"]]]
+    primary_device: FroniusDevice | None = None
+    for identity in ordered:
+        device_id = identity["device_id"]
+        strings, known = _string_inputs(responses, device_id)
+        inverter = _fill_inverter(
+            identity,
+            inverter_common(commons[device_id]) if device_id in commons else {},
+            flow_inverters.get(device_id) or {},
+            site,
+            flow,
+            strings,
+            known,
+            primary=identity["serial"] == primary["serial"],
+            multiple=multiple,
+            reported=device_id in commons,
+            battery=battery is not None,
+        )
+        devices[inverter.serial] = inverter
+        if identity["serial"] == primary["serial"]:
+            primary_device = inverter
     if meter is not None:
         devices[meter.serial] = meter
-    elif (grid := _num(site.get("P_Grid"))) is not None:
-        _grid_roles(inverter, grid)
-
-    battery = _battery(_data(responses.get("storage")), site, flow_inverter)
+    elif primary_device is not None and (grid := _num(site.get("P_Grid"))) is not None:
+        _grid_roles(primary_device, grid)
     if battery is not None:
         devices[battery.serial] = battery
-    _apply_sunspec(inverter, battery, responses.get("sunspec_mppt") or [])
-    if battery is None:
-        # without a battery the AC output is the net AC power of the system; an
-        # inverter asleep at night reports no PAC while the Datamanager answers
-        pac = _num(common.get("PAC"))
-        if pac is None and flow:
-            pac = 0.0
-        if pac is not None:
-            _set(inverter, "power_ac_net", pac, 0)
+    if primary_device is not None and not multiple:
+        _apply_sunspec(primary_device, battery, responses.get("sunspec_mppt") or [])
     return devices
 
 
@@ -332,12 +477,18 @@ def _archive_trackers(
     known: set[int],
     pv_power: float | None,
 ) -> None:
-    """Per-string values from the archive; known strings read 0 W at night. @zara"""
+    """Per-string values from the archive; known strings read 0 W at night. @zara
+
+    Those MPPT roles are marked not live, so DC energy uses ``power_solar``.
+    """
     for channel, (voltage, current) in strings.items():
         _tracker(inverter, channel, voltage, current)
+        inverter.archive_mppt.add(indexed_role("power_solar_mppt", channel))
     if not pv_power:
         for channel in known - set(strings):
-            inverter.roles[indexed_role("power_solar_mppt", channel)] = 0
+            role = indexed_role("power_solar_mppt", channel)
+            inverter.roles[role] = 0
+            inverter.archive_mppt.add(role)
 
 
 def inverter_common(response: Any) -> dict[str, Any]:

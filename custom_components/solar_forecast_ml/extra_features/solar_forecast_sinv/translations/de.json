@@ -516,6 +516,8 @@
             "enphase_serial_invalid": "Bitte die Seriennummer des Gateways eingeben (nur Buchstaben und Ziffern).",
             "not_enphase": "Unter dieser Adresse antwortet kein IQ Gateway mit lokaler API.",
             "not_sigenergy": "Unter dieser Modbus-Adresse hat kein Sigenergy-Hybrid-Wechselrichter geantwortet, oder die Anlagenadresse 247 antwortet nicht.",
+            "not_sigenergy_inverter": "Unter dieser Modbus-Adresse hat kein Sigenergy-Hybrid-Wechselrichter geantwortet. Bitte die Wechselrichter-Adresse in der MySigen-App prüfen und ob diese IP zum Hybrid-Wechselrichter gehört.",
+            "not_sigenergy_plant": "Der Wechselrichter hat geantwortet, die Anlagenadresse 247 aber nicht. Ist der Modbus-TCP-Server in der MySigen-App für die Anlage aktiviert?",
             "solarman_timeout": "Der Solarman-V5-Logger hat nicht rechtzeitig geantwortet. Logger, die nur AT-Befehle auf Port 48899 sprechen, werden nicht unterstützt.",
             "logger_serial_mismatch": "Die Logger-Seriennummer passt nicht zu dem Stick, der geantwortet hat.",
             "invalid_host": "Hostname oder IP-Adresse, optional mit Port. Kein Schema, kein Pfad, kein Passwort.",
@@ -640,7 +642,7 @@
                     "install_count": "Am BETA-Test teilnehmen (anonyme Installationszählung)"
                 },
                 "data_description": {
-                    "install_count": "Während der BETA ab Werk an, jederzeit abschaltbar. Ist der Schalter an, wird einmal täglich nur die installierte Versionsnummer (z. B. „S-INV 4.0.0“) an solarforecastml.com übermittelt – keine geräte- oder nutzerspezifischen Daten, keine Kennung, keine Messwerte. Gespeichert wird nur, wie oft jede Version pro Tag gemeldet wurde. Deine IP-Adresse ist bei der Übertragung technisch sichtbar und wird höchstens zwei Tage als verschlüsselter Hash zur Missbrauchsabwehr gehalten. Details: https://www.solarforecastml.com/de/privacy"
+                    "install_count": "Während der BETA ab Werk an, jederzeit abschaltbar. Ist der Schalter an, wird einmal täglich nur die installierte Versionsnummer (z. B. „S-INV 5.0.0“) an solarforecastml.com übermittelt – keine geräte- oder nutzerspezifischen Daten, keine Kennung, keine Messwerte. Gespeichert wird nur, wie oft jede Version pro Tag gemeldet wurde. Deine IP-Adresse ist bei der Übertragung technisch sichtbar und wird höchstens zwei Tage als verschlüsselter Hash zur Missbrauchsabwehr gehalten. Details: https://www.solarforecastml.com/de/privacy"
                 },
                 "description": "Energie-Dashboard: Trage die Sensoren dieses Geräts selbst unter Einstellungen → Dashboards → Energie ein – Netzbezug `sensor.sinv_energy_grid_import_total`, Netzeinspeisung `sensor.sinv_energy_grid_export_total`, Solarproduktion `sensor.sinv_energy_solar_total`, Akku in `sensor.sinv_energy_battery_charge_total`, Akku aus `sensor.sinv_energy_battery_discharge_total`. Nur diese Anlagen-Sensoren verwenden, sonst wird doppelt gezählt."
             }
@@ -3085,14 +3087,6 @@
                     }
                 }
             },
-            "main_pack_soc": {
-                "name": "Hauptpack Ladestand",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
             "exp_1_position": {
                 "name": "Erweiterung 1 Position"
             },
@@ -3142,14 +3136,6 @@
                     }
                 }
             },
-            "expansion_1_temperature_1": {
-                "name": "Erweiterung 1 Temperatur 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
             "expansion_1_temperature_2": {
                 "name": "Erweiterung 1 Temperatur 2",
                 "state_attributes": {
@@ -3176,14 +3162,6 @@
             },
             "expansion_1_soh": {
                 "name": "Erweiterung 1 Gesundheitszustand",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
-            "expansion_1_soc": {
-                "name": "Erweiterung 1 Ladestand",
                 "state_attributes": {
                     "unverified": {
                         "name": "Ungeprüft"
@@ -3239,14 +3217,6 @@
                     }
                 }
             },
-            "expansion_2_temperature_1": {
-                "name": "Erweiterung 2 Temperatur 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
             "expansion_2_temperature_2": {
                 "name": "Erweiterung 2 Temperatur 2",
                 "state_attributes": {
@@ -3273,14 +3243,6 @@
             },
             "expansion_2_soh": {
                 "name": "Erweiterung 2 Gesundheitszustand",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
-            "expansion_2_soc": {
-                "name": "Erweiterung 2 Ladestand",
                 "state_attributes": {
                     "unverified": {
                         "name": "Ungeprüft"
@@ -3336,14 +3298,6 @@
                     }
                 }
             },
-            "expansion_3_temperature_1": {
-                "name": "Erweiterung 3 Temperatur 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
             "expansion_3_temperature_2": {
                 "name": "Erweiterung 3 Temperatur 2",
                 "state_attributes": {
@@ -3370,14 +3324,6 @@
             },
             "expansion_3_soh": {
                 "name": "Erweiterung 3 Gesundheitszustand",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
-            "expansion_3_soc": {
-                "name": "Erweiterung 3 Ladestand",
                 "state_attributes": {
                     "unverified": {
                         "name": "Ungeprüft"
@@ -3433,14 +3379,6 @@
                     }
                 }
             },
-            "expansion_4_temperature_1": {
-                "name": "Erweiterung 4 Temperatur 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
             "expansion_4_temperature_2": {
                 "name": "Erweiterung 4 Temperatur 2",
                 "state_attributes": {
@@ -3467,14 +3405,6 @@
             },
             "expansion_4_soh": {
                 "name": "Erweiterung 4 Gesundheitszustand",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
-            "expansion_4_soc": {
-                "name": "Erweiterung 4 Ladestand",
                 "state_attributes": {
                     "unverified": {
                         "name": "Ungeprüft"
@@ -3530,14 +3460,6 @@
                     }
                 }
             },
-            "expansion_5_temperature_1": {
-                "name": "Erweiterung 5 Temperatur 1",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
             "expansion_5_temperature_2": {
                 "name": "Erweiterung 5 Temperatur 2",
                 "state_attributes": {
@@ -3564,14 +3486,6 @@
             },
             "expansion_5_soh": {
                 "name": "Erweiterung 5 Gesundheitszustand",
-                "state_attributes": {
-                    "unverified": {
-                        "name": "Ungeprüft"
-                    }
-                }
-            },
-            "expansion_5_soc": {
-                "name": "Erweiterung 5 Ladestand",
                 "state_attributes": {
                     "unverified": {
                         "name": "Ungeprüft"

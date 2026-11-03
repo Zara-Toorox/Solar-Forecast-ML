@@ -104,6 +104,7 @@ window.ModernWeatherEnergyPage = {
             <div v-else-if="error" class="we-error" role="alert"><strong>{{ error }}</strong><button class="button secondary" type="button" @click="loadActive(true)">{{ copy.retry }}</button></div>
 
             <section v-else-if="activeTab === 'overview' && summary" class="we-section">
+                <hubble-say class="we-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
                 <div class="we-causal-chain" aria-label="Conditions to quality">
                     <article :class="conditionClass"><span>01</span><small>{{ copy.conditions }}</small><strong>{{ conditions.available ? number(conditions.score) : '–' }}</strong><em>/100</em></article>
                     <i aria-hidden="true">→</i>
@@ -423,6 +424,17 @@ window.ModernWeatherEnergyPage = {
         });
         weOnMounted(async () => { window.addEventListener("resize", resizeCharts); await loadActive(); });
         weOnUnmounted(() => { window.removeEventListener("resize", resizeCharts); storyChartInstance?.dispose(); compareChartInstance?.dispose(); });
-        return { copy, tabs, embedded, activeTab, selectedDate, latestDate, summary, day, impact, comparable, impactDays, loading, error, conditions, production, conditionClass, activeHour, storySeries, visibleSeries, storyChart, compareChart, compareDate, loadActive, selectTab, changeDate, setImpactDays, renderStory, selectComparable, number: weNumber, signed: weSigned, date: weDate, signedClass, insightText, devOn };
+        const hT = (k, p) => (window.SFMLI18n?.t?.("hubbleSay." + k, p)) || k;
+        const hubbleSay = Vue.computed(() => {
+            const c = conditions.value || {}, p = production.value || {};
+            const parts = [];
+            if (c.available) parts.push(hT("weather.conditions", { score: weNumber(c.score) }));
+            if (p.forecast_kwh != null) parts.push(hT("weather.production", { forecast: weNumber(p.forecast_kwh, 2), actual: weNumber(p.yield_kwh, 2) }));
+            const q = summary.value?.forecast_quality?.accuracy_percent;
+            if (q != null) parts.push(hT("weather.quality", { quality: weNumber(q) }));
+            const score = Number(c.score);
+            return { tone: !c.available ? "idle" : score >= 60 ? "ok" : "normal", headline: hT(!c.available ? "weather.head" : score >= 60 ? "weather.headSunny" : "weather.headMixed"), detail: parts.join(" ") || hT("weather.empty") };
+        });
+        return { hubbleSay, copy, tabs, embedded, activeTab, selectedDate, latestDate, summary, day, impact, comparable, impactDays, loading, error, conditions, production, conditionClass, activeHour, storySeries, visibleSeries, storyChart, compareChart, compareDate, loadActive, selectTab, changeDate, setImpactDays, renderStory, selectComparable, number: weNumber, signed: weSigned, date: weDate, signedClass, insightText, devOn };
     },
 };

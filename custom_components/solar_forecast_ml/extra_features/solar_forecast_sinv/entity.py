@@ -21,7 +21,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 
 from . import contract
-from .const import DOMAIN, IMAGEFOLDER, MANUFACTURER
+from .const import DOMAIN, IMAGEFOLDER, LOGGER, MANUFACTURER
 from .solixapi.apitypes import SolixSiteType
 from .vendors import anker
 
@@ -458,6 +458,61 @@ def _demote_retired_role(hass, registry, entry, domain, parsed, contexts, data) 
         ),
     )
     return True
+
+
+def _retired_role_serial(unique_id: str) -> tuple[str, str] | None:
+    """Return the serial and role of a role id that left the contract. @zara
+
+    ``parse_unique_id`` returns a role only while the role is still valid, and a
+    vendor dict for ``sinv:1:<serial>:<vendor>:<key>``. A two-part id that is
+    neither of those, and not a heat-pump role, is a retired role id.
+    """
+    if contract.parse_unique_id(unique_id) is not None:
+        return None
+    if contract.parse_hp_unique_id(unique_id) is not None:
+        return None
+    if not isinstance(unique_id, str) or not unique_id.startswith(contract.UNIQUE_ID_PREFIX):
+        return None
+    parts = unique_id[len(contract.UNIQUE_ID_PREFIX) :].split(":")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return None
+    return parts[0], parts[1]
+
+
+@callback
+def async_remove_retired_role_entities(
+    hass, config_entry_id: str, *, serial: str | None = None
+) -> int:
+    """Drop registry entries of this entry whose role left the contract. @zara
+
+    Device setup leaves ``sinv:1:site:*`` and ``sinv:1:hp:*`` alone. Those
+    aggregates are created by their own config entry (installation:
+    ``site.async_setup_site_entities``); pass ``serial`` to clean that entry.
+    A missing state is not a reason to remove a role that is still valid.
+    """
+    registry = er.async_get(hass)
+    removed = 0
+    for entry in list(er.async_entries_for_config_entry(registry, config_entry_id)):
+        unique_id = entry.unique_id
+        if entry.platform != DOMAIN or not isinstance(unique_id, str):
+            continue
+        retired = _retired_role_serial(unique_id)
+        if retired is None:
+            continue
+        owner, _role = retired
+        if serial is None:
+            if owner in (contract.SITE_SERIAL, contract.HP_SERIAL):
+                continue
+        elif owner != serial:
+            continue
+        registry.async_remove(entry.entity_id)
+        removed += 1
+    if removed:
+        LOGGER.info(
+            "Removed %s S-INV registry entries whose role is no longer in the contract",
+            removed,
+        )
+    return removed
 
 
 def async_migrate_legacy_entities(hass, config_entry_id: str, data: dict | None) -> int:

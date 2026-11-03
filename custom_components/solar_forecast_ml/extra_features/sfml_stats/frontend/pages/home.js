@@ -349,13 +349,8 @@ const _HomePage = {
                     <svg class="hubble-sensor-ring" viewBox="0 0 100 100">
                         <circle class="ring-bg" cx="50" cy="50" r="40" />
                         <circle class="ring-active" cx="50" cy="50" r="40" :class="hubbleView.moment_key" />
-                        <!-- Hubble Face (Personality) -->
-                        <g class="hubble-face" :class="[hubbleView.moment_key, { pulse: hubbleView.is_pulsing }]">
-                            <ellipse class="hubble-eye left" cx="37" cy="48" rx="5" ry="9" />
-                            <ellipse class="hubble-eye right" cx="63" cy="48" rx="5" ry="9" />
-                            <path class="hubble-mouth" d="M 43 62 Q 50 66 57 62" fill="none" stroke-width="3.5" stroke-linecap="round" />
-                        </g>
                     </svg>
+                    <img class="hubble-persona" :class="{ pulse: hubbleView.is_pulsing }" src="/api/sfml_stats/static/modern/assets/hubble-persona-portrait.jpg" alt="" width="34" height="34">
                 </div>
                 <div class="hubble-heading">
                     <span class="hubble-kicker">{{ $t('home.hubble.agent') }}</span>
@@ -473,9 +468,14 @@ const _HomePage = {
                 </span>
             </div>
             
-            <div class="hubble-speech-bubble">
-                <p class="hubble-lead">{{ hubbleView.lead }}</p>
-                <p v-if="hubbleView.tip" class="hubble-tip">{{ hubbleView.tip }}</p>
+            <div class="hubble-dialog-row">
+                <div class="hubble-dialog-avatar" :class="{ pulse: hubbleView.is_pulsing }" aria-hidden="true">
+                    <img class="hubble-dialog-persona" src="/api/sfml_stats/static/modern/assets/hubble-persona-portrait.jpg" alt="" width="108" height="108">
+                </div>
+                <div class="hubble-speech-bubble">
+                    <p class="hubble-lead">{{ hubbleView.lead }}</p>
+                    <p v-if="hubbleView.tip" class="hubble-tip">{{ hubbleView.tip }}</p>
+                </div>
             </div>
 
             <div class="hubble-actions" :aria-label="$t('home.hubble.quick.title')">
@@ -558,6 +558,19 @@ const _HomePage = {
                     <button class="day-nav-button" type="button" @click="selectNextDay" :disabled="!canSelectNextDay" :title="$t('home.nextDay')">&rsaquo;</button>
                     <button v-if="!isSelectedToday" class="day-nav-today" type="button" @click="selectToday">{{ $t('common.today') }}</button>
                 </div>
+            </div>
+            <!-- Hubble-Vertrauensband: ±Band um die Prognose, Dot-Skala, ein Begleiter-Satz -->
+            <div class="hubble-trust-band" :class="'state-' + trustBand.state" role="status" :aria-label="$t('home.trustBand.title')">
+                <span class="hubble-trust-dot" :class="trustBand.state" :title="$t('home.trustBand.state.' + trustBand.state)"></span>
+                <span class="hubble-trust-title">{{ $t('home.trustBand.title') }}</span>
+                <span class="hubble-trust-value" :title="$t('home.trustBand.valueTitle')">{{ trustBand.label }}</span>
+                <span v-if="trustBand.bandPct != null" class="hubble-trust-meter" aria-hidden="true">
+                    <span class="hubble-trust-meter-band" :style="{ left: trustBand.bandLeft + '%', width: trustBand.bandWidth + '%' }"></span>
+                    <span class="hubble-trust-meter-center"></span>
+                    <span v-if="trustBand.markerLeft != null" class="hubble-trust-meter-marker" :class="trustBand.state" :style="{ left: trustBand.markerLeft + '%' }"></span>
+                </span>
+                <span v-if="trustBand.devLabel" class="hubble-trust-dev">{{ trustBand.devLabel }}</span>
+                <span class="hubble-trust-sentence">{{ trustBand.sentence }}</span>
             </div>
             <div class="forecast-metrics-wrapper">
                 <!-- Links: Qualitätsmetriken (Evaluierung) -->
@@ -669,6 +682,15 @@ const _HomePage = {
                 </div>
             </div>
             <div ref="forecastChartEl" class="chart-container" style="height: 35vh; min-height: 280px;"></div>
+            <!-- Schatten-Timeline: erstes/letztes Schattenfenster + Dauer, Overlay im Chart -->
+            <div v-if="shadowTimeline" class="shadow-timeline" role="note" :aria-label="$t('home.shadowTimeline.title')">
+                <span class="shadow-timeline-title">🌥 {{ $t('home.shadowTimeline.title') }}</span>
+                <span class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.firstHit') }}</span> {{ shadowTimeline.first }}</span>
+                <span class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.lastHit') }}</span> {{ shadowTimeline.last }}</span>
+                <span class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.duration') }}</span> {{ shadowTimeline.duration }}</span>
+                <span v-if="shadowTimeline.maxLoss > 0" class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.maxLoss') }}</span> −{{ shadowTimeline.maxLoss }} %</span>
+                <span v-if="shadowTimeline.tip" class="shadow-timeline-tip">💡 {{ shadowTimeline.tip }}</span>
+            </div>
         </div>
 
         <!-- ========== SECTION 2b: MEHRTAGESPROGNOSE ========== -->
@@ -1466,6 +1488,166 @@ const _HomePage = {
             return t("home.quality30").replace("{percent}", value.toFixed(0));
         });
 
+        // ========== HUBBLE TRUST BAND + SHADOW TIMELINE ==========
+        // Learned shadow windows for today from /solar/shadow_card (same model the
+        // forecast uses). No data → no overlay, no timeline; nothing is invented.
+        const shadowToday = reactive({ loaded: false, available: false, date: null, windows: [] });
+        const shadowClockMinutes = (value) => {
+            const match = /^(\d{1,2}):(\d{2})/.exec(String(value || ''));
+            return match ? Number(match[1]) * 60 + Number(match[2]) : NaN;
+        };
+        const shadowClockLabel = (minutes) => `${String(Math.floor(minutes / 60) % 24).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+        async function loadShadowToday() {
+            try {
+                const res = await SFMLApi.fetch('/api/sfml_stats/solar/shadow_card', { authenticated: true, ttl: 15 * 60 * 1000 });
+                const data = res && res.success !== false ? (res.data || null) : null;
+                const labels = data && data.group_labels && typeof data.group_labels === 'object' && !Array.isArray(data.group_labels)
+                    ? data.group_labels
+                    : {};
+                const byGroup = (data && data.today && data.today.windows) || {};
+                const windows = [];
+                Object.keys(byGroup).forEach((group) => {
+                    (byGroup[group] || []).forEach((item) => {
+                        const start = shadowClockMinutes(item && item.start);
+                        const end = shadowClockMinutes(item && item.end);
+                        if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return;
+                        windows.push({
+                            group,
+                            label: labels[group] || group,
+                            start: item.start,
+                            end: item.end,
+                            startMin: start,
+                            endMin: end,
+                            lossPct: Number(item.loss_pct) || 0,
+                            strength: item.strength === 'strong' ? 'strong' : 'light',
+                        });
+                    });
+                });
+                windows.sort((a, b) => a.startMin - b.startMin);
+                shadowToday.available = Boolean(data && data.available) && windows.length > 0;
+                shadowToday.date = (data && data.today && data.today.date) || null;
+                shadowToday.windows = windows;
+            } catch (err) {
+                console.debug('[Home] Shadow windows unavailable:', err);
+                shadowToday.available = false;
+                shadowToday.windows = [];
+            } finally {
+                shadowToday.loaded = true;
+            }
+            updateForecastChart();
+        }
+
+        const shadowWindowsForSelectedDay = computed(() => {
+            if (!isSelectedToday.value || !shadowToday.available) return [];
+            if (shadowToday.date && shadowToday.date !== selectedDateKey.value) return [];
+            return shadowToday.windows;
+        });
+
+        const shadowTimeline = computed(() => {
+            const windows = shadowWindowsForSelectedDay.value;
+            if (!windows.length) return null;
+            const spans = windows.map(w => [w.startMin, w.endMin]).sort((a, b) => a[0] - b[0]);
+            let total = 0;
+            let current = null;
+            spans.forEach(([start, end]) => {
+                if (!current || start > current[1]) {
+                    if (current) total += current[1] - current[0];
+                    current = [start, end];
+                } else {
+                    current[1] = Math.max(current[1], end);
+                }
+            });
+            if (current) total += current[1] - current[0];
+            const firstMin = spans[0][0];
+            const lastMin = Math.max(...spans.map(span => span[1]));
+            const hours = Math.floor(total / 60);
+            const minutes = total % 60;
+            const duration = hours
+                ? t('home.shadowTimeline.durationHm', { h: hours, m: String(minutes).padStart(2, '0') })
+                : t('home.shadowTimeline.durationM', { m: minutes });
+            const maxLoss = Math.max(0, ...windows.map(w => w.lossPct));
+            const west = windows.find(w => /west|zach[oó]d/i.test(`${w.label} ${w.group}`));
+            const afternoon = windows.find(w => w.startMin >= 12 * 60);
+            let tip = '';
+            if (west) {
+                tip = t('home.shadowTimeline.tipWest', { time: west.start, group: west.label });
+            } else if (afternoon) {
+                tip = t('home.shadowTimeline.tipAfternoon', { time: afternoon.start, group: afternoon.label });
+            } else {
+                tip = t('home.shadowTimeline.tipMorning', { time: shadowClockLabel(lastMin) });
+            }
+            return {
+                first: shadowClockLabel(firstMin),
+                last: shadowClockLabel(lastMin),
+                duration,
+                maxLoss,
+                tip,
+                firstWindow: windows[0],
+                afternoonWindow: afternoon || null,
+            };
+        });
+
+        const trustBand = computed(() => {
+            const forecast = forecastData.forecast || [];
+            const confidence = forecastData.confidence || [];
+            let sum = 0;
+            let spread = 0;
+            forecast.forEach((value, index) => {
+                if (value == null) return;
+                const kwh = Number(value) || 0;
+                const conf = confidence[index] || 50;
+                sum += kwh;
+                // Same half-width as the drawn P10/P90 band in updateForecastChart
+                spread += kwh * (100 - conf) / 150;
+            });
+            if (!(sum > 0)) {
+                return { state: 'idle', bandPct: null, label: '—', devLabel: '', markerLeft: null, bandLeft: 50, bandWidth: 0, sentence: t('home.trustBand.sentence.idle') };
+            }
+            const bandPct = Math.max(1, Math.round((spread / sum) * 100));
+
+            // Running deviation over completed hours (whole day for past days)
+            const cutoff = isSelectedToday.value ? haCurrentHour() : 24;
+            const actual = actualChartRows();
+            let fcSoFar = 0;
+            let acSoFar = 0;
+            forecastData.hours.forEach((hour, index) => {
+                if (Number(hour) >= cutoff) return;
+                const act = actual[index];
+                const fc = forecast[index];
+                if (act == null || fc == null) return;
+                fcSoFar += Number(fc) || 0;
+                acSoFar += Number(act) || 0;
+            });
+            const dev = fcSoFar >= 0.3 ? Math.round(((acSoFar - fcSoFar) / fcSoFar) * 100) : null;
+
+            let state = bandPct <= 15 ? 'ok' : 'normal';
+            if (dev != null && Math.abs(dev) > bandPct) state = 'warn';
+
+            const capped = Math.min(bandPct, 50);
+            const bandLeft = 50 - capped;
+            const bandWidth = capped * 2;
+            const markerLeft = dev == null ? null : 50 + Math.max(-50, Math.min(50, dev));
+
+            const shadow = shadowTimeline.value;
+            let sentence;
+            if (state === 'warn') {
+                sentence = dev > 0
+                    ? t('home.trustBand.sentence.aboveBand', { dev: Math.abs(dev) })
+                    : t('home.trustBand.sentence.belowBand', { dev: Math.abs(dev) });
+            } else if (shadow && shadow.afternoonWindow) {
+                sentence = t('home.trustBand.sentence.shadowAfternoon', { time: shadow.afternoonWindow.start, group: shadow.afternoonWindow.label });
+            } else if (shadow && shadow.firstWindow) {
+                sentence = t('home.trustBand.sentence.shadowShort', { time: shadow.firstWindow.start, group: shadow.firstWindow.label });
+            } else if (state === 'normal') {
+                sentence = t('home.trustBand.sentence.wide');
+            } else {
+                sentence = t('home.trustBand.sentence.tight');
+            }
+            const devLabel = dev == null ? '' : t('home.trustBand.devLabel', { dev: `${dev >= 0 ? '+' : '−'}${Math.abs(dev)}` });
+            return { state, bandPct, label: `±${bandPct} %`, devLabel, markerLeft, bandLeft, bandWidth, sentence };
+        });
+
         const hasHybridForecast = computed(() => {
             return forecastData.hybridAvailable === true
                 && forecastData.hybrid.some(v => v != null);
@@ -1828,7 +2010,9 @@ const _HomePage = {
             const answer = buildHubbleAnswer(hubbleQuestion.value, payload, storyParams);
 
             return {
-                title: systemStatus?.title || t('home.hubble.title'),
+                title: (systemStatus && systemStatus.variant !== 'ready')
+                    ? systemStatus.title
+                    : resolveHubbleMomentTitle(moment),
                 moment: t(`home.hubble.moment.${moment}`),
                 moment_key: moment,
                 is_pulsing: moment !== 'evening',
@@ -1846,6 +2030,12 @@ const _HomePage = {
                 }),
             };
         });
+
+        function resolveHubbleMomentTitle(moment) {
+            const key = `home.hubble.titleMoment.${moment}`;
+            const value = t(key);
+            return value && value !== key ? value : t('home.hubble.title');
+        }
 
         function buildHubbleSystemStatus(workflowStatus) {
             if (!workflowStatus) {
@@ -3109,6 +3299,36 @@ const _HomePage = {
 
         // ========== FORECAST CHART ==========
 
+        function shadowMarkAreas() {
+            const windows = shadowWindowsForSelectedDay.value;
+            const hours = forecastData.hours.map(Number);
+            if (!windows.length || !hours.length) return [];
+            const nearest = (hour) => hours.reduce((best, h) => (Math.abs(h - hour) < Math.abs(best - hour) ? h : best), hours[0]);
+            const pad = (h) => String(h).padStart(2, '0');
+            return windows.map((w) => {
+                const startHour = nearest(Math.floor(w.startMin / 60));
+                let endHour = nearest(Math.floor((w.endMin - 1) / 60));
+                if (endHour <= startHour) {
+                    const next = hours.find(h => h > startHour);
+                    if (next != null) endHour = next;
+                }
+                const strong = w.strength === 'strong';
+                return [
+                    {
+                        name: `${w.start}–${w.end}`,
+                        xAxis: pad(startHour),
+                        itemStyle: {
+                            color: strong ? 'rgba(148,163,184,0.20)' : 'rgba(148,163,184,0.11)',
+                            borderColor: 'rgba(148,163,184,0.35)',
+                            borderWidth: 1,
+                            borderType: 'dashed',
+                        },
+                    },
+                    { xAxis: pad(endHour) },
+                ];
+            });
+        }
+
         function updateForecastChart() {
             if (!forecastChartInstance || !forecastData.hours.length) return;
             const nowHour = haCurrentHour();
@@ -3222,6 +3442,20 @@ const _HomePage = {
                         stack: 'band',
                         areaStyle: { color: 'rgba(251,191,36,0.06)' },
                         z: 1,
+                    },
+                    // Learned shadow windows (today only) as overlay on the yield curve
+                    {
+                        id: 'shadow-windows',
+                        name: '__ShadowWindows',
+                        type: 'line',
+                        data: [],
+                        silent: true,
+                        markArea: {
+                            silent: true,
+                            label: { show: true, position: 'insideTop', color: getThemeColor('--text-muted', '#94a3b8'), fontSize: 9 },
+                            data: shadowMarkAreas(),
+                        },
+                        z: 0,
                     },
                     {
                         name: 'Prognose',
@@ -3568,6 +3802,7 @@ const _HomePage = {
         let flowTimer = null;
         let powerTimer = null;
         let forecastTimer = null;
+        let shadowTimer = null;
         let infoTimer = null;
         let smartChargingTimer = null;
 
@@ -3617,12 +3852,14 @@ const _HomePage = {
                 loadInfoPanel(),
                 loadPanelGroups(),
                 loadSmartChargingStatus(),
+                loadShadowToday(),
             ]);
 
             // Refresh intervals
             flowTimer = setInterval(loadEnergyFlow, 15000);
             powerTimer = setInterval(loadPowerHistory, 60000);
             forecastTimer = setInterval(loadForecastData, 60000);
+            shadowTimer = setInterval(loadShadowToday, 15 * 60 * 1000);
             infoTimer = setInterval(loadInfoPanel, 60000);
             smartChargingTimer = setInterval(loadSmartChargingStatus, 15000);
         });
@@ -3641,6 +3878,7 @@ const _HomePage = {
             if (flowTimer) clearInterval(flowTimer);
             if (powerTimer) clearInterval(powerTimer);
             if (forecastTimer) clearInterval(forecastTimer);
+            if (shadowTimer) clearInterval(shadowTimer);
             if (infoTimer) clearInterval(infoTimer);
             if (smartChargingTimer) clearInterval(smartChargingTimer);
             if (chartResizeFrame) {
@@ -3687,6 +3925,7 @@ const _HomePage = {
             weatherTrace, hasWeatherTrace,
             currentTime, lastPowerUpdate,
             isNightTime, forecastTotal, forecastDayKpiValue, usesHybridDayTotal, restOfDayForecastTotal, hybridForecastTotal, conservativeForecastTotal, hasHybridForecast, devOn, quality30Sentence,
+            trustBand, shadowTimeline,
             hasConservativeForecast,
             actualTotal, deviationPercent, deviationLabel, hybridDeviationPercent,
             hybridDeviationLabel, cleanEvalStats, todayLearningBasisLabel,
@@ -3816,9 +4055,30 @@ const _HomePage = {
         }
         
         .hubble-sensor-ring-container {
+            position: relative;
             width: 48px;
             height: 48px;
             flex: 0 0 auto;
+        }
+        .hubble-sensor-ring-container .hubble-persona {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 34px;
+            height: 34px;
+            margin: -17px 0 0 -17px;
+            object-fit: cover;
+            clip-path: circle(50%);
+            border-radius: 50%;
+            background: #05121a;
+            box-shadow: 0 0 6px rgba(62, 201, 255, 0.35);
+        }
+        .hubble-sensor-ring-container .hubble-persona.pulse {
+            animation: hubble-persona-glow 2.4s ease-in-out infinite;
+        }
+        @keyframes hubble-persona-glow {
+            0%, 100% { box-shadow: 0 0 4px rgba(62, 201, 255, 0.25); }
+            50% { box-shadow: 0 0 10px rgba(62, 201, 255, 0.6); }
         }
         .hubble-sensor-ring {
             width: 100%;
@@ -3845,38 +4105,21 @@ const _HomePage = {
             stroke: var(--accent);
         }
         
-        .hubble-sensor-ring .hubble-face {
+        .hubble-sensor-ring .hubble-mark {
+            color: var(--accent);
             transform-origin: center;
-            transition: color 0.5s ease;
         }
-        .hubble-sensor-ring .hubble-face.morning,
-        .hubble-sensor-ring .hubble-face.midday,
-        .hubble-sensor-ring .hubble-face.evening {
-            color: var(--text-primary);
+        .hubble-sensor-ring .hubble-mark circle,
+        .hubble-sensor-ring .hubble-mark path {
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.6;
+            stroke-linecap: round;
         }
-        .hubble-sensor-ring .hubble-face.pulse {
+        .hubble-sensor-ring .hubble-mark.pulse {
             animation: hubble-core-pulse 2s ease-in-out infinite;
         }
-        .hubble-sensor-ring .hubble-eye {
-            fill: currentColor;
-            animation: hubble-blink 4s ease-in-out infinite;
-        }
-        .hubble-sensor-ring .hubble-eye.left {
-            transform-origin: 37px 48px;
-        }
-        .hubble-sensor-ring .hubble-eye.right {
-            transform-origin: 63px 48px;
-        }
-        .hubble-sensor-ring .hubble-mouth {
-            stroke: currentColor;
-            opacity: 0.85;
-        }
-        
-        @keyframes hubble-blink {
-            0%, 90%, 100% { transform: scaleY(1); }
-            95% { transform: scaleY(0.1); }
-        }
-        
+
         @keyframes hubble-ring-rotate {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -4339,13 +4582,65 @@ const _HomePage = {
             font-weight: 700;
         }
         
+        .hubble-dialog-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-lg, 20px);
+            margin: var(--space-md) 0;
+        }
+        .hubble-dialog-avatar {
+            flex: 0 0 108px;
+            width: 108px;
+            height: 108px;
+            border-radius: 50%;
+            padding: 3px;
+            background: radial-gradient(circle, rgba(62, 201, 255, 0.35), rgba(62, 201, 255, 0.05) 70%);
+            box-shadow: 0 0 14px rgba(62, 201, 255, 0.35);
+        }
+        .hubble-dialog-avatar.pulse {
+            animation: hubble-dialog-breathe 4s ease-in-out infinite;
+        }
+        @keyframes hubble-dialog-breathe {
+            0%, 100% { box-shadow: 0 0 10px rgba(62, 201, 255, 0.25); transform: scale(1); }
+            50% { box-shadow: 0 0 26px rgba(62, 201, 255, 0.6); transform: scale(1.025); }
+        }
+        .hubble-dialog-persona {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+            background: #05121a;
+        }
         .hubble-speech-bubble {
             position: relative;
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.05);
+            flex: 1 1 auto;
+            min-width: 0;
+            background: rgba(62, 201, 255, 0.05);
+            border: 1px solid rgba(62, 201, 255, 0.22);
             border-radius: var(--radius-md);
-            padding: var(--space-md);
-            margin-bottom: var(--space-md);
+            padding: var(--space-md) var(--space-lg, 20px);
+        }
+        .hubble-speech-bubble::before {
+            content: "";
+            position: absolute;
+            left: -9px;
+            top: 50%;
+            width: 16px;
+            height: 16px;
+            margin-top: -8px;
+            background: #0b1d26;
+            border-left: 1px solid rgba(62, 201, 255, 0.22);
+            border-bottom: 1px solid rgba(62, 201, 255, 0.22);
+            transform: rotate(45deg);
+        }
+        @media (max-width: 560px) {
+            .hubble-dialog-row { flex-direction: column; align-items: stretch; }
+            .hubble-dialog-avatar { align-self: center; flex-basis: auto; width: 96px; height: 96px; }
+            .hubble-speech-bubble::before { left: 50%; top: -9px; margin: 0 0 0 -8px; transform: rotate(135deg); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .hubble-dialog-avatar.pulse { animation: none; }
         }
         .hubble-lead,
         .hubble-tip {
@@ -4825,6 +5120,55 @@ const _HomePage = {
         .forecast-card-title-row {
             margin-bottom: 12px;
         }
+
+        /* Hubble-Vertrauensband (shared dot scale: ok=green, normal=amber, warn=red, idle=grey, active=cyan) */
+        .hubble-trust-band {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 12px;
+            padding: 7px 12px;
+            margin: 0 0 var(--space-sm);
+            border-radius: 10px;
+            border: 1px solid var(--border-default, rgba(255,255,255,0.08));
+            background: rgba(62, 201, 255, 0.04);
+            font-size: 0.8rem;
+            line-height: 1.35;
+        }
+        .hubble-trust-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; background: var(--status-idle, #94a3b8); }
+        .hubble-trust-dot.ok { background: var(--status-ok, #22c55e); box-shadow: 0 0 8px rgba(34,197,94,.6); }
+        .hubble-trust-dot.normal { background: var(--status-normal, #f59e0b); }
+        .hubble-trust-dot.warn { background: var(--status-warn, #ef4444); }
+        .hubble-trust-dot.idle { background: var(--status-idle, #94a3b8); }
+        .hubble-trust-dot.active, .hubble-trust-dot.demo { background: var(--status-active, #3ec9ff); box-shadow: 0 0 8px rgba(62,201,255,.7); }
+        .hubble-trust-title { font-weight: 600; color: var(--text-primary); }
+        .hubble-trust-value { font-family: var(--font-mono); color: #fbbf24; font-weight: 700; }
+        .hubble-trust-meter { position: relative; width: 96px; height: 8px; border-radius: 4px; background: rgba(148,163,184,0.15); overflow: hidden; flex: 0 0 96px; }
+        .hubble-trust-meter-band { position: absolute; top: 0; bottom: 0; background: rgba(251,191,36,0.35); border-radius: 4px; }
+        .hubble-trust-meter-center { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(255,255,255,0.35); }
+        .hubble-trust-meter-marker { position: absolute; top: -1px; width: 4px; height: 10px; margin-left: -2px; border-radius: 2px; background: var(--status-ok, #22c55e); }
+        .hubble-trust-meter-marker.normal { background: var(--status-normal, #f59e0b); }
+        .hubble-trust-meter-marker.warn { background: var(--status-warn, #ef4444); }
+        .hubble-trust-dev { font-family: var(--font-mono); color: var(--text-secondary); font-size: 0.75rem; }
+        .hubble-trust-sentence { color: var(--text-muted); flex: 1 1 260px; min-width: 0; }
+
+        /* Schatten-Timeline unter der Ertragskurve */
+        .shadow-timeline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 14px;
+            margin-top: var(--space-sm);
+            padding: 6px 12px;
+            border-radius: 10px;
+            border: 1px dashed rgba(148,163,184,0.35);
+            background: rgba(148,163,184,0.06);
+            font-size: 0.78rem;
+        }
+        .shadow-timeline-title { font-weight: 600; color: var(--text-primary); }
+        .shadow-timeline-item { font-family: var(--font-mono); color: var(--text-secondary); }
+        .shadow-timeline-label { font-family: var(--font-sans); color: var(--text-muted); margin-right: 2px; }
+        .shadow-timeline-tip { color: var(--text-muted); flex: 1 1 240px; }
 
         .forecast-metrics-wrapper {
             display: grid;

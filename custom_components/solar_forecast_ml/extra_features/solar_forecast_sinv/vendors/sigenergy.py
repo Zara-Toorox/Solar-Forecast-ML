@@ -55,7 +55,8 @@ PLANT_UNIT_ID = 247
 REQUEST_GAP_SECONDS = 1.0
 MAX_STRINGS = 16
 IDENTITY_BLOCKS: tuple[tuple[int, int], ...] = ((30500, 40),)
-PLANT_PROBE_BLOCKS: tuple[tuple[int, int], ...] = ((30000, 6),)
+# ends at 30004: a read must not stop inside the S32 at 30005-30006
+PLANT_PROBE_BLOCKS: tuple[tuple[int, int], ...] = ((30000, 5),)
 PLANT_BLOCKS: tuple[tuple[int, int], ...] = ((30000, 88),)
 INVERTER_BLOCKS: tuple[tuple[int, int], ...] = ((30500, 124), (31000, 42))
 # added in later protocol versions; dropped on "illegal address"

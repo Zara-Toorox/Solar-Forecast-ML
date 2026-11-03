@@ -1126,8 +1126,11 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 identity = await probe(async_get_clientsession(self.hass), host)
             except (ClientError, TimeoutError, OSError, ImportError, EOFError):
                 errors[CONF_HOST] = "cannot_connect"
-            except (ValueError, TypeError, ModbusError, struct.error):
-                errors[CONF_HOST] = error_key or f"not_{vendor}"
+            except (ValueError, TypeError, ModbusError, struct.error) as err:
+                # a probe may name the failed step, e.g. Sigenergy inverter vs plant
+                errors[CONF_HOST] = (
+                    getattr(err, "error_key", None) or error_key or f"not_{vendor}"
+                )
             else:
                 await self.async_set_unique_id(f"{vendor}_{identity['serial']}")
                 self._abort_if_unique_id_configured(

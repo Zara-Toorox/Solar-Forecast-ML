@@ -312,14 +312,14 @@ const ModernEAIWeatherPage = {
                 <strong>Keine Steuerung · klare lokale Einordnung</strong>
             </div>
             <div v-else-if="sampleReason === 'feature_off'" class="eai-weather-demo" role="status">
-                <div><strong>Beispieldaten</strong><span>Weather Intelligence ist in EAI noch nicht eingeschaltet.</span></div>
+                <div><strong>Beispieldaten</strong><span>Die Wetterprognose ist in EAI noch nicht eingeschaltet.</span></div>
                 <a href="/config/integrations/integration/solar_forecast_eai" target="_top">Einrichtung</a>
             </div>
             <div v-else-if="sampleReason === 'learning'" class="eai-weather-demo" role="status">
                 <div><strong>Lernphase</strong><span>Noch keine Historie – die Werte sind Beispiele.</span></div>
             </div>
 
-            <div v-if="loading" class="eai-weather-state" role="status">Weather Intelligence wird geladen …</div>
+            <div v-if="loading" class="eai-weather-state" role="status">Wetterprognose wird geladen …</div>
             <div v-else-if="error" class="eai-weather-state error" role="alert"><strong>Daten nicht verfügbar</strong><span>{{ error }}</span></div>
 
             <template v-else>
@@ -410,7 +410,7 @@ const ModernEAIWeatherPage = {
                 </article>
 
                 <article class="eai-weather-card">
-                    <header><div><span class="eai-weather-eyebrow">Verfügbare Wetterquellen</span><h3>Vier Wetterlinsen: WFAI, HUBBLE, Kepler und Wetterstation</h3></div><span class="eai-weather-chip">{{ sourceAvailabilityLabel }}</span></header>
+                    <header><div><span class="eai-weather-eyebrow">Verfügbare Wetterquellen</span><h3>Vier Wetterlinsen: WFAI, Hubble, Kepler und Wetterstation</h3></div><span class="eai-weather-chip">{{ sourceAvailabilityLabel }}</span></header>
                     <div class="eai-weather-source-matrix">
                         <article v-for="source in sourceCards" :key="source.id">
                             <span>{{ source.icon }} {{ source.label }}</span>
@@ -420,11 +420,11 @@ const ModernEAIWeatherPage = {
                     </div>
                     <p v-if="missingSourceLabels.length" class="eai-weather-source-note">Derzeit nicht verfügbar: {{ missingSourceLabels.join(", ") }}. Die Auswertung zeigt keine Ersatz- oder Nullwerte.</p>
                     <div v-if="sourceComparisonRows.length" class="eai-weather-table-wrap">
-                        <table class="eai-weather-source-table"><thead><tr><th>Zeit</th><th>WFAI</th><th>HUBBLE AI</th><th>Kepler AI</th><th>Spanne verfügbarer Quellen</th></tr></thead><tbody>
+                        <table class="eai-weather-source-table"><thead><tr><th>Zeit</th><th>WFAI</th><th>Hubble</th><th>Kepler AI</th><th>Spanne verfügbarer Quellen</th></tr></thead><tbody>
                             <tr v-for="row in sourceComparisonRows" :key="row.valid_at"><th>{{ time(row.valid_at) }}</th><td>{{ temperature(row.wfai) }}</td><td>{{ temperature(row.blend) }}</td><td>{{ temperature(row.kepler) }}</td><td>{{ temperature(row.spread) }}</td></tr>
                         </tbody></table>
                     </div>
-                    <footer>Wetterstation zeigt die in SFML hinterlegten Sensoren. HUBBLE zeigt den Wetterblend aus der SFML-Datenbank, WFAI die lokale Prognose und Kepler den Prognose-Snapshot. „—“ bedeutet nicht verfügbar; 0,0 °C Spanne bedeutet, dass die verfügbaren Quellen übereinstimmen.</footer>
+                    <footer>Wetterstation zeigt die in SFML hinterlegten Sensoren. Hubble zeigt den Wetterblend aus der SFML-Datenbank, WFAI die lokale Prognose und Kepler den Prognose-Snapshot. „—“ bedeutet nicht verfügbar; 0,0 °C Spanne bedeutet, dass die verfügbaren Quellen übereinstimmen.</footer>
                 </article>
 
                 <div class="eai-weather-grid">
@@ -802,7 +802,7 @@ const ModernEAIWeatherPage = {
             const kepler = matchingPoint(sourceComparison.value.kepler_input, wfai.valid_at) || {};
             return [
                 { id: "wfai", icon: "🧠", label: "WFAI", available: isFiniteValue(wfai.temperature_c), temperature: temperature(wfai.temperature_c), detail: isFiniteValue(wfai.temperature_c) ? `${precipitation(wfai.precipitation)} · lokale Prognose` : "Lokale Prognose nicht verfügbar" },
-                { id: "hubble", icon: "🛰️", label: "HUBBLE AI", available: isFiniteValue(blend.temperature_c), temperature: temperature(blend.temperature_c), detail: isFiniteValue(blend.temperature_c) ? `${number(blend.ghi_wm2, 0)} GHI · ${number(blend.dhi_wm2, 0)} DHI W/m²` : "Wetterblend nicht verfügbar" },
+                { id: "hubble", icon: "🛰️", label: "Hubble", available: isFiniteValue(blend.temperature_c), temperature: temperature(blend.temperature_c), detail: isFiniteValue(blend.temperature_c) ? `${number(blend.ghi_wm2, 0)} GHI · ${number(blend.dhi_wm2, 0)} DHI W/m²` : "Wetterblend nicht verfügbar" },
                 { id: "kepler", icon: "✦", label: "Kepler AI", available: isFiniteValue(kepler.temperature_c), temperature: temperature(kepler.temperature_c), detail: isFiniteValue(kepler.temperature_c) ? `${number(kepler.dni_wm2, 0)} DNI · ${number(kepler.dhi_wm2, 0)} DHI W/m²` : "Prognose-Snapshot nicht verfügbar" },
                 { id: "station", icon: "📡", label: "Wetterstation", available: isFiniteValue(current.value.temperature_c), temperature: temperature(current.value.temperature_c), detail: isFiniteValue(current.value.temperature_c) ? `${irradiance(current.value.solar_radiation_wm2)} GHI · SFML-Sensoren` : "Stationswert nicht verfügbar" },
             ];

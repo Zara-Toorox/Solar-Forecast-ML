@@ -29,7 +29,7 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
 )
 
-from . import contract
+from . import contract, dc_energy
 from .const import DOMAIN
 from .entity import assign_role_identity, vendor_free_entity_id
 
@@ -225,4 +225,12 @@ class LocalVendorSensor(CoordinatorEntity[DataUpdateCoordinator], SensorEntity):
         device = self._device
         if device is not None and self._role in device.derived:
             attributes[contract.ATTR_DERIVED] = True
+        if (
+            device is not None
+            and self._role in (dc_energy.SOLAR_TOTAL, dc_energy.SOLAR_TODAY)
+            and self._role in device.derived
+        ):
+            source = getattr(device, "dc_source", None)
+            if isinstance(source, str) and source:
+                attributes[dc_energy.SOURCE_ATTR] = source
         return attributes

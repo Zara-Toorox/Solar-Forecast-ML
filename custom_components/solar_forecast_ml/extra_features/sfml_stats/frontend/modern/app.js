@@ -56,6 +56,7 @@ const ICON_PATHS = {
     pause: "M9 5v14M15 5v14",
     restart: "M4 4v6h6M5.5 15a7 7 0 1 0 1-7.5L4 10",
     target: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-6a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-4h.01",
+    mark: "M12 3.25v3.15M12 17.6v3.15M3.25 12h3.15M17.6 12h3.15M12 8.15a3.85 3.85 0 1 0 .01 0M12 4.7a7.3 7.3 0 1 0 .01 0",
     calendar: "M6 2v4M18 2v4M3 9h18M5 4h14a2 2 0 0 1 2 2v14H3V6a2 2 0 0 1 2-2Z",
     trophy: "M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4ZM7 6H3v2a4 4 0 0 0 4 4M17 6h4v2a4 4 0 0 1-4 4",
     trend: "m3 17 6-6 4 4 8-9M17 6h4v4",
@@ -82,14 +83,16 @@ const UiIcon = {
 
 const COPY = {
     de: {
-        product: "Solar Forecast Stats",
+        product: "Hubble",
+        brand: "SFML Stats",
+        brandHint: "Hubble · lokal",
         devUntil: "gültig bis {date}",
         devSubline: "DEV-Mode: alle Fakten, ungefiltert. Deuten nur mit Sachkenntnis.",
         sections: { overview: "Übersicht", analysis: "Analyse", control: "Steuerung", system: "System" },
-        mobile: { dashboard: "Cockpit", home: "Übersicht", solar: "Solar", energy: "Energie" },
+        mobile: { dashboard: "Start", home: "Übersicht", solar: "Solar", energy: "Energie" },
         pages: {
-            dashboard: ["Solar Cockpit", "Energie, Prognose und Premium Intelligence auf einen Blick"],
-            tomorrow: ["Dein Energietag", "Deine historische Energy Story und echte Energie-Unabhängigkeit"],
+            dashboard: ["Übersicht", "Energie und Prognose im Überblick"],
+            tomorrow: ["Energietag", "Abgeschlossene Tage und eigener Anteil"],
             home: ["Live & Prognose", "Ausführlicher Energiefluss und Prognosestatus"],
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],
             weather: ["Wetter", "Wetterlage, Prognose, Strahlung und Ertrag"],
@@ -98,16 +101,16 @@ const COPY = {
             gpm: ["Strompreis (GPM)", "Tarif, Kurve und Lizenzstatus"],
             smart_charging: ["Smart Charging", "Ladeentscheidung, Preise und Batterieziel"],
             hybrid_forecast: ["Hybrid-Prognose", "Was gilt, was heute gelaufen ist, und die Einstellung"],
-            ems: ["EMS", "BETA v2! · Was jetzt tun – und warum"],
+            ems: ["EMS", "Was jetzt sinnvoll ist"],
             settings: ["Systemstatus", "Konfiguration, Sensoren und Datenqualität"],
             corrections: ["Korrekturen", "Premium · geprüfte Tageswerte berichtigen"],
             statistics: ["Statistik", "Kennzahlen über frei wählbare Zeiträume"],
-            quality: ["Forecast Intelligence", "Qualität, Modelle und Entwicklung nachvollziehen"],
+            quality: ["Prognosequalität", "Qualität, Modelle und Verlauf"],
             weather_energy: ["Wetter & Energie", "Bedingungen, Prognose und Ertrag gemeinsam analysieren"],
             eai: ["Wärmepumpe", "Verbrauch, Betrieb, Effizienz und Gebäudeverhalten"],
             heating: ["Heizung", "Räume, Thermostate und Absenkung bei Abwesenheit"],
             mobility: ["E-Mobilität & Wallbox", "PV, Preise, Wärmepumpe und Abfahrtsziel gemeinsam planen"],
-            eai_weather: ["Weather Intelligence", "Lokale Prognose, Historie, Genauigkeit und Wetterrisiken"],
+            eai_weather: ["Wetterprognose", "Lokale Prognose, Historie, Genauigkeit und Risiken"],
             support: ["Fehler melden", "Direkter Kanal zum Entwickler – mit Log-Auszug, ohne persönliche Daten"],
         },
         status: { live: "Aktuell", stale: "Veraltet", offline: "Nicht erreichbar", loading: "Verbinden" },
@@ -123,14 +126,16 @@ const COPY = {
         licenseLabel: "Lizenz",
     },
     en: {
-        product: "Solar Forecast Stats",
+        product: "Hubble",
+        brand: "SFML Stats",
+        brandHint: "Hubble · local",
         devUntil: "valid until {date}",
         devSubline: "DEV mode: every fact, unfiltered. Interpret only with expertise.",
         sections: { overview: "Overview", analysis: "Analysis", control: "Control", system: "System" },
-        mobile: { dashboard: "Cockpit", home: "Overview", solar: "Solar", energy: "Energy" },
+        mobile: { dashboard: "Start", home: "Overview", solar: "Solar", energy: "Energy" },
         pages: {
-            dashboard: ["Solar Cockpit", "Energy, forecast and premium intelligence at a glance"],
-            tomorrow: ["Your Energy Day", "Your historical Energy Story and real energy independence"],
+            dashboard: ["Overview", "Energy and forecast at a glance"],
+            tomorrow: ["Energy day", "Completed days and your own share"],
             home: ["Live & Forecast", "Detailed energy flow and forecast status"],
             solar: ["Solar & Forecast", "Yield, models, deviations and shading"],
             weather: ["Weather", "Conditions, forecast, radiation and yield"],
@@ -139,16 +144,16 @@ const COPY = {
             gpm: ["Grid prices (GPM)", "Tariff, curve and licence status"],
             smart_charging: ["Smart Charging", "Charge decision, prices and battery target"],
             hybrid_forecast: ["Hybrid forecast", "What applies, what ran today, and the setting"],
-            ems: ["EMS", "BETA v2! · What to do now – and why"],
+            ems: ["EMS", "What makes sense right now"],
             settings: ["System Status", "Configuration, sensors and data quality"],
             corrections: ["Corrections", "Premium · correct verified daily values"],
             statistics: ["Statistics", "Figures over any period you choose"],
-            quality: ["Forecast Intelligence", "Understand quality, models and development"],
+            quality: ["Forecast quality", "Quality, models and how they develop"],
             weather_energy: ["Weather & Energy", "Analyse conditions, forecast and yield together"],
             eai: ["Heat Pump", "Consumption, operation, efficiency and building response"],
             heating: ["Heating", "Rooms, thermostats and setback while away"],
             mobility: ["E-Mobility & Wallbox", "Plan PV, prices, heat-pump demand and departure target together"],
-            eai_weather: ["Weather Intelligence", "Local forecast, history, accuracy and weather risks"],
+            eai_weather: ["Weather forecast", "Local forecast, history, accuracy and risks"],
             support: ["Report a defect", "Direct channel to the developer – with log excerpt, without personal data"],
         },
         status: { live: "Current", stale: "Stale", offline: "Unavailable", loading: "Connecting" },
@@ -164,14 +169,16 @@ const COPY = {
         licenseLabel: "License",
     },
     pl: {
-        product: "Solar Forecast Stats",
+        product: "Hubble",
+        brand: "SFML Stats",
+        brandHint: "Hubble · lokalnie",
         devUntil: "ważny do {date}",
         devSubline: "Tryb DEV: wszystkie fakty, bez filtra. Interpretuj tylko ze znajomością rzeczy.",
         sections: { overview: "Przegląd", analysis: "Analiza", control: "Sterowanie", system: "System" },
-        mobile: { dashboard: "Kokpit", home: "Przegląd", solar: "Solar", energy: "Energia" },
+        mobile: { dashboard: "Start", home: "Przegląd", solar: "Solar", energy: "Energia" },
         pages: {
-            dashboard: ["Solar Cockpit", "Energia, prognoza i funkcje Premium w jednym miejscu"],
-            tomorrow: ["Twój dzień energii", "Twoja historyczna Energy Story i rzeczywista niezależność energetyczna"],
+            dashboard: ["Przegląd", "Energia i prognoza w skrócie"],
+            tomorrow: ["Dzień energii", "Zakończone dni i własny udział"],
             home: ["Na żywo i prognoza", "Szczegółowy przepływ energii i stan prognozy"],
             solar: ["Energia słoneczna", "Produkcja, modele, odchylenia i cień"],
             weather: ["Pogoda", "Warunki, prognoza, promieniowanie i uzysk"],
@@ -180,16 +187,16 @@ const COPY = {
             gpm: ["Ceny energii (GPM)", "Taryfa, wykres i status licencji"],
             smart_charging: ["Smart Charging", "Decyzja ładowania, ceny i cel baterii"],
             hybrid_forecast: ["Prognoza hybrydowa", "Co obowiązuje, co dziś się wykonało i ustawienie"],
-            ems: ["EMS", "BETA v2! · Co teraz zrobić – i dlaczego"],
+            ems: ["EMS", "Co teraz ma sens"],
             settings: ["Stan systemu", "Konfiguracja, czujniki i jakość danych"],
             corrections: ["Korekty", "Premium · korekta zweryfikowanych wartości dziennych"],
             statistics: ["Statystyka", "Wskaźniki dla dowolnie wybranego okresu"],
-            quality: ["Forecast Intelligence", "Jakość, modele i długoterminowy rozwój"],
+            quality: ["Jakość prognozy", "Jakość, modele i ich przebieg"],
             weather_energy: ["Pogoda i energia", "Wspólna analiza warunków, prognozy i uzysku"],
             eai: ["Pompa ciepła", "Zużycie, praca, efektywność i reakcja budynku"],
             heating: ["Ogrzewanie", "Pomieszczenia, termostaty i obniżenie przy nieobecności"],
             mobility: ["E-mobilność i wallbox", "Wspólne planowanie PV, cen, pompy ciepła i wyjazdu"],
-            eai_weather: ["Weather Intelligence", "Lokalna prognoza, historia, dokładność i ryzyka pogodowe"],
+            eai_weather: ["Prognoza pogody", "Lokalna prognoza, historia, dokładność i ryzyka"],
             support: ["Zgłoś błąd", "Bezpośredni kanał do dewelopera – z fragmentem logu, bez danych osobowych"],
         },
         status: { live: "Aktualne", stale: "Nieaktualne", offline: "Niedostępne", loading: "Łączenie" },
@@ -209,15 +216,15 @@ const COPY = {
 const PUBLIC_PAGE_SUBTITLES = {
     de: {
         solar: "Ertrag, Abweichungen und Schatten",
-        quality: "Qualität und Entwicklung nachvollziehen",
+        quality: "Qualität und Verlauf",
     },
     en: {
         solar: "Yield, deviations and shading",
-        quality: "Understand quality and development",
+        quality: "Quality and development",
     },
     pl: {
         solar: "Produkcja, odchylenia i cień",
-        quality: "Jakość i długoterminowy rozwój",
+        quality: "Jakość i przebieg",
     },
 };
 
@@ -237,7 +244,7 @@ function installModernChartDefaults() {
         {
             terms: ["final", "finale prognose", "prediction"],
             colorToken: "--accent",
-            fallback: "#60c5ff",
+            fallback: "#3ec9ff",
             lineType: "solid",
             symbol: "roundRect",
         },
@@ -296,7 +303,7 @@ function installModernChartDefaults() {
         option.animationDuration = 280;
         option.animationDurationUpdate = 180;
         option.color = [
-            token("--accent", "#60c5ff"),
+            token("--accent", "#3ec9ff"),
             token("--solar", "#ffbf2f"),
             token("--success", "#5bd8a6"),
             token("--chart-series-ai", "#8fa8ff"),
@@ -414,10 +421,10 @@ const ModernApp = {
 
             <aside class="sidebar" :class="{ open: drawerOpen }" :aria-label="copy.navigation">
                 <div class="brand-row">
-                    <div class="brand-mark" aria-hidden="true"><ui-icon name="solar" :size="22"></ui-icon></div>
+                    <div class="brand-mark" aria-hidden="true"><img class="brand-logo" src="/api/sfml_stats/static/modern/assets/brand-logo-stats.png" alt="" width="36" height="36"></div>
                     <div class="brand-copy">
-                        <strong>Solar Forecast</strong>
-                        <span>Stats</span>
+                        <strong>{{ copy.brand }}</strong>
+                        <span>{{ copy.brandHint }}</span>
                     </div>
                     <button class="icon-button drawer-close" type="button" :aria-label="copy.navigation"
                             @click="closeDrawer">
@@ -1081,6 +1088,19 @@ const ModernApp = {
 installModernChartDefaults();
 const sfmlStatsModernApp = createApp(ModernApp);
 sfmlStatsModernApp.component("ui-icon", UiIcon);
+sfmlStatsModernApp.component("hubble-say", {
+    props: { tone: { type: String, default: "idle" }, headline: { type: String, default: "" }, detail: { type: String, default: "" } },
+    template: `
+        <div class="hubble-say-row">
+            <div class="hubble-say-avatar" aria-hidden="true">
+                <img class="hubble-say-persona" src="/api/sfml_stats/static/modern/assets/hubble-persona-portrait.jpg" alt="" width="108" height="108" loading="lazy" decoding="async">
+            </div>
+            <div class="hubble-say-bubble" role="status" aria-live="polite">
+                <div class="hubble-say-headline"><span class="hubble-say-dot" :class="tone"></span>{{ headline }}</div>
+                <div v-if="detail" class="hubble-say-text">{{ detail }}</div>
+            </div>
+        </div>`,
+});
 sfmlStatsModernApp.component("modern-page-guide", window.ModernPageGuide);
 sfmlStatsModernApp.component("modern-forecast-guide", window.ModernForecastGuide);
 sfmlStatsModernApp.component("modern-intelligence-overview", window.ModernIntelligenceOverview);

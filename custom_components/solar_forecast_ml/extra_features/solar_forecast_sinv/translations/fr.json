@@ -516,6 +516,8 @@
             "enphase_serial_invalid": "Saisissez le numéro de série de la passerelle (lettres et chiffres uniquement).",
             "not_enphase": "Aucune passerelle IQ avec API locale ne répond à cette adresse.",
             "not_sigenergy": "Aucun onduleur hybride Sigenergy n'a répondu à cette adresse Modbus, ou l'adresse d'installation 247 ne répond pas.",
+            "not_sigenergy_inverter": "Aucun onduleur hybride Sigenergy n'a répondu à cette adresse Modbus. Vérifiez l'adresse de l'onduleur dans l'application MySigen et que cette IP appartient bien à l'onduleur hybride.",
+            "not_sigenergy_plant": "L'onduleur a répondu, mais pas l'adresse d'installation 247. Le serveur Modbus TCP est-il activé pour l'installation dans l'application MySigen ?",
             "solarman_timeout": "L'enregistreur Solarman V5 n'a pas répondu à temps. Les enregistreurs qui ne parlent que les commandes AT sur le port 48899 ne sont pas pris en charge.",
             "logger_serial_mismatch": "Le numéro de série de l'enregistreur ne correspond pas au stick qui a répondu.",
             "invalid_host": "Nom d'hôte ou adresse IP, port facultatif. Pas de schéma, de chemin ni de mot de passe.",
@@ -640,7 +642,7 @@
                     "install_count": "Participer au test BETA (comptage anonyme des installations)"
                 },
                 "data_description": {
-                    "install_count": "Activé par défaut pendant la BETA, désactivable à tout moment. Si activé, seul le numéro de version installé (p. ex. « S-INV 4.0.0 ») est envoyé une fois par jour à solarforecastml.com – aucune donnée propre à l'appareil ou à l'utilisateur, aucun identifiant, aucune mesure. Seul le nombre de signalements par jour et par version est enregistré. Votre adresse IP est techniquement visible lors de la transmission et conservée au plus deux jours sous forme de hachage chiffré pour la protection contre les abus. Détails : https://www.solarforecastml.com/en/privacy"
+                    "install_count": "Activé par défaut pendant la BETA, désactivable à tout moment. Si activé, seul le numéro de version installé (p. ex. « S-INV 5.0.0 ») est envoyé une fois par jour à solarforecastml.com – aucune donnée propre à l'appareil ou à l'utilisateur, aucun identifiant, aucune mesure. Seul le nombre de signalements par jour et par version est enregistré. Votre adresse IP est techniquement visible lors de la transmission et conservée au plus deux jours sous forme de hachage chiffré pour la protection contre les abus. Détails : https://www.solarforecastml.com/en/privacy"
                 },
                 "description": "Tableau de bord énergie : ajoutez vous-même les capteurs de cet appareil sous Paramètres → Tableaux de bord → Énergie – consommation du réseau `sensor.sinv_energy_grid_import_total`, injection `sensor.sinv_energy_grid_export_total`, production solaire `sensor.sinv_energy_solar_total`, batterie entrante `sensor.sinv_energy_battery_charge_total`, batterie sortante `sensor.sinv_energy_battery_discharge_total`. Utilisez uniquement ces capteurs de l'installation, sinon l'énergie est comptée deux fois."
             }

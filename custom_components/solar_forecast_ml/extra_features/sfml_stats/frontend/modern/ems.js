@@ -173,6 +173,7 @@ const ModernEMSPage = {
                     <span class="ems-pill quiet">{{ currentModeLabel }}</span>
                 </div>
             </header>
+            <hubble-say v-if="!loading && !locked && data" class="ems-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
 
             <div v-if="message" :class="['ems-message', messageError ? 'error' : 'ok']" :role="messageError ? 'alert' : 'status'">{{ message }}</div>
             <div v-if="data?.safety_alarm" class="ems-message error" role="alert"><strong>Sicherheitsfreigabe ausstehend:</strong> Ein vom EMS übernommenes Gerät konnte noch nicht bestätigt ausgeschaltet werden. Das EMS versucht die Freigabe erneut und bleibt gesperrt.</div>
@@ -758,7 +759,17 @@ const ModernEMSPage = {
             bridge?.destroy();
         });
 
-        return { bridgeHost, chart, dayStrip, data, selectedDate, selectedDay, selectedDayIndex,
+        const hT = (k, p) => (window.SFMLI18n?.t?.("hubbleSay." + k, p)) || k;
+        const hubbleSay = Vue.computed(() => {
+            const a = primaryAction.value || {};
+            const live = data.value?.mode === "live";
+            const parts = [];
+            if (a.status || a.device) parts.push(hT("ems.now", { action: a.status || a.device }));
+            if (a.detail) parts.push(a.detail);
+            parts.push(hT("ems.mode", { mode: currentModeLabel.value }));
+            return { tone: live ? "ok" : "demo", headline: hT(live ? "ems.liveHead" : "ems.demoHead"), detail: parts.join(" ") };
+        });
+        return { hubbleSay, bridgeHost, chart, dayStrip, data, selectedDate, selectedDay, selectedDayIndex,
             selectedSummary, selectedDayCaption, dayValueScope, demandComponentsLabel, coverageRows, coverageStory,
             chartView, chartAriaLabel, chartSummary, loading, locked, adminLocked, busy, message,
             messageError, detailsOpen, modes, primaryAction, nextActions, todayBrief, forecastWindows,

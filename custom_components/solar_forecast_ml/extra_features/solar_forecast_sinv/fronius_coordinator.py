@@ -7,7 +7,11 @@
 # * Full license terms: https://www.solarforecastml.com/license
 # ******************************************************************************
 
-"""Polling coordinator for Fronius inverters on the local Solar API v1. @zara"""
+"""Polling coordinator for Fronius inverters on the local Solar API v1. @zara
+
+One config entry polls one Datamanager. Every inverter it lists is fetched in
+the same cycle; the entry unique id (``fronius_<serial>``) selects the primary.
+"""
 
 from __future__ import annotations
 
@@ -99,7 +103,16 @@ class FroniusCoordinator(DataUpdateCoordinator[dict[str, fronius.FroniusDevice]]
         # Datamanager devices: last archive answer, when it was fetched, strings seen
         self._archive: Any = None
         self._archive_at = 0.0
-        self._archive_channels: set[int] = set()
+        self._archive_channels_by_id: dict[str, set[int]] = {}
+        self._logged_multi_battery = False
+
+    def _primary_serial(self) -> str | None:
+        """Return the entry serial stored after the ``fronius_`` prefix. @zara"""
+        unique_id = self.config_entry.unique_id
+        if isinstance(unique_id, str) and unique_id.startswith("fronius_"):
+            serial = unique_id.removeprefix("fronius_").strip()
+            return serial or None
+        return None
 
     async def _async_update_data(self) -> dict[str, fronius.FroniusDevice]:
         try:
@@ -114,42 +127,72 @@ class FroniusCoordinator(DataUpdateCoordinator[dict[str, fronius.FroniusDevice]]
             )
         except (ClientError, TimeoutError, ValueError, TypeError) as err:
             raise UpdateFailed(f"Fronius at {self.host} not reachable: {err}") from err
-        identity = fronius.inverter_identity(info)
-        if identity is None:
+        identities = fronius.inverter_identities(info)
+        if not identities:
             raise UpdateFailed(f"Fronius at {self.host} reported no inverter")
-        keys = ("powerflow", "inverter", "meter", "storage")
+        requests = [("powerflow", None), ("meter", None), ("storage", None)]
+        requests.extend(("inverter", item["device_id"]) for item in identities)
         results = await asyncio.gather(
-            *(
-                fetch_json(
-                    self._session,
-                    self._api
-                    + fronius.REQUESTS[key].format(device_id=identity["device_id"]),
-                )
-                for key in keys
-            ),
+            *(self._async_fetch(key, device_id) for key, device_id in requests),
             return_exceptions=True,
         )
         responses: dict[str, Any] = {"inverter_info": info}
-        for key, result in zip(keys, results, strict=True):
+        inverters: dict[str, Any] = {}
+        for (key, device_id), result in zip(requests, results, strict=True):
             if isinstance(result, Exception):
-                LOGGER.debug("Fronius %s request failed: %s", key, result)
+                label = key if device_id is None else f"{key} {device_id}"
+                LOGGER.debug("Fronius %s request failed: %s", label, result)
                 continue
-            responses[key] = result
-        if "powerflow" not in responses and "inverter" not in responses:
+            if key == "inverter" and device_id is not None:
+                inverters[device_id] = result
+            else:
+                responses[key] = result
+        if "powerflow" not in responses and not inverters:
             raise UpdateFailed(f"Fronius at {self.host} returned no realtime data")
-        if fronius.needs_archive(fronius.inverter_common(responses.get("inverter"))):
-            await self._async_add_archive_strings(responses, identity["device_id"])
-        if self._modbus and time.monotonic() >= self._modbus_retry_at:
+        responses["inverters"] = inverters
+        archive_ids = [
+            device_id
+            for device_id, response in inverters.items()
+            if fronius.needs_archive(fronius.inverter_common(response))
+        ]
+        if archive_ids:
+            await self._async_add_archive_devices(responses, archive_ids)
+        if (
+            len(identities) == 1
+            and self._modbus
+            and time.monotonic() >= self._modbus_retry_at
+        ):
             modules = await self._async_read_mppt_model()
             if modules:
                 responses["sunspec_mppt"] = modules
-        return fronius.build_devices(responses)
+        devices = fronius.build_devices(responses, self._primary_serial())
+        self._log_multi_battery(devices)
+        return devices
 
-    async def _async_add_archive_strings(
-        self, responses: dict[str, Any], device_id: str
-    ) -> None:
-        """Add per-string values from the 5-minute archive of a Datamanager. @zara"""
-        now = dt_util.now()
+    def _log_multi_battery(self, devices: dict[str, fronius.FroniusDevice]) -> None:
+        """Debug once when a battery keeps PV power on the primary only. @zara"""
+        inverters = [device for device in devices.values() if device.kind == "inverter"]
+        if len(inverters) < 2 or not any(
+            device.kind == "battery" for device in devices.values()
+        ):
+            return
+        if self._logged_multi_battery:
+            return
+        self._logged_multi_battery = True
+        LOGGER.debug(
+            "Fronius %s has several inverters and a battery; power_solar stays on the primary",
+            self.host,
+        )
+
+    async def _async_fetch(self, key: str, device_id: str | None) -> dict[str, Any]:
+        """GET one Solar API request of this cycle. @zara"""
+        return await fetch_json(
+            self._session,
+            self._api + fronius.REQUESTS[key].format(device_id=device_id or ""),
+        )
+
+    async def _async_refresh_archive(self, now: Any) -> None:
+        """Load today's archive at most once per interval, for every inverter. @zara"""
         if time.monotonic() - self._archive_at >= fronius.ARCHIVE_INTERVAL_SECONDS:
             self._archive_at = time.monotonic()
             url = self._api + fronius.REQUESTS["archive_strings"].format(
@@ -159,11 +202,25 @@ class FroniusCoordinator(DataUpdateCoordinator[dict[str, fronius.FroniusDevice]]
                 self._archive = await fetch_json(self._session, url)
             except (ClientError, TimeoutError, ValueError, TypeError) as err:
                 LOGGER.debug("Fronius %s archive request failed: %s", self.host, err)
+
+    async def _async_add_archive_devices(
+        self, responses: dict[str, Any], device_ids: list[str]
+    ) -> None:
+        """One archive answer, split into strings and known channels per DeviceId. @zara"""
+        now = dt_util.now()
+        await self._async_refresh_archive(now)
         seconds = now.hour * 3600 + now.minute * 60 + now.second
-        strings = fronius.archive_strings(self._archive, device_id, seconds)
-        self._archive_channels.update(strings)
-        responses["dc_strings"] = strings
-        responses["dc_string_channels"] = set(self._archive_channels)
+        known_by_device = self._archive_channels_by_id
+        strings_out: dict[str, dict[int, tuple[float, float]]] = {}
+        known_out: dict[str, set[int]] = {}
+        for device_id in device_ids:
+            strings = fronius.archive_strings(self._archive, device_id, seconds)
+            known = known_by_device.setdefault(device_id, set())
+            known.update(strings)
+            strings_out[device_id] = strings
+            known_out[device_id] = set(known)
+        responses["dc_strings"] = strings_out
+        responses["dc_string_channels"] = known_out
 
     async def _async_read_mppt_model(self) -> list[sunspec.Module]:
         """Read SunSpec model 160 over Modbus TCP; never fails the cycle. @zara"""

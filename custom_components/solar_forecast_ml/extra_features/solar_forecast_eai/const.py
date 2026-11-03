@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "solar_forecast_eai"
-VERSION = "52.0.8"
+VERSION = "54.0.0"
 CONFIG_ENTRY_VERSION = 4
 CONF_LICENSE_KEY = "license_key"
 CONF_LICENSE_STATUS = "license_status"
@@ -64,6 +64,7 @@ CONF_RUNTIME_DHW_ENTITY = "runtime_dhw_entity"
 CONF_THERMAL_ENERGY_ENTITY = "thermal_energy_entity"
 CONF_JAZ_ENTITY = "jaz_entity"
 CONF_VOLUME_FLOW_ENTITY = "volume_flow_entity"
+CONF_THERMAL_POWER_ENTITY = "thermal_power_entity"
 CONF_SOURCE_TEMP_ENTITY = "source_temp_entity"
 CONF_STORAGE_TEMP_ENTITY = "storage_temp_entity"
 CONF_STORAGE_VOLUME_L = "storage_volume_l"
@@ -351,6 +352,7 @@ ADVANCED_SENSORS = (
     CONF_THERMAL_ENERGY_ENTITY,
     CONF_JAZ_ENTITY,
     CONF_VOLUME_FLOW_ENTITY,
+    CONF_THERMAL_POWER_ENTITY,
     CONF_SOURCE_TEMP_ENTITY,
     CONF_STORAGE_TEMP_ENTITY,
     CONF_STORAGE_AMBIENT_TEMP_ENTITY,

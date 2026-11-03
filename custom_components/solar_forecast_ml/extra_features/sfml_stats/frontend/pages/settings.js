@@ -218,11 +218,11 @@ const SettingsPage = {
                     </div>
                 </div>
 
-                <!-- Accordion: Hubble AI -->
+                <!-- Accordion: Hubble -->
                 <div v-if="devOn" class="accordion-section" :class="{ open: openSection === 'ai' }">
                     <button class="accordion-header" @click="toggle('ai')">
                         <span class="accordion-icon">{{ openSection === 'ai' ? '\u25BE' : '\u25B8' }}</span>
-                        <span class="accordion-title">Hubble AI</span>
+                        <span class="accordion-title">{{ $t('settings.hubble') }}</span>
                         <span class="accordion-badge" :class="aiInfo.active_model ? 'ok' : 'neutral'">{{ aiInfo.active_model_display || '--' }}</span>
                     </button>
                     <div class="accordion-body" v-show="openSection === 'ai'">
@@ -771,7 +771,7 @@ const SettingsPage = {
                     // AI block
                     const ai = dashboard.ai || {};
                     aiInfo.active_model = ai.active_model || null;
-                    aiInfo.active_model_display = ai.active_model_display || (ai.active_model ? 'Hubble AI Stack' : null);
+                    aiInfo.active_model_display = ai.active_model_display || (ai.active_model ? 'Hubble' : null);
                     aiInfo.version = ai.version || null;
                     aiInfo.accuracy_percent = ai.accuracy_percent ?? null;
                     aiInfo.rmse = ai.rmse ?? null;

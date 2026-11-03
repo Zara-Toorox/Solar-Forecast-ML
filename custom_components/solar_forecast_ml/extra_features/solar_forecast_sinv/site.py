@@ -15,7 +15,9 @@ role (found through the entity registry by unique_id) and combines them by the
 aggregation rule of the contract. A missing device value of a sum is replaced
 (last power for a short hold, then 0 W; last counter reading) while another
 device still reports; otherwise the system value is unavailable, so totals never
-drop. Daily counters and house energy are derived
+drop. A falling lifetime total in a sum keeps the last accepted contribution
+until three readings confirm the new counter, then continues with an offset.
+Daily counters and house energy are derived
 when no device reports them and their inputs exist. Power flows are derived
 the same way from the installation power when no device measures that flow.
 """
@@ -45,11 +47,12 @@ from homeassistant.helpers.event import (
     async_call_later,
     async_track_point_in_utc_time,
     async_track_state_change_event,
+    async_track_state_report_event,
 )
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import contract, site_daily, site_flows
+from . import contract, dc_energy, site_daily, site_flows
 from .const import CONF_VENDOR, DOMAIN, LOGGER, VENDOR_HP, is_hp_device_vendor
 from .entity import async_convert_draft_system_entries, async_reclaim_system_ids
 from .vendors.anker import GRID_ENERGY_ROLES, grid_energy_priority
@@ -73,6 +76,12 @@ SOURCE_HOLD = timedelta(minutes=15)
 POWER_HOLD = timedelta(minutes=5)
 # Persisting counter readings on every update would rewrite the store constantly.
 READINGS_SAVE_DELAY = 300.0
+# Lifetime totals are published in 0.001 kWh steps. Half of that step is float
+# residue around the rounding boundary, not a counter reset.
+SUM_DROP_TOLERANCE_KWH = 0.0005
+# A lasting reset repeats. One low reading does not. Three that do not fall
+# further adopt the new counter.
+SUM_RESET_CONFIRMATIONS = 3
 _INDEX = re.compile(r"^sinv_[a-z]{2}(\d\d)_")
 
 
@@ -105,6 +114,23 @@ class LastReading:
     value: float
     day: str
     seen: datetime | None = None
+
+
+@dataclass(frozen=True)
+class SumGuard:
+    """Accepted raw reading, offset and reset streak of one summed lifetime counter. @zara"""
+
+    accepted: float
+    offset: float = 0.0
+    pending: float | None = None
+    count: int = 0
+    observed: float | None = None
+    reported: datetime | None = None
+
+    @property
+    def contribution(self) -> float:
+        """Value this device adds to the installation total. @zara"""
+        return self.accepted + self.offset
 
 
 @dataclass(frozen=True)
@@ -167,6 +193,139 @@ def fill_missing(
             values.append(known.value)
         substituted.append(entity_id)
     return Fill(values, substituted, held, changed)
+
+
+def _sum_lifetime(role: str) -> bool:
+    """Return whether an AGG_SUM role is a lifetime energy total. @zara"""
+    split = contract.split_role(role)
+    if split is None:
+        return False
+    spec = split[0]
+    return (
+        contract.aggregation(role) == contract.AGG_SUM
+        and spec.device_class == "energy"
+        and spec.state_class == "total_increasing"
+        and spec.base.endswith("_total")
+    )
+
+
+def _finite_number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    if not math.isfinite(value):
+        return None
+    return float(value)
+
+
+def apply_sum_guard(
+    raw: float, guard: SumGuard | None, reported: datetime | None = None
+) -> tuple[float, SumGuard]:
+    """Contribution of one lifetime reading to an AGG_SUM total. @zara
+
+    A value below the last accepted reading, beyond rounding, keeps that
+    contribution. Three consecutive readings that do not fall further adopt
+    the new value with offset last contribution minus the new reading, so it
+    does not fall.
+    """
+    if guard is None:
+        return raw, SumGuard(raw, observed=raw, reported=reported)
+    stand = guard.contribution
+    if raw >= guard.accepted - SUM_DROP_TOLERANCE_KWH:
+        if raw > guard.accepted:
+            return raw + guard.offset, SumGuard(
+                raw, guard.offset, observed=raw, reported=reported
+            )
+        return stand, SumGuard(
+            guard.accepted, guard.offset, observed=raw, reported=reported
+        )
+    if guard.pending is not None and raw >= guard.pending - SUM_DROP_TOLERANCE_KWH:
+        count = guard.count + 1
+        pending = raw
+    else:
+        count = 1
+        pending = raw
+    if count >= SUM_RESET_CONFIRMATIONS:
+        return stand, SumGuard(raw, stand - raw, observed=raw, reported=reported)
+    return stand, SumGuard(guard.accepted, guard.offset, pending, count, raw, reported)
+
+
+def interrupt_sum_guard(guard: SumGuard | None) -> SumGuard | None:
+    """End a reset streak. A missing reading does not count toward the three. @zara"""
+    if guard is None or (guard.pending is None and guard.count == 0):
+        return guard
+    return SumGuard(guard.accepted, guard.offset)
+
+
+def _same_sum_sample(guard: SumGuard, raw: float, reported: datetime | None) -> bool:
+    """Return whether this call repeats a sample already counted. @zara"""
+    if guard.observed != raw:
+        return False
+    if reported is None:
+        return guard.reported is None
+    return guard.reported == reported
+
+
+def _reported_at(state: Any) -> datetime | None:
+    try:
+        reported = state.last_reported
+    except AttributeError:
+        return None
+    if isinstance(reported, datetime):
+        return reported
+    return None
+
+
+def _guard_changed(before: SumGuard | None, after: SumGuard) -> bool:
+    if before is None:
+        return True
+    return (
+        before.accepted,
+        before.offset,
+        before.pending,
+        before.count,
+        before.observed,
+    ) != (
+        after.accepted,
+        after.offset,
+        after.pending,
+        after.count,
+        after.observed,
+    )
+
+
+def _guard_sum_readings(
+    role: str, states: list[tuple[str, Any]], tracker: SourceTracker
+) -> tuple[list[tuple[str, float | None]], bool]:
+    """Replace a falling lifetime reading with the contribution the sum keeps. @zara"""
+    readings: list[tuple[str, float | None]] = []
+    changed = False
+    for entity_id, state in states:
+        raw = _float(state)
+        guard = tracker.sum_guards.get(entity_id)
+        if raw is None:
+            updated = interrupt_sum_guard(guard)
+            if updated is not guard and updated is not None:
+                tracker.sum_guards[entity_id] = updated
+                changed = True
+            readings.append((entity_id, None))
+            continue
+        reported = _reported_at(state)
+        if guard is not None and _same_sum_sample(guard, raw, reported):
+            readings.append((entity_id, guard.contribution))
+            continue
+        contribution, updated = apply_sum_guard(raw, guard, reported)
+        if guard is not None and updated.offset != guard.offset:
+            LOGGER.info(
+                "Installation %s kept %s after a counter reset, offset %s kWh",
+                role,
+                entity_id,
+                updated.offset,
+            )
+        if _guard_changed(guard, updated):
+            changed = True
+        tracker.sum_guards[entity_id] = updated
+        readings.append((entity_id, contribution))
+    return readings, changed
 
 
 def source_now() -> datetime:
@@ -445,7 +604,7 @@ class SiteDaily:
 
 
 class SourceTracker:
-    """Persisted source and offset of every continued installation counter. @zara"""
+    """Persisted source offsets and summed lifetime counters of one installation. @zara"""
 
     def __init__(self) -> None:
         """Start with no stored source. @zara"""
@@ -453,6 +612,17 @@ class SourceTracker:
         # Last counter reading per device entity, so a sum survives a device
         # that is missing after a restart.
         self.readings: dict[str, LastReading] = {}
+        # Per device entity of an AGG_SUM lifetime total: accepted raw value,
+        # offset and the streak of a candidate reset.
+        self.sum_guards: dict[str, SumGuard] = {}
+        # Integrated solar energy per device serial that has no vendor counter.
+        self.dc_energy: dict[str, dc_energy.Counter] = {}
+        # Serials that have reported a vendor energy_solar_total. Never integrated.
+        self.vendor_solar: set[str] = set()
+        # Midnight baseline of a vendor total that has no vendor day counter.
+        self.solar_days: dict[str, site_daily.DailyBaseline] = {}
+        # Integrated battery charge and discharge, keyed by serial and role.
+        self.battery_energy: dict[str, dc_energy.Counter] = {}
 
     def get(self, role: str) -> SourceCont | None:
         """Return the stored continuation of one role. @zara"""
@@ -463,8 +633,8 @@ class SourceTracker:
         self._roles[role] = cont
 
     def snapshot(self) -> dict[str, Any]:
-        """JSON-ready source offsets. @zara"""
-        return {
+        """JSON-ready source offsets and sum-counter guards. @zara"""
+        data: dict[str, Any] = {
             "roles": {
                 role: {
                     "entity_id": cont.entity_id,
@@ -480,6 +650,30 @@ class SourceTracker:
                 for entity_id, reading in self.readings.items()
             },
         }
+        if self.sum_guards:
+            data["sum_guards"] = {
+                entity_id: _guard_payload(guard)
+                for entity_id, guard in self.sum_guards.items()
+            }
+        dc_payload = dc_energy.dump_counters(self.dc_energy)
+        if dc_payload:
+            data["dc_energy"] = dc_payload
+        if self.vendor_solar:
+            data["vendor_solar"] = sorted(self.vendor_solar)
+        if self.solar_days:
+            data["solar_days"] = {
+                serial: {
+                    "day": state.day,
+                    "baseline": state.baseline,
+                    "last": state.last,
+                    "accrued": state.accrued,
+                }
+                for serial, state in self.solar_days.items()
+            }
+        battery = dc_energy.dump_counters(self.battery_energy)
+        if battery:
+            data["battery_energy"] = battery
+        return data
 
     @classmethod
     def from_snapshot(cls, raw: Any) -> SourceTracker:
@@ -493,6 +687,25 @@ class SourceTracker:
                 reading = _parse_reading(entity_id, item)
                 if reading is not None:
                     tracker.readings[entity_id] = reading
+        guards = raw.get("sum_guards")
+        if isinstance(guards, dict):
+            for entity_id, item in guards.items():
+                guard = _parse_sum_guard(entity_id, item)
+                if guard is not None:
+                    tracker.sum_guards[entity_id] = guard
+        tracker.dc_energy = dc_energy.load_counters(raw.get("dc_energy"))
+        tracker.battery_energy = dc_energy.load_counters(raw.get("battery_energy"))
+        locked = raw.get("vendor_solar")
+        if isinstance(locked, list):
+            tracker.vendor_solar = {
+                serial for serial in locked if isinstance(serial, str) and serial
+            }
+        days = raw.get("solar_days")
+        if isinstance(days, dict):
+            for serial, item in days.items():
+                baseline = _parse_solar_day(serial, item)
+                if baseline is not None:
+                    tracker.solar_days[serial] = baseline
         roles = raw.get("roles")
         if not isinstance(roles, dict):
             return tracker
@@ -501,6 +714,79 @@ class SourceTracker:
             if parsed is not None:
                 tracker._roles[role] = parsed
         return tracker
+
+
+def _guard_payload(guard: SumGuard) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "accepted": guard.accepted,
+        "offset": guard.offset,
+    }
+    if guard.pending is not None:
+        payload["pending"] = guard.pending
+    if guard.count:
+        payload["count"] = guard.count
+    if guard.observed is not None:
+        payload["observed"] = guard.observed
+    if guard.reported is not None:
+        payload["reported"] = guard.reported.isoformat()
+    return payload
+
+
+def _parse_sum_guard(entity_id: Any, item: Any) -> SumGuard | None:
+    if not isinstance(entity_id, str) or not isinstance(item, dict):
+        return None
+    accepted = _finite_number(item.get("accepted"))
+    offset = _finite_number(item.get("offset", 0.0))
+    if accepted is None or offset is None:
+        return None
+    pending = None
+    if "pending" in item and item.get("pending") is not None:
+        pending = _finite_number(item.get("pending"))
+        if pending is None:
+            return None
+    count = item.get("count", 0)
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        return None
+    observed = None
+    if "observed" in item and item.get("observed") is not None:
+        observed = _finite_number(item.get("observed"))
+        if observed is None:
+            return None
+    reported = None
+    raw_reported = item.get("reported")
+    if raw_reported is not None:
+        if not isinstance(raw_reported, str):
+            return None
+        try:
+            reported = datetime.fromisoformat(raw_reported)
+        except ValueError:
+            return None
+    return SumGuard(accepted, offset, pending, count, observed, reported)
+
+
+def _parse_solar_day(serial: Any, item: Any) -> site_daily.DailyBaseline | None:
+    """Restore one device-total day baseline. Broken items are dropped. @zara"""
+    if not isinstance(serial, str) or not serial or not isinstance(item, dict):
+        return None
+    day = item.get("day")
+    if not isinstance(day, str):
+        return None
+    try:
+        datetime.fromisoformat(day)
+    except ValueError:
+        return None
+    last = _finite_number(item.get("last"))
+    if last is None:
+        return None
+    baseline = item.get("baseline")
+    if baseline is not None:
+        baseline = _finite_number(baseline)
+        if baseline is None:
+            return None
+    accrued = _finite_number(item.get("accrued"))
+    if accrued is None:
+        accrued = 0.0
+    return site_daily.DailyBaseline(day, baseline, last, max(0.0, accrued))
 
 
 def _parse_reading(entity_id: Any, item: Any) -> LastReading | None:
@@ -817,6 +1103,7 @@ class _SiteEntity:
         # device entities whose missing value was replaced in the last read
         self._missing: set[str] = set()
         self._unsub_states = None
+        self._unsub_reports = None
         self._unsub_midnight = None
         self._unsub_hold = None
         self._attr_unique_id = contract.system_unique_id(role)
@@ -858,6 +1145,9 @@ class _SiteEntity:
         if self._unsub_states is not None:
             self._unsub_states()
             self._unsub_states = None
+        if self._unsub_reports is not None:
+            self._unsub_reports()
+            self._unsub_reports = None
 
     @callback
     def _resubscribe(self) -> None:
@@ -902,14 +1192,15 @@ class _SiteEntity:
         if not self._sources and self.role in site_daily.DERIVED_ROLES:
             for input_role in site_daily.input_roles(self.role, self._all_sources):
                 tracked.extend(
-                    source.entity_id for source in self._all_sources.get(input_role, [])
+                    source.entity_id
+                    for source in self._all_sources.get(input_role, [])
                 )
         if not self._sources and self.role in site_flows.FLOW_ROLES:
-            has_battery = site_daily.battery_present(self._all_sources)
-            for input_role in site_flows.flow_inputs(self.role, has_battery):
-                tracked.extend(
-                    source.entity_id for source in self._all_sources.get(input_role, [])
-                )
+            tracked.extend(
+                entity_id
+                for entity_id in self._derived_source_ids()
+                if entity_id not in tracked
+            )
         if tracked:
 
             @callback
@@ -919,6 +1210,12 @@ class _SiteEntity:
             self._unsub_states = async_track_state_change_event(
                 self.hass, tracked, changed
             )
+            # An unchanged lifetime total still has to count toward a reset.
+            # Home Assistant reports that poll without a state change.
+            if _sum_lifetime(self.role) and self._sources:
+                self._unsub_reports = async_track_state_report_event(
+                    self.hass, tracked, changed
+                )
         self._arm_midnight()
 
     @callback
@@ -971,17 +1268,23 @@ class _SiteEntity:
         """Device values of a sum role with missing devices replaced. @zara"""
         holder = self._site_sources()
         power = role.startswith("power_")
+        states = [
+            (source.entity_id, self.hass.states.get(source.entity_id))
+            for source in sources
+        ]
+        guards_changed = False
+        if _sum_lifetime(role):
+            numeric, guards_changed = _guard_sum_readings(role, states, holder.tracker)
+        else:
+            numeric = [(entity_id, _float(state)) for entity_id, state in states]
         fill = fill_missing(
             role,
-            [
-                (source.entity_id, _float(self.hass.states.get(source.entity_id)))
-                for source in sources
-            ],
+            numeric,
             holder.power_seen if power else holder.tracker.readings,
             source_now(),
             installation_local_day(),
         )
-        if fill.changed:
+        if fill.changed or guards_changed:
             holder.save_readings()
         if fill.held:
             self._arm_hold()
@@ -1016,14 +1319,17 @@ class _SiteEntity:
         """Device entities a derived installation value follows. @zara"""
         if self.role in site_flows.FLOW_ROLES:
             has_battery = site_daily.battery_present(self._all_sources)
-            sources = [
+            extra = [
                 source.entity_id
                 for input_role in site_flows.flow_inputs(self.role, has_battery)
+                if input_role != "power_solar"
                 for source in self._all_sources.get(input_role, [])
             ]
             if self._balance:
-                sources.extend(source.entity_id for source in self._balance)
-            return sources
+                extra.extend(source.entity_id for source in self._balance)
+            return site_flows.flow_entity_ids(
+                site_flows.generation_entity_ids(self._generation_groups()), extra
+            )
         return [
             source.entity_id
             for input_role in site_daily.input_roles(self.role, self._all_sources)
@@ -1308,10 +1614,96 @@ class SiteSensor(_SiteEntity, RestoreSensor, SensorEntity):
         self.hass.data[_SITE_DAILY] = holder
         return holder
 
+    def _generation_rows(self, role: str) -> list[tuple[str, str, str]]:
+        return [
+            (source.entry_id, source.serial, source.entity_id)
+            for source in self._all_sources.get(role, [])
+        ]
+
+    def _generation_groups(
+        self,
+    ) -> list[tuple[list[str], list[str], list[str]]]:
+        """AC generation by config entry. A missing entry id groups by serial. @zara"""
+        return site_flows.generation_groups(
+            self._generation_rows("power_inverter_ac_output"),
+            self._generation_rows("power_battery_discharge"),
+            self._generation_rows("power_solar"),
+            self._generation_rows("power_battery_charge"),
+        )
+
+    def _filled_entities(
+        self, role: str, entity_ids: list[str]
+    ) -> dict[str, float | None]:
+        """Return filled power. Missing siblings hold, then count 0. @zara"""
+        if not entity_ids:
+            return {}
+        wanted = set(entity_ids)
+        sources = [
+            source
+            for source in self._all_sources.get(role, [])
+            if source.entity_id in wanted
+        ]
+        if not sources:
+            return {}
+        values = self._sum_values(role, sources)
+        return {
+            source.entity_id: value
+            for source, value in zip(sources, values, strict=True)
+        }
+
+    def _generation_power(self) -> float | None:
+        """Installation P: per entry, AC after discharge, plus PV-covered charge. @zara"""
+        groups = self._generation_groups()
+        if not groups:
+            return None
+        ac_values = self._filled_entities(
+            "power_inverter_ac_output",
+            [
+                entity_id
+                for ac_ids, _discharge, _solar, _charge, _pv in groups
+                for entity_id in ac_ids
+            ],
+        )
+        solar_values = self._filled_entities(
+            "power_solar",
+            [
+                entity_id
+                for _ac, _discharge, solar_ids, _charge, pv_ids in groups
+                for entity_id in (*solar_ids, *pv_ids)
+            ],
+        )
+        discharge_values = self._filled_entities(
+            "power_battery_discharge",
+            [
+                entity_id
+                for _ac, discharge_ids, _solar, _charge, _pv in groups
+                for entity_id in discharge_ids
+            ],
+        )
+        charge_values = self._filled_entities(
+            "power_battery_charge",
+            [
+                entity_id
+                for _ac, _discharge, _solar, charge_ids, _pv in groups
+                for entity_id in charge_ids
+            ],
+        )
+        parts = [
+            site_flows.entry_generation(
+                [ac_values.get(entity_id) for entity_id in ac_ids],
+                [discharge_values.get(entity_id) for entity_id in discharge_ids],
+                [solar_values.get(entity_id) for entity_id in solar_ids],
+                [charge_values.get(entity_id) for entity_id in charge_ids],
+                [solar_values.get(entity_id) for entity_id in pv_ids],
+            )
+            for ac_ids, discharge_ids, solar_ids, charge_ids, pv_ids in groups
+        ]
+        return site_flows.generation_total(parts)
+
     def _derived_flow(self) -> float | None:
         has_battery = site_daily.battery_present(self._all_sources)
         flows = site_flows.derive_power_flows(
-            self._role_value("power_solar"),
+            self._generation_power(),
             self._role_value("power_battery_charge"),
             self._role_value("power_battery_discharge"),
             self._house_power(),

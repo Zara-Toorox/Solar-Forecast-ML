@@ -339,6 +339,7 @@
                             <strong>{{ text('heating.emptyTitle') }}</strong>
                             <button type="button" class="primary" @click="openManageAdd">{{ text('heating.emptyAction') }}</button>
                         </div>
+                        <hubble-say class="heating-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
                         <header class="heating-hero-band">
                             <p class="heating-kicker">{{ text('heating.introKicker') }}</p>
                             <h3>{{ text('heating.introTitle') }}</h3>
@@ -1313,8 +1314,26 @@
                 bridge?.destroy();
             });
 
+            const hT = (k, p) => (window.SFMLI18n?.t?.("hubbleSay." + k, p)) || k;
+            const heatingDetail = (n, outdoorMissing) => {
+                const models = (status.value?.rooms || []).map((room) => room.model).filter(Boolean);
+                const ready = models.length > 0 && models.every((model) => model.status === "ready");
+                const learning = models.find((item) => item.status !== "ready") || { heat_phases: 0, cool_phases: 0 };
+                const modelSentence = ready
+                    ? hT(n === 1 ? "heating.modelReadyOne" : "heating.modelReady", { count: n })
+                    : hT("heating.modelLearning", { heat: learning.heat_phases || 0, cool: learning.cool_phases || 0 });
+                const outdoorSentence = outdoorMissing
+                    ? hT("heating.outdoorMissing")
+                    : hT("heating.outdoorMin", { temp: formatNumber(status.value.outdoor.forecast_min_next_12h, 0) });
+                return `${modelSentence} ${outdoorSentence}`;
+            };
+            const hubbleSay = Vue.computed(() => {
+                const n = rooms.value.length;
+                const warn = !status.value?.outdoor || status.value.outdoor.forecast_min_next_12h == null;
+                return { tone: warn ? "normal" : "ok", headline: hT(n === 1 ? "heating.headOne" : "heating.head", { count: n }), detail: heatingDetail(n, warn) };
+            });
             return {
-                text, tabs, activeTab, loading, message, status, rooms, draft, settings, settingsDirty, guideParts, adviceParts, boostChoices,
+                hubbleSay, text, tabs, activeTab, loading, message, status, rooms, draft, settings, settingsDirty, guideParts, adviceParts, boostChoices,
                 climates, visibleClimates, climateChoices, climateOnlyMissing, climateQuery, sensors, windows, persons, roomPersonChoices, settingsPersonChoices, outdoors, weekdays: WEEKDAYS, pendingDelete, editorOpen, editorTitle, bridgeHost,
                 labelOf, entityLabels, displayName, uiPhrase, roomModeChip,
                 editRoom, beginAdd, beginEdit, cancelEditor, openManageAdd, saveRoom, askDelete, confirmDelete, saveSettings, discardSettings, toggleRoom, resumeRoom,

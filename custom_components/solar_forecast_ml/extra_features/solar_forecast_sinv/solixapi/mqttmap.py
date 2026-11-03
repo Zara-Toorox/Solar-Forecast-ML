@@ -2383,7 +2383,12 @@ def _a17c5_0500_bin(
 
 
 def _a17c5_pack_named(pack: str) -> dict[int, tuple[str, float | None]]:
-    """Named pack words. Cell voltage stays in mV (no factor). @zara"""
+    """Named pack words. Cell voltage stays in mV (no factor). @zara
+
+    Word 17 is the pack SOC apibase already accepts (``main_battery_soc`` or
+    ``exp_N_soc``). Expansion probe 1 (word 12) is ``exp_N_temperature``.
+    Every other pack word keeps the ``?`` suffix.
+    """
     named: dict[int, tuple[str, float | None]] = {
         index: (f"{pack}_cell_voltage_{cell}?", None)
         for cell, index in enumerate(range(7, 12), start=1)
@@ -2395,8 +2400,13 @@ def _a17c5_pack_named(pack: str) -> dict[int, tuple[str, float | None]]:
         }
     )
     named[16] = (f"{pack}_soh?", 0.1)
-    named[17] = (f"{pack}_soc?", 0.1)
     named[18] = (f"{pack}_soc_2?", 0.1)
+    if pack == "main_pack":
+        named[17] = ("main_battery_soc", 0.1)
+    else:
+        slot = int(pack.removeprefix("expansion_"))
+        named[12] = (f"exp_{slot}_temperature", 0.1)
+        named[17] = (f"exp_{slot}_soc", 0.1)
     return named
 
 

@@ -33,7 +33,7 @@ const PremiumDashboardPage = ((Vue) => {
     const COPY = {
         de: {
             demoTitle: "Premium-Demo · Beispieldaten",
-            demoText: "Nach Eingabe einer gültigen Premium-Lizenz zeigt dieses Cockpit ausschließlich deine realen Anlagenwerte.",
+            demoText: "Nach Eingabe einer gültigen Premium-Lizenz zeigt diese Ansicht ausschließlich deine realen Anlagenwerte.",
             energyNow: "Energie jetzt",
             weather: "Wetter & Warnungen",
             forecast: "Tagesprognose vs. IST",
@@ -158,7 +158,7 @@ const PremiumDashboardPage = ((Vue) => {
         },
         en: {
             demoTitle: "Premium demo · Sample data",
-            demoText: "After a valid premium licence is entered, this cockpit shows only real installation data.",
+            demoText: "After a valid premium licence is entered, this view shows only real installation data.",
             energyNow: "Energy now",
             weather: "Weather & warnings",
             forecast: "Daily forecast vs. actual",
@@ -283,7 +283,7 @@ const PremiumDashboardPage = ((Vue) => {
         },
         pl: {
             demoTitle: "Demo Premium · Dane przykładowe",
-            demoText: "Po wprowadzeniu ważnej licencji Premium kokpit pokazuje wyłącznie rzeczywiste dane instalacji.",
+            demoText: "Po wprowadzeniu ważnej licencji Premium ten widok pokazuje wyłącznie rzeczywiste dane instalacji.",
             energyNow: "Energia teraz",
             weather: "Pogoda i ostrzeżenia",
             forecast: "Prognoza dzienna a wynik",
@@ -426,7 +426,7 @@ const PremiumDashboardPage = ((Vue) => {
 
                 <div v-if="!loaded" class="premium-dashboard-loading" role="status">
                     <span class="loading-indicator" aria-hidden="true"></span>
-                    <strong>Solar Cockpit</strong>
+                    <strong>Übersicht</strong>
                 </div>
 
                 <template v-else>
@@ -449,6 +449,9 @@ const PremiumDashboardPage = ((Vue) => {
                             <article class="orbit-stage" :aria-label="copy.currentFlow">
                                 <div class="orbit-ambient" aria-hidden="true"></div>
                                 <div class="orbit-landscape" aria-hidden="true"></div>
+                                <div class="orbit-hubble-watch" aria-hidden="true">
+                                    <img class="orbit-hubble-head" src="/api/sfml_stats/static/modern/assets/hubble-orbit-head.png" alt="" loading="lazy" decoding="async">
+                                </div>
                                 <div class="orbit-flow-scene">
                                 <svg class="orbit-day-dial" viewBox="0 0 1000 480"
                                      preserveAspectRatio="xMidYMid meet" aria-hidden="true">

@@ -42,6 +42,8 @@ from homeassistant.helpers.typing import ConfigType
 
 from . import (
     api_client,
+    contract,
+    dc_energy,
     energy_hint,
     external_meter,
     hp_site,
@@ -95,7 +97,7 @@ from .deye_coordinator import DeyeCoordinator
 from .emsesp_coordinator import EmsespCoordinator
 from .enphase_coordinator import EnphaseCoordinator
 from .hp_bridge_coordinator import HpBridgeCoordinator
-from .entity import async_migrate_legacy_entities
+from .entity import async_migrate_legacy_entities, async_remove_retired_role_entities
 from .fronius_coordinator import FroniusCoordinator
 from .hoymiles_dtu_coordinator import HoymilesDtuCoordinator
 from .huawei_coordinator import HuaweiCoordinator
@@ -158,6 +160,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up this integration using UI. @thomas"""
     if entry.data.get(CONF_VENDOR) == site.VENDOR_SITE:
+        # System entities are created only here, in site.async_setup_site_entities.
+        async_remove_retired_role_entities(
+            hass, entry.entry_id, serial=contract.SITE_SERIAL
+        )
         await hass.config_entries.async_forward_entry_setups(entry, SITE_PLATFORMS)
         install_counter.async_setup_install_counter(hass, entry)
         energy_hint.async_setup_energy_hint(hass, entry)
@@ -270,7 +276,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if len(active) >= len(entries):
         ir.async_delete_issue(hass, DOMAIN, "duplicate_devices")
 
-    # Move legacy registry entries onto the S-INV contract identity before entities are added
+    # Drop retired role ids of this entry, then move legacy ids onto the contract.
+    async_remove_retired_role_entities(hass, entry.entry_id)
     if migrated := async_migrate_legacy_entities(
         hass, entry.entry_id, coordinator.data
     ):
@@ -285,6 +292,9 @@ async def _async_setup_local_entry(hass: HomeAssistant, entry: ConfigEntry) -> b
     """Set up an instance on a local vendor API (Fronius, Zendure, maxxisun webhook). @zara"""
     connection = entry.data.get(CONF_CONNECTION)
     coordinator_class = LOCAL_COORDINATORS.get(connection, FroniusCoordinator)
+    # Under the sleep wrapper a failed update returns a substitute and never
+    # becomes an energy sample. The successful return is the live sample.
+    coordinator_class = dc_energy.aware(coordinator_class)
     guard = None
     if connection in SLEEP_CONNECTIONS:
         coordinator_class = sleep.sleep_aware(coordinator_class)
@@ -300,6 +310,7 @@ async def _async_setup_local_entry(hass: HomeAssistant, entry: ConfigEntry) -> b
         if is_hp_device_vendor(entry.data.get(CONF_VENDOR))
         else LOCAL_PLATFORMS
     )
+    async_remove_retired_role_entities(hass, entry.entry_id)
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
     return True
 

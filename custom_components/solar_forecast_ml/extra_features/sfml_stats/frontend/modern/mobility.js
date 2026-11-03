@@ -64,7 +64,7 @@ const ModernMobilityPage = {
     template: `
         <section class="mobility-page" aria-labelledby="mobility-title">
             <div class="mobility-hero">
-                <div><span class="mobility-kicker">Energy AI · E-Mobilität</span><h2 id="mobility-title">Laden, wenn Energie wirklich passt</h2><p>PV-Prognose, Wärmepumpenbedarf, Strompreis und Abfahrtsziel in einem gemeinsamen Beratungsplan.</p></div>
+                <div><span class="mobility-kicker">E-Mobilität &amp; Wallbox · Premium</span><h2 id="mobility-title">Laden, wenn Energie wirklich passt</h2><p>PV-Prognose, Wärmepumpenbedarf, Strompreis und Abfahrtsziel in einem gemeinsamen Beratungsplan.</p></div>
                 <div class="mobility-badges"><span :class="['mobility-badge', status.data_mode]">{{ modeLabel }}</span><span v-if="sampleReason === 'no_license'" class="mobility-badge neutral">Vorschau</span><span class="mobility-badge neutral">Keine Steuerung</span></div>
             </div>
 
@@ -77,6 +77,7 @@ const ModernMobilityPage = {
             <div v-else-if="contractIncompatible" class="mobility-state error" role="alert"><strong>Provider-Vertrag nicht kompatibel</strong><span>Die installierte EAI-Version liefert nicht den benötigten Mobility-Vertrag. Live-Werte und Planungsdaten können nicht sicher zugeordnet werden.</span></div>
 
             <template v-else>
+                <hubble-say class="mobility-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
                 <div class="mobility-grid">
                     <article class="mobility-card"><span class="mobility-eyebrow">Wallbox-Leistung</span><strong>{{ mobility.current_power_kw == null ? "Nicht verfügbar" : number(mobility.current_power_kw) + " kW" }}</strong><p>Aktuell gemessene Leistungsaufnahme.</p></article>
                     <article class="mobility-card"><span class="mobility-eyebrow">Energie heute</span><strong>{{ mobility.energy_today_kwh == null ? "Nicht verfügbar" : number(mobility.energy_today_kwh) + " kWh" }}</strong><p>Heute gemessene Wallbox-Energie.</p></article>
@@ -529,7 +530,14 @@ const ModernMobilityPage = {
                 ? `${point.label}, Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde, Wallbox-Netzplanung ${number(point.wallbox)} Kilowattstunden, verfügbare Ladezeit ${number(point.availableHours, 2)} Stunden, PV-Zuordnung nicht verfügbar`
             : `${point.label}, Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde, PV ${number(point.pv)} Kilowattstunden, Haus ${number(point.house)} Kilowattstunden, Wärmepumpe ${number(point.hp)} Kilowattstunden, Speicherreserve ${number(point.battery)} Kilowattstunden, Wallbox ${number(point.wallbox)} Kilowattstunden, davon PV ${number(point.pvWallbox)} Kilowattstunden, verfügbare Ladezeit ${number(point.availableHours, 2)} Stunden`;
         onMounted(load);
-        return { loading, error, status, sampleReason, mobility, demandMode, currentSoc, targetSoc, batteryCapacity, requestedEnergy, plannedDistance, consumption, chargingEfficiency, modeLabel, entitlementLabel, contractIncompatible, telemetryState, providerNotice, plan, mobilityBudget, timelineColumns, animatedSaving, tariffSource, departureLabel, recommendationWindow, recommendationInsight, insightConfidenceStyle, mobilityPointLabel, number, euro };
+        const hT = (k, p) => (window.SFMLI18n?.t?.("hubbleSay." + k, p)) || k;
+        const hubbleSay = Vue.computed(() => {
+            const ok = !!plan.value?.available;
+            const parts = [ok ? hT("mobility.window", { window: recommendationWindow.value, departure: departureLabel.value }) : hT("mobility.noWindow", { window: recommendationWindow.value })];
+            if (recommendationInsight.value?.summary) parts.push(recommendationInsight.value.summary);
+            return { tone: ok ? (status.is_demo ? "demo" : "ok") : "idle", headline: hT(ok ? "mobility.head" : "mobility.waitHead"), detail: parts.join(" ") };
+        });
+        return { hubbleSay, loading, error, status, sampleReason, mobility, demandMode, currentSoc, targetSoc, batteryCapacity, requestedEnergy, plannedDistance, consumption, chargingEfficiency, modeLabel, entitlementLabel, contractIncompatible, telemetryState, providerNotice, plan, mobilityBudget, timelineColumns, animatedSaving, tariffSource, departureLabel, recommendationWindow, recommendationInsight, insightConfidenceStyle, mobilityPointLabel, number, euro };
     },
 };
 

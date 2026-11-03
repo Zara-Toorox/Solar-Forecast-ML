@@ -9,8 +9,9 @@
 
 """Sensor catalog for A17C5 message 0500. @zara
 
-Maps each decoded MQTT key onto one sensor spec. sensor.py turns the specs
-into the integration's existing MQTT sensor descriptions.
+Maps each decoded MQTT key onto one sensor spec, except keys sensor.py
+already publishes. sensor.py turns the specs into the integration's
+existing MQTT sensor descriptions.
 """
 
 import re
@@ -27,6 +28,15 @@ _RAW_WORD = re.compile(r"(?P<prefix>.+)_w(?P<word>\d{2})\?$")
 # Second readings of the same quantity. Decoder names stay; the sensor is raw.
 _SECONDARY = re.compile(
     r"^(?:ac_voltage_2|pv_\d_voltage_2|(?:main_pack|expansion_\d)_soc_2)$"
+)
+# sensor.py already publishes these keys. unique_id is ``{context}_{key}``
+# (AnkerSolixSensor.__init__). A second 0500 description would duplicate it.
+PUBLISHED_SENSOR_KEYS: frozenset[str] = frozenset(
+    {
+        "main_battery_soc",
+        *(f"exp_{slot}_soc" for slot in range(1, 6)),
+        *(f"exp_{slot}_temperature" for slot in range(1, 6)),
+    }
 )
 _NAMES: tuple[tuple[str, str, str], ...] = (
     (r"pv_(\d)_power_calc", "PV {0} power", "PV {0} Leistung"),
@@ -49,7 +59,6 @@ _NAMES: tuple[tuple[str, str, str], ...] = (
         "Hauptpack Temperatur {0}",
     ),
     (r"main_pack_soh", "Main pack state of health", "Hauptpack Gesundheitszustand"),
-    (r"main_pack_soc", "Main pack state of charge", "Hauptpack Ladestand"),
     (r"exp_(\d)_position", "Expansion {0} position", "Erweiterung {0} Position"),
     (r"exp_(\d)_type", "Expansion {0} type", "Erweiterung {0} Typ"),
     (
@@ -71,11 +80,6 @@ _NAMES: tuple[tuple[str, str, str], ...] = (
         r"expansion_(\d)_soh",
         "Expansion {0} state of health",
         "Erweiterung {0} Gesundheitszustand",
-    ),
-    (
-        r"expansion_(\d)_soc",
-        "Expansion {0} state of charge",
-        "Erweiterung {0} Ladestand",
     ),
 )
 
@@ -187,8 +191,6 @@ def _measurement(label: str) -> tuple[str | None, str | None, int | None]:
         return "frequency", "Hz", 2
     if "temperature" in label:
         return "temperature", "°C", 1
-    if "_soc" in label:
-        return "battery", "%", 1
     if label.endswith("_soh"):
         return None, "%", 1
     return None, None, None
@@ -274,10 +276,11 @@ def _power_specs() -> list[A17c5SensorSpec]:
 
 
 def build_sensor_specs() -> tuple[A17c5SensorSpec, ...]:
-    """Build one spec per decoded key, then the four calculated PV powers. @zara"""
+    """Build one spec per decoded key sensor.py does not already publish. @zara"""
     decoded = tuple(
         _spec_for_key(label, _expansion_slot(field_name))
         for field_name, label in mqtt_fields()
+        if label.removesuffix("?") not in PUBLISHED_SENSOR_KEYS
     )
     return decoded + tuple(_power_specs())
 

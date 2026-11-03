@@ -1586,3 +1586,63 @@
         filter: none;
     }
 }
+
+/* Hubble head watching over the house (sky zone, top right) */
+.orbit-hubble-watch {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 3;
+    width: clamp(115px, 23%, 230px);
+    pointer-events: none;
+}
+
+.orbit-hubble-head {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: transparent;
+    object-fit: contain;
+    transform: rotate(-4deg);
+    transform-origin: 50% 60%;
+    opacity: 0.9;
+    filter:
+        saturate(1.15)
+        drop-shadow(0 0 12px color-mix(in srgb, #22d3ee 42%, transparent))
+        drop-shadow(0 0 28px color-mix(in srgb, #22d3ee 22%, transparent));
+    animation:
+        orbit-hubble-float 7s ease-in-out infinite,
+        orbit-hubble-breath 4.5s ease-in-out infinite;
+}
+
+@keyframes orbit-hubble-breath {
+    0%, 100% {
+        filter: saturate(1.15)
+            drop-shadow(0 0 10px color-mix(in srgb, #22d3ee 34%, transparent))
+            drop-shadow(0 0 22px color-mix(in srgb, #22d3ee 16%, transparent));
+        opacity: 0.86;
+    }
+    50% {
+        filter: saturate(1.25)
+            drop-shadow(0 0 16px color-mix(in srgb, #22d3ee 58%, transparent))
+            drop-shadow(0 0 36px color-mix(in srgb, #22d3ee 30%, transparent));
+        opacity: 0.96;
+    }
+}
+
+@keyframes orbit-hubble-float {
+    0%, 100% { translate: 0 0; }
+    50% { translate: 0 4px; }
+}
+
+@media (max-width: 600px) {
+    .orbit-hubble-watch { width: clamp(85px, 21.4%, 130px); top: 0; right: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .orbit-hubble-head { animation: none; }
+}
+
+@media (forced-colors: active) {
+    .orbit-hubble-watch { display: none; }
+}

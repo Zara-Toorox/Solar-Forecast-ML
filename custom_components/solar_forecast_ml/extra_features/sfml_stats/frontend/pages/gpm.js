@@ -39,6 +39,15 @@ const _GPMPage = {
                         <span v-if="licenseBadge.warn"> · {{ $t('gpm.licenseExpiresSoon') }}</span>
                     </span>
                 </div>
+                <div class="gpm-hubble-row">
+                    <div class="gpm-hubble-avatar" aria-hidden="true">
+                        <img class="gpm-hubble-persona" src="/api/sfml_stats/static/modern/assets/hubble-persona-portrait.jpg" alt="" width="108" height="108">
+                    </div>
+                    <div class="gpm-hubble-bubble" role="status" aria-live="polite">
+                        <div class="gpm-hubble-headline"><span class="gpm-hubble-dot" :class="hubbleSay.tone"></span>{{ hubbleSay.headline }}</div>
+                        <div class="gpm-hubble-text">{{ hubbleSay.detail }}</div>
+                    </div>
+                </div>
                 <div class="eb-grid">
                     <div class="eb-item">
                         <div class="eb-icon">💶</div>
@@ -89,17 +98,17 @@ const _GPMPage = {
                 </div>
                 <p style="font-size: 0.9rem;">
                     {{ $t('gpm.thresholdMode') }}:
-                    <strong>{{ status.thresholds.mode || '—' }}</strong>
+                    <strong>{{ thresholdModeLabel }}</strong>
                 </p>
                 <p style="font-size: 0.9rem;">
                     {{ $t('gpm.cheapThreshold') }}:
                     <strong>{{ formatPrice(status.thresholds.max_price) }}</strong>
-                    · {{ $t('gpm.cheap') }}: {{ status.is_cheap ? $t('common.yes', 'ja') : $t('common.no', 'nein') }}
+                    · {{ $t('gpm.cheapNow') }}: <strong>{{ status.is_cheap ? $t('common.yes') : $t('common.no') }}</strong>
                 </p>
                 <p style="font-size: 0.9rem;">
                     {{ $t('gpm.forceThreshold') }}:
                     <strong>{{ formatPrice(status.thresholds.force_charge_price) }}</strong>
-                    · {{ $t('gpm.forceThreshold') }}: {{ status.is_force_price ? $t('common.yes', 'ja') : $t('common.no', 'nein') }}
+                    · {{ $t('gpm.forceNow') }}: <strong>{{ status.is_force_price ? $t('common.yes') : $t('common.no') }}</strong>
                 </p>
                 <input type="range" disabled readonly :value="status.thresholds.max_price || 0" min="0" max="100" />
                 <p style="margin-top: var(--space-sm);">
@@ -679,6 +688,25 @@ const _GPMPage = {
         const showCsvImport = computed(() => (
             !status.value.is_demo && Boolean(status.value.capabilities.csv_import)
         ));
+        const thresholdModeLabel = computed(() => {
+            const mode = status.value.thresholds && status.value.thresholds.mode;
+            const map = { cheapest_hours: "gpm.modeCheapestHours", below_average: "gpm.modeBelowAverage", below_average_pct: "gpm.modeBelowAverage", absolute: "gpm.modeAbsolute", max_price: "gpm.modeAbsolute", price: "gpm.modeAbsolute" };
+            if (!mode) return "—";
+            return map[mode] ? t(map[mode]) : String(mode).replace(/_/g, " ");
+        });
+        const hubbleSay = computed(() => {
+            const st = status.value || {};
+            const pr = st.prices || {};
+            if (st.state !== "live" && st.state !== "gpm_demo") {
+                return { tone: "idle", headline: t("gpm.hubble.offHead"), detail: t("gpm.hubble.offText") };
+            }
+            const key = st.is_force_price ? "force" : (st.is_cheap ? "cheap" : "normal");
+            const parts = [t("gpm.hubble.now").replace("{now}", formatPrice(pr.current_total)).replace("{next}", formatPrice(pr.next_total))];
+            if (pr.cheapest_hour != null) parts.push(t("gpm.hubble.cheapest").replace("{time}", hourLabel(pr.cheapest_hour)));
+            const nx = st.next_cheap;
+            if (key === "normal" && nx && nx.hour != null) parts.push(t("gpm.hubble.nextCheap").replace("{time}", String(nx.hour).padStart(2, "0") + ":00"));
+            return { tone: key, headline: t("gpm.hubble." + key + "Head"), detail: parts.join(" ") };
+        });
         const nextCheapLabel = computed(() => {
             const next = status.value.next_cheap;
             const hour = next && next.hour != null ? String(next.hour).padStart(2, "0") + ":00" : "—";
@@ -1702,6 +1730,8 @@ const _GPMPage = {
             devOn,
             priceStand,
             statusLabel,
+            thresholdModeLabel,
+            hubbleSay,
             licenseBadge,
             showCsvImport,
             chartEl,
@@ -1883,6 +1913,41 @@ const _GPMPage = {
         .gpm-yearly-form > p {
             margin: 0;
         }
+        .gpm-hubble-row { display: flex; align-items: center; gap: var(--space-lg, 20px); margin: var(--space-sm) 0 var(--space-lg); }
+        .gpm-hubble-avatar {
+            flex: 0 0 108px; width: 108px; height: 108px; border-radius: 50%; padding: 3px;
+            background: radial-gradient(circle, rgba(62, 201, 255, 0.35), rgba(62, 201, 255, 0.05) 70%);
+            box-shadow: 0 0 14px rgba(62, 201, 255, 0.35);
+            animation: gpm-hubble-breathe 4s ease-in-out infinite;
+        }
+        @keyframes gpm-hubble-breathe {
+            0%, 100% { box-shadow: 0 0 10px rgba(62, 201, 255, 0.25); transform: scale(1); }
+            50% { box-shadow: 0 0 26px rgba(62, 201, 255, 0.6); transform: scale(1.025); }
+        }
+        .gpm-hubble-persona { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: #05121a; }
+        .gpm-hubble-bubble {
+            position: relative; flex: 1 1 auto; min-width: 0;
+            background: rgba(62, 201, 255, 0.05); border: 1px solid rgba(62, 201, 255, 0.22);
+            border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg, 20px);
+        }
+        .gpm-hubble-bubble::before {
+            content: ""; position: absolute; left: -9px; top: 50%; width: 16px; height: 16px; margin-top: -8px;
+            background: #0b1d26; border-left: 1px solid rgba(62, 201, 255, 0.22); border-bottom: 1px solid rgba(62, 201, 255, 0.22);
+            transform: rotate(45deg);
+        }
+        .gpm-hubble-headline { font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+        .gpm-hubble-text { color: var(--text-muted); font-size: 0.92rem; line-height: 1.45; }
+        .gpm-hubble-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; background: var(--status-idle, #94a3b8); }
+        .gpm-hubble-dot.cheap, .gpm-hubble-dot.ok { background: var(--status-ok, #22c55e); box-shadow: 0 0 8px rgba(34,197,94,.6); }
+        .gpm-hubble-dot.force, .gpm-hubble-dot.demo, .gpm-hubble-dot.active { background: var(--status-active, #3ec9ff); box-shadow: 0 0 8px rgba(62,201,255,.7); }
+        .gpm-hubble-dot.normal { background: var(--status-normal, #f59e0b); }
+        .gpm-hubble-dot.warn { background: var(--status-warn, #ef4444); }
+        @media (max-width: 560px) {
+            .gpm-hubble-row { flex-direction: column; align-items: stretch; }
+            .gpm-hubble-avatar { align-self: center; flex-basis: auto; width: 96px; height: 96px; }
+            .gpm-hubble-bubble::before { left: 50%; top: -9px; margin: 0 0 0 -8px; transform: rotate(135deg); }
+        }
+        @media (prefers-reduced-motion: reduce) { .gpm-hubble-avatar { animation: none; } }
     `;
     document.head.appendChild(style);
 })();
