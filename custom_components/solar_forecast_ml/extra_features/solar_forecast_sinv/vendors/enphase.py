@@ -106,6 +106,8 @@ class EnphaseDevice:
     roles: dict[str, Any] = field(default_factory=dict)
     vendor: dict[str, Any] = field(default_factory=dict)
     derived: set[str] = field(default_factory=set)
+    # gateway serial: its production CT total, once reported, holds this output
+    solar_counted_by: str | None = None
 
 
 def _num(value: Any) -> float | None:

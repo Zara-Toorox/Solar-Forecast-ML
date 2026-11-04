@@ -149,6 +149,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict[str, enphase.EnphaseDevice]]
             raise UpdateFailed(f"IQ Gateway at {self.host} returned no inverter list")
         now = time.time()
         devices = enphase.build_inverters(listing, now)
+        for device in devices.values():
+            device.solar_counted_by = self._gateway_serial
         try:
             meters = await fetch(
                 self._session, f"{root}{enphase.METERS_PATH}", self._token

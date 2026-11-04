@@ -67,6 +67,14 @@ TYPE_MICRO = 0x0400
 TYPE_LV = 0x0500
 TYPE_HV = 0x0600
 # (model, high-voltage battery/PV scale). The flag is only meaningful for 3P.
+# Some firmwares report the family in the low byte (community map). 0x0006 stays out:
+# it does not reliably mean the same device as 0x0600 and the wrong family scales power by 10.
+_LOW_BYTE_TYPES: dict[int, int] = {
+    0x0002: TYPE_STRING,
+    0x0003: TYPE_1P,
+    0x0004: TYPE_MICRO,
+    0x0005: TYPE_LV,
+}
 DEVICE_TYPES: dict[int, tuple[str, bool]] = {
     TYPE_STRING: ("String", False),
     TYPE_1P: ("1P Hybrid", False),
@@ -236,8 +244,14 @@ def _serial(regs: dict[int, int]) -> str:
     )
 
 
+def family_code(regs: dict[int, int]) -> int | None:
+    """Register 0 with the low-byte spelling mapped to its family. @zara"""
+    raw = _word(regs, 0)
+    return _LOW_BYTE_TYPES.get(raw, raw)
+
+
 def _high_voltage(regs: dict[int, int]) -> bool:
-    return _word(regs, 0) == TYPE_HV
+    return family_code(regs) == TYPE_HV
 
 
 def _power_scale(regs: dict[int, int]) -> int:
@@ -259,7 +273,7 @@ def mppt_count(regs: dict[int, int]) -> int:
 def reject_reason(regs: dict[int, int]) -> str:
     """Why ``build_devices`` produced nothing, or an empty string. @zara"""
     try:
-        device_type = _word(regs, 0) if isinstance(regs, dict) else None
+        device_type = family_code(regs)
         if device_type is None:
             return "Deye register 0 did not contain a device type"
         if device_type not in DEVICE_TYPES:
@@ -278,7 +292,7 @@ def reject_reason(regs: dict[int, int]) -> str:
 def identity(regs: dict[int, int]) -> dict[str, str] | None:
     """Return serial and model, or None when the type or the serial is unusable. @zara"""
     try:
-        known = DEVICE_TYPES.get(_word(regs, 0) or -1)
+        known = DEVICE_TYPES.get(family_code(regs) or -1)
         serial = _serial(regs)
     except Exception:
         return None
@@ -334,7 +348,7 @@ def optional_blocks(device_type: int | None) -> tuple[tuple[int, int], ...]:
 
 def _build(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     """Dispatch on register 0. The three-phase path is unchanged. @zara"""
-    device_type = _word(regs, 0) if isinstance(regs, dict) else None
+    device_type = family_code(regs)
     if device_type in (TYPE_LV, TYPE_HV):
         return _build_three_phase(regs)
     if device_type == TYPE_1P:

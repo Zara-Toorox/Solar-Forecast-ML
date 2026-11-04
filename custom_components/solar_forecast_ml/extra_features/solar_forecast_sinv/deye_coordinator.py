@@ -109,7 +109,7 @@ class DeyeCoordinator(DataUpdateCoordinator[dict[str, deye.DeyeDevice]]):
             ):
                 # One short read names the family. 1P never continues with a count above 16.
                 regs = await read_blocks(client, ((0, 16),))
-                device_type = regs.get(0)
+                device_type = deye.family_code(regs)
                 blocks = deye.input_blocks(device_type)
                 if blocks[:1] == ((0, 16),):
                     blocks = blocks[1:]

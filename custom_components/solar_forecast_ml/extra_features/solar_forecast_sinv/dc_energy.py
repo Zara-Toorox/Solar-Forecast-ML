@@ -111,8 +111,9 @@ def integrate(
     anchor. A missing value does not move the anchor. The day counter resets
     when the local day changes and only receives the part of the trapezoid
     that falls on the new day. A serial in ``locked``, or one that reports a
-    vendor ``energy_solar_total`` on this sample, is not integrated. Return
-    whether something changed and has to be stored.
+    vendor ``energy_solar_total`` on this sample, is not integrated. Neither is
+    a device whose generation is already inside another device's vendor total.
+    Return whether something changed and has to be stored.
     """
     if now.tzinfo is None:
         return False
@@ -137,7 +138,7 @@ def integrate(
             if _fill_vendor_today(device, serial, now, days, owned):
                 changed = True
             continue
-        if serial in locked:
+        if serial in locked or _counted_elsewhere(device, devices, locked):
             continue
         sample = live_dc(device)
         counter = counters.get(serial)
@@ -417,6 +418,25 @@ def _owned(device: Any) -> set[str]:
     if isinstance(derived, set):
         return derived
     return set()
+
+
+def _counted_elsewhere(
+    device: Any, devices: Mapping[Any, Any], locked: set[str]
+) -> bool:
+    """Return whether another device's vendor total holds this generation. @zara"""
+    owner = getattr(device, "solar_counted_by", None)
+    if not isinstance(owner, str) or not owner:
+        return False
+    if owner in locked:
+        return True
+    # the owner may come later in this sample than the device it covers
+    meter = devices.get(owner)
+    roles = getattr(meter, "roles", None)
+    return (
+        isinstance(roles, dict)
+        and SOLAR_TOTAL in roles
+        and SOLAR_TOTAL not in _owned(meter)
+    )
 
 
 def _fill_vendor_today(
