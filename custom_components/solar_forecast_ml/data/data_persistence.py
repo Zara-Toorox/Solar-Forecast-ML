@@ -9,7 +9,7 @@
 
 """
 Data Persistence Layer for Solar Forecast ML V16.2.0.
-Handles database backup, restore, and data migration.
+Handles database backup and data migration.
 All operations use DatabaseManager for SQLite access.
 
 @zara
@@ -31,11 +31,10 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DataPersistence:
-    """Handles database backup, restoration, and data migration. @zara
+    """Handles database backup and data migration. @zara
 
     Provides methods to:
     - Create database backups (copies of the SQLite file)
-    - Restore from backups
     - Migrate legacy JSON data to database
     - Clean up old backups based on retention policy
     """
@@ -58,24 +57,6 @@ class DataPersistence:
         self.data_dir = Path(data_dir)
         self.backup_dir = self.data_dir / "backups" / "auto"
         self.manual_backup_dir = self.data_dir / "backups" / "manual"
-
-    async def _reconnect_and_validate(self, context: str) -> bool:
-        """Reconnect database and verify that SQL access works. @zara"""
-        try:
-            await self.db.connect()
-            row = await self.db.fetchone("SELECT 1")
-            if row is None:
-                raise RuntimeError("validation query returned no row")
-            _LOGGER.info("Database reconnect validated after %s", context)
-            return True
-        except Exception as e:
-            _LOGGER.error(
-                "Database reconnect validation failed after %s: %s",
-                context,
-                e,
-                exc_info=True,
-            )
-            return False
 
     async def create_backup(
         self,
@@ -130,99 +111,6 @@ class DataPersistence:
         except Exception as e:
             _LOGGER.error("Failed to create backup: %s", e, exc_info=True)
             return None
-
-    async def restore_backup(self, backup_file: Path) -> bool:
-        """Restore database from a backup file. @zara
-
-        Args:
-            backup_file: Path to the backup file
-
-        Returns:
-            True if restore was successful
-        """
-        pre_restore: Optional[Path] = None
-        try:
-            def check_exists():
-                return backup_file.exists()
-
-            if not await self.hass.async_add_executor_job(check_exists):
-                _LOGGER.error("Backup file not found: %s", backup_file)
-                return False
-
-            # Create pre-restore backup @zara
-            db_path = Path(self.db.db_path)
-            pre_restore = db_path.with_suffix(".db.pre_restore")
-
-            # Close current database connection @zara
-            await self.db.close()
-
-            def do_restore():
-                # Backup current database before restore @zara
-                if db_path.exists():
-                    shutil.copy2(db_path, pre_restore)
-
-                # Restore from backup @zara
-                shutil.copy2(backup_file, db_path)
-
-            await self.hass.async_add_executor_job(do_restore)
-
-            # Reconnect to restored database @zara
-            reconnect_ok = await self._reconnect_and_validate(
-                f"restore of {backup_file.name}"
-            )
-            if not reconnect_ok:
-                raise RuntimeError("database reconnect failed after restore")
-
-            _LOGGER.info("Database restored from: %s", backup_file)
-            return True
-
-        except Exception as e:
-            _LOGGER.error("Failed to restore backup %s: %s", backup_file, e, exc_info=True)
-            if pre_restore:
-                def do_rollback() -> bool:
-                    if not pre_restore.exists():
-                        return False
-                    shutil.copy2(pre_restore, Path(self.db.db_path))
-                    return True
-
-                try:
-                    rolled_back = await self.hass.async_add_executor_job(do_rollback)
-                    if rolled_back:
-                        _LOGGER.error(
-                            "Restore rollback applied from pre-restore copy: %s",
-                            pre_restore,
-                        )
-                    else:
-                        _LOGGER.critical(
-                            "Restore rollback unavailable: pre-restore copy missing at %s",
-                            pre_restore,
-                        )
-                except Exception as rollback_error:
-                    _LOGGER.critical(
-                        "Restore rollback failed from %s: %s",
-                        pre_restore,
-                        rollback_error,
-                        exc_info=True,
-                    )
-
-            # Try to reconnect to database @zara
-            try:
-                reconnected = await self._reconnect_and_validate(
-                    f"restore failure handling for {backup_file.name}"
-                )
-                if not reconnected:
-                    _LOGGER.critical(
-                        "Database remains unavailable after failed restore handling for %s",
-                        backup_file,
-                    )
-            except Exception as reconnect_error:
-                _LOGGER.critical(
-                    "Unexpected reconnect failure after restore failure for %s: %s",
-                    backup_file,
-                    reconnect_error,
-                    exc_info=True,
-                )
-            return False
 
     async def _cleanup_old_backups(self) -> None:
         """Remove old automatic backups based on retention policy. @zara"""

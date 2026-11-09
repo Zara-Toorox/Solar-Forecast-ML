@@ -317,6 +317,10 @@ async def _async_setup_local_entry(hass: HomeAssistant, entry: ConfigEntry) -> b
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload a local-API instance after its options changed. @zara"""
+    coordinator = getattr(entry, "runtime_data", None)
+    # Deye stores the PV inputs it has seen in the entry data. That write alone is no reason to reload.
+    if isinstance(coordinator, DeyeCoordinator) and coordinator.config_unchanged(entry):
+        return
     await hass.config_entries.async_reload(entry.entry_id)
 
 

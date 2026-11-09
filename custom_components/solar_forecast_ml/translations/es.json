@@ -95,7 +95,11 @@
       "energy_sensor_not_numeric": "El valor del sensor de energia no es numerico. Verifique el estado del sensor.",
       "energy_sensor_not_kwh": "El sensor del grupo de paneles no se acepta. Use un sensor acumulativo de energia DC con unidad kWh.",
       "energy_sensor_not_dc_energy": "El sensor del grupo de paneles no se acepta. Se espera device_class=energy.",
-      "energy_sensor_not_cumulative": "El sensor del grupo de paneles no se acepta. Se espera state_class=total o total_increasing."
+      "energy_sensor_not_cumulative": "El sensor del grupo de paneles no se acepta. Se espera state_class=total o total_increasing.",
+      "power_sensor_required": "Seleccione un sensor de potencia para cada grupo de paneles.",
+      "power_sensor_not_found": "Sensor de potencia no encontrado en Home Assistant. Compruebe el ID de entidad.",
+      "power_sensor_not_numeric": "El valor del sensor de potencia no es numerico. Compruebe el estado del sensor.",
+      "power_sensor_not_power_unit": "El sensor de potencia debe informar en W o kW."
     },
     "abort": {
       "already_configured": "Integracion ya configurada",
@@ -158,6 +162,7 @@
       "invalid_input": "Formato de entrada invalido",
       "battery_sensor_required": "Seleccione un sensor de potencia Solar-a-Bateria cuando el almacenamiento de bateria este activado",
       "battery_soc_sensor_required": "Seleccione un sensor SOC de bateria cuando el almacenamiento de bateria este activado",
+      "options_not_saved": "No guardado. Corrija los campos marcados. Los demas cambios se mantienen.",
       "energy_sensor_not_found": "Sensor de energia no encontrado",
       "energy_sensor_not_numeric": "El sensor de energia no es numerico",
       "energy_sensor_not_kwh": "El sensor del grupo debe ser un sensor kWh",

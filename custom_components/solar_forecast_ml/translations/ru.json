@@ -95,7 +95,11 @@
       "energy_sensor_not_numeric": "Значение датчика энергии не является числовым. Проверьте состояние датчика.",
       "energy_sensor_not_kwh": "Датчик группы панелей не принят. Используйте накопительный DC-датчик энергии с единицей kWh.",
       "energy_sensor_not_dc_energy": "Датчик группы панелей не принят. Ожидается device_class=energy.",
-      "energy_sensor_not_cumulative": "Датчик группы панелей не принят. Ожидается state_class=total или total_increasing."
+      "energy_sensor_not_cumulative": "Датчик группы панелей не принят. Ожидается state_class=total или total_increasing.",
+      "power_sensor_required": "Выберите датчик мощности для каждой группы панелей.",
+      "power_sensor_not_found": "Датчик мощности не найден в Home Assistant. Проверьте ID сущности.",
+      "power_sensor_not_numeric": "Значение датчика мощности не числовое. Проверьте состояние датчика.",
+      "power_sensor_not_power_unit": "Датчик мощности должен передавать значения в W или kW."
     },
     "abort": {
       "already_configured": "Интеграция уже настроена",
@@ -158,6 +162,7 @@
       "invalid_input": "Неверный формат ввода",
       "battery_sensor_required": "Выберите датчик мощности Солнечная-энергия-в-Батарею при включённом аккумуляторе",
       "battery_soc_sensor_required": "Выберите датчик SOC аккумулятора при включённом накопителе",
+      "options_not_saved": "Не сохранено. Исправьте отмеченные поля. Остальные изменения остаются в форме.",
       "energy_sensor_not_found": "Датчик энергии не найден",
       "energy_sensor_not_numeric": "Датчик энергии не числовой",
       "energy_sensor_not_kwh": "Датчик группы должен быть датчиком kWh",

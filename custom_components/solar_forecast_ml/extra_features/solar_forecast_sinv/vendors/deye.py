@@ -313,6 +313,62 @@ def _between(value: float | None, low: float, high: float) -> float | None:
     return value
 
 
+# PV inputs 3 and 4 exist on only some String and Micro models, but the register
+# block always answers for four pairs. An input is published once it has been
+# active, i.e. voltage and current were both above 0 in one cycle.
+LATCH_FIRST = 3
+LATCH_LAST = 4
+
+Latch = dict[str, set[int]]
+
+
+def parse_latch(raw: Any) -> tuple[Latch, bool]:
+    """Strictly parse the stored latch ``{serial: [3, 4]}``. @zara
+
+    Returns the latch and whether the stored value was usable. Anything that is
+    not exactly that shape gives an empty latch and False. None is not an error.
+    """
+    if raw is None:
+        return {}, True
+    if not isinstance(raw, dict):
+        return {}, False
+    latch: Latch = {}
+    for serial, channels in raw.items():
+        if not isinstance(serial, str) or not serial:
+            return {}, False
+        if not isinstance(channels, list):
+            return {}, False
+        for channel in channels:
+            if type(channel) is not int or not LATCH_FIRST <= channel <= LATCH_LAST:
+                return {}, False
+        if channels:
+            latch[serial] = set(channels)
+    return latch, True
+
+
+def dump_latch(latch: Latch) -> dict[str, list[int]]:
+    """Return the latch in its stored form. @zara"""
+    return {serial: sorted(channels) for serial, channels in sorted(latch.items()) if channels}
+
+
+def _published(
+    latch: Latch,
+    serial: str,
+    index: int,
+    voltage: float | None,
+    current: float | None,
+) -> bool:
+    """Whether PV input ``index`` is published; marks it as seen when it turns active. @zara"""
+    if index < LATCH_FIRST:
+        return True
+    if index in latch.get(serial, ()):
+        return True
+    if voltage is not None and current is not None and voltage > 0 and current > 0:
+        latch.setdefault(serial, set()).add(index)
+        return True
+    return False
+
+
 def _energy(
     regs: dict[int, int], low: int, high: int | None, limit: float
 ) -> float | None:
@@ -346,7 +402,7 @@ def optional_blocks(device_type: int | None) -> tuple[tuple[int, int], ...]:
     return ()
 
 
-def _build(regs: dict[int, int]) -> dict[str, DeyeDevice]:
+def _build(regs: dict[int, int], latch: Latch) -> dict[str, DeyeDevice]:
     """Dispatch on register 0. The three-phase path is unchanged. @zara"""
     device_type = family_code(regs)
     if device_type in (TYPE_LV, TYPE_HV):
@@ -354,9 +410,9 @@ def _build(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     if device_type == TYPE_1P:
         return _build_single_phase(regs)
     if device_type == TYPE_STRING:
-        return _build_string(regs)
+        return _build_string(regs, latch)
     if device_type == TYPE_MICRO:
-        return _build_micro(regs)
+        return _build_micro(regs, latch)
     return {}
 
 
@@ -467,29 +523,25 @@ def _build_single_phase(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     return {device.serial: device}
 
 
-def _pv_channels(device: DeyeDevice, regs: dict[int, int]) -> None:
+def _pv_channels(device: DeyeDevice, regs: dict[int, int], latch: Latch) -> None:
     """Publish PV voltage and current. Power is not a register on these families. @zara"""
     for index, (voltage_reg, current_reg) in enumerate(PV_VI, start=1):
         # community map: 0.1 V and 0.1 A
-        _set(
-            device,
-            indexed_role("voltage_solar_mppt", index),
-            _scaled(_word(regs, voltage_reg), 0.1, 0, MAX_PV_V),
-        )
-        _set(
-            device,
-            indexed_role("current_solar_mppt", index),
-            _scaled(_word(regs, current_reg), 0.1, 0, MAX_PV_A),
-        )
+        voltage = _scaled(_word(regs, voltage_reg), 0.1, 0, MAX_PV_V)
+        current = _scaled(_word(regs, current_reg), 0.1, 0, MAX_PV_A)
+        if not _published(latch, device.serial, index, voltage, current):
+            continue
+        _set(device, indexed_role("voltage_solar_mppt", index), voltage)
+        _set(device, indexed_role("current_solar_mppt", index), current)
 
 
-def _build_string(regs: dict[int, int]) -> dict[str, DeyeDevice]:
+def _build_string(regs: dict[int, int], latch: Latch) -> dict[str, DeyeDevice]:
     """Build a string inverter from the community string table. @zara"""
     device = _shell(regs)
     if device is None:
         return {}
     _rated(device, regs)
-    _pv_channels(device, regs)
+    _pv_channels(device, regs, latch)
     # community map: production today 60 and total 63/64, 0.1 kWh, low word first
     _set(device, "energy_solar_today", _energy(regs, 60, None, MAX_ENERGY_TODAY))
     _set(device, "energy_solar_total", _energy(regs, 63, 64, MAX_ENERGY_TOTAL))
@@ -544,11 +596,13 @@ def _build_string(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     return {device.serial: device}
 
 
-def _micro_pv(device: DeyeDevice, regs: dict[int, int]) -> None:
+def _micro_pv(device: DeyeDevice, regs: dict[int, int], latch: Latch) -> None:
     """Publish each micro PV voltage and current, and U×I when both are live. @zara
 
     Voltage and current are set on their own, as for the string family. Power
     of an input and the sum need both values inside the same bounds. 0 V is 0 W.
+    The sum covers every valid pair before inputs 3 and 4 are filtered. An input
+    that is not published has voltage or current at 0, so it adds exactly 0 W.
     """
     solar = 0.0
     solar_seen = False
@@ -556,16 +610,19 @@ def _micro_pv(device: DeyeDevice, regs: dict[int, int]) -> None:
         # community map: 0.1 V and 0.1 A
         voltage = _scaled(_word(regs, voltage_reg), 0.1, 0, MAX_PV_V)
         current = _scaled(_word(regs, current_reg), 0.1, 0, MAX_PV_A)
-        _set(device, indexed_role("voltage_solar_mppt", index), voltage)
-        _set(device, indexed_role("current_solar_mppt", index), current)
+        shown = _published(latch, device.serial, index, voltage, current)
+        if shown:
+            _set(device, indexed_role("voltage_solar_mppt", index), voltage)
+            _set(device, indexed_role("current_solar_mppt", index), current)
         if voltage is None or current is None:
             continue
         power = _between(voltage * current, 0, MAX_MPPT_W)
         if power is None:
             continue
-        role = indexed_role("power_solar_mppt", index)
-        _set(device, role, power, 0)
-        device.derived.add(role)
+        if shown:
+            role = indexed_role("power_solar_mppt", index)
+            _set(device, role, power, 0)
+            device.derived.add(role)
         solar += round(power, 0)
         solar_seen = True
     if not solar_seen:
@@ -577,13 +634,13 @@ def _micro_pv(device: DeyeDevice, regs: dict[int, int]) -> None:
     device.derived.add("power_solar")
 
 
-def _build_micro(regs: dict[int, int]) -> dict[str, DeyeDevice]:
+def _build_micro(regs: dict[int, int], latch: Latch) -> dict[str, DeyeDevice]:
     """Build a microinverter from the community micro table. @zara"""
     device = _shell(regs)
     if device is None:
         return {}
     _rated(device, regs)
-    _micro_pv(device, regs)
+    _micro_pv(device, regs, latch)
     # community map: production today 60 and total 63/64, 0.1 kWh, low word first
     _set(device, "energy_solar_today", _energy(regs, 60, None, MAX_ENERGY_TODAY))
     _set(device, "energy_solar_total", _energy(regs, 63, 64, MAX_ENERGY_TOTAL))
@@ -752,9 +809,16 @@ def _build_three_phase(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     return {device.serial: device}
 
 
-def build_devices(regs: dict[int, int]) -> dict[str, DeyeDevice]:
-    """Parse a register map into the inverter device. Never raises. @zara"""
+def build_devices(
+    regs: dict[int, int], latch: Latch | None = None
+) -> dict[str, DeyeDevice]:
+    """Parse a register map into the inverter device. Never raises. @zara
+
+    ``latch`` holds the String and Micro inputs 3 and 4 seen active so far per
+    serial. It is read and extended in place: an input that turns active in this
+    call is published in this call. Without a latch every call starts empty.
+    """
     try:
-        return _build(regs)
+        return _build(regs, {} if latch is None else latch)
     except Exception:
         return {}

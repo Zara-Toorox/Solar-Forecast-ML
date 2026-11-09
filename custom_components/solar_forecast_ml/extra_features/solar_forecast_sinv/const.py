@@ -132,6 +132,8 @@ def is_hp_device_vendor(vendor: str | None) -> bool:
 
 CONF_WEBHOOK_ID: Final[str] = "webhook_id"
 CONF_LOGGER_SERIAL: Final[str] = "logger_serial"
+# Deye String/Micro: PV inputs 3 and 4 seen active, {"<serial>": [3, 4]}
+CONF_DEYE_MPPT_SEEN: Final[str] = "deye_mppt_seen"
 MANUFACTURER: Final[str] = "Anker"
 ATTRIBUTION: Final[str] = "Data provided by Anker Solix Api"
 ACCEPT_TERMS: Final[str] = "accept_terms"

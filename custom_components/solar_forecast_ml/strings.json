@@ -160,6 +160,7 @@
       "energy_sensor_not_kwh": "Panel group sensor is not accepted. Use a cumulative DC energy sensor with unit kWh.",
       "energy_sensor_not_dc_energy": "Panel group sensor is not accepted. Expected device_class=energy.",
       "energy_sensor_not_cumulative": "Panel group sensor is not accepted. Expected state_class=total or total_increasing.",
+      "power_sensor_required": "Select a power sensor for every panel group.",
       "power_sensor_not_found": "Power sensor not found in Home Assistant. Check the entity ID.",
       "power_sensor_not_numeric": "Power sensor value is not numeric. Check sensor state.",
       "power_sensor_not_power_unit": "Power sensor must use unit W or kW."
@@ -225,6 +226,7 @@
       "invalid_input": "Invalid input format",
       "battery_sensor_required": "Select a Solar-to-Battery power sensor when battery storage is enabled",
       "battery_soc_sensor_required": "Select a battery SOC sensor when battery storage is enabled",
+      "options_not_saved": "Not saved. Correct the highlighted fields. Other changes stay filled in.",
       "energy_sensor_not_found": "Energy sensor not found",
       "energy_sensor_not_numeric": "Energy sensor is not numeric",
       "energy_sensor_not_kwh": "Panel group sensor must be a kWh sensor",

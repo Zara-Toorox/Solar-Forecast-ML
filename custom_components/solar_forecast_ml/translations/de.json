@@ -160,6 +160,7 @@
       "energy_sensor_not_kwh": "Panelgruppen-Sensor wird nicht akzeptiert. Bitte einen kumulativen DC-Energiesensor mit Einheit kWh verwenden.",
       "energy_sensor_not_dc_energy": "Panelgruppen-Sensor wird nicht akzeptiert. Erwartet wird device_class=energy.",
       "energy_sensor_not_cumulative": "Panelgruppen-Sensor wird nicht akzeptiert. Erwartet wird state_class=total oder total_increasing.",
+      "power_sensor_required": "Bitte für jede Panelgruppe einen Leistungssensor auswählen.",
       "power_sensor_not_found": "Leistungssensor nicht in Home Assistant gefunden. Bitte Entity-ID prüfen.",
       "power_sensor_not_numeric": "Leistungssensor-Wert ist nicht numerisch. Bitte Sensor-Status prüfen.",
       "power_sensor_not_power_unit": "Leistungssensor muss die Einheit W oder kW verwenden."
@@ -225,6 +226,7 @@
       "invalid_input": "Ungültiges Eingabeformat",
       "battery_sensor_required": "Bei aktiviertem Batteriespeicher muss ein Solar-zu-Akku-Leistungssensor ausgewählt werden",
       "battery_soc_sensor_required": "Bei aktiviertem Batteriespeicher muss ein Akku-SOC-Sensor ausgewählt werden",
+      "options_not_saved": "Nicht gespeichert. Bitte die markierten Felder korrigieren. Die übrigen Änderungen bleiben erhalten.",
       "energy_sensor_not_found": "Energy-Sensor nicht gefunden",
       "energy_sensor_not_numeric": "Energy-Sensor ist nicht numerisch",
       "energy_sensor_not_kwh": "Panelgruppen-Sensor muss ein kWh-Sensor sein",

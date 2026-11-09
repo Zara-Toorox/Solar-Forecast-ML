@@ -382,7 +382,9 @@ def _resolve_panel_group_count(
 
     if not (PANEL_GROUP_MIN_COUNT <= count <= PANEL_GROUP_MAX_COUNT):
         return _panel_group_count_default(existing_groups), "invalid_input"
-    return count, None
+    if count < _panel_group_count_default(existing_groups):
+        return count, None
+    return max(count, _submitted_panel_group_count(user_input)), None
 
 
 def _build_structured_panel_groups(
@@ -797,6 +799,84 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
 
+_OPTIONS_BOOL_KEYS = frozenset(
+    {
+        CONF_ADAPTIVE_FORECAST_MODE,
+        CONF_EVCC_FORECAST,
+        CONF_HAS_BATTERY,
+        CONF_HOURLY,
+        CONF_NOTIFY_FORECAST,
+        CONF_NOTIFY_FOG,
+        CONF_NOTIFY_FROST,
+        CONF_NOTIFY_LEARNING,
+        CONF_NOTIFY_SNOW_COVERED,
+        CONF_NOTIFY_STARTUP,
+        CONF_NOTIFY_SUCCESSFUL_LEARNING,
+        CONF_NOTIFY_WEATHER_ALERT,
+        CONF_WINTER_MODE,
+        CONF_ZERO_EXPORT_MODE,
+    }
+)
+_OPTIONS_NUMBER_KEYS = frozenset({CONF_MAX_GRID_EXPORT_W, CONF_UPDATE_INTERVAL})
+_OPTIONS_TEXT_KEYS = frozenset(
+    {
+        CONF_BATTERY_SOC_SENSOR,
+        CONF_PIRATE_WEATHER_API_KEY,
+        CONF_SOLAR_TO_BATTERY_SENSOR,
+    }
+)
+
+
+def _shown_options(
+    saved: dict[str, Any], user_input: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Saved options overlaid with the values just submitted. @zara
+
+    A failed options step is painted again from schema defaults and
+    suggested_value. Checkbox False has to be copied explicitly, otherwise
+    the toggle snaps back to the stored option.
+    """
+    shown = dict(saved)
+    if not user_input:
+        return shown
+    for key, value in user_input.items():
+        if key in _OPTIONS_BOOL_KEYS and isinstance(value, bool):
+            shown[key] = value
+        elif (
+            key in _OPTIONS_NUMBER_KEYS
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
+        ):
+            shown[key] = value
+        elif key in _OPTIONS_TEXT_KEYS and isinstance(value, str):
+            shown[key] = value
+    return shown
+
+
+def _bool_option(key: str, value: bool) -> vol.Optional:
+    """Boolean field that redisplays value, including False. @zara"""
+    return vol.Optional(
+        key,
+        default=value,
+        description={"suggested_value": value},
+    )
+
+
+def _number_option(key: str, value: int | float) -> vol.Optional:
+    """Numeric field that redisplays value. @zara"""
+    return vol.Optional(
+        key,
+        default=value,
+        description={"suggested_value": value},
+    )
+
+
+def _flag(shown: dict[str, Any], key: str, fallback: bool) -> bool:
+    """Return a stored or submitted boolean, otherwise fallback. @zara"""
+    value = shown.get(key, fallback)
+    return value if isinstance(value, bool) else fallback
+
+
 class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
     """Handles the options flow for Solar Forecast ML. @zara"""
 
@@ -839,9 +919,12 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                     errors[CONF_BATTERY_SOC_SENSOR] = "battery_soc_sensor_required"
 
             if errors:
+                # Field errors mark the inputs. The base error stays at the
+                # top and the schema keeps the submitted toggles. @zara
+                errors["base"] = "options_not_saved"
                 return self.async_show_form(
                     step_id="init",
-                    data_schema=self._get_options_schema(),
+                    data_schema=self._get_options_schema(user_input),
                     errors=errors,
                 )
 
@@ -894,32 +977,54 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
             errors=errors,
         )
 
-    def _get_options_schema(self) -> vol.Schema:
+    def _get_options_schema(
+        self, user_input: dict[str, Any] | None = None
+    ) -> vol.Schema:
         """Define the schema for the options form. @zara"""
-        current_options = self.config_entry.options
+        shown = _shown_options(self.config_entry.options, user_input)
+        submitted = user_input or {}
 
         # Safely get update_interval @zara
         try:
             update_interval = int(
-                current_options.get(
-                    CONF_UPDATE_INTERVAL, int(UPDATE_INTERVAL.total_seconds())
+                float(
+                    shown.get(
+                        CONF_UPDATE_INTERVAL, int(UPDATE_INTERVAL.total_seconds())
+                    )
                 )
             )
-            if not 300 <= update_interval <= 86400:
-                update_interval = int(UPDATE_INTERVAL.total_seconds())
         except (ValueError, TypeError):
             update_interval = int(UPDATE_INTERVAL.total_seconds())
+        else:
+            # A failed submit keeps the typed number visible. A stored
+            # out-of-range value still falls back to the runtime default. @zara
+            if not 300 <= update_interval <= 86400 and (
+                CONF_UPDATE_INTERVAL not in submitted
+            ):
+                update_interval = int(UPDATE_INTERVAL.total_seconds())
 
-        zero_export_mode = current_options.get(CONF_ZERO_EXPORT_MODE, DEFAULT_ZERO_EXPORT_MODE)
-        max_grid_export_w = current_options.get(
+        zero_export_mode = _flag(
+            shown, CONF_ZERO_EXPORT_MODE, DEFAULT_ZERO_EXPORT_MODE
+        )
+        raw_export = shown.get(
             CONF_MAX_GRID_EXPORT_W,
             0.0 if zero_export_mode else DEFAULT_MAX_GRID_EXPORT_W,
         )
+        if isinstance(raw_export, bool) or not isinstance(raw_export, (int, float)):
+            max_grid_export_w = (
+                0.0 if zero_export_mode else float(DEFAULT_MAX_GRID_EXPORT_W)
+            )
+        else:
+            max_grid_export_w = float(raw_export)
+
+        def _text(key: str) -> str:
+            raw = shown.get(key, "")
+            return raw if isinstance(raw, str) else ""
 
         return vol.Schema(
             {
-                vol.Optional(
-                    CONF_UPDATE_INTERVAL, default=update_interval
+                _number_option(
+                    CONF_UPDATE_INTERVAL, update_interval
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=300,
@@ -929,72 +1034,60 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                         unit_of_measurement="s",
                     )
                 ),
-                vol.Optional(
-                    CONF_HOURLY, default=current_options.get(CONF_HOURLY, False)
+                _bool_option(CONF_HOURLY, _flag(shown, CONF_HOURLY, False)): bool,
+                _bool_option(
+                    CONF_EVCC_FORECAST, _flag(shown, CONF_EVCC_FORECAST, False)
                 ): bool,
-                vol.Optional(
-                    CONF_EVCC_FORECAST,
-                    default=current_options.get(CONF_EVCC_FORECAST, False),
+                _bool_option(
+                    CONF_NOTIFY_STARTUP, _flag(shown, CONF_NOTIFY_STARTUP, True)
                 ): bool,
-                vol.Optional(
-                    CONF_NOTIFY_STARTUP,
-                    default=current_options.get(CONF_NOTIFY_STARTUP, True),
+                _bool_option(
+                    CONF_NOTIFY_FORECAST, _flag(shown, CONF_NOTIFY_FORECAST, False)
                 ): bool,
-                vol.Optional(
-                    CONF_NOTIFY_FORECAST,
-                    default=current_options.get(CONF_NOTIFY_FORECAST, False),
+                _bool_option(
+                    CONF_NOTIFY_LEARNING, _flag(shown, CONF_NOTIFY_LEARNING, False)
                 ): bool,
-                vol.Optional(
-                    CONF_NOTIFY_LEARNING,
-                    default=current_options.get(CONF_NOTIFY_LEARNING, False),
-                ): bool,
-                vol.Optional(
+                _bool_option(
                     CONF_NOTIFY_SUCCESSFUL_LEARNING,
-                    default=current_options.get(CONF_NOTIFY_SUCCESSFUL_LEARNING, True),
+                    _flag(shown, CONF_NOTIFY_SUCCESSFUL_LEARNING, True),
                 ): bool,
-                vol.Optional(
-                    CONF_NOTIFY_FOG,
-                    default=current_options.get(CONF_NOTIFY_FOG, True),
+                _bool_option(
+                    CONF_NOTIFY_FOG, _flag(shown, CONF_NOTIFY_FOG, True)
                 ): bool,
-                vol.Optional(
-                    CONF_NOTIFY_FROST,
-                    default=current_options.get(CONF_NOTIFY_FROST, True),
+                _bool_option(
+                    CONF_NOTIFY_FROST, _flag(shown, CONF_NOTIFY_FROST, True)
                 ): bool,
-                vol.Optional(
+                _bool_option(
                     CONF_NOTIFY_WEATHER_ALERT,
-                    default=current_options.get(CONF_NOTIFY_WEATHER_ALERT, True),
+                    _flag(shown, CONF_NOTIFY_WEATHER_ALERT, True),
                 ): bool,
-                vol.Optional(
+                _bool_option(
                     CONF_NOTIFY_SNOW_COVERED,
-                    default=current_options.get(CONF_NOTIFY_SNOW_COVERED, True),
+                    _flag(shown, CONF_NOTIFY_SNOW_COVERED, True),
                 ): bool,
-                vol.Optional(
+                _bool_option(
                     CONF_ADAPTIVE_FORECAST_MODE,
-                    default=current_options.get(
-                        CONF_ADAPTIVE_FORECAST_MODE, DEFAULT_ADAPTIVE_FORECAST_MODE
+                    _flag(
+                        shown,
+                        CONF_ADAPTIVE_FORECAST_MODE,
+                        DEFAULT_ADAPTIVE_FORECAST_MODE,
                     ),
                 ): bool,
-                vol.Optional(
+                _bool_option(
                     CONF_WINTER_MODE,
-                    default=current_options.get(CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
+                    _flag(shown, CONF_WINTER_MODE, DEFAULT_WINTER_MODE),
                 ): bool,
-                vol.Optional(
+                _bool_option(
                     CONF_ZERO_EXPORT_MODE,
-                    default=current_options.get(
-                        CONF_ZERO_EXPORT_MODE, DEFAULT_ZERO_EXPORT_MODE
-                    ),
+                    _flag(shown, CONF_ZERO_EXPORT_MODE, DEFAULT_ZERO_EXPORT_MODE),
                 ): bool,
-                vol.Optional(
+                _bool_option(
                     CONF_HAS_BATTERY,
-                    default=current_options.get(CONF_HAS_BATTERY, DEFAULT_HAS_BATTERY),
+                    _flag(shown, CONF_HAS_BATTERY, DEFAULT_HAS_BATTERY),
                 ): bool,
                 vol.Optional(
                     CONF_SOLAR_TO_BATTERY_SENSOR,
-                    description={
-                        "suggested_value": current_options.get(
-                            CONF_SOLAR_TO_BATTERY_SENSOR, ""
-                        )
-                    },
+                    description={"suggested_value": _text(CONF_SOLAR_TO_BATTERY_SENSOR)},
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(
                         domain=["sensor"],
@@ -1004,11 +1097,7 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 ),
                 vol.Optional(
                     CONF_BATTERY_SOC_SENSOR,
-                    description={
-                        "suggested_value": current_options.get(
-                            CONF_BATTERY_SOC_SENSOR, ""
-                        )
-                    },
+                    description={"suggested_value": _text(CONF_BATTERY_SOC_SENSOR)},
                 ): selector.EntitySelector(
                     selector.EntitySelectorConfig(
                         domain=["sensor"],
@@ -1016,9 +1105,8 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                         multiple=False,
                     )
                 ),
-                vol.Optional(
-                    CONF_MAX_GRID_EXPORT_W,
-                    default=max_grid_export_w,
+                _number_option(
+                    CONF_MAX_GRID_EXPORT_W, max_grid_export_w
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
                         min=0.0,
@@ -1031,9 +1119,7 @@ class SolarForecastMLOptionsFlow(OptionsFlowWithReload):
                 vol.Optional(
                     CONF_PIRATE_WEATHER_API_KEY,
                     description={
-                        "suggested_value": current_options.get(
-                            CONF_PIRATE_WEATHER_API_KEY, ""
-                        )
+                        "suggested_value": _text(CONF_PIRATE_WEATHER_API_KEY)
                     },
                 ): selector.TextSelector(
                     selector.TextSelectorConfig(

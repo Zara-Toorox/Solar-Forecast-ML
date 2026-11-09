@@ -19,7 +19,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntry
 
-from .const import CONF_LOGGER_SERIAL, CONF_VENDOR, DOMAIN, LOCAL_VENDORS
+from .const import CONF_DEYE_MPPT_SEEN, CONF_LOGGER_SERIAL, CONF_VENDOR, DOMAIN, LOCAL_VENDORS
 from .coordinator import AnkerSolixDataUpdateCoordinator
 
 TO_REDACT = {
@@ -38,6 +38,7 @@ TO_REDACT = {
     "access_token",
     "gateway_serial",
     CONF_LOGGER_SERIAL,
+    CONF_DEYE_MPPT_SEEN,
 }
 
 

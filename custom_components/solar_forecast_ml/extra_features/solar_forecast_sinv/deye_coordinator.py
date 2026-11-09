@@ -12,15 +12,16 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from datetime import timedelta
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState, UnknownEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, CONF_SCAN_INTERVAL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .const import CONF_LOGGER_SERIAL, LOGGER
+from .const import CONF_DEYE_MPPT_SEEN, CONF_LOGGER_SERIAL, LOGGER
 from .kostal_coordinator import (
     CONF_UNIT_ID,
     CYCLE_TIMEOUT_SECONDS,
@@ -77,10 +78,22 @@ async def async_probe(
     return {**ident, "data": data}
 
 
+def _without_latch(entry: ConfigEntry) -> dict[str, Any]:
+    return copy.deepcopy(
+        {key: value for key, value in entry.data.items() if key != CONF_DEYE_MPPT_SEEN}
+    )
+
+
 class DeyeCoordinator(DataUpdateCoordinator[dict[str, deye.DeyeDevice]]):
     """Read the running holding registers of one Deye inverter per cycle. @zara"""
 
     vendor = deye
+    # PV inputs 3 and 4 seen active per serial, stored in the entry data
+    _latch: deye.Latch | None = None
+    _closed = False
+    # entry data without the latch and the options as they were at setup
+    _setup_data: dict[str, Any] | None = None
+    _setup_options: dict[str, Any] | None = None
 
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Initialize from the config entry. @zara"""
@@ -98,6 +111,48 @@ class DeyeCoordinator(DataUpdateCoordinator[dict[str, deye.DeyeDevice]]):
         serial = entry.data.get(CONF_LOGGER_SERIAL)
         self.logger_serial: int | None = None if serial is None else int(serial)
         self._optional: list[tuple[int, int]] | None = None
+        self._latch, usable = deye.parse_latch(entry.data.get(CONF_DEYE_MPPT_SEEN))
+        if not usable:
+            LOGGER.warning("Ignoring unusable stored Deye PV input state")
+        self._setup_data = _without_latch(entry)
+        self._setup_options = copy.deepcopy(dict(entry.options))
+
+    async def async_shutdown(self) -> None:
+        """Stop polling. A closed coordinator never writes the latch again. @zara"""
+        self._closed = True
+        await super().async_shutdown()
+
+    def config_unchanged(self, entry: ConfigEntry) -> bool:
+        """Return True when only the latch differs from the data and options of this setup. @zara"""
+        if self._setup_data is None or self._setup_options is None:
+            return False
+        return (
+            _without_latch(entry) == self._setup_data
+            and dict(entry.options) == self._setup_options
+        )
+
+    def _persist_latch(self) -> None:
+        """Write newly seen PV inputs into the entry data, never removing stored ones. @zara"""
+        entry = self.config_entry
+        if self._closed or entry is None or self._latch is None:
+            return
+        if entry.state not in (ConfigEntryState.SETUP_IN_PROGRESS, ConfigEntryState.LOADED):
+            return
+        # merge with what the entry holds now: a reload or another instance
+        # may have added inputs, and a write must never take one away
+        stored, _usable = deye.parse_latch(entry.data.get(CONF_DEYE_MPPT_SEEN))
+        for serial, channels in stored.items():
+            self._latch.setdefault(serial, set()).update(channels)
+        value = deye.dump_latch(self._latch)
+        if entry.data.get(CONF_DEYE_MPPT_SEEN) == value:
+            return
+        try:
+            self.hass.config_entries.async_update_entry(
+                entry, data={**entry.data, CONF_DEYE_MPPT_SEEN: value}
+            )
+        except UnknownEntry:
+            # removed while a cycle was running: nothing is written
+            self._closed = True
 
     async def _async_update_data(self) -> dict[str, deye.DeyeDevice]:
         try:
@@ -137,7 +192,12 @@ class DeyeCoordinator(DataUpdateCoordinator[dict[str, deye.DeyeDevice]]):
             raise UpdateFailed(
                 f"Deye at {self.host}:{self.port} not readable: {err}"
             ) from err
-        devices = deye.build_devices(regs)
+        if self._latch is None:
+            self._latch = {}
+        known = deye.dump_latch(self._latch)
+        devices = deye.build_devices(regs, self._latch)
+        if deye.dump_latch(self._latch) != known:
+            self._persist_latch()
         if not devices:
             raise UpdateFailed(
                 deye.reject_reason(regs)

@@ -15,8 +15,24 @@ import os
 import json
 import logging
 import asyncio
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 
 _LOGGER = logging.getLogger(__name__)
+
+WORKER_TIMEOUT_SECONDS = 1800.0
+WORKER_PRIORITY_NICE = 10
+_THREAD_ENV_NAMES = (
+    "OMP_NUM_THREADS",
+    "MKL_NUM_THREADS",
+    "OPENBLAS_NUM_THREADS",
+    "VECLIB_MAXIMUM_THREADS",
+    "NUMEXPR_NUM_THREADS",
+)
+
+
+class WorkerTrainingError(RuntimeError):
+    """The training worker failed before the model trainer produced a result."""
 
 
 def _resolve_worker_threads() -> str:
@@ -25,23 +41,103 @@ def _resolve_worker_threads() -> str:
         try:
             return str(max(1, int(configured)))
         except ValueError:
-            return "2"
+            return "1"
 
     cpu_count = os.cpu_count() or 2
-    return str(max(2, min(4, cpu_count // 2 or 1)))
+    return str(max(1, min(2, cpu_count // 2)))
+
+
+def _build_worker_env() -> Dict[str, str]:
+    """Environment for the worker with a hard cap on BLAS/OpenMP threads."""
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    limit = int(_resolve_worker_threads())
+    for name in _THREAD_ENV_NAMES:
+        try:
+            inherited = int(env.get(name, ""))
+        except ValueError:
+            inherited = 0
+        env[name] = str(min(limit, inherited) if inherited > 0 else limit)
+    return env
+
+
+def _lower_worker_priority() -> None:
+    """Run the worker behind Home Assistant for CPU scheduling. @zara"""
+    try:
+        current = os.getpriority(os.PRIO_PROCESS, 0)
+        if current < WORKER_PRIORITY_NICE:
+            os.setpriority(os.PRIO_PROCESS, 0, WORKER_PRIORITY_NICE)
+    except (AttributeError, OSError):
+        pass
+
+
+def encode_typed(value: Any) -> Any:
+    """JSON-safe encoding that keeps datetime, date, timedelta, tuple and tz types. @zara"""
+    if isinstance(value, datetime):
+        tz_key = getattr(value.tzinfo, "key", None)
+        return {"__t": "datetime", "v": value.isoformat(), "tz": tz_key}
+    if isinstance(value, date):
+        return {"__t": "date", "v": value.isoformat()}
+    if isinstance(value, timedelta):
+        return {
+            "__t": "timedelta",
+            "d": value.days,
+            "s": value.seconds,
+            "us": value.microseconds,
+        }
+    if isinstance(value, tuple):
+        return {"__t": "tuple", "v": [encode_typed(item) for item in value]}
+    if isinstance(value, list):
+        return [encode_typed(item) for item in value]
+    if isinstance(value, dict):
+        if "__t" in value:
+            raise ValueError("reserved key __t in payload")
+        return {str(key): encode_typed(item) for key, item in value.items()}
+    return value
+
+
+def decode_typed(value: Any) -> Any:
+    """Inverse of encode_typed. @zara"""
+    if isinstance(value, list):
+        return [decode_typed(item) for item in value]
+    if isinstance(value, dict):
+        kind = value.get("__t")
+        if kind == "datetime":
+            parsed = datetime.fromisoformat(value["v"])
+            tz_key = value.get("tz")
+            if tz_key and parsed.tzinfo is not None:
+                from zoneinfo import ZoneInfo
+
+                parsed = parsed.astimezone(ZoneInfo(tz_key))
+            return parsed
+        if kind == "date":
+            return date.fromisoformat(value["v"])
+        if kind == "timedelta":
+            return timedelta(days=value["d"], seconds=value["s"], microseconds=value["us"])
+        if kind == "tuple":
+            return tuple(decode_typed(item) for item in value["v"])
+        return {key: decode_typed(item) for key, item in value.items()}
+    return value
+
+
+def _json_default(value: Any) -> Any:
+    if hasattr(value, "tolist"):
+        return value.tolist()
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
 
 # If running as script, save real stdout and redirect sys.stdout to sys.stderr
 # to prevent print statements or third-party logs from corrupting the JSON payload.
 if __name__ == "__main__":
     worker_threads = _resolve_worker_threads()
-    for env_name in (
-        "OMP_NUM_THREADS",
-        "MKL_NUM_THREADS",
-        "OPENBLAS_NUM_THREADS",
-        "VECLIB_MAXIMUM_THREADS",
-        "NUMEXPR_NUM_THREADS",
-    ):
-        os.environ.setdefault(env_name, worker_threads)
+    for env_name in _THREAD_ENV_NAMES:
+        try:
+            inherited = int(os.environ.get(env_name, ""))
+        except ValueError:
+            inherited = 0
+        os.environ[env_name] = str(
+            min(int(worker_threads), inherited) if inherited > 0 else worker_threads
+        )
+    _lower_worker_priority()
 
     _REAL_STDOUT = sys.stdout
     sys.stdout = sys.stderr
@@ -100,7 +196,8 @@ async def async_run_training_in_subprocess(
     current_weights: dict,
     X_data: list,
     y_targets: list,
-    training_params: dict
+    training_params: dict,
+    extra_payload: Optional[dict] = None,
 ) -> dict:
     """Run model training in a separate python subprocess. @zara"""
     try:
@@ -116,10 +213,11 @@ async def async_run_training_in_subprocess(
             "y_targets": y_targets,
             "training_params": training_params
         }
+        if extra_payload:
+            payload.update(extra_payload)
 
-        input_str = json.dumps(payload)
-        env = os.environ.copy()
-        env.setdefault("PYTHONUNBUFFERED", "1")
+        input_str = json.dumps(payload, default=_json_default)
+        env = _build_worker_env()
 
         process = await asyncio.create_subprocess_exec(
             sys.executable,
@@ -139,16 +237,16 @@ async def async_run_training_in_subprocess(
             wait_task = asyncio.create_task(process.wait())
             stdout, stderr_text, _returncode, _stdin_result = await asyncio.wait_for(
                 asyncio.gather(stdout_task, stderr_task, wait_task, stdin_task),
-                timeout=1800.0
+                timeout=WORKER_TIMEOUT_SECONDS
             )
         except asyncio.TimeoutError:
-            _LOGGER.warning("Training worker subprocess timed out after 1800 seconds.")
+            _LOGGER.warning("Training worker subprocess timed out after %d seconds.", WORKER_TIMEOUT_SECONDS)
             try:
                 process.kill()
                 await process.wait()
             except Exception:
                 pass
-            return {"success": False, "error_message": "Training worker timed out after 1800 seconds"}
+            return {"success": False, "error_message": f"Training worker timed out after {int(WORKER_TIMEOUT_SECONDS)} seconds"}
         except asyncio.CancelledError:
             _LOGGER.info("Training worker subprocess cancelled, terminating process.")
             try:
@@ -176,6 +274,139 @@ async def async_run_training_in_subprocess(
         return {"success": False, "error_message": str(e)}
 
 
+def _read_lstm_state(lstm: Any) -> Dict[str, Any]:
+    """Trainer state the parent needs after training (besides the weights). @zara"""
+    return {
+        "learning_rate": float(lstm.learning_rate),
+        "adam_step": int(lstm.adam_step),
+        "seed": lstm.seed,
+        "rng_state": lstm._rng.bit_generator.state,
+    }
+
+
+def _apply_lstm_state(lstm: Any, state: Dict[str, Any]) -> None:
+    """Restore the parent's trainer state inside the worker. @zara"""
+    if not state:
+        return
+    if state.get("noise_std") is not None:
+        lstm.noise_std = float(state["noise_std"])
+    if state.get("lr_min") is not None:
+        lstm.lr_min = float(state["lr_min"])
+    if state.get("learning_rate") is not None:
+        lstm.learning_rate = float(state["learning_rate"])
+    if state.get("seed") is not None:
+        lstm.seed = state["seed"]
+    if state.get("rng_state") is not None:
+        lstm._rng.bit_generator.state = state["rng_state"]
+
+
+def _model_job(model: Any, model_type: str) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+    """Constructor config, weights and trainer state of a parent-side model. @zara"""
+    if model_type == "lstm":
+        config = {
+            "input_size": model.input_size,
+            "hidden_sizes": [model.hidden1, model.hidden2],
+            "sequence_length": model.sequence_length,
+            "num_outputs": model.num_outputs,
+            "learning_rate": model.learning_rate,
+            "dropout": model.dropout,
+            "num_heads": model.num_heads,
+        }
+        state = {
+            "noise_std": model.noise_std,
+            "lr_min": model.lr_min,
+            "learning_rate": model.learning_rate,
+            "seed": model.seed,
+            "rng_state": model._rng.bit_generator.state,
+        }
+        return config, model.get_weights(), state
+    if model_type == "ridge":
+        config = {
+            "input_size": model.input_size,
+            "hidden_size": model.hidden_size,
+            "sequence_length": model.sequence_length,
+            "num_outputs": model.num_outputs,
+        }
+        return config, model.get_weights(), {}
+    raise WorkerTrainingError(f"Unsupported model type for worker training: {model_type}")
+
+
+async def async_train_model_in_worker(
+    model: Any,
+    model_type: str,
+    X_sequences: List[Any],
+    y_targets: List[Any],
+    *,
+    epochs: int,
+    batch_size: int = 16,
+    validation_split: float = 0.2,
+    early_stopping_patience: int = 10,
+    sample_groups: Optional[List[Any]] = None,
+    sample_dates: Optional[List[Any]] = None,
+    source_intervals: Optional[List[Tuple[Any, Any]]] = None,
+    embargo: Any = 0,
+    seed: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Train ``model`` in the worker process with the full temporal contract. @zara
+
+    The trainer result has the same shape as ``model.train`` returns in process.
+    The trained weights and trainer state are written back to ``model``.
+    Infrastructure failures (crash, timeout, invalid output) raise
+    ``WorkerTrainingError``; there is deliberately no local fallback.
+    """
+    config, weights, state = _model_job(model, model_type)
+    temporal: Dict[str, Any] = {}
+    if model_type == "lstm":
+        temporal = {
+            "sample_groups": sample_groups,
+            "sample_dates": sample_dates,
+            "source_intervals": source_intervals,
+            "embargo": embargo,
+            "seed": seed,
+        }
+    else:
+        temporal = {
+            "sample_groups": sample_groups,
+            "sample_dates": sample_dates,
+            "source_intervals": source_intervals,
+            "embargo": embargo,
+        }
+
+    result = await async_run_training_in_subprocess(
+        model_type=model_type,
+        model_config=config,
+        current_weights=weights,
+        X_data=X_sequences,
+        y_targets=y_targets,
+        training_params={
+            "epochs": epochs,
+            "batch_size": batch_size,
+            "validation_split": validation_split,
+            "early_stopping_patience": early_stopping_patience,
+        },
+        extra_payload={
+            "temporal": encode_typed(temporal),
+            "model_state": encode_typed(state),
+        },
+    )
+    if not isinstance(result, dict) or not result.get("completed"):
+        message = (result or {}).get("error_message") if isinstance(result, dict) else None
+        raise WorkerTrainingError(message or "training worker returned no trainer result")
+
+    train_result = decode_typed(result["train_result"])
+    if train_result.get("success"):
+        model.set_weights(result["weights"])
+        if model_type == "lstm":
+            returned = decode_typed(result.get("model_state")) or {}
+            model.learning_rate = float(returned.get("learning_rate", model.learning_rate))
+            model.adam_step = int(returned.get("adam_step", model.adam_step))
+            if returned.get("seed") is not None:
+                model.seed = returned["seed"]
+            if returned.get("rng_state") is not None:
+                model._rng.bit_generator.state = returned["rng_state"]
+    return train_result
+
+
 def main():
     """Subprocess main entrypoint. @zara"""
     import traceback
@@ -198,6 +429,9 @@ def main():
         X_data = input_data["X_data"]
         y_targets = input_data["y_targets"]
         training_params = input_data.get("training_params", {})
+        temporal = decode_typed(input_data.get("temporal"))
+        model_state = decode_typed(input_data.get("model_state")) or {}
+        trainer_kwargs = dict(temporal) if temporal else {}
 
         result = {"success": False, "error_message": None}
 
@@ -247,6 +481,7 @@ def main():
             )
             if current_weights:
                 lstm.set_weights(current_weights)
+            _apply_lstm_state(lstm, model_state)
 
             train_res = asyncio.run(lstm._train_in_process(
                 X_sequences=X_data,
@@ -254,8 +489,12 @@ def main():
                 epochs=training_params.get("epochs", 200),
                 batch_size=training_params.get("batch_size", 16),
                 validation_split=training_params.get("validation_split", 0.2),
-                early_stopping_patience=training_params.get("early_stopping_patience", 20)
+                early_stopping_patience=training_params.get("early_stopping_patience", 20),
+                **trainer_kwargs
             ))
+            result["completed"] = True
+            result["train_result"] = encode_typed(train_res)
+            result["model_state"] = _read_lstm_state(lstm)
 
             if train_res.get("success"):
                 result["success"] = True
@@ -282,14 +521,20 @@ def main():
             if current_weights:
                 ridge.set_weights(current_weights)
 
+            ridge_kwargs = {
+                key: value for key, value in trainer_kwargs.items() if key != "seed"
+            }
             train_res = asyncio.run(ridge._train_in_process(
                 X_sequences=X_data,
                 y_targets=y_targets,
                 epochs=training_params.get("epochs", 1),
                 batch_size=training_params.get("batch_size", 16),
                 validation_split=training_params.get("validation_split", 0.2),
-                early_stopping_patience=training_params.get("early_stopping_patience", 10)
+                early_stopping_patience=training_params.get("early_stopping_patience", 10),
+                **ridge_kwargs
             ))
+            result["completed"] = True
+            result["train_result"] = encode_typed(train_res)
 
             if train_res.get("success"):
                 result["success"] = True

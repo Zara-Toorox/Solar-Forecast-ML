@@ -95,7 +95,11 @@
       "energy_sensor_not_numeric": "La valeur du capteur d'energie n'est pas numerique. Verifiez l'etat du capteur.",
       "energy_sensor_not_kwh": "Le capteur du groupe de panneaux n'est pas accepte. Utilisez un capteur cumulatif d'energie DC avec l'unite kWh.",
       "energy_sensor_not_dc_energy": "Le capteur du groupe de panneaux n'est pas accepte. device_class=energy attendu.",
-      "energy_sensor_not_cumulative": "Le capteur du groupe de panneaux n'est pas accepte. state_class=total ou total_increasing attendu."
+      "energy_sensor_not_cumulative": "Le capteur du groupe de panneaux n'est pas accepte. state_class=total ou total_increasing attendu.",
+      "power_sensor_required": "Selectionnez un capteur de puissance pour chaque groupe de panneaux.",
+      "power_sensor_not_found": "Capteur de puissance introuvable dans Home Assistant. Verifiez l'ID d'entite.",
+      "power_sensor_not_numeric": "La valeur du capteur de puissance n'est pas numerique. Verifiez l'etat du capteur.",
+      "power_sensor_not_power_unit": "Le capteur de puissance doit indiquer en W ou kW."
     },
     "abort": {
       "already_configured": "Integration deja configuree",
@@ -158,6 +162,7 @@
       "invalid_input": "Format de saisie invalide",
       "battery_sensor_required": "Selectionnez un capteur de puissance Solaire-vers-Batterie lorsque le stockage sur batterie est active",
       "battery_soc_sensor_required": "Selectionnez un capteur SOC batterie lorsque le stockage sur batterie est active",
+      "options_not_saved": "Pas enregistre. Corrigez les champs indiques. Les autres modifications restent saisies.",
       "energy_sensor_not_found": "Capteur d'energie introuvable",
       "energy_sensor_not_numeric": "Le capteur d'energie n'est pas numerique",
       "energy_sensor_not_kwh": "Le capteur du groupe doit etre un capteur kWh",

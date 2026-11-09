@@ -10,6 +10,53 @@ const finiteNumber = (value) => {
     return Number.isFinite(number) ? number : null;
 };
 
+const PRICE_MIN_CT = -1000;
+const PRICE_MAX_CT = 5000;
+const priceFormatters = new Map();
+
+// Local calendar date and hour of an instant in the given time zone.
+const priceSlotKey = (instant, timeZone) => {
+    if (!timeZone || !Number.isFinite(instant.getTime())) return null;
+    try {
+        if (!priceFormatters.has(timeZone)) {
+            priceFormatters.set(timeZone, new Intl.DateTimeFormat("en-CA", {
+                timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hourCycle: "h23",
+            }));
+        }
+        const parts = Object.fromEntries(priceFormatters.get(timeZone).formatToParts(instant).map((part) => [part.type, part.value]));
+        return `${parts.year}-${parts.month}-${parts.day}|${Number(parts.hour)}`;
+    } catch {
+        return null;
+    }
+};
+
+// Map "date|hour" -> ct/kWh from the STATS price list; entries without a known date or a valid price are skipped.
+const buildHourlyPriceIndex = (priceHours, timeContext) => {
+    const index = new Map();
+    if (!Array.isArray(priceHours) || !timeContext) return index;
+    priceHours.forEach((entry) => {
+        const date = entry?.is_tomorrow ? timeContext.tomorrow : timeContext.today;
+        const hour = Number(entry?.hour);
+        const price = typeof entry?.total_price === "number" ? entry.total_price : Number.NaN;
+        if (typeof date !== "string" || !Number.isInteger(hour) || hour < 0 || hour > 23) return;
+        if (!Number.isFinite(price) || price < PRICE_MIN_CT || price > PRICE_MAX_CT) return;
+        index.set(`${date}|${hour}`, price);
+    });
+    return index;
+};
+
+// Price of one plan hour: backend price first, then date and hour. The flat tariff is used only when no hourly price exists at all; an hour without a price stays priceless (null).
+const resolveHourPrice = (point, index, timeZone, flatPrice) => {
+    const backend = point?.price_ct_per_kwh;
+    if (backend !== undefined && backend !== null) return finiteNumber(backend);
+    if (backend === null) return null;
+    if (index && index.size) {
+        const key = priceSlotKey(new Date(point?.timestamp), timeZone);
+        return key !== null && index.has(key) ? index.get(key) : null;
+    }
+    return finiteNumber(flatPrice);
+};
+
 const providerRecommendationInsight = (mobility = {}) => {
     const action = String(mobility.recommended_action || "");
     const reason = String(mobility.recommendation_reason || mobility.reason || "");
@@ -86,7 +133,7 @@ const ModernMobilityPage = {
                 <div v-if="providerNotice" class="mobility-state" role="status"><strong>{{ providerNotice.title }}</strong><span>{{ providerNotice.text }}</span></div>
 
                 <article class="mobility-card mobility-lab">
-                    <header><div><span class="mobility-eyebrow">Interaktives Beratungsszenario</span><h3>Was kostet die nächste Ladung – jetzt oder geplant?</h3><p>Die Regler verändern ausschließlich diese Simulation. Es wird kein Fahrzeug und keine Wallbox geschaltet.</p></div><span class="simulation-chip">Simulation · keine Einspargarantie</span></header>
+                    <header><div><span class="mobility-eyebrow">Interaktives Beratungsszenario</span><h3>Was kostet die nächste Ladung – jetzt oder geplant?</h3><p>Die Regler verändern ausschließlich diese Simulation. Es wird kein Fahrzeug und keine Wallbox geschaltet.</p></div><span class="simulation-chip">{{ plan.simulated ? "Simulation · keine Einspargarantie" : "EAI-Plan" }}</span></header>
                     <div class="mobility-demand-modes" role="group" aria-label="Quelle des Ladebedarfs">
                         <button type="button" :class="{ active: demandMode === 'soc' }" :aria-pressed="demandMode === 'soc' ? 'true' : 'false'" @click="demandMode = 'soc'">Ladestand bekannt</button>
                         <button type="button" :class="{ active: demandMode === 'energy' }" :aria-pressed="demandMode === 'energy' ? 'true' : 'false'" @click="demandMode = 'energy'">Ladeenergie angeben</button>
@@ -102,11 +149,12 @@ const ModernMobilityPage = {
                         <label><span>Ladeeffizienz <strong>{{ chargingEfficiency }} %</strong></span><input v-model.number="chargingEfficiency" type="range" min="70" max="100" step="1" aria-label="Ladeeffizienz in Prozent"></label>
                     </div>
                     <div class="mobility-comparison" aria-live="polite">
-                        <div><span>Sofort laden</span><strong>{{ plan.immediateCost != null ? euro(plan.immediateCost) : "Nicht verfügbar" }}</strong><small>{{ plan.available ? number(plan.requiredEnergy) + " kWh Netzenergie zum aktuellen Preis" : "Providerdaten nicht belastbar" }}</small></div>
+                        <div><span>Sofort laden</span><strong>{{ plan.immediateCost != null ? euro(plan.immediateCost) : "Nicht verfügbar" }}</strong><small>{{ plan.available ? number(plan.chargeableEnergy ?? plan.requiredEnergy) + " kWh Netzenergie zum aktuellen Preis" + (plan.unchargeableEnergy != null ? " · " + number(plan.unchargeableEnergy) + " kWh bis zur Abfahrt nicht ladbar" : "") : "Providerdaten nicht belastbar" }}</small></div>
                         <i>→</i>
                         <div class="recommended"><span>Beratungsplan</span><strong>{{ plan.advisedCost != null ? euro(plan.advisedCost) : "Nicht verfügbar" }}</strong><small>{{ plan.pvAllocationAvailable ? plan.pvShare + " % erwarteter PV-Anteil" : plan.available ? "Netzplanung ohne PV-Aussage" : "PV-Allokation nicht belastbar" }}</small></div>
-                        <div class="saving"><span>Rechnerischer Vorteil</span><strong>{{ plan.saving != null ? euro(animatedSaving) : "Nicht verfügbar" }}</strong><small>{{ plan.available ? "für diesen simulierten Ladevorgang" : "keine belastbare Kostenrechnung" }}</small></div>
+                        <div class="saving"><span>Rechnerischer Vorteil</span><strong>{{ plan.saving != null ? euro(animatedSaving) : "Nicht verfügbar" }}</strong><small>{{ plan.available ? (plan.simulated ? "für diesen simulierten Ladevorgang" : "für den EAI-Ladeplan") : "keine belastbare Kostenrechnung" }}</small></div>
                     </div>
+                    <p v-if="plan.simulated" class="mobility-state" role="status"><strong>Simulation</strong><span>Die gezeigten Stunden weichen vom EAI-Plan ab (Demo-Modus, Regler verändert, EAI-Reglerwerte oder EAI-Stundenwerte unvollständig). Diese Kosten sind eine eigene Rechnung aus den gezeigten Stunden, kein EAI-Wert.</span></p>
                     <p v-if="!plan.providerHoursAvailable" class="mobility-state" role="status">Providerstunden fehlen. Es wird kein Ladefenster und kein Rest-PV erzeugt.</p>
                     <p v-else-if="!plan.available" class="mobility-state" role="status">Der Provider hat die Wallbox-Planung nicht freigegeben oder der Planungszeitraum ist unvollständig.</p>
                     <p v-else-if="!plan.pvAllocationAvailable" class="mobility-state" role="status">Ladebedarf und Netzplanung sind verfügbar. Eine belastbare PV-Zuordnung fehlt; deshalb werden keine PV-Anteile oder PV-Empfehlungen ausgewiesen.</p>
@@ -129,9 +177,9 @@ const ModernMobilityPage = {
                 <div class="mobility-grid">
                     <article class="mobility-card"><span class="mobility-eyebrow">Abfahrt</span><strong>{{ departureLabel }}</strong><p>{{ plan.available ? plan.readiness + " % rechnerische Abfahrtsbereitschaft" : "Abfahrtsbereitschaft nicht verfügbar" }}</p></article>
                     <article class="mobility-card"><span class="mobility-eyebrow">Empfohlenes Fenster</span><strong>{{ recommendationWindow }}</strong><p>{{ recommendationInsight.summary }}</p></article>
-                    <article class="mobility-card"><span class="mobility-eyebrow">Ladebedarf</span><strong>{{ number(plan.requiredEnergy) }} kWh</strong><p>Wallbox-Energie inklusive Ladeverlusten · Frontend-Simulation</p></article>
-                    <article class="mobility-card"><span class="mobility-eyebrow">PV-Anteil</span><strong>{{ plan.pvAllocationAvailable ? number(plan.pvEnergy) + " kWh" : "Nicht verfügbar" }}</strong><p>{{ plan.pvAllocationAvailable ? plan.pvShare + " % des simulierten Ladebedarfs" : "Keine belastbare Provider-Allokation" }}</p></article>
-                    <article class="mobility-card"><span class="mobility-eyebrow">Netzanteil</span><strong>{{ plan.available ? number(plan.gridEnergy) + " kWh" : "Nicht verfügbar" }}</strong><p>{{ plan.available ? "Ergänzung bis zum Ziel · Frontend-Simulation" : "Keine belastbare Stundenplanung" }}</p></article>
+                    <article class="mobility-card"><span class="mobility-eyebrow">Ladebedarf</span><strong>{{ number(plan.requiredEnergy) }} kWh</strong><p>{{ plan.simulated ? "Wallbox-Energie inklusive Ladeverlusten · Frontend-Simulation" : "Wallbox-Energie inklusive Ladeverlusten · EAI-Plan" }}</p></article>
+                    <article class="mobility-card"><span class="mobility-eyebrow">PV-Anteil</span><strong>{{ plan.pvAllocationAvailable ? number(plan.pvEnergy) + " kWh" : "Nicht verfügbar" }}</strong><p>{{ plan.pvAllocationAvailable ? plan.pvShare + (plan.simulated ? " % des simulierten Ladebedarfs" : " % des EAI-Ladebedarfs") : "Keine belastbare Provider-Allokation" }}</p></article>
+                    <article class="mobility-card"><span class="mobility-eyebrow">Netzanteil</span><strong>{{ plan.available ? number(plan.gridEnergy) + " kWh" : "Nicht verfügbar" }}</strong><p>{{ plan.available ? (plan.simulated ? "Ergänzung bis zum Ziel · Frontend-Simulation" : "Ergänzung bis zum Ziel · EAI-Plan") : "Keine belastbare Stundenplanung" }}</p></article>
                     <article class="mobility-card"><span class="mobility-eyebrow">Ziel und Zeitraum</span><strong>{{ departureLabel }}</strong><p>{{ recommendationWindow }}</p></article>
                     <article class="mobility-card"><span class="mobility-eyebrow">Kosten geplant</span><strong>{{ plan.advisedCost != null ? euro(plan.advisedCost) : "Nicht verfügbar" }}</strong><p>{{ plan.pvAllocationAvailable ? "PV mit entgangener Einspeisevergütung, Netz mit Stundenpreis" : plan.available ? "Netzplanung mit Stundenpreisen; ohne PV-Anrechnung" : "Keine belastbare Kostenrechnung" }}</p></article>
                     <article class="mobility-card"><span class="mobility-eyebrow">Passive Signale</span><strong>Automation-ready</strong><p>EAI stellt Sensoren und Binärsensoren bereit. Deine Home-Assistant-Automation entscheidet selbst.</p></article>
@@ -158,9 +206,13 @@ const ModernMobilityPage = {
         const maxPower = ref(11);
         const currentPrice = ref(36.9);
         const feedIn = ref(8.2);
-        const hourlyPrices = ref(Array(24).fill(36.9));
+        const hourlyPriceIndex = ref(new Map());
+        const priceTimeZone = ref(null);
         const tariffSource = ref("Mock-Tarifdaten");
         const animatedSaving = ref(0);
+        // The sliders as loaded from EAI: only this setting reproduces the EAI plan and so its costs.
+        const sliderInputs = () => JSON.stringify([demandMode.value, currentSoc.value, targetSoc.value, batteryCapacity.value, requestedEnergy.value, plannedDistance.value, consumption.value, chargingEfficiency.value]);
+        const eaiSliders = ref(null);
         const scenario = new URLSearchParams(window.location.search).get("eai_scenario");
         const endpoint = (section) => `/api/sfml_stats/modern/eai/${section}${scenario ? `?scenario=${encodeURIComponent(scenario)}` : ""}`;
 
@@ -178,6 +230,9 @@ const ModernMobilityPage = {
                 const unwrap = (response) => response?.success === true ? response.data : response;
                 Object.assign(status, unwrap(statusResponse));
                 const mobilityPayload = unwrap(mobilityResponse);
+                // A new answer replaces the old one: fields it omits must not keep an earlier price or cost.
+                for (const key of Object.keys(mobility)) delete mobility[key];
+                mobility.hours = [];
                 Object.assign(mobility, mobilityPayload?.data || {});
                 if (typeof mobilityPayload?.is_demo === "boolean") {
                     status.is_demo = mobilityPayload.is_demo;
@@ -206,14 +261,10 @@ const ModernMobilityPage = {
                 maxPower.value = valueOrDemo(mobility.max_charging_power_kw, 11);
                 currentPrice.value = valueOrDemo(mobility.electricity_price_ct_per_kwh, 36.9);
                 feedIn.value = valueOrDemo(mobility.feed_in_tariff_ct_per_kwh, 8.2);
-                const embedded = (mobility.hours || []).map(
-                    (point) => finiteNumber(point.price_ct_per_kwh),
-                );
-                hourlyPrices.value = embedded.length && embedded.every((value) => value !== null)
-                    ? embedded
-                    : demo
-                        ? Array(24).fill(36.9)
-                        : [];
+                eaiSliders.value = sliderInputs();
+                // Backend prices travel with each hour (price_ct_per_kwh); the STATS list below is the date-and-hour fallback.
+                hourlyPriceIndex.value = new Map();
+                priceTimeZone.value = null;
                 if (!demo) tariffSource.value = "STATS-Tarifdaten nicht verfügbar";
                 if (!status.is_demo) await loadStatsTariff();
             } catch {
@@ -233,20 +284,17 @@ const ModernMobilityPage = {
             const settings = settingsResult.status === "fulfilled" ? settingsResult.value : {};
             const prices = pricesResult.status === "fulfilled" ? pricesResult.value : {};
             const configured = Number(settings?.price?.energy_price) + Number(settings?.price?.grid_fees);
+            // EAI price entity wins (same validity rule as EAI `_price_ct`: any finite number); STATS values are only the fallback.
+            const providerPrice = finiteNumber(mobility.electricity_price_ct_per_kwh);
             const candidate = [billing?.finance?.avg_price_ct, configured, prices?.total_price].map(Number).find((value) => Number.isFinite(value) && value > 0);
-            if (candidate) currentPrice.value = candidate;
+            if (providerPrice === null && candidate) currentPrice.value = candidate;
             const tariff = Number(settings?.price?.feed_in_tariff ?? billing?.finance?.feed_in_tariff_ct);
             if (Number.isFinite(tariff) && tariff >= 0) feedIn.value = tariff;
-            const pricePoints = (prices?.price_hours || []).filter((point) => !point.is_tomorrow && Number.isFinite(Number(point.total_price)));
-            if (pricePoints.length) {
-                const byHour = new Map(pricePoints.map((point) => [Number(point.hour), Number(point.total_price)]));
-                hourlyPrices.value = Array.from({ length: 24 }, (_, hour) => byHour.get(hour) ?? currentPrice.value);
-            } else {
-                hourlyPrices.value = currentPrice.value === null
-                    ? []
-                    : Array(24).fill(currentPrice.value);
-            }
-            tariffSource.value = billing?.finance?.avg_price_ct ? "gewichteter STATS-Abrechnungspreis und Stundenpreise" : "konfigurierter STATS-Tarif und Stundenpreise";
+            priceTimeZone.value = prices?.time_context?.timezone || null;
+            hourlyPriceIndex.value = buildHourlyPriceIndex(prices?.price_hours, prices?.time_context);
+            tariffSource.value = providerPrice !== null
+                ? "EAI-Strompreis und Stundenpreise"
+                : billing?.finance?.avg_price_ct ? "gewichteter STATS-Abrechnungspreis und Stundenpreise" : "konfigurierter STATS-Tarif und Stundenpreise";
         }
 
         const sampleReason = computed(() => {
@@ -352,13 +400,9 @@ const ModernMobilityPage = {
                 const battery = normalized.values.batteryReserve + normalized.values.calibrationReserve;
                 const confidence = Number(point.forecast_confidence_percent);
                 const uncertainty = Number(point.forecast_uncertainty_percent);
-                const price = finiteNumber(
-                    point.price_ct_per_kwh
-                    ?? hourlyPrices.value[hour]
-                    ?? currentPrice.value,
-                );
+                const price = resolveHourPrice(point, hourlyPriceIndex.value, priceTimeZone.value, currentPrice.value);
                 const temporalValid = normalized.intervalComplete
-                    && [confidence, uncertainty, price].every(Number.isFinite);
+                    && [confidence, uncertainty].every(Number.isFinite);
                 const pvContextValid = normalized.valid
                     && [pv, hp, house, battery].every(Number.isFinite);
                 return {
@@ -401,28 +445,54 @@ const ModernMobilityPage = {
                 pvContextValid: hours.every((point) => point.pvContextValid),
             });
             const { available, pvAllocationAvailable } = planState;
+            const deliveredEnergy = (point, key) => finiteNumber(point.source?.[key]);
+            // Live rest copies the delivered interval energy (EAI mobility.py:1125-1127). It is not scaled by
+            // available_hours and not allocated again (:1161-1184). Anything else keeps the own calculation below.
+            const directPlan = status.is_demo !== true
+                && eaiSliders.value !== null
+                && eaiSliders.value === sliderInputs()
+                && hours.length > 0
+                && hours.every((point) => ["wallbox_kwh", "pv_wallbox_kwh", "grid_wallbox_kwh"].every((key) => deliveredEnergy(point, key) !== null));
+            // Priceless hours are planned last; they never borrow a price from another day.
+            const comparePrice = (a, b) => (a.price === null) - (b.price === null) || (a.price ?? 0) - (b.price ?? 0);
             let remaining = requiredEnergy;
-            if (pvAllocationAvailable) [...hours].sort((a, b) => b.residual - a.residual || a.price - b.price).forEach((point) => {
+            if (directPlan) {
+                hours.forEach((point) => {
+                    point.wallbox = deliveredEnergy(point, "wallbox_kwh");
+                    point.pvWallbox = deliveredEnergy(point, "pv_wallbox_kwh");
+                    point.gridWallbox = deliveredEnergy(point, "grid_wallbox_kwh");
+                });
+            } else if (pvAllocationAvailable) [...hours].sort((a, b) => b.residual - a.residual || comparePrice(a, b)).forEach((point) => {
                 if (remaining <= 0) return;
                 if (!point.beforeDeparture) return;
                 const energy = Math.min(remaining, configuredMaxPower * point.availableHours, point.residual);
                 point.wallbox += energy; point.pvWallbox += energy; remaining -= energy;
             });
-            if (available) [...hours].sort((a, b) => a.price - b.price || a.index - b.index).forEach((point) => {
+            // Same rule as EAI `_price_basis` / `_allocate`: price order only when every planned hour has a price.
+            const planHours = hours.filter((point) => point.beforeDeparture);
+            const derivedBasis = planHours.length && planHours.every((point) => point.price !== null)
+                ? "complete"
+                : planHours.some((point) => point.price !== null) ? "incomplete" : "none";
+            const providerBasis = ["complete", "incomplete", "none"].includes(mobility.price_basis) ? mobility.price_basis : derivedBasis;
+            const hourlyCosts = providerBasis === "complete" && planHours.every((point) => point.price !== null);
+            const gridOrder = hourlyCosts
+                ? [...hours].sort((a, b) => comparePrice(a, b) || a.index - b.index)
+                : [...hours].sort((a, b) => a.index - b.index);
+            if (!directPlan && available) gridOrder.forEach((point) => {
                 if (remaining <= 0) return;
                 if (!point.beforeDeparture) return;
                 const energy = Math.min(remaining, Math.max(0, configuredMaxPower * point.availableHours - point.wallbox));
                 point.wallbox += energy; point.gridWallbox += energy; remaining -= energy;
             });
             const maxEnergy = available ? Math.max(...hours.flatMap((point) => pvAllocationAvailable ? [point.pv, point.house, point.hp, point.battery, point.wallbox] : [point.wallbox]), 1) : 1;
-            const maxPriceValue = available ? Math.max(...hours.map((point) => point.price), 1) : 1;
+            const maxPriceValue = available ? Math.max(...hours.map((point) => point.price ?? 0), 1) : 1;
             hours.forEach((point) => {
                 point.pvHeight = pvAllocationAvailable ? Math.round(point.pv / maxEnergy * 100) : 0;
                 point.houseHeight = pvAllocationAvailable ? Math.round(point.house / maxEnergy * 100) : 0;
                 point.hpHeight = pvAllocationAvailable ? Math.round(point.hp / maxEnergy * 100) : 0;
                 point.batteryHeight = pvAllocationAvailable ? Math.round(point.battery / maxEnergy * 100) : 0;
                 point.evHeight = available ? Math.round(point.wallbox / maxEnergy * 100) : 0;
-                point.priceHeight = available ? Math.round(point.price / maxPriceValue * 100) : 0;
+                point.priceHeight = available && point.price !== null ? Math.max(0, Math.round(point.price / maxPriceValue * 100)) : 0;
             });
             const planned = hours.reduce((sum, point) => sum + point.wallbox, 0);
             const pvEnergy = pvAllocationAvailable ? hours.reduce((sum, point) => sum + point.pvWallbox, 0) : null;
@@ -430,24 +500,66 @@ const ModernMobilityPage = {
             const pvLower = pvAllocationAvailable ? hours.reduce((sum, point) => sum + Math.min(point.pvWallbox, point.residualLower), 0) : null;
             const pvUpper = pvAllocationAvailable ? hours.reduce((sum, point) => sum + Math.min(point.wallbox, point.residualUpper), 0) : null;
             const feedInTariff = finiteNumber(feedIn.value);
-            const advisedCost = available && (!pvAllocationAvailable || feedInTariff !== null)
-                ? hours.reduce((sum, point) => sum + point.gridWallbox * point.price / 100 + point.pvWallbox * (feedInTariff || 0) / 100, 0)
-                : null;
             const immediatePrice = finiteNumber(currentPrice.value);
-            const immediateCost = available && immediatePrice !== null
-                ? requiredEnergy * immediatePrice / 100
+            // Complete hourly prices: grid share at the slot price (like EAI). Otherwise one flat price, as EAI does.
+            const gridHoursPriced = hourlyCosts
+                ? hours.every((point) => point.gridWallbox <= 0 || point.price !== null)
+                : immediatePrice !== null;
+            const advisedCost = available && gridHoursPriced && (!pvAllocationAvailable || feedInTariff !== null)
+                ? hours.reduce((sum, point) => sum + point.gridWallbox * (hourlyCosts ? (point.price ?? 0) : immediatePrice) / 100 + point.pvWallbox * (feedInTariff || 0) / 100, 0)
                 : null;
+            let immediateCost = null;
+            // Only the energy that can be charged before departure is priced (EAI mobility.py `cost_energy`); the rest is shown as not chargeable.
+            const costEnergy = available && requiredEnergy > 0.1 ? planned : requiredEnergy;
+            if (available && (hourlyCosts || immediatePrice !== null)) {
+                if (hourlyCosts) {
+                    // An immediate start fills the slots chronologically from now (EAI mobility.py `hourly_costs`).
+                    let immediateRemaining = costEnergy;
+                    let immediateCostCt = 0;
+                    for (const point of [...hours].filter((item) => item.beforeDeparture).sort((a, b) => a.index - b.index)) {
+                        if (immediateRemaining <= 0.001) break;
+                        const energy = Math.min(immediateRemaining, configuredMaxPower * point.availableHours);
+                        immediateCostCt += energy * point.price;
+                        immediateRemaining -= energy;
+                    }
+                    // Never price an unchargeable remainder at the flat price (Zara: only the chargeable amount).
+                    immediateCost = immediateCostCt / 100;
+                } else {
+                    immediateCost = costEnergy * immediatePrice / 100;
+                }
+            }
             const selected = hours.filter((point) => point.wallbox > 0.01);
             const confidence = available && selected.length ? Math.round(selected.reduce((sum, point) => sum + point.confidence, 0) / selected.length) : null;
             const selectedUncertainty = available && selected.length ? Math.round(selected.reduce((sum, point) => sum + point.uncertainty, 0) / selected.length) : null;
             const uncertainty = selectedUncertainty == null ? null : Math.max(selectedUncertainty, demandMode.value === "distance" ? 25 : demandMode.value === "energy" ? 10 : 5);
-            return { hours, selected, planningWindow, providerAllocation, batteryEnergy, requiredEnergy, pvEnergy, gridEnergy, pvLower, pvUpper, pvShare: pvAllocationAvailable && planned ? Math.round(pvEnergy / planned * 100) : null, immediateCost, advisedCost, saving: available && immediateCost !== null && advisedCost !== null ? Math.max(0, immediateCost - advisedCost) : null, readiness: available ? requiredEnergy ? Math.min(100, Math.round(planned / requiredEnergy * 100)) : 100 : null, confidence, uncertainty, start: selected[0]?.timestamp, end: selected.at(-1)?.intervalEndMs, providerHoursAvailable, sequenceValid, pvAllocationAvailable, available };
+            // EAI costs (mobility.py, rounded to cents) win; the own calculation above is only the fallback when EAI sends null.
+            const eaiCost = (value) => (available && typeof value === "number" && Number.isFinite(value) ? value : null);
+            const eaiImmediate = eaiCost(mobility.estimated_immediate_cost_eur);
+            const eaiAdvised = eaiCost(mobility.estimated_advised_cost_eur);
+            const eaiAdvantage = eaiCost(mobility.estimated_cost_advantage_eur);
+            // Own costs stay with the own bars. A delivered plan uses the EAI costs (mobility.py:535-537).
+            // A null EAI cost falls back to the calculation above, which uses these same bars.
+            const shownImmediate = (directPlan ? eaiImmediate : null) ?? immediateCost;
+            const shownAdvised = (directPlan ? eaiAdvised : null) ?? advisedCost;
+            const shownSaving = (directPlan ? eaiAdvantage : null) ?? (available && shownImmediate !== null && shownAdvised !== null ? Math.max(0, shownImmediate - shownAdvised) : null);
+            const eaiNeed = finiteNumber(mobility.required_energy_kwh);
+            const shownRequired = directPlan && eaiNeed !== null ? eaiNeed : requiredEnergy;
+            // Not chargeable = need minus chargeable energy; unknown stays unknown and is never shown as 0.
+            const eaiChargeable = finiteNumber(mobility.recommended_energy_kwh);
+            const chargeableEnergy = available ? (directPlan ? eaiChargeable : planned) : null;
+            const needForRest = directPlan ? eaiNeed : requiredEnergy;
+            const restRaw = chargeableEnergy !== null && needForRest !== null ? Math.max(0, needForRest - chargeableEnergy) : null;
+            const unchargeableEnergy = restRaw !== null && restRaw > 0.05 ? restRaw : null;
+            const readiness = directPlan
+                ? (eaiNeed ? Math.min(100, Math.round(planned / eaiNeed * 100)) : eaiNeed === 0 ? 100 : null)
+                : (available ? requiredEnergy ? Math.min(100, Math.round(planned / requiredEnergy * 100)) : 100 : null);
+            return { hours, selected, planningWindow, providerAllocation, batteryEnergy, requiredEnergy: shownRequired, chargeableEnergy, unchargeableEnergy, pvEnergy, gridEnergy, pvLower, pvUpper, pvShare: pvAllocationAvailable && planned ? Math.round(pvEnergy / planned * 100) : null, immediateCost: shownImmediate, advisedCost: shownAdvised, saving: shownSaving, simulated: available && !directPlan, readiness, confidence, uncertainty, start: selected[0]?.timestamp, end: selected.at(-1)?.intervalEndMs, providerHoursAvailable, sequenceValid, pvAllocationAvailable, available };
         });
         let animation = null;
         watch(() => plan.value.saving, (target) => {
+            if (animation) { cancelAnimationFrame(animation); animation = null; }
             if (target == null) { animatedSaving.value = 0; return; }
             if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { animatedSaving.value = target; return; }
-            if (animation) cancelAnimationFrame(animation);
             const start = animatedSaving.value;
             const started = performance.now();
             const tick = (now) => { const progress = Math.min(1, (now - started) / 420); animatedSaving.value = start + (target - start) * (1 - Math.pow(1 - progress, 3)); if (progress < 1) animation = requestAnimationFrame(tick); };
@@ -468,18 +580,18 @@ const ModernMobilityPage = {
             if (!plan.value.available) return "Nicht verfügbar";
             const providerStart = Date.parse(mobility.recommended_start);
             const providerEnd = Date.parse(mobility.recommended_end);
-            const start = status.is_demo !== true
+            // The live rest window is the first EAI charging block (mobility.py:1140-1157), not the span from the
+            // first to the last positive hour. A simulation uses the bars' own start and end.
+            const useProviderWindow = status.is_demo !== true
+                && plan.value.simulated !== true
                 && Number.isFinite(providerStart)
-                && Number.isFinite(providerEnd)
+                && Number.isFinite(providerEnd);
+            const start = useProviderWindow
                 ? providerStart
                 : plan.value.start
                     ? Date.parse(plan.value.start)
                     : null;
-            const end = status.is_demo !== true
-                && Number.isFinite(providerStart)
-                && Number.isFinite(providerEnd)
-                ? providerEnd
-                : plan.value.end;
+            const end = useProviderWindow ? providerEnd : plan.value.end;
             if (Number.isFinite(start) && Number.isFinite(end)) {
                 return `${new Date(start).toLocaleTimeString(window.SFMLI18n?.current || "en", { hour: "2-digit", minute: "2-digit" })}–${new Date(end).toLocaleTimeString(window.SFMLI18n?.current || "en", { hour: "2-digit", minute: "2-digit" })}`;
             }
@@ -527,8 +639,8 @@ const ModernMobilityPage = {
         const mobilityPointLabel = (point) => !plan.value.available
             ? `${point.label}, Stundenwerte nicht verfügbar`
             : !plan.value.pvAllocationAvailable
-                ? `${point.label}, Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde, Wallbox-Netzplanung ${number(point.wallbox)} Kilowattstunden, verfügbare Ladezeit ${number(point.availableHours, 2)} Stunden, PV-Zuordnung nicht verfügbar`
-            : `${point.label}, Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde, PV ${number(point.pv)} Kilowattstunden, Haus ${number(point.house)} Kilowattstunden, Wärmepumpe ${number(point.hp)} Kilowattstunden, Speicherreserve ${number(point.battery)} Kilowattstunden, Wallbox ${number(point.wallbox)} Kilowattstunden, davon PV ${number(point.pvWallbox)} Kilowattstunden, verfügbare Ladezeit ${number(point.availableHours, 2)} Stunden`;
+                ? `${point.label}, ${point.price === null ? 'Strompreis nicht verfügbar' : `Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde`}, Wallbox-Netzplanung ${number(point.wallbox)} Kilowattstunden, verfügbare Ladezeit ${number(point.availableHours, 2)} Stunden, PV-Zuordnung nicht verfügbar`
+            : `${point.label}, ${point.price === null ? 'Strompreis nicht verfügbar' : `Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde`}, PV ${number(point.pv)} Kilowattstunden, Haus ${number(point.house)} Kilowattstunden, Wärmepumpe ${number(point.hp)} Kilowattstunden, Speicherreserve ${number(point.battery)} Kilowattstunden, Wallbox ${number(point.wallbox)} Kilowattstunden, davon PV ${number(point.pvWallbox)} Kilowattstunden, verfügbare Ladezeit ${number(point.availableHours, 2)} Stunden`;
         onMounted(load);
         const hT = (k, p) => (window.SFMLI18n?.t?.("hubbleSay." + k, p)) || k;
         const hubbleSay = Vue.computed(() => {
@@ -543,6 +655,8 @@ const ModernMobilityPage = {
 
 if (typeof window !== "undefined") window.ModernMobilityPage = ModernMobilityPage;
 if (typeof module !== "undefined") module.exports = {
+    buildHourlyPriceIndex,
+    resolveHourPrice,
     normalizeMobilityHour,
     assessMobilityPlanState,
     providerRecommendationInsight,
