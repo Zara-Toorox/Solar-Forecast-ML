@@ -588,6 +588,9 @@
     "switch": {
       "pause_learning": {
         "name": "Pausar aprendizaje"
+      },
+      "usage_stats": {
+        "name": "Contador de instalaciones anónimo"
       }
     }
   },

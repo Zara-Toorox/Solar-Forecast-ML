@@ -216,6 +216,8 @@ _ALL_GROUP_TABLES = [
     ("physics_calibration_hourly", "group_name"),
     ("physics_calibration_buckets", "group_name"),
     ("physics_calibration_bucket_hourly", "group_name"),
+    ("physics_calibration_axis", "group_name"),
+    ("physics_calibration_bucket_axis", "group_name"),
     ("physics_calibration_history", "group_name"),
     ("ensemble_group_weights", "group_name"),
     ("group_method_performance", "group_name"),
@@ -1401,6 +1403,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Forward entry setup to platforms @zara
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    from .services.service_usage_stats import async_setup_usage_stats
+
+    async_setup_usage_stats(hass, entry)
 
     try:
         from .core.core_last_reset_statistics_repair import (

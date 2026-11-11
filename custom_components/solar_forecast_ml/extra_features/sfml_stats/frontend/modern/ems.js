@@ -737,7 +737,7 @@ const ModernEMSPage = {
                 if (!disposed) {
                     loading.value = false;
                     if (!/admin/i.test(String(locked.value || ""))) {
-                        timer = window.setInterval(refresh, 30000);
+                        timer = window.setInterval(() => { if (!document.hidden) refresh(); }, 30000);
                     }
                     window.addEventListener("resize", handleResize);
                 }

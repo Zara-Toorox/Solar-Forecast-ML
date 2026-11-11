@@ -3856,12 +3856,13 @@ const _HomePage = {
             ]);
 
             // Refresh intervals
-            flowTimer = setInterval(loadEnergyFlow, 15000);
-            powerTimer = setInterval(loadPowerHistory, 60000);
-            forecastTimer = setInterval(loadForecastData, 60000);
-            shadowTimer = setInterval(loadShadowToday, 15 * 60 * 1000);
-            infoTimer = setInterval(loadInfoPanel, 60000);
-            smartChargingTimer = setInterval(loadSmartChargingStatus, 15000);
+            const visible = (fn) => () => { if (!document.hidden) fn(); };
+            flowTimer = setInterval(visible(loadEnergyFlow), 15000);
+            powerTimer = setInterval(visible(loadPowerHistory), 60000);
+            forecastTimer = setInterval(visible(loadForecastData), 60000);
+            shadowTimer = setInterval(visible(loadShadowToday), 15 * 60 * 1000);
+            infoTimer = setInterval(visible(loadInfoPanel), 60000);
+            smartChargingTimer = setInterval(visible(loadSmartChargingStatus), 15000);
         });
 
         const getConsumerName = (key) => {

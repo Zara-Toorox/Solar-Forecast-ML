@@ -652,6 +652,9 @@
     "switch": {
       "pause_learning": {
         "name": "Lernen pausieren"
+      },
+      "usage_stats": {
+        "name": "Anonymer Installationszähler"
       }
     }
   },

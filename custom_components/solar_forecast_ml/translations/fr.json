@@ -588,6 +588,9 @@
     "switch": {
       "pause_learning": {
         "name": "Suspendre l'apprentissage"
+      },
+      "usage_stats": {
+        "name": "Compteur d'installations anonyme"
       }
     }
   },

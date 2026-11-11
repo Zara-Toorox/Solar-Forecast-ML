@@ -846,7 +846,7 @@ const _WeatherPage = {
         let pollInterval = null;
         onMounted(() => {
             Promise.allSettled([loadDashboard(), loadHistory()]);
-            pollInterval = setInterval(loadDashboard, 60000);
+            pollInterval = setInterval(() => { if (!document.hidden) loadDashboard(); }, 60000);
             window.addEventListener('resize', handleResize);
         });
         onUnmounted(() => {

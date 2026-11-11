@@ -1307,7 +1307,7 @@
                 bridge = new HeatingBridgeClient(window);
                 bridge.mount(bridgeHost.value);
                 refresh();
-                timer = window.setInterval(refresh, 30000);
+                timer = window.setInterval(() => { if (!document.hidden) refresh(); }, 30000);
             });
             Vue.onUnmounted(() => {
                 window.clearInterval(timer);

@@ -125,6 +125,8 @@ EMS_BRIDGE_PANEL_PATH = "sfml-stats-ems-bridge"
 EMS_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/ems-bridge.js?v={VERSION}"
 HEATING_BRIDGE_PANEL_PATH = "sfml-stats-heating-bridge"
 HEATING_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/heating-bridge.js?v={VERSION}"
+CONSUMERS_BRIDGE_PANEL_PATH = "sfml-stats-consumers-bridge"
+CONSUMERS_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/consumers-bridge.js?v={VERSION}"
 API_BRIDGE_PANEL_PATH = "sfml-stats-api-bridge"
 API_BRIDGE_PANEL_URL = f"/api/sfml_stats/static/api-bridge.js?v={VERSION}"
 
@@ -214,6 +216,29 @@ async def _async_register_heating_bridge_panel(hass: HomeAssistant) -> None:
                 "embed_iframe": False,
                 "trust_external": False,
                 "module_url": HEATING_BRIDGE_PANEL_URL,
+            }
+        },
+        require_admin=True,
+        show_in_sidebar=False,
+    )
+
+
+async def _async_register_consumers_bridge_panel(hass: HomeAssistant) -> None:
+    """Register the hidden authenticated admin-only consumers control bridge."""
+    from homeassistant.components import frontend
+
+    if frontend.async_panel_exists(hass, CONSUMERS_BRIDGE_PANEL_PATH):
+        return
+    frontend.async_register_built_in_panel(
+        hass,
+        component_name="custom",
+        frontend_url_path=CONSUMERS_BRIDGE_PANEL_PATH,
+        config={
+            "_panel_custom": {
+                "name": "sfml-stats-consumers-bridge",
+                "embed_iframe": False,
+                "trust_external": False,
+                "module_url": CONSUMERS_BRIDGE_PANEL_URL,
             }
         },
         require_admin=True,
@@ -939,6 +964,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     heating_manager = HeatingManager(hass, entry)
     await heating_manager.async_setup()
+    from .core.consumers import ConsumersManager
+
+    consumers_manager = ConsumersManager(hass, entry)
+    await consumers_manager.async_setup()
 
     # --- Store everything ---
     hass.data[DOMAIN][entry.entry_id] = {
@@ -956,6 +985,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "energy_context_provider": energy_context_provider,
         "ems_manager": ems_manager,
         "heating_manager": heating_manager,
+        "consumers_manager": consumers_manager,
     }
 
     # --- Forward sensor platforms ---
@@ -965,6 +995,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await _async_register_corrections_panel(hass)
     await _async_register_ems_bridge_panel(hass)
     await _async_register_heating_bridge_panel(hass)
+    await _async_register_consumers_bridge_panel(hass)
 
     # --- Update listener ---
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -1168,6 +1199,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     heating_manager = entry_data.get("heating_manager")
     if heating_manager is not None:
         await heating_manager.async_shutdown()
+    consumers_manager = entry_data.get("consumers_manager")
+    if consumers_manager is not None:
+        await consumers_manager.async_shutdown()
 
     ems_manager = entry_data.get("ems_manager")
     if ems_manager is not None and not await ems_manager.async_shutdown():

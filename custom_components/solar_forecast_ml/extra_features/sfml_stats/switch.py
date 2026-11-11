@@ -33,6 +33,10 @@ async def async_setup_entry(
     if heating is not None:
         heating.bind_platforms(sensors=heating._sensor_add, switches=async_add_entities)
         async_add_entities(heating.switch_entities())
+    consumers = data.get("consumers_manager")
+    if consumers is not None:
+        consumers.bind_platforms(sensors=consumers._sensor_add, switches=async_add_entities)
+        async_add_entities(consumers.switch_entities())
 
 
 class SmartChargingEnabledSwitch(SwitchEntity):

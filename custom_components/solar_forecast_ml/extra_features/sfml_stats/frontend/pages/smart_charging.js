@@ -1609,7 +1609,7 @@ const SmartChargingPage = ((Vue) => {
                 loadData();
                 loadSettings();
                 loadGpmStatus();
-                pollInterval = setInterval(loadData, 5000);
+                pollInterval = setInterval(() => { if (!document.hidden) loadData(); }, 5000);
                 window.addEventListener('resize', handleResize);
             });
 

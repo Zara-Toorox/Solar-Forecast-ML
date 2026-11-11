@@ -1214,6 +1214,7 @@ window.SFMLLocales = {
             exports: {
                 title: "Datenexport",
                 badge: "CSV / ZIP",
+                premium: "Premium-Lizenz erforderlich",
                 solar: "Solar",
                 energy: "Energieflüsse",
                 billing: "Kosten & Abrechnung",
@@ -3141,6 +3142,7 @@ window.SFMLLocales = {
             exports: {
                 title: "Data export",
                 badge: "CSV / ZIP",
+                premium: "Premium licence required",
                 solar: "Solar",
                 energy: "Energy flows",
                 billing: "Costs & billing",
@@ -5069,6 +5071,7 @@ window.SFMLLocales = {
             exports: {
                 title: "Eksport danych",
                 badge: "CSV / ZIP",
+                premium: "Wymagana licencja premium",
                 solar: "Solar",
                 energy: "Przepływy energii",
                 billing: "Koszty i rozliczenia",

@@ -306,6 +306,7 @@ const SettingsPage = {
                         <span class="accordion-icon">{{ openSection === 'exports' ? '\u25BE' : '\u25B8' }}</span>
                         <span class="accordion-title">{{ $t('settings.exports.title') }}</span>
                         <span class="accordion-badge neutral">{{ $t('settings.exports.badge') }}</span>
+                        <span class="accordion-badge neutral">{{ $t('settings.exports.premium') }}</span>
                     </button>
                     <div class="accordion-body" v-show="openSection === 'exports'">
                         <div class="export-grid">

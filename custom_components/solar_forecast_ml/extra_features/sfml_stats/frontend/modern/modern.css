@@ -358,6 +358,22 @@ textarea:focus-visible,
     background: var(--premium);
 }
 
+.nav-item small {
+    margin-left: auto;
+    font-size: 0.68rem;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--text-muted);
+}
+
+.nav-item.premium-item small {
+    color: var(--premium);
+}
+
+.nav-item.premium-item:has(small)::after {
+    margin-left: 8px;
+}
+
 .nav-item.premium-item .ui-icon {
     color: var(--premium);
 }

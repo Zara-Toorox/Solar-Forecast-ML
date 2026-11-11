@@ -38,6 +38,7 @@ const ICON_PATHS = {
     inverter: "M3 7h18v12H3zM7 7V4h10v3M8 13h3M13 13h3M12 13v3",
     heatpump: "M4 7h10v10H4zM14 10h4l2 2v5h-6M7 10h4M7 13h4M6 20h2M16 20h2",
     heating: "M6 3v18M10 3v18M14 3v18M18 3v18M4 7h16M4 17h16",
+    loads: "M9 3v5M15 3v5M6 8h12v4a6 6 0 0 1-12 0V8ZM12 18v3",
     mobility: "M5 15h14l-1.5-5h-11L5 15Zm2-5 2-4h6l2 4M7 15v3M17 15v3M8 18h.01M16 18h.01M20 9h2v5M22 9V6",
     charge: "M7 7V3M17 7V3M5 7h14v4a7 7 0 0 1-7 7v3M8 21h8",
     settings: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.38.2.73.32 1.1.4h.5v4h-.09A1.7 1.7 0 0 0 19.4 15Z",
@@ -102,6 +103,7 @@ const COPY = {
             smart_charging: ["Smart Charging", "Ladeentscheidung, Preise und Batterieziel"],
             hybrid_forecast: ["Hybrid-Prognose", "Was gilt, was heute gelaufen ist, und die Einstellung"],
             ems: ["EMS", "Was jetzt sinnvoll ist"],
+            loads: ["Verbraucher", "Geräte automatisch nach PV-Überschuss und Strompreis schalten"],
             settings: ["Systemstatus", "Konfiguration, Sensoren und Datenqualität"],
             corrections: ["Korrekturen", "Premium · geprüfte Tageswerte berichtigen"],
             statistics: ["Statistik", "Kennzahlen über frei wählbare Zeiträume"],
@@ -124,6 +126,7 @@ const COPY = {
         more: "Mehr",
         help: "Hilfe",
         licenseLabel: "Lizenz",
+        license: { demo: "Demo", locked: "🔒 Premium", partial: "Teils Premium" },
     },
     en: {
         product: "Hubble",
@@ -145,6 +148,7 @@ const COPY = {
             smart_charging: ["Smart Charging", "Charge decision, prices and battery target"],
             hybrid_forecast: ["Hybrid forecast", "What applies, what ran today, and the setting"],
             ems: ["EMS", "What makes sense right now"],
+            loads: ["Smart loads", "Switch devices automatically by PV surplus and electricity price"],
             settings: ["System Status", "Configuration, sensors and data quality"],
             corrections: ["Corrections", "Premium · correct verified daily values"],
             statistics: ["Statistics", "Figures over any period you choose"],
@@ -167,6 +171,7 @@ const COPY = {
         more: "More",
         help: "Help",
         licenseLabel: "License",
+        license: { demo: "Demo", locked: "🔒 Premium", partial: "Partly premium" },
     },
     pl: {
         product: "Hubble",
@@ -188,6 +193,7 @@ const COPY = {
             smart_charging: ["Smart Charging", "Decyzja ładowania, ceny i cel baterii"],
             hybrid_forecast: ["Prognoza hybrydowa", "Co obowiązuje, co dziś się wykonało i ustawienie"],
             ems: ["EMS", "Co teraz ma sens"],
+            loads: ["Odbiorniki", "Automatyczne włączanie urządzeń według nadwyżki PV i ceny prądu"],
             settings: ["Stan systemu", "Konfiguracja, czujniki i jakość danych"],
             corrections: ["Korekty", "Premium · korekta zweryfikowanych wartości dziennych"],
             statistics: ["Statystyka", "Wskaźniki dla dowolnie wybranego okresu"],
@@ -210,6 +216,7 @@ const COPY = {
         more: "Więcej",
         help: "Pomoc",
         licenseLabel: "Licencja",
+        license: { demo: "Demo", locked: "🔒 Premium", partial: "Częściowo premium" },
     },
 };
 
@@ -436,14 +443,14 @@ const ModernApp = {
                     <div v-for="section in navigation" :key="section.id" class="nav-section">
                         <div class="nav-section-label">{{ copy.sections[section.id] }}</div>
                         <button v-for="item in section.items" :key="item.id" type="button"
-                                class="nav-item" :class="{ active: currentPage === item.id, 'premium-item': item.premium, disabled: item.admin && !isAdmin }"
+                                class="nav-item" :class="{ active: currentPage === item.id, 'premium-item': item.license, disabled: item.admin && !isAdmin }"
                                 :aria-current="currentPage === item.id ? 'page' : null"
                                 :title="item.admin && !isAdmin ? 'Nur Administrator' : undefined"
                                 @click="navigate(item.id)">
                             <ui-icon :name="item.icon"></ui-icon>
                             <span>{{ pageCopy(item.id)[0] }}</span>
-                            <small v-if="item.panel && !premiumCorrections">🔒 Premium</small>
-                            <small v-else-if="item.admin && !isAdmin">Nur Admin</small>
+                            <small v-if="item.admin && !isAdmin">Nur Admin</small>
+                            <small v-else-if="item.license && !premiumCorrections">{{ copy.license[item.license] }}</small>
                         </button>
                     </div>
                 </nav>
@@ -615,7 +622,7 @@ const ModernApp = {
                 id: "overview",
                 items: [
                     { id: "home", icon: "home" },
-                    { id: "dashboard", icon: "solar", premium: true },
+                    { id: "dashboard", icon: "solar", license: "demo" },
                 ],
             },
             {
@@ -624,29 +631,30 @@ const ModernApp = {
                     { id: "solar", icon: "solar" },
                     { id: "quality", icon: "quality" },
                     { id: "weather", icon: "weather" },
-                    { id: "eai_weather", icon: "weather", premium: true },
+                    { id: "eai_weather", icon: "weather", license: "demo" },
                     { id: "energy", icon: "energy" },
-                    { id: "sinv", icon: "inverter" },
-                    { id: "gpm", icon: "energy", premium: true },
-                    { id: "statistics", icon: "quality", premium: true },
-                    { id: "tomorrow", icon: "play", premium: true, panel: true },
+                    { id: "sinv", icon: "inverter", license: "partial" },
+                    { id: "gpm", icon: "energy" },
+                    { id: "statistics", icon: "quality", license: "locked" },
+                    { id: "tomorrow", icon: "play", license: "demo" },
                 ],
             },
             {
                 id: "control",
                 items: [
-                    { id: "eai", icon: "heatpump", premium: true, feature: "heat_pump" },
-                    { id: "heating", icon: "heating", premium: true, admin: true, feature: "heating" },
-                    { id: "mobility", icon: "mobility", premium: true, feature: "wallbox" },
+                    { id: "eai", icon: "heatpump", license: "demo", feature: "heat_pump" },
+                    { id: "heating", icon: "heating", license: "locked", admin: true, feature: "heating" },
+                    { id: "mobility", icon: "mobility", license: "demo", feature: "wallbox" },
                     { id: "smart_charging", icon: "charge" },
                     { id: "hybrid_forecast", icon: "trend" },
-                    { id: "ems", icon: "energy", premium: true, admin: true },
+                    { id: "ems", icon: "energy", license: "demo", admin: true },
+                    { id: "loads", icon: "loads", license: "demo", admin: true },
                 ],
             },
             {
                 id: "system",
                 items: [
-                    { id: "corrections", icon: "settings", premium: true, panel: true },
+                    { id: "corrections", icon: "settings", license: "locked" },
                     { id: "settings", icon: "settings" },
                 ],
             },
@@ -702,6 +710,7 @@ const ModernApp = {
             smart_charging: window.SmartChargingPage,
             hybrid_forecast: window.HybridForecastPage,
             ems: window.ModernEMSPage,
+            loads: window.LoadsPage,
             corrections: window.ModernCorrectionsPage,
             statistics: window.ModernStatisticsPage,
             settings: window.SettingsPage,
@@ -957,10 +966,11 @@ const ModernApp = {
         function startShellPolling() {
             if (pollTimer !== null) return;
             fetchData();
-            pollTimer = window.setInterval(fetchData, 10000);
+            pollTimer = window.setInterval(() => { if (!document.hidden) fetchData(); }, 10000);
             freshnessTimer = window.setInterval(() => {
                 if (
-                    connectionState.value === "live"
+                    !document.hidden
+                    && connectionState.value === "live"
                     && lastUpdated.value
                     && Date.now() - lastUpdated.value.getTime() > 30000
                 ) {
@@ -976,6 +986,10 @@ const ModernApp = {
                 startShellPolling();
             }
         }
+
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden && pollTimer !== null) fetchData();
+        });
 
         const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
         const handleColorScheme = (event) => {
