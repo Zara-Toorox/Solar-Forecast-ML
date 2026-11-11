@@ -72,15 +72,21 @@ def bind_identity(hass: HomeAssistant, entry: ConfigEntry) -> str:
 
 
 def same_target(
-    entries, host: str, port: int, unit_id: int, *, skip: str | None
+    entries,
+    host: str,
+    port: int,
+    unit_id: int,
+    *,
+    skip: str | None,
+    vendor: str = stiebel_isg.VENDOR,
 ) -> bool:
-    """Return True when another ISG entry already uses this target. @zara"""
+    """Return True when another entry of ``vendor`` already uses this target. @zara"""
     wanted = normalize_host(host).casefold()
     for entry in entries:
         if getattr(entry, "entry_id", None) == skip:
             continue
         data = getattr(entry, "data", None) or {}
-        if data.get(CONF_VENDOR) != stiebel_isg.VENDOR:
+        if data.get(CONF_VENDOR) != vendor:
             continue
         try:
             other = normalize_host(str(data.get(CONF_HOST, ""))).casefold()

@@ -225,3 +225,25 @@
   .ems-analysis-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
   .ems-analysis-tabs button { padding-inline: 8px; }
 }
+.ems-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; max-width: 100%; }
+.ems-tabs button { min-height: 44px; white-space: nowrap; border: 1px solid var(--border-default); border-radius: 8px; padding: 9px 13px; background: var(--bg-card); color: var(--text-secondary); cursor: pointer; font: inherit; }
+.ems-tabs button.active { border-color: var(--accent); color: var(--text-primary); background: color-mix(in srgb, var(--accent) 14%, var(--bg-card)); }
+.ems-tab-panel, .ems-tab-live { display: grid; gap: 16px; min-width: 0; max-width: 100%; }
+.ems-hero-band { display: grid; gap: 8px; min-width: 0; padding: 18px; border: 1px solid var(--border-default); border-radius: var(--radius-xl, 16px); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--bg-card)), var(--bg-card)); box-shadow: var(--glass-shadow); }
+.ems-hero-band h3, .ems-hero-band p { margin: 0; }
+.ems-hero-band h3 { color: var(--text-primary); font-size: 1.35rem; }
+.ems-hero-band p { color: var(--text-secondary); line-height: 1.45; }
+.ems-hero-band .ems-hero-kicker { color: var(--accent); font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.ems-hero-band .ems-hero-lead, .ems-hero-band .ems-hero-close { color: var(--text-primary); font-weight: 700; }
+.ems-mode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; min-width: 0; }
+.ems-mode-tile { min-width: 0; border: 1px solid var(--border-default); border-radius: var(--radius-xl, 16px); background: var(--bg-card); padding: 14px; display: grid; gap: 12px; align-content: start; box-shadow: var(--glass-shadow); }
+.ems-mode-tile header { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.ems-mode-tile header strong { color: var(--text-primary); overflow-wrap: anywhere; }
+.ems-mode-tile .ems-tile-does { margin: 0; color: var(--text-primary); font-weight: 650; }
+.ems-mode-tile .ems-tile-good { margin: 0; color: var(--text-secondary); font-size: .82rem; }
+.ems-tile-actions { display: flex; justify-content: flex-end; }
+.ems-tile-actions button { min-height: 44px; border-radius: 8px; border: 1px solid var(--border-default); background: var(--bg-elevated, var(--bg-card)); color: var(--text-primary); cursor: pointer; padding: 0 12px; font: inherit; }
+.ems-soft-pill { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border-default); color: var(--text-secondary); font-size: .76rem; font-weight: 750; }
+.ems-tab-panel .page-smart-charging { margin: 0; }
+.ems-tabs button:focus-visible, .ems-tile-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ems-smc-intro { margin-bottom: var(--space-lg, 16px); }

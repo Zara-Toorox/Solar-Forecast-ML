@@ -4,14 +4,14 @@
     const OPERATIONS = new Set(["status", "saveSettings", "acknowledge", "addConsumer", "updateConsumer", "deleteConsumer", "setActive", "resume", "arm", "disarm"]);
     const CONDITION_TYPES = ["pv_surplus", "cheapest_hours", "price_below", "time_window", "battery_soc_min"];
     const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
-    const CONSUMER_FIELDS = ["name", "kind", "priority", "nominal_power_w", "min_surplus_w", "entity_id", "ready_entity", "match", "conditions", "min_runtime_min", "min_off_min", "deadline", "duration_min", "objective", "earliest_day"];
+    const CONSUMER_FIELDS = ["name", "kind", "priority", "nominal_power_w", "min_surplus_w", "entity_id", "ready_entity", "match", "conditions", "min_runtime_min", "min_off_min", "deadline", "duration_min", "objective", "earliest_day", "door_entity", "door_openings"];
 
     const I18N = {
         de: {
             title: "Verbraucher",
             tabsLabel: "Bereiche der Verbraucher-Seite",
             "tab.devices": "Geräte", "tab.log": "Protokoll", "tab.settings": "Einstellungen",
-            "introKicker": "Premium · Verbraucher",
+            "introKicker": "Premium · Programme & Regeln",
             "introTitle": "Geräte schalten, wenn es sich lohnt",
             "introLead": "Trag deine Geräte ein und sag, wann sie laufen sollen.",
             "introBody": "Ich prüfe jede Minute PV-Überschuss, Strompreis, Uhrzeit und Batteriestand und schalte ein Gerät genau dann ein, wenn deine Bedingungen erfüllt sind. Programmgeräte wie die Spülmaschine bekommen ein Startfenster bis zu deiner Frist.",
@@ -37,6 +37,12 @@
             "guide.priority": "Eine kleine Zahl heißt: zuerst. Die Priorität entscheidet, welches Gerät den Überschuss zuerst bekommt. Wallbox, Wärmepumpe und Batterie aus dem EMS laufen unabhängig davon, ihr Verbrauch senkt den messbaren Überschuss.",
             "guide.protectTitle": "Schutz für deine Geräte",
             "guide.protect": "Mindestlaufzeit und Mindestpause verhindern ständiges Takten, höchstens 6 Schaltungen pro Stunde und ein Start pro Durchlauf. Schaltest du ein Gerät selbst, pausiere ich es zwei Stunden. Mit dem Gesamtschalter in den Einstellungen stoppt alles sofort.",
+            "fDoor": "Tür-Sensor (optional)", "fDoorOpenings": "Öffnungen bis bereit", "helpDoor": "Mit Tür-Sensor meldet sich das Gerät selbst bereit: Nach einem Lauf zählt jede Öffnung, beim Schließen nach der eingestellten Zahl wird geplant. Erst Ausräumen, dann Einräumen heißt 2. Ohne Sensor bleibt „Beladen, jetzt planen“.", "doorCount": "Tür {n}/{m} geöffnet seit dem letzten Lauf", "reason.door": "Tür: beladen erkannt", "guide.doorTitle": "Tür-Erkennung", "guide.door": "Trägst du bei einem Programmgerät einen Tür-Sensor ein, zähle ich nach einem beendeten Lauf, wie oft die Tür geöffnet wird. Wird sie nach der eingestellten Zahl von Öffnungen wieder geschlossen, gilt das Gerät als beladen und ich plane den Start. Das ist eine Schätzung: Öffnest du die Tür ohne zu beladen, kann eine Leerfahrt entstehen. Ohne Tür-Sensor meldest du das Gerät mit „Beladen, jetzt planen“ bereit, hier oder auf der Dashboard-Karte.",
+            "view.start": "Start", "view.surplus": "Überschuss", "view.price": "Preis", "view.loads": "Programme & Regeln", "view.log": "Protokoll", "intro.surplus": "Hier stehen Geräte mit An/Aus-Schalter, die laufen, sobald deine Anlage mehr erzeugt, als das Haus braucht. Ein Gerät steht immer nur in einem Reiter, so schaltet nichts doppelt.", "intro.price": "Hier stehen Geräte mit An/Aus-Schalter, die in einem Preisfenster laufen: unter einem Preis oder in den günstigsten Stunden, auf Wunsch nur in einem Zeitraum. Ein Gerät steht immer nur in einem Reiter.", "addSurplus": "Überschuss-Gerät hinzufügen", "addPrice": "Preis-Gerät hinzufügen", "empty.surplus": "Noch kein Gerät, das bei Überschuss läuft.", "empty.price": "Noch kein Gerät mit Preisfenster.", "empty.loads": "Noch kein Programmgerät und keine eigene Regel.", "helpPriceWindow": "Das Gerät läuft, solange das Preisfenster passt, und schaltet danach wieder aus.", "fPriceMode": "Preisfenster", "priceModeBelow": "Unter einem Preis", "priceModeCheapest": "Günstigste Stunden", "useWindow": "Nur in einem Zeitraum", "useWindowHelp": "Zum Beispiel nur nachts von 22:00 bis 06:00.", "mode.surplus.title": "Überschuss", "mode.surplus.does": "Schaltet Geräte mit An/Aus-Schalter ein, wenn deine Anlage mehr erzeugt, als das Haus braucht.", "mode.surplus.good": "Gut für Boiler, Heizstab oder Poolpumpe: Strom, den du sonst für wenig Geld einspeist.", "mode.price.title": "Preis", "mode.price.does": "Schaltet Geräte in einem Preisfenster ein: unter einem Preis oder in den günstigsten Stunden.", "mode.price.good": "Gut mit dynamischem Tarif für alles, was in billigen Stunden laufen kann.", "mode.loads.title": "Programme & Regeln", "mode.loads.does": "Programmgeräte wie Spül- oder Waschmaschine bekommen ein Startfenster bis zu deiner Frist, dazu eigene Regeln mit mehreren Bedingungen.", "mode.loads.good": "Gut für Geräte, die einmal starten und durchlaufen, auch mit Tür-Erkennung.", "modeCount": "{n} aktiv", "open": "Öffnen", "settingsTitle": "Einstellungen",
+            "hubble.demo": "Das sind Beispieldaten, mit Premium siehst du hier deine Geräte.", "hubble.startHead": "Ich steuere gerade {n} Geräte für dich.", "hubble.startEmpty": "Noch steuere ich keine Geräte für dich.", "hubble.nextDevice": "Als Nächstes startet {name} um {time}.", "hubble.surplusNow": "Gerade gehen {v} Überschuss ins Netz.", "hubble.surplusEmpty": "Hier trägst du Geräte ein, die deinen Sonnenstrom nutzen sollen.", "hubble.surplusMissing": "Mir fehlt gerade das Überschusssignal, deshalb bleiben die Geräte aus.", "hubble.surplusRunning": "Gerade laufen {n} Geräte mit deinem Überschuss.", "hubble.surplusIdle": "Der Überschuss reicht gerade für kein Gerät.", "hubble.surplusHow": "Ein Gerät startet, wenn sein Mindest-Überschuss etwa zwei Minuten stabil anliegt.", "hubble.priceEmpty": "Hier trägst du Geräte ein, die laufen, wenn Strom günstig ist.", "hubble.priceMissing": "Mir fehlt gerade der Strompreis, deshalb bleiben die Geräte aus.", "hubble.priceNow": "Strom kostet gerade {v} ct/kWh.", "hubble.priceTomorrow": "Die Preise für morgen kommen meist am Nachmittag.", "hubble.programRunning": "{name} läuft gerade.", "hubble.programPlanned": "{name} startet um {time}.", "hubble.programWaiting": "Gerade wartet kein Programm auf seinen Start.", "hubble.programEmpty": "Hier trägst du Programmgeräte wie die Spülmaschine ein.", "hubble.programDoor": "Bei {name} wurde die Tür {n} von {m} Mal geöffnet.", "hubble.programHow": "Drücke nach dem Beladen „Beladen, jetzt planen“, oder lass die Tür das erledigen.", "hubble.logToday": "Heute habe ich {n} Mal geschaltet.", "hubble.logQuiet": "Heute habe ich noch nichts geschaltet.", "hubble.logLast": "Zuletzt: {name}, {action} um {time}, {reason}.",
+            "hubble.startHeadOne": "Ich steuere gerade ein Gerät für dich.", "hubble.surplusRunningOne": "Gerade läuft ein Gerät mit deinem Überschuss.", "hubble.logTodayOne": "Heute habe ich einmal geschaltet.",
+            "view.live": "Live", "view.akku": "Akku (SMC)", "intro.start.kicker": "Energiemanagement", "intro.start.title": "Was das EMS für dich steuert", "intro.start.lead": "Dein Solarstrom und günstiger Netzstrom gehen dorthin, wo sie am meisten bringen.", "intro.start.body": "Jeder Bereich hat seinen eigenen Reiter: Live, Akku, Überschuss, Preis sowie Programme & Regeln. Ein Gerät gehört immer nur zu einem Bereich, deshalb schaltet nichts doppelt.", "intro.start.close": "Wähle unten einen Bereich, um ihn einzurichten oder nachzusehen, was gerade passiert.", "intro.start.guide": "So funktioniert das EMS", "intro.live.kicker": "Live", "intro.live.title": "Was das EMS gerade plant", "intro.live.lead": "Hier siehst du, was jetzt sinnvoll ist, warum, und was als Nächstes kommt.", "intro.live.body": "Ich rechne mit deiner Solarprognose, dem Strompreis und dem Akkustand. Die EMS-Automatik schaltet nur Wallbox, Wärmepumpe und die Akku-Netzladung des EMS.", "intro.live.close": "Geräte unter Überschuss, Preis sowie Programme & Regeln steuerst du in ihren eigenen Reitern.", "intro.live.guide": "So funktioniert die EMS-Automatik", "intro.surplus.kicker": "Überschuss", "intro.surplus.title": "Sonnenstrom selbst nutzen", "intro.surplus.lead": "Geräte mit An/Aus-Schalter laufen, sobald deine Anlage mehr erzeugt, als das Haus braucht.", "intro.surplus.body": "Trag Leistung und Mindest-Überschuss ein. Ich schalte ein, wenn genug Strom ins Netz ginge, und wieder aus, wenn es nicht mehr reicht. Reicht der Überschuss nicht für alle, entscheidet die Priorität.", "intro.surplus.close": "Ein Gerät steht immer nur in einem Reiter, so schaltet nichts doppelt.", "intro.surplus.guide": "So funktioniert der Überschuss", "intro.price.kicker": "Preis", "intro.price.title": "Strom nutzen, wenn er günstig ist", "intro.price.lead": "Geräte mit An/Aus-Schalter laufen in deinem Preisfenster.", "intro.price.body": "Wähle „Unter einem Preis“ oder „Günstigste Stunden“ und auf Wunsch einen Zeitraum, zum Beispiel nur nachts. Die Preise kommen aus dem Grid Price Monitor.", "intro.price.close": "Ein Gerät steht immer nur in einem Reiter, so schaltet nichts doppelt.", "intro.price.guide": "So funktioniert das Preisfenster", "intro.loads.kicker": "Programme & Regeln", "intro.loads.title": "Geräte schalten, wenn es sich lohnt", "intro.loads.lead": "Programmgeräte bekommen ein Startfenster, eigene Regeln verbinden mehrere Bedingungen.", "intro.loads.body": "Spül- oder Waschmaschine startest du nicht mehr selbst: Nach dem Beladen suche ich den besten Start bis zu deiner Frist, nach Preis, PV oder beidem. Für alles andere kombinierst du Bedingungen wie Überschuss, Preis, Zeitfenster und Akkustand.", "intro.loads.close": "Du behältst die Kontrolle: Jedes Gerät hat seinen eigenen Schalter, und was du von Hand schaltest, geht immer vor.", "intro.loads.guide": "So funktionieren Programme und Regeln", "intro.log.kicker": "Protokoll", "intro.log.title": "Was wann geschaltet wurde", "intro.log.lead": "Jede Schaltung steht hier mit Uhrzeit, Grund und Messwerten.", "intro.log.body": "So kannst du jederzeit nachvollziehen, warum ein Gerät lief oder aus blieb, und ob ein Schaltbefehl angekommen ist.", "intro.log.close": "Die neuesten Einträge stehen oben, gespeichert werden die letzten 250.", "intro.log.guide": "So liest du das Protokoll", "guide.startAreasTitle": "Die Bereiche", "guide.startAreas": "Live zeigt, was das EMS gerade plant. Akku (SMC) lädt den Akku in günstigen Stunden aus dem Netz. Überschuss schaltet Geräte mit Sonnenstrom, Preis in günstigen Stunden. Programme & Regeln startet Spül- und Waschmaschine und verbindet mehrere Bedingungen.", "guide.startOneTabTitle": "Ein Gerät, ein Bereich", "guide.startOneTab": "Der Reiter eines Geräts ergibt sich aus seinen Regeln. Ein Gerät taucht deshalb nie in zwei Reitern auf und wird nie doppelt geschaltet.", "guide.startSafetyTitle": "Was dich schützt", "guide.startSafety": "Ich schalte erst, wenn du den Haftungshinweis bestätigt und das Gerät aktiviert hast. Fehlen Daten, bleibt es aus. Schaltest du selbst, pausiere ich. Der Gesamtschalter unter Programme & Regeln stoppt alles.", "guide.liveModesTitle": "Beobachten, Bestätigen, Automatik", "guide.liveModes": "Beim Beobachten plant und erklärt das EMS nur. Beim Bestätigen schlägt es Schaltungen vor, die du einzeln freigibst. In der Automatik schaltet es freigegebene Geräte selbst.", "guide.liveDevicesTitle": "Welche Geräte das EMS schaltet", "guide.liveDevices": "Nur Wallbox, Wärmepumpe und die Akku-Netzladung des EMS, und auch die nur, wenn du sie unter Geräte freigegeben hast. Geräte aus den anderen Reitern haben ihren eigenen Schalter.", "guide.liveSafetyTitle": "Prüfung vor jeder Schaltung", "guide.liveSafety": "Vor jeder Schaltung prüft das EMS Freigabe, Datenlage und Schutzregeln erneut. Nach einer Handbedienung pausiert es das Gerät.", "guide.liveChartTitle": "Prognose und Deckung lesen", "guide.liveChart": "Das Diagramm zeigt pro Stunde PV-Ertrag, Bedarf und Strompreis. Daraus ergibt sich, wann Laden, Heizen oder Fahren am günstigsten ist.", "guide.logReasonsTitle": "Gründe lesen", "guide.logReasons": "Jeder Eintrag nennt die Regel, die gegriffen hat, zum Beispiel „PV-Überschuss reicht“ oder „Günstige Stunde“, dazu Überschuss, Preis oder Akkustand im Moment der Schaltung.", "guide.logManualTitle": "Von Hand geschaltet", "guide.logManual": "Schaltest du ein Gerät selbst, steht hier „Pausiert“. Ich greife dann zwei Stunden nicht ein oder bis du „Fortsetzen“ drückst.", "guide.logFailedTitle": "Schalten fehlgeschlagen", "guide.logFailed": "Hat ein Gerät den Befehl nicht angenommen, steht hier der Fehler. Prüfe dann, ob es erreichbar ist und, bei Programmgeräten, ob Fernstart aktiv ist.", "mode.live.title": "Live und Automatik", "mode.live.does": "Was jetzt sinnvoll ist, warum, und was als Nächstes kommt.", "mode.live.good": "Gut, um auf einen Blick zu sehen, was heute passiert.", "mode.akku.title": "Akku (SMC)", "mode.akku.does": "Smart Charging lädt den Akku in günstigen Stunden aus dem Netz, wenn die Sonne den Bedarf nicht deckt.", "mode.akku.good": "Gut mit dynamischem Tarif und schwacher Sonnenprognose.", "hubble.programRunningUntil": "Es ist voraussichtlich gegen {time} fertig.", "hubble.programRunningHow": "Ein laufendes Programm breche ich nie ab.", "hubble.programPlannedHow": "Fertig bis {deadline}, gewählt nach {goal}. Zum Verschieben drückst du beim Gerät „Planung abbrechen“.", "goal.price": "günstigstem Preis", "goal.pv": "meister PV", "goal.both": "Preis und PV",
+            "intro.akku.kicker": "Akku (SMC)", "intro.akku.title": "Den Akku aus dem Netz laden, wenn es sich rechnet", "intro.akku.lead": "Hubble schaltet die Netzladung deines Akkus ein und aus, so wie es für dich am meisten bringt.", "intro.akku.body": "Dafür arbeiten vier Module zusammen: GPM kennt den Strompreis, STATS kennt Akkustand und Hausverbrauch, EAI kennt deinen durchschnittlichen Hausverbrauch für Wochentag und Jahreszeit, und SFML liefert die Solarprognose. Zusammen mit deinem Ziel, zum Beispiel Wirtschaftlichkeit oder Zielladung, entscheidet Hubble, ob sich die Netzladung gerade lohnt.", "intro.akku.close": "Reicht die Sonne, bleibt die Netzladung aus. Fehlen Preis oder Akkustand, lädt Hubble nicht aus dem Netz.", "intro.akku.guide": "So funktioniert Smart Charging", "guide.smcSourcesTitle": "Woher die Daten kommen", "guide.smcSources": "Grid Price Monitor (GPM) liefert den Strompreis jeder Stunde und deine Preisschwellen. STATS misst Akkustand und Hausverbrauch. EAI kennt deinen durchschnittlichen Verbrauch für Wochentag und Jahreszeit. Solar Forecast ML (SFML) sagt voraus, wie viel die Sonne heute und morgen liefert.", "guide.smcModesTitle": "Dein Ziel: die Modi", "guide.smcModes": "„Nur die Lücke“ lädt nur so viel, wie Sonne und Akku für den erwarteten Verbrauch nicht decken. „Bis zum Zielstand“ lädt in einer günstigen Stunde bis zu deinem Zielstand. „Beides“ verbindet die zwei.", "guide.smcLimitsTitle": "Zielstand, Unter- und Obergrenze", "guide.smcLimits": "Der Zielstand gilt in günstigen Stunden. Die Untergrenze ist der niedrigste Zielstand, die Obergrenze wird aus dem Netz nie überschritten.", "guide.smcForceTitle": "Preisgrenze und Force-Preis", "guide.smcForce": "Unter der Preisgrenze ist eine Stunde günstig. Unter dem Force-Preis lädt Hubble immer bis zur Obergrenze, unabhängig von der Prognose. Beide Schwellen stellst du in GPM ein.", "guide.smcSwitchTitle": "Der Ladeschalter", "guide.smcSwitch": "Smart Charging schaltet den Ladeschalter deines Akkus, den du unter Einstellungen → Solar Forecast Stats → Konfigurieren → Batterie hinterlegst. Ohne Schalter wird nur empfohlen, aber nicht geschaltet.", "guide.smcSafetyTitle": "Wann nicht geladen wird", "guide.smcSafety": "Ohne Strompreis, ohne Akkustand oder ohne Batteriekapazität bleibt die Netzladung aus. Tagsüber hält Hubble Platz für die Sonne frei, wenn die Prognose sie füllen kann.",
             "cdesc.pv_surplus": "Schaltet ein, wenn genug Überschuss ins Netz geht, und bleibt an, solange mindestens die Hälfte übrig ist.",
             "cdesc.cheapest_hours": "Schaltet in den günstigsten Stunden nach Strompreis ein.",
             "cdesc.price_below": "Schaltet in jeder Stunde ein, deren Preis unter deiner Grenze liegt.",
@@ -110,7 +116,7 @@
             title: "Smart loads",
             tabsLabel: "Smart loads sections",
             "tab.devices": "Devices", "tab.log": "Log", "tab.settings": "Settings",
-            "introKicker": "Premium · Smart loads",
+            "introKicker": "Premium · Programs & rules",
             "introTitle": "Switch devices when it pays off",
             "introLead": "Add your devices and tell me when they should run.",
             "introBody": "Every minute I check PV surplus, electricity price, time of day and battery level, and switch a device exactly when your conditions are met. Program devices like the dishwasher get a start window up to your deadline.",
@@ -136,6 +142,12 @@
             "guide.priority": "A small number means first. Priority decides which device gets the surplus first. Wallbox, heat pump and battery from the EMS run independently; their consumption lowers the measurable surplus.",
             "guide.protectTitle": "Protection for your devices",
             "guide.protect": "Minimum run time and minimum pause prevent constant cycling, at most 6 switches per hour and one start per pass. If you switch a device yourself I pause it for two hours. The master switch in the settings stops everything at once.",
+            "fDoor": "Door sensor (optional)", "fDoorOpenings": "Openings until ready", "helpDoor": "With a door sensor the device reports itself ready: after a run every opening counts, and closing after the set number plans the start. Unloading then loading means 2. Without a sensor, “Loaded, plan now” stays.", "doorCount": "Door opened {n}/{m} since the last run", "reason.door": "Door: loading detected", "guide.doorTitle": "Door detection", "guide.door": "If you set a door sensor for a program device, I count how often the door is opened after a finished run. When it closes after the set number of openings, the device counts as loaded and I plan the start. This is an estimate: opening the door without loading can lead to an empty run. Without a door sensor you mark the device ready with “Loaded, plan now”, here or on the dashboard card.",
+            "view.start": "Start", "view.surplus": "Surplus", "view.price": "Price", "view.loads": "Programs & rules", "view.log": "Log", "intro.surplus": "Devices with an on/off switch that run as soon as your system produces more than the house needs. A device is always in one tab only, so nothing switches twice.", "intro.price": "Devices with an on/off switch that run in a price window: below a price or in the cheapest hours, optionally only in a time window. A device is always in one tab only.", "addSurplus": "Add surplus device", "addPrice": "Add price device", "empty.surplus": "No device that runs on surplus yet.", "empty.price": "No device with a price window yet.", "empty.loads": "No program device and no custom rule yet.", "helpPriceWindow": "The device runs while the price window applies and switches off afterwards.", "fPriceMode": "Price window", "priceModeBelow": "Below a price", "priceModeCheapest": "Cheapest hours", "useWindow": "Only in a time window", "useWindowHelp": "For example only at night from 22:00 to 06:00.", "mode.surplus.title": "Surplus", "mode.surplus.does": "Switches on devices with an on/off switch when your system produces more than the house needs.", "mode.surplus.good": "Good for a water heater, heating rod or pool pump: power you would otherwise feed in for little money.", "mode.price.title": "Price", "mode.price.does": "Switches devices on in a price window: below a price or in the cheapest hours.", "mode.price.good": "Good with a dynamic tariff for anything that can run in cheap hours.", "mode.loads.title": "Programs & rules", "mode.loads.does": "Program devices like dishwashers or washing machines get a start window up to your deadline, plus custom rules with several conditions.", "mode.loads.good": "Good for devices that start once and run through, also with door detection.", "modeCount": "{n} active", "open": "Open", "settingsTitle": "Settings",
+            "hubble.demo": "This is example data; with Premium you see your devices here.", "hubble.startHead": "I am controlling {n} devices for you.", "hubble.startEmpty": "I am not controlling any devices for you yet.", "hubble.nextDevice": "Next, {name} starts at {time}.", "hubble.surplusNow": "Right now {v} of surplus goes to the grid.", "hubble.surplusEmpty": "Add devices here that should use your solar power.", "hubble.surplusMissing": "The surplus signal is missing, so the devices stay off.", "hubble.surplusRunning": "{n} devices are running on your surplus.", "hubble.surplusIdle": "The surplus is not enough for any device right now.", "hubble.surplusHow": "A device starts once its minimum surplus has been stable for about two minutes.", "hubble.priceEmpty": "Add devices here that run when power is cheap.", "hubble.priceMissing": "The electricity price is missing, so the devices stay off.", "hubble.priceNow": "Power costs {v} ct/kWh right now.", "hubble.priceTomorrow": "Tomorrow's prices usually arrive in the afternoon.", "hubble.programRunning": "{name} is running.", "hubble.programPlanned": "{name} starts at {time}.", "hubble.programWaiting": "No program is waiting for its start.", "hubble.programEmpty": "Add program devices like the dishwasher here.", "hubble.programDoor": "The door of {name} was opened {n} of {m} times.", "hubble.programHow": "After loading, press “Loaded, plan now”, or let the door do it.", "hubble.logToday": "I switched {n} times today.", "hubble.logQuiet": "I have not switched anything today.", "hubble.logLast": "Last: {name}, {action} at {time}, {reason}.",
+            "hubble.startHeadOne": "I am controlling one device for you.", "hubble.surplusRunningOne": "One device is running on your surplus.", "hubble.logTodayOne": "I switched once today.",
+            "view.live": "Live", "view.akku": "Battery (SMC)", "intro.start.kicker": "Energy management", "intro.start.title": "What the EMS controls for you", "intro.start.lead": "Your solar power and cheap grid power go where they help most.", "intro.start.body": "Every area has its own tab: Live, Battery, Surplus, Price and Programs & rules. A device always belongs to one area only, so nothing switches twice.", "intro.start.close": "Pick an area below to set it up or see what is happening right now.", "intro.start.guide": "How the EMS works", "intro.live.kicker": "Live", "intro.live.title": "What the EMS is planning", "intro.live.lead": "See what makes sense now, why, and what comes next.", "intro.live.body": "I work with your solar forecast, the electricity price and the battery level. The EMS automation only switches the wallbox, the heat pump and the EMS battery grid charge.", "intro.live.close": "Devices under Surplus, Price and Programs & rules are controlled in their own tabs.", "intro.live.guide": "How the EMS automation works", "intro.surplus.kicker": "Surplus", "intro.surplus.title": "Use your own solar power", "intro.surplus.lead": "Devices with an on/off switch run as soon as your system produces more than the house needs.", "intro.surplus.body": "Enter power and minimum surplus. I switch on when enough power would go to the grid and off again when it is no longer enough. If the surplus does not cover all devices, priority decides.", "intro.surplus.close": "A device is always in one tab only, so nothing switches twice.", "intro.surplus.guide": "How surplus works", "intro.price.kicker": "Price", "intro.price.title": "Use power when it is cheap", "intro.price.lead": "Devices with an on/off switch run in your price window.", "intro.price.body": "Choose “Below a price” or “Cheapest hours” and optionally a time window, for example only at night. Prices come from the Grid Price Monitor.", "intro.price.close": "A device is always in one tab only, so nothing switches twice.", "intro.price.guide": "How the price window works", "intro.loads.kicker": "Programs & rules", "intro.loads.title": "Switch devices when it pays off", "intro.loads.lead": "Program devices get a start window, custom rules combine several conditions.", "intro.loads.body": "You no longer start the dishwasher or washing machine yourself: after loading I find the best start up to your deadline, by price, PV or both. For everything else you combine conditions like surplus, price, time window and battery level.", "intro.loads.close": "You stay in control: every device has its own switch, and whatever you switch by hand always wins.", "intro.loads.guide": "How programs and rules work", "intro.log.kicker": "Log", "intro.log.title": "What was switched when", "intro.log.lead": "Every switch is listed with time, reason and readings.", "intro.log.body": "So you can always see why a device ran or stayed off, and whether a command arrived.", "intro.log.close": "The newest entries are on top; the last 250 are kept.", "intro.log.guide": "How to read the log", "guide.startAreasTitle": "The areas", "guide.startAreas": "Live shows what the EMS is planning. Battery (SMC) charges the battery from the grid in cheap hours. Surplus switches devices with solar power, Price in cheap hours. Programs & rules starts dishwashers and washing machines and combines several conditions.", "guide.startOneTabTitle": "One device, one area", "guide.startOneTab": "A device's tab follows from its rules. So a device never appears in two tabs and is never switched twice.", "guide.startSafetyTitle": "What protects you", "guide.startSafety": "I only switch once you have confirmed the liability notice and activated the device. If data is missing it stays off. If you switch yourself, I pause. The master switch under Programs & rules stops everything.", "guide.liveModesTitle": "Observe, confirm, automatic", "guide.liveModes": "In Observe the EMS only plans and explains. In Confirm it proposes switches you release one by one. In Automatic it switches released devices itself.", "guide.liveDevicesTitle": "Which devices the EMS switches", "guide.liveDevices": "Only the wallbox, the heat pump and the EMS battery grid charge, and only if you released them under devices. Devices from the other tabs have their own switch.", "guide.liveSafetyTitle": "Check before every switch", "guide.liveSafety": "Before every switch the EMS checks release, data and protection rules again. After a manual change it pauses the device.", "guide.liveChartTitle": "Reading forecast and coverage", "guide.liveChart": "The chart shows PV yield, demand and electricity price per hour. That tells you when charging, heating or driving is cheapest.", "guide.logReasonsTitle": "Reading reasons", "guide.logReasons": "Every entry names the rule that applied, for example “PV surplus is enough” or “Cheap hour”, plus surplus, price or battery level at that moment.", "guide.logManualTitle": "Switched by hand", "guide.logManual": "If you switch a device yourself, it shows “Paused”. I then stay out for two hours or until you press “Resume”.", "guide.logFailedTitle": "Switching failed", "guide.logFailed": "If a device did not accept the command, the error is shown here. Check that it is reachable and, for program devices, that remote start is active.", "mode.live.title": "Live and automation", "mode.live.does": "What makes sense now, why, and what comes next.", "mode.live.good": "Good to see at a glance what happens today.", "mode.akku.title": "Battery (SMC)", "mode.akku.does": "Smart Charging charges the battery from the grid in cheap hours when the sun does not cover demand.", "mode.akku.good": "Good with a dynamic tariff and a weak solar forecast.", "hubble.programRunningUntil": "It should be done around {time}.", "hubble.programRunningHow": "I never abort a running program.", "hubble.programPlannedHow": "Done by {deadline}, chosen by {goal}. To move it, press “Cancel planning” at the device.", "goal.price": "lowest price", "goal.pv": "most PV", "goal.both": "price and PV",
+            "intro.akku.kicker": "Battery (SMC)", "intro.akku.title": "Charge the battery from the grid when it pays off", "intro.akku.lead": "Hubble switches your battery's grid charging on and off in the way that helps you most.", "intro.akku.body": "Four modules work together: GPM knows the electricity price, STATS knows the battery level and house consumption, EAI knows your average house consumption for the weekday and season, and SFML provides the solar forecast. Together with your goal, for example economy or a target charge, Hubble decides whether grid charging pays off right now.", "intro.akku.close": "If the sun is enough, grid charging stays off. If the price or battery level is missing, Hubble does not charge from the grid.", "intro.akku.guide": "How Smart Charging works", "guide.smcSourcesTitle": "Where the data comes from", "guide.smcSources": "Grid Price Monitor (GPM) provides the price of every hour and your price thresholds. STATS measures battery level and house consumption. EAI knows your average consumption for the weekday and season. Solar Forecast ML (SFML) predicts how much the sun delivers today and tomorrow.", "guide.smcModesTitle": "Your goal: the modes", "guide.smcModes": "“Gap only” charges just what sun and battery will not cover for the expected consumption. “Up to target” charges up to your target level in a cheap hour. “Both” combines the two.", "guide.smcLimitsTitle": "Target, lower and upper limit", "guide.smcLimits": "The target level applies in cheap hours. The lower limit is the lowest target, and the upper limit is never exceeded from the grid.", "guide.smcForceTitle": "Price limit and force price", "guide.smcForce": "Below the price limit an hour is cheap. Below the force price Hubble always charges up to the upper limit, regardless of the forecast. You set both thresholds in GPM.", "guide.smcSwitchTitle": "The charge switch", "guide.smcSwitch": "Smart Charging switches your battery's charge switch, which you set under Settings → Solar Forecast Stats → Configure → Battery. Without a switch it only recommends and does not switch.", "guide.smcSafetyTitle": "When it does not charge", "guide.smcSafety": "Without electricity price, battery level or battery capacity, grid charging stays off. During the day Hubble keeps room for the sun if the forecast can fill it.",
             "cdesc.pv_surplus": "Switches on when enough surplus is fed in and stays on while at least half remains.",
             "cdesc.cheapest_hours": "Switches on in the cheapest hours by electricity price.",
             "cdesc.price_below": "Switches on in every hour whose price is below your limit.",
@@ -209,7 +221,7 @@
             title: "Odbiorniki",
             tabsLabel: "Sekcje strony odbiorników",
             "tab.devices": "Urządzenia", "tab.log": "Dziennik", "tab.settings": "Ustawienia",
-            "introKicker": "Premium · Odbiorniki",
+            "introKicker": "Premium · Programy i reguły",
             "introTitle": "Włączaj urządzenia, gdy się to opłaca",
             "introLead": "Dodaj swoje urządzenia i powiedz, kiedy mają pracować.",
             "introBody": "Co minutę sprawdzam nadwyżkę PV, cenę prądu, porę dnia i stan baterii i włączam urządzenie dokładnie wtedy, gdy Twoje warunki są spełnione. Urządzenia z programem, jak zmywarka, dostają okno startu do Twojego terminu.",
@@ -235,6 +247,12 @@
             "guide.priority": "Mała liczba oznacza: najpierw. Priorytet decyduje, które urządzenie dostaje nadwyżkę jako pierwsze. Wallbox, pompa ciepła i bateria z EMS działają niezależnie, ich pobór obniża mierzalną nadwyżkę.",
             "guide.protectTitle": "Ochrona urządzeń",
             "guide.protect": "Minimalny czas pracy i minimalna przerwa zapobiegają ciągłemu przełączaniu, najwyżej 6 przełączeń na godzinę i jeden start na cykl. Jeśli sam przełączysz urządzenie, wstrzymuję je na dwie godziny. Wyłącznik główny w ustawieniach zatrzymuje wszystko od razu.",
+            "fDoor": "Czujnik drzwi (opcjonalnie)", "fDoorOpenings": "Otwarcia do gotowości", "helpDoor": "Z czujnikiem drzwi urządzenie samo zgłasza gotowość: po cyklu liczy się każde otwarcie, a zamknięcie po ustawionej liczbie planuje start. Najpierw wyjmowanie, potem wkładanie to 2. Bez czujnika zostaje „Załadowane, planuj”.", "doorCount": "Drzwi otwarte {n}/{m} od ostatniego cyklu", "reason.door": "Drzwi: wykryto załadunek", "guide.doorTitle": "Wykrywanie drzwi", "guide.door": "Jeśli ustawisz czujnik drzwi dla urządzenia z programem, po zakończonym cyklu liczę, ile razy drzwi są otwierane. Gdy zamkną się po ustawionej liczbie otwarć, urządzenie uznaję za załadowane i planuję start. To szacunek: otwarcie drzwi bez załadunku może dać pusty cykl. Bez czujnika drzwi zgłaszasz gotowość przyciskiem „Załadowane, planuj”, tutaj lub na karcie pulpitu.",
+            "view.start": "Start", "view.surplus": "Nadwyżka", "view.price": "Cena", "view.loads": "Programy i reguły", "view.log": "Dziennik", "intro.surplus": "Urządzenia z przełącznikiem wł./wył., które pracują, gdy instalacja produkuje więcej, niż potrzebuje dom. Urządzenie jest zawsze tylko w jednej zakładce, więc nic nie przełącza się podwójnie.", "intro.price": "Urządzenia z przełącznikiem wł./wył., które pracują w oknie cenowym: poniżej ceny lub w najtańszych godzinach, opcjonalnie tylko w wybranym czasie. Urządzenie jest zawsze tylko w jednej zakładce.", "addSurplus": "Dodaj urządzenie na nadwyżkę", "addPrice": "Dodaj urządzenie cenowe", "empty.surplus": "Brak urządzenia pracującego na nadwyżce.", "empty.price": "Brak urządzenia z oknem cenowym.", "empty.loads": "Brak urządzenia z programem i własnej reguły.", "helpPriceWindow": "Urządzenie pracuje, dopóki pasuje okno cenowe, a potem się wyłącza.", "fPriceMode": "Okno cenowe", "priceModeBelow": "Poniżej ceny", "priceModeCheapest": "Najtańsze godziny", "useWindow": "Tylko w wybranym czasie", "useWindowHelp": "Na przykład tylko w nocy od 22:00 do 06:00.", "mode.surplus.title": "Nadwyżka", "mode.surplus.does": "Włącza urządzenia z przełącznikiem wł./wył., gdy instalacja produkuje więcej, niż potrzebuje dom.", "mode.surplus.good": "Dobre dla bojlera, grzałki lub pompy basenowej: prąd, który inaczej oddasz do sieci za niewiele.", "mode.price.title": "Cena", "mode.price.does": "Włącza urządzenia w oknie cenowym: poniżej ceny lub w najtańszych godzinach.", "mode.price.good": "Dobre przy taryfie dynamicznej dla wszystkiego, co może pracować w tanich godzinach.", "mode.loads.title": "Programy i reguły", "mode.loads.does": "Urządzenia z programem, jak zmywarka czy pralka, dostają okno startu do Twojego terminu, a do tego własne reguły z kilkoma warunkami.", "mode.loads.good": "Dobre dla urządzeń, które startują raz i pracują do końca, także z wykrywaniem drzwi.", "modeCount": "{n} aktywne", "open": "Otwórz", "settingsTitle": "Ustawienia",
+            "hubble.demo": "To dane przykładowe, z Premium zobaczysz tu swoje urządzenia.", "hubble.startHead": "Steruję teraz {n} urządzeniami.", "hubble.startEmpty": "Jeszcze nie steruję żadnym urządzeniem.", "hubble.nextDevice": "Następne startuje {name} o {time}.", "hubble.surplusNow": "Teraz {v} nadwyżki trafia do sieci.", "hubble.surplusEmpty": "Dodaj tu urządzenia, które mają korzystać z prądu ze słońca.", "hubble.surplusMissing": "Brakuje sygnału nadwyżki, więc urządzenia zostają wyłączone.", "hubble.surplusRunning": "{n} urządzeń pracuje na Twojej nadwyżce.", "hubble.surplusIdle": "Nadwyżka nie wystarcza teraz dla żadnego urządzenia.", "hubble.surplusHow": "Urządzenie startuje, gdy jego minimalna nadwyżka jest stabilna przez około dwie minuty.", "hubble.priceEmpty": "Dodaj tu urządzenia, które pracują, gdy prąd jest tani.", "hubble.priceMissing": "Brakuje ceny prądu, więc urządzenia zostają wyłączone.", "hubble.priceNow": "Prąd kosztuje teraz {v} ct/kWh.", "hubble.priceTomorrow": "Ceny na jutro pojawiają się zwykle po południu.", "hubble.programRunning": "{name} pracuje.", "hubble.programPlanned": "{name} startuje o {time}.", "hubble.programWaiting": "Żaden program nie czeka na start.", "hubble.programEmpty": "Dodaj tu urządzenia z programem, jak zmywarka.", "hubble.programDoor": "Drzwi {name} otwarto {n} z {m} razy.", "hubble.programHow": "Po załadowaniu naciśnij „Załadowane, planuj” albo pozwól zrobić to drzwiom.", "hubble.logToday": "Dziś przełączyłem {n} razy.", "hubble.logQuiet": "Dziś niczego jeszcze nie przełączyłem.", "hubble.logLast": "Ostatnio: {name}, {action} o {time}, {reason}.",
+            "hubble.startHeadOne": "Steruję teraz jednym urządzeniem.", "hubble.surplusRunningOne": "Jedno urządzenie pracuje na Twojej nadwyżce.", "hubble.logTodayOne": "Dziś przełączyłem raz.",
+            "view.live": "Na żywo", "view.akku": "Bateria (SMC)", "intro.start.kicker": "Zarządzanie energią", "intro.start.title": "Czym steruje dla Ciebie EMS", "intro.start.lead": "Twój prąd ze słońca i tani prąd z sieci trafiają tam, gdzie dają najwięcej.", "intro.start.body": "Każdy obszar ma własną zakładkę: Na żywo, Bateria, Nadwyżka, Cena oraz Programy i reguły. Urządzenie należy zawsze tylko do jednego obszaru, więc nic nie przełącza się podwójnie.", "intro.start.close": "Wybierz obszar poniżej, aby go skonfigurować lub zobaczyć, co się teraz dzieje.", "intro.start.guide": "Jak działa EMS", "intro.live.kicker": "Na żywo", "intro.live.title": "Co EMS teraz planuje", "intro.live.lead": "Zobacz, co ma teraz sens, dlaczego i co będzie dalej.", "intro.live.body": "Liczę na podstawie prognozy słonecznej, ceny prądu i stanu baterii. Automatyka EMS przełącza tylko wallbox, pompę ciepła i ładowanie baterii z sieci przez EMS.", "intro.live.close": "Urządzeniami w zakładkach Nadwyżka, Cena oraz Programy i reguły sterujesz w ich własnych zakładkach.", "intro.live.guide": "Jak działa automatyka EMS", "intro.surplus.kicker": "Nadwyżka", "intro.surplus.title": "Korzystaj z własnego prądu ze słońca", "intro.surplus.lead": "Urządzenia z przełącznikiem wł./wył. pracują, gdy instalacja produkuje więcej, niż potrzebuje dom.", "intro.surplus.body": "Wpisz moc i minimalną nadwyżkę. Włączam, gdy do sieci trafiłoby dość prądu, i wyłączam, gdy już nie wystarcza. Gdy nadwyżka nie starcza dla wszystkich, decyduje priorytet.", "intro.surplus.close": "Urządzenie jest zawsze tylko w jednej zakładce, więc nic nie przełącza się podwójnie.", "intro.surplus.guide": "Jak działa nadwyżka", "intro.price.kicker": "Cena", "intro.price.title": "Korzystaj z prądu, gdy jest tani", "intro.price.lead": "Urządzenia z przełącznikiem wł./wył. pracują w Twoim oknie cenowym.", "intro.price.body": "Wybierz „Poniżej ceny” lub „Najtańsze godziny” i opcjonalnie okno czasowe, np. tylko w nocy. Ceny pochodzą z Grid Price Monitor.", "intro.price.close": "Urządzenie jest zawsze tylko w jednej zakładce, więc nic nie przełącza się podwójnie.", "intro.price.guide": "Jak działa okno cenowe", "intro.loads.kicker": "Programy i reguły", "intro.loads.title": "Włączaj urządzenia, gdy się to opłaca", "intro.loads.lead": "Urządzenia z programem dostają okno startu, własne reguły łączą kilka warunków.", "intro.loads.body": "Zmywarki i pralki nie uruchamiasz już sam: po załadowaniu szukam najlepszego startu do Twojego terminu, według ceny, PV lub obu. Dla wszystkiego innego łączysz warunki jak nadwyżka, cena, okno czasowe i stan baterii.", "intro.loads.close": "Zachowujesz kontrolę: każde urządzenie ma własny przełącznik, a to, co włączysz ręcznie, zawsze ma pierwszeństwo.", "intro.loads.guide": "Jak działają programy i reguły", "intro.log.kicker": "Dziennik", "intro.log.title": "Co i kiedy zostało przełączone", "intro.log.lead": "Każde przełączenie jest tu z godziną, powodem i pomiarami.", "intro.log.body": "Dzięki temu zawsze widzisz, dlaczego urządzenie pracowało lub było wyłączone i czy polecenie dotarło.", "intro.log.close": "Najnowsze wpisy są na górze, przechowywanych jest ostatnich 250.", "intro.log.guide": "Jak czytać dziennik", "guide.startAreasTitle": "Obszary", "guide.startAreas": "Na żywo pokazuje, co planuje EMS. Bateria (SMC) ładuje baterię z sieci w tanich godzinach. Nadwyżka włącza urządzenia prądem ze słońca, Cena w tanich godzinach. Programy i reguły uruchamiają zmywarkę i pralkę oraz łączą kilka warunków.", "guide.startOneTabTitle": "Jedno urządzenie, jeden obszar", "guide.startOneTab": "Zakładka urządzenia wynika z jego reguł. Urządzenie nigdy nie pojawia się w dwóch zakładkach i nigdy nie jest przełączane podwójnie.", "guide.startSafetyTitle": "Co Cię chroni", "guide.startSafety": "Przełączam dopiero, gdy potwierdzisz informację o odpowiedzialności i aktywujesz urządzenie. Gdy brakuje danych, zostaje wyłączone. Gdy przełączysz sam, robię pauzę. Wyłącznik główny w Programach i regułach zatrzymuje wszystko.", "guide.liveModesTitle": "Obserwuj, potwierdzaj, automatyka", "guide.liveModes": "W trybie Obserwuj EMS tylko planuje i wyjaśnia. W trybie Potwierdzaj proponuje przełączenia, które zatwierdzasz pojedynczo. W automatyce sam przełącza zwolnione urządzenia.", "guide.liveDevicesTitle": "Które urządzenia przełącza EMS", "guide.liveDevices": "Tylko wallbox, pompę ciepła i ładowanie baterii z sieci przez EMS, i tylko gdy zwolniłeś je w urządzeniach. Urządzenia z innych zakładek mają własny przełącznik.", "guide.liveSafetyTitle": "Sprawdzenie przed każdym przełączeniem", "guide.liveSafety": "Przed każdym przełączeniem EMS ponownie sprawdza zwolnienie, dane i reguły ochrony. Po ręcznej zmianie wstrzymuje urządzenie.", "guide.liveChartTitle": "Jak czytać prognozę i pokrycie", "guide.liveChart": "Wykres pokazuje dla każdej godziny uzysk PV, zapotrzebowanie i cenę prądu. Widać z niego, kiedy ładowanie, grzanie lub jazda są najtańsze.", "guide.logReasonsTitle": "Jak czytać powody", "guide.logReasons": "Każdy wpis podaje regułę, która zadziałała, np. „Nadwyżka PV wystarcza” lub „Tania godzina”, oraz nadwyżkę, cenę lub stan baterii w chwili przełączenia.", "guide.logManualTitle": "Przełączone ręcznie", "guide.logManual": "Gdy sam przełączysz urządzenie, pojawi się „Wstrzymano”. Nie ingeruję wtedy przez dwie godziny lub do naciśnięcia „Wznów”.", "guide.logFailedTitle": "Przełączenie nie powiodło się", "guide.logFailed": "Gdy urządzenie nie przyjęło polecenia, widać tu błąd. Sprawdź, czy jest dostępne, a przy urządzeniach z programem, czy zdalny start jest aktywny.", "mode.live.title": "Na żywo i automatyka", "mode.live.does": "Co ma teraz sens, dlaczego i co będzie dalej.", "mode.live.good": "Dobre, aby jednym spojrzeniem zobaczyć, co dziś się dzieje.", "mode.akku.title": "Bateria (SMC)", "mode.akku.does": "Smart Charging ładuje baterię z sieci w tanich godzinach, gdy słońce nie pokrywa zapotrzebowania.", "mode.akku.good": "Dobre przy taryfie dynamicznej i słabej prognozie słonecznej.", "hubble.programRunningUntil": "Powinno skończyć się około {time}.", "hubble.programRunningHow": "Działającego programu nigdy nie przerywam.", "hubble.programPlannedHow": "Gotowe do {deadline}, wybrane według: {goal}. Aby przesunąć, naciśnij „Anuluj planowanie” przy urządzeniu.", "goal.price": "najniższa cena", "goal.pv": "najwięcej PV", "goal.both": "cena i PV",
+            "intro.akku.kicker": "Bateria (SMC)", "intro.akku.title": "Ładuj baterię z sieci, gdy to się opłaca", "intro.akku.lead": "Hubble włącza i wyłącza ładowanie baterii z sieci tak, jak jest to dla Ciebie najkorzystniejsze.", "intro.akku.body": "Współpracują tu cztery moduły: GPM zna cenę prądu, STATS zna stan baterii i zużycie domu, EAI zna Twoje średnie zużycie dla dnia tygodnia i pory roku, a SFML dostarcza prognozę słoneczną. Razem z Twoim celem, na przykład opłacalnością lub poziomem docelowym, Hubble decyduje, czy ładowanie z sieci teraz się opłaca.", "intro.akku.close": "Gdy słońce wystarcza, ładowanie z sieci zostaje wyłączone. Gdy brakuje ceny lub stanu baterii, Hubble nie ładuje z sieci.", "intro.akku.guide": "Jak działa Smart Charging", "guide.smcSourcesTitle": "Skąd pochodzą dane", "guide.smcSources": "Grid Price Monitor (GPM) dostarcza cenę każdej godziny i Twoje progi cenowe. STATS mierzy stan baterii i zużycie domu. EAI zna Twoje średnie zużycie dla dnia tygodnia i pory roku. Solar Forecast ML (SFML) przewiduje, ile da słońce dziś i jutro.", "guide.smcModesTitle": "Twój cel: tryby", "guide.smcModes": "„Tylko luka” ładuje tylko tyle, ile słońce i bateria nie pokryją przy oczekiwanym zużyciu. „Do celu” ładuje w taniej godzinie do poziomu docelowego. „Oba” łączy jedno z drugim.", "guide.smcLimitsTitle": "Cel, dolna i górna granica", "guide.smcLimits": "Poziom docelowy obowiązuje w tanich godzinach. Dolna granica to najniższy cel, a górnej granicy ładowanie z sieci nigdy nie przekracza.", "guide.smcForceTitle": "Próg cenowy i cena wymuszona", "guide.smcForce": "Poniżej progu cenowego godzina jest tania. Poniżej ceny wymuszonej Hubble zawsze ładuje do górnej granicy, niezależnie od prognozy. Oba progi ustawiasz w GPM.", "guide.smcSwitchTitle": "Przełącznik ładowania", "guide.smcSwitch": "Smart Charging przełącza przełącznik ładowania baterii, który ustawiasz w Ustawienia → Solar Forecast Stats → Konfiguruj → Bateria. Bez przełącznika tylko zaleca, ale nie przełącza.", "guide.smcSafetyTitle": "Kiedy nie ładuje", "guide.smcSafety": "Bez ceny prądu, stanu baterii lub pojemności baterii ładowanie z sieci zostaje wyłączone. W dzień Hubble zostawia miejsce na słońce, jeśli prognoza może je wypełnić.",
             "cdesc.pv_surplus": "Włącza, gdy do sieci trafia dość nadwyżki, i trzyma włączone, dopóki zostaje co najmniej połowa.",
             "cdesc.cheapest_hours": "Włącza w najtańszych godzinach według ceny prądu.",
             "cdesc.price_below": "Włącza w każdej godzinie, w której cena jest poniżej Twojego limitu.",
@@ -489,8 +507,25 @@
         id: "", name: "", kind, priority: 5, nominal_power_w: 1000, min_surplus_w: 1000,
         entity_id: "", ready_entity: "", match: "any", conditions: [],
         min_runtime_min: 5, min_off_min: 3, deadline: "07:00", duration_min: 120,
-        objective: "both", earliest_day: "today",
+        objective: "both", earliest_day: "today", door_entity: "", door_openings: 2,
+        priceMode: "below", maxCt: 20, hours: 3, scope: "today",
+        useWindow: false, winDays: [...WEEKDAYS], winStart: "22:00", winEnd: "06:00",
     });
+
+    const PRICE_TYPES = new Set(["price_below", "cheapest_hours", "time_window"]);
+
+    // One device, one tab: the tab follows from the rules, so a device never shows twice
+    function modeOf(item) {
+        if (item.kind === "program") return "loads";
+        const types = (item.conditions || []).map((cond) => cond.type);
+        if (types.length === 1 && types[0] === "pv_surplus") return "surplus";
+        const priceOnly = types.length > 0
+            && types.every((type) => PRICE_TYPES.has(type))
+            && types.filter((type) => type !== "time_window").length === 1
+            && types.filter((type) => type === "time_window").length <= 1
+            && (item.match === "all" || types.length === 1);
+        return priceOnly ? "price" : "loads";
+    }
 
     const conditionDefaults = {
         pv_surplus: () => ({ type: "pv_surplus" }),
@@ -500,40 +535,91 @@
         battery_soc_min: () => ({ type: "battery_soc_min", percent: 50 }),
     };
 
-    window.LoadsPage = {
+    const INTRO_GUIDES = {
+        start: ["startAreas", "startOneTab", "priority", "startSafety"],
+        live: ["liveModes", "liveDevices", "liveSafety", "liveChart"],
+        akku: ["smcSources", "smcModes", "smcLimits", "smcForce", "smcSwitch", "smcSafety"],
+        surplus: ["surplus", "priority", "protect", "principle"],
+        price: ["price", "cheapest", "window", "protect"],
+        loads: ["program", "door", "match", "battery", "window", "principle", "protect"],
+        log: ["logReasons", "logManual", "logFailed"],
+    };
+
+    // One intro for every EMS tab: same hero card and the same "how it works" section
+    window.SfmlTabIntro = {
+        props: { topic: { type: String, required: true } },
         template: `
-            <section class="loads-page" aria-labelledby="loads-title">
+            <header class="loads-hero-band">
+                <p class="loads-kicker">{{ t('intro.' + topic + '.kicker') }}</p>
+                <h3>{{ t('intro.' + topic + '.title') }}</h3>
+                <p class="loads-lead">{{ t('intro.' + topic + '.lead') }}</p>
+                <p>{{ t('intro.' + topic + '.body') }}</p>
+                <p class="loads-close">{{ t('intro.' + topic + '.close') }}</p>
+                <div v-if="$slots.default" class="loads-chips"><slot></slot></div>
+                <details class="loads-guide">
+                    <summary>{{ t('intro.' + topic + '.guide') }}</summary>
+                    <section v-for="part in parts" :key="part">
+                        <h4>{{ t('guide.' + part + 'Title') }}</h4>
+                        <p>{{ t('guide.' + part) }}</p>
+                    </section>
+                </details>
+            </header>
+        `,
+        setup(props) {
+            const parts = Vue.computed(() => INTRO_GUIDES[props.topic] || []);
+            return { t, parts };
+        },
+    };
+    window.SfmlLoadsI18n = { t };
+
+    window.LoadsPage = {
+        props: { view: { type: String, default: "loads" } },
+        emits: ["open", "summary"],
+        template: `
+            <section class="loads-page" :class="{ inline: view === 'start' }" :aria-label="t('view.' + view)">
                 <div ref="bridgeHost" class="loads-bridge-host" aria-hidden="true"></div>
-                <h2 id="loads-title" class="visually-hidden">{{ t('title') }}</h2>
-                <nav class="loads-tabs" role="tablist" :aria-label="t('tabsLabel')">
-                    <button v-for="tab in tabs" :id="'loads-tab-' + tab" :key="tab" type="button" role="tab"
-                            :aria-selected="activeTab === tab ? 'true' : 'false'" :aria-controls="'loads-panel-' + tab"
-                            :tabindex="activeTab === tab ? 0 : -1" :class="{ active: activeTab === tab }"
-                            @click="activeTab = tab">{{ t('tab.' + tab) }}</button>
-                </nav>
                 <p v-if="message" class="loads-message" role="alert">{{ message }}</p>
                 <div v-if="loading" class="loads-state" role="status">{{ t('loading') }}</div>
-                <div v-else-if="status" :id="'loads-panel-' + activeTab" class="loads-panel" role="tabpanel" :aria-labelledby="'loads-tab-' + activeTab" tabindex="0">
-                    <div v-if="activeTab === 'devices'" class="loads-stack">
-                        <header class="loads-hero-band">
-                            <p class="loads-kicker">{{ t('introKicker') }}</p>
-                            <h3>{{ t('introTitle') }}</h3>
-                            <p class="loads-lead">{{ t('introLead') }}</p>
-                            <p>{{ t('introBody') }}</p>
-                            <p class="loads-close">{{ t('introClose') }}</p>
-                            <div class="loads-chips">
+                <template v-else-if="status">
+                    <div v-if="view === 'start'" class="loads-stack">
+                        <div class="loads-grid">
+                            <article v-for="mode in modeCards" :key="mode" class="loads-card loads-mode-card">
+                                <header>
+                                    <strong>{{ t('mode.' + mode + '.title') }}</strong>
+                                    <span v-if="!['live', 'akku'].includes(mode)" class="loads-pill" :class="countFor(mode) ? 'ok' : 'muted'">{{ t('modeCount', { n: countFor(mode) }) }}</span>
+                                </header>
+                                <p class="loads-reason">{{ t('mode.' + mode + '.does') }}</p>
+                                <p class="loads-meta">{{ t('mode.' + mode + '.good') }}</p>
+                                <p v-if="nextFor(mode)" class="loads-plan">{{ t('kpiNext') }}: {{ timeText(nextFor(mode)) }}</p>
+                                <div class="loads-card-actions"><button type="button" @click="$emit('open', mode)">{{ t('open') }}</button></div>
+                            </article>
+                        </div>
+                    </div>
+
+                    <div v-else-if="view === 'log'" class="loads-stack">
+                        <hubble-say class="loads-hubble" :tone="hubble.tone" :headline="hubble.headline" :detail="hubble.detail"></hubble-say>
+                        <sfml-tab-intro topic="log"></sfml-tab-intro>
+                        <div v-if="!status.audit.length" class="loads-state"><strong>{{ t('logEmpty') }}</strong></div>
+                        <div v-else class="loads-card loads-table-wrap">
+                            <table class="loads-table">
+                                <thead><tr><th>{{ t('logTime') }}</th><th>{{ t('logDevice') }}</th><th>{{ t('logAction') }}</th><th>{{ t('logReason') }}</th><th>{{ t('logDetail') }}</th></tr></thead>
+                                <tbody><tr v-for="(row, index) in status.audit" :key="index">
+                                    <td>{{ timeText(row.at) }}</td><td>{{ deviceName(row.id) }}</td><td>{{ actionText(row.action) }}</td><td>{{ reasonText(row.reason) }}</td><td>{{ detailText(row) }}</td>
+                                </tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div v-else class="loads-stack">
+                        <hubble-say class="loads-hubble" :tone="hubble.tone" :headline="hubble.headline" :detail="hubble.detail"></hubble-say>
+                        <sfml-tab-intro :topic="view">
+                            <span v-if="view === 'surplus'" class="loads-pill" :class="status.inputs.surplus_w == null ? 'warn' : 'ok'">{{ t('inSurplus') }}: {{ surplusText }}</span>
+                            <template v-else>
                                 <span class="loads-pill" :class="status.inputs.prices_today ? 'ok' : 'warn'">{{ t('inPricesToday') }}: {{ t(status.inputs.prices_today ? 'yes' : 'no') }}</span>
                                 <span class="loads-pill" :class="status.inputs.prices_tomorrow ? 'ok' : 'muted'">{{ t('inPricesTomorrow') }}: {{ t(status.inputs.prices_tomorrow ? 'yes' : 'no') }}</span>
-                                <span class="loads-pill" :class="status.inputs.forecast ? 'ok' : 'muted'">{{ t('inForecast') }}: {{ t(status.inputs.forecast ? 'yes' : 'no') }}</span>
-                            </div>
-                            <details class="loads-guide">
-                                <summary>{{ t('guide.title') }}</summary>
-                                <section v-for="part in guideParts" :key="part">
-                                    <h4>{{ t('guide.' + part + 'Title') }}</h4>
-                                    <p>{{ t('guide.' + part) }}</p>
-                                </section>
-                            </details>
-                        </header>
+                                <span v-if="view === 'loads'" class="loads-pill" :class="status.inputs.forecast ? 'ok' : 'muted'">{{ t('inForecast') }}: {{ t(status.inputs.forecast ? 'yes' : 'no') }}</span>
+                            </template>
+                        </sfml-tab-intro>
 
                         <aside class="loads-notice" role="note">
                             <strong>{{ t('noticeTitle') }}</strong>
@@ -546,18 +632,67 @@
                         </aside>
                         <p v-if="isDemo" class="loads-demo" role="status">{{ t('demoText') }}</p>
 
-                        <div class="loads-kpis">
-                            <article><span>{{ t('kpiActive') }}</span><strong>{{ activeCount }} / {{ consumers.length }}</strong></article>
-                            <article><span>{{ t('inSurplus') }}</span><strong>{{ surplusText }}</strong></article>
-                            <article><span>{{ t('kpiNext') }}</span><strong>{{ nextStartText }}</strong></article>
-                        </div>
-
                         <div class="loads-manage-head">
-                            <h3>{{ t('tab.devices') }}</h3>
-                            <button type="button" class="primary" :disabled="!isLive || busy" @click="beginAdd">{{ t('add') }}</button>
+                            <h3>{{ t('view.' + view) }}</h3>
+                            <button type="button" class="primary" :disabled="!isLive || busy" @click="beginAdd">{{ t(view === 'surplus' ? 'addSurplus' : view === 'price' ? 'addPrice' : 'add') }}</button>
                         </div>
 
-                        <form v-if="editorOpen" class="loads-editor" @submit.prevent="saveDraft">
+                        <form v-if="editorOpen && view !== 'loads'" class="loads-editor" @submit.prevent="saveSimple">
+                            <h3>{{ draft.id ? t('edit') : t(view === 'surplus' ? 'addSurplus' : 'addPrice') }}</h3>
+                            <div class="loads-section">
+                                <div class="loads-fields">
+                                    <label>{{ t('fName') }}<input type="text" v-model="draft.name" maxlength="60" required></label>
+                                    <label>{{ t('fEntity') }}
+                                        <input type="text" v-model="draft.entity_id" list="loads-entities-switchable" placeholder="switch.example" required autocomplete="off">
+                                    </label>
+                                    <label>{{ t('fPower') }}<input type="number" v-model.number="draft.nominal_power_w" min="0" max="50000" step="10" required></label>
+                                    <label v-if="view === 'surplus'">{{ t('fMinSurplus') }}<input type="number" v-model.number="draft.min_surplus_w" min="0" max="50000" step="10"></label>
+                                    <label>{{ t('fPriority') }}<input type="number" v-model.number="draft.priority" min="1" max="9" step="1"></label>
+                                </div>
+                                <datalist id="loads-entities-switchable"><option v-for="item in entityChoices('switchable')" :key="item.id" :value="item.id">{{ item.name }}</option></datalist>
+                                <p class="loads-hint">{{ t(view === 'surplus' ? 'cdesc.pv_surplus' : 'helpPriceWindow') }}</p>
+                            </div>
+                            <div v-if="view === 'price'" class="loads-section">
+                                <label>{{ t('fPriceMode') }}
+                                    <select v-model="draft.priceMode"><option value="below">{{ t('priceModeBelow') }}</option><option value="cheapest">{{ t('priceModeCheapest') }}</option></select>
+                                </label>
+                                <div class="loads-fields">
+                                    <label v-if="draft.priceMode === 'below'">{{ t('fMaxCt') }}<input type="number" v-model.number="draft.maxCt" step="0.1" required></label>
+                                    <template v-else>
+                                        <label>{{ t('fHours') }}<input type="number" v-model.number="draft.hours" min="1" max="12" step="1"></label>
+                                        <label>{{ t('fScope') }}
+                                            <select v-model="draft.scope"><option value="today">{{ t('scopeToday') }}</option><option value="next_24h">{{ t('scopeRolling') }}</option></select>
+                                        </label>
+                                    </template>
+                                </div>
+                                <label class="loads-switch">
+                                    <input type="checkbox" v-model="draft.useWindow">
+                                    <span class="loads-switch-track"><span></span></span>
+                                    <span class="loads-switch-copy"><strong>{{ t('useWindow') }}</strong><small>{{ t('useWindowHelp') }}</small></span>
+                                </label>
+                                <template v-if="draft.useWindow">
+                                    <div class="loads-days" role="group" :aria-label="t('fDays')">
+                                        <button v-for="day in weekdays" :key="day" type="button" :class="{ on: draft.winDays.includes(day) }" :aria-pressed="draft.winDays.includes(day) ? 'true' : 'false'" @click="toggleDraftDay(day)">{{ dayName(day) }}</button>
+                                    </div>
+                                    <div class="loads-fields">
+                                        <label>{{ t('fStart') }}<input type="time" v-model="draft.winStart"></label>
+                                        <label>{{ t('fEnd') }}<input type="time" v-model="draft.winEnd"></label>
+                                    </div>
+                                </template>
+                            </div>
+                            <div class="loads-section">
+                                <div class="loads-fields">
+                                    <label>{{ t('fMinRuntime') }}<input type="number" v-model.number="draft.min_runtime_min" min="0" max="720" step="1"></label>
+                                    <label>{{ t('fMinOff') }}<input type="number" v-model.number="draft.min_off_min" min="0" max="720" step="1"></label>
+                                </div>
+                                <p class="loads-hint">{{ t('helpGuards') }}</p>
+                            </div>
+                            <div class="loads-form-actions">
+                                <button type="button" @click="editorOpen = false">{{ t('cancel') }}</button>
+                                <button type="submit" class="primary" :disabled="busy">{{ t('save') }}</button>
+                            </div>
+                        </form>
+                        <form v-if="editorOpen && view === 'loads'" class="loads-editor" @submit.prevent="saveDraft">
                             <h3>{{ draft.id ? t('edit') : t('add') }}</h3>
                             <div class="loads-section">
                                 <div class="loads-fields">
@@ -633,6 +768,14 @@
                                     </label>
                                 </div>
                                 <p class="loads-hint">{{ t('helpObjective') }}</p>
+                                <div class="loads-fields">
+                                    <label>{{ t('fDoor') }}
+                                        <input type="text" v-model="draft.door_entity" list="loads-entities-door" placeholder="binary_sensor.example_door" autocomplete="off">
+                                    </label>
+                                    <label>{{ t('fDoorOpenings') }}<input type="number" v-model.number="draft.door_openings" min="1" max="5" step="1" :disabled="!draft.door_entity"></label>
+                                </div>
+                                <datalist id="loads-entities-door"><option v-for="item in entityChoices('door')" :key="item.id" :value="item.id">{{ item.name }}</option></datalist>
+                                <p class="loads-hint">{{ t('helpDoor') }}</p>
                             </div>
                             <div class="loads-form-actions">
                                 <button type="button" @click="editorOpen = false">{{ t('cancel') }}</button>
@@ -640,9 +783,9 @@
                             </div>
                         </form>
 
-                        <div v-if="!consumers.length" class="loads-state"><strong>{{ t('empty') }}</strong></div>
+                        <div v-if="!visibleConsumers.length" class="loads-state"><strong>{{ t('empty.' + view) }}</strong></div>
                         <div class="loads-grid">
-                            <article v-for="item in consumers" :key="item.id" class="loads-card" :data-state="stateKey(item)">
+                            <article v-for="item in visibleConsumers" :key="item.id" class="loads-card" :data-state="stateKey(item)">
                                 <header>
                                     <strong>{{ item.name }}</strong>
                                     <span class="loads-pill" :class="stateClass(item)">{{ t('state.' + stateKey(item)) }}</span>
@@ -655,7 +798,8 @@
                                 <p v-if="item.kind === 'switchable' && item.active && !item.is_on && item.next_window" class="loads-plan">{{ t('nextStart', { start: timeText(item.next_window.start), end: timeText(item.next_window.end) }) }}{{ item.next_window.needs_surplus ? t('nextNeedsSurplus') : '' }}</p>
                                 <p v-else-if="item.kind === 'switchable' && item.active && !item.is_on && hasSurplusRule(item)" class="loads-meta">{{ t('nextSurplus', { w: Math.round(item.min_surplus_w) }) }}</p>
                                 <p v-else-if="item.kind === 'program' && item.plan" class="loads-plan">{{ item.plan.late ? t('planLate') : t('planAt', { start: timeText(item.plan.start), end: timeText(item.plan.end) }) }}</p>
-                                <p v-else-if="item.kind === 'program' && item.active && item.preview" class="loads-meta">{{ item.preview.late ? t('previewLate') : t('previewAt', { start: timeText(item.preview.start), end: timeText(item.preview.end) }) }}</p>
+                                <p v-if="item.kind === 'program' && item.active && item.door_entity && ['idle', 'done'].includes(item.state)" class="loads-meta">{{ t('doorCount', { n: item.door_opens || 0, m: item.door_openings || 2 }) }}</p>
+                                <p v-if="item.kind === 'program' && !item.plan && item.active && item.preview" class="loads-meta">{{ item.preview.late ? t('previewLate') : t('previewAt', { start: timeText(item.preview.start), end: timeText(item.preview.end) }) }}</p>
                                 <label class="loads-switch">
                                     <input type="checkbox" :checked="item.active" :disabled="!isLive || busy || (!item.active && !acknowledged)" @change="toggleActive(item, $event.target.checked)">
                                     <span class="loads-switch-track"><span></span></span>
@@ -674,21 +818,10 @@
                                 </div>
                             </article>
                         </div>
-                    </div>
 
-                    <div v-else-if="activeTab === 'log'" class="loads-stack">
-                        <div v-if="!status.audit.length" class="loads-state"><strong>{{ t('logEmpty') }}</strong></div>
-                        <div v-else class="loads-card loads-table-wrap">
-                            <table class="loads-table">
-                                <thead><tr><th>{{ t('logTime') }}</th><th>{{ t('logDevice') }}</th><th>{{ t('logAction') }}</th><th>{{ t('logReason') }}</th><th>{{ t('logDetail') }}</th></tr></thead>
-                                <tbody><tr v-for="(row, index) in status.audit" :key="index">
-                                    <td>{{ timeText(row.at) }}</td><td>{{ deviceName(row.id) }}</td><td>{{ actionText(row.action) }}</td><td>{{ reasonText(row.reason) }}</td><td>{{ detailText(row) }}</td>
-                                </tr></tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    <form v-else class="loads-form" @submit.prevent="saveSettings">
+                        <details v-if="view === 'loads'" class="loads-guide">
+                            <summary>{{ t('settingsTitle') }}</summary>
+                    <form class="loads-form" @submit.prevent="saveSettings">
                         <div class="loads-section">
                             <label class="loads-switch">
                                 <input type="checkbox" v-model="settings.master_enabled" :disabled="!isLive">
@@ -702,14 +835,15 @@
                         </div>
                         <div class="loads-form-actions"><button type="submit" class="primary" :disabled="!isLive || busy">{{ t('save') }}</button></div>
                     </form>
-                </div>
+                        </details>
+                    </div>
+                </template>
             </section>
         `,
-        setup() {
+        setup(props, { emit }) {
             const loading = Vue.ref(true);
             const message = Vue.ref("");
             const status = Vue.ref(null);
-            const activeTab = Vue.ref("devices");
             const busy = Vue.ref(false);
             const ackChecked = Vue.ref(false);
             const editorOpen = Vue.ref(false);
@@ -719,8 +853,8 @@
             const hassTick = Vue.ref(0);
             const bridgeHost = Vue.ref(null);
             const settings = Vue.reactive({ master_enabled: true, base_load_w: 300 });
-            const tabs = ["devices", "log", "settings"];
-            const guideParts = ["principle", "surplus", "cheapest", "price", "window", "battery", "match", "program", "priority", "protect"];
+            const modeCards = ["live", "akku", "surplus", "price", "loads"];
+            const guideParts = ["principle", "surplus", "cheapest", "price", "window", "battery", "match", "program", "door", "priority", "protect"];
             let bridge = null;
             let timer = null;
 
@@ -728,6 +862,18 @@
             const isLive = Vue.computed(() => status.value?.mode === "live");
             const acknowledged = Vue.computed(() => Boolean(status.value?.settings?.disclaimer_ack_at));
             const consumers = Vue.computed(() => status.value?.consumers || []);
+            const visibleConsumers = Vue.computed(() => consumers.value.filter((item) => modeOf(item) === props.view));
+            const countFor = (mode) => consumers.value.filter((item) => item.active && modeOf(item) === mode).length;
+            const nextFor = (mode) => {
+                const stamps = consumers.value
+                    .filter((item) => item.active && modeOf(item) === mode)
+                    .map((item) => (item.kind === "program"
+                        ? (item.plan || item.preview)?.start
+                        : (!item.is_on ? item.next_window?.start : null)))
+                    .filter(Boolean)
+                    .sort();
+                return stamps[0] || null;
+            };
             const canToggle = Vue.computed(() => isLive.value && acknowledged.value && !busy.value);
             const activeCount = Vue.computed(() => consumers.value.filter((item) => item.active).length);
             const nextStartText = Vue.computed(() => {
@@ -763,6 +909,7 @@
                     switchable: ["switch.", "input_boolean."],
                     program: ["button.", "script.", "switch.", "input_boolean."],
                     ready: ["binary_sensor.", "input_boolean.", "switch."],
+                    door: ["binary_sensor."],
                 }[kind] || [];
                 const states = parentHass(window)?.states || {};
                 return Object.values(states)
@@ -815,7 +962,7 @@
                 return run("setActive", { id: item.id, active: checked });
             }
             function beginAdd() {
-                Object.assign(draft, blankDraft());
+                Object.assign(draft, blankDraft(props.view === "loads" ? "program" : "switchable"));
                 editorOpen.value = true;
             }
             function beginEdit(item) {
@@ -827,8 +974,49 @@
                     min_runtime_min: item.min_runtime_min, min_off_min: item.min_off_min,
                     deadline: item.deadline, duration_min: item.duration_min,
                     objective: item.objective, earliest_day: item.earliest_day,
+                    door_entity: item.door_entity || "", door_openings: item.door_openings || 2,
                 });
+                const below = (item.conditions || []).find((cond) => cond.type === "price_below");
+                const cheapest = (item.conditions || []).find((cond) => cond.type === "cheapest_hours");
+                const windowRule = (item.conditions || []).find((cond) => cond.type === "time_window");
+                if (below) Object.assign(draft, { priceMode: "below", maxCt: below.max_ct });
+                if (cheapest) Object.assign(draft, { priceMode: "cheapest", hours: cheapest.hours, scope: cheapest.scope });
+                if (windowRule) {
+                    Object.assign(draft, { useWindow: true, winDays: [...windowRule.days], winStart: windowRule.start, winEnd: windowRule.end });
+                }
                 editorOpen.value = true;
+            }
+            function toggleDraftDay(day) {
+                const set = new Set(draft.winDays);
+                if (set.has(day)) set.delete(day); else set.add(day);
+                draft.winDays = [...set].sort();
+            }
+            async function saveSimple() {
+                const conditions = [];
+                if (props.view === "surplus") {
+                    conditions.push({ type: "pv_surplus" });
+                } else if (draft.priceMode === "cheapest") {
+                    conditions.push({ type: "cheapest_hours", hours: Number(draft.hours), scope: draft.scope });
+                } else {
+                    conditions.push({ type: "price_below", max_ct: Number(draft.maxCt) });
+                }
+                if (props.view === "price" && draft.useWindow) {
+                    conditions.push({ type: "time_window", days: [...draft.winDays], start: draft.winStart, end: draft.winEnd });
+                }
+                const power = Number(draft.nominal_power_w);
+                const body = {
+                    name: draft.name.trim(), kind: "switchable", priority: Number(draft.priority),
+                    nominal_power_w: power, entity_id: draft.entity_id.trim(),
+                    min_surplus_w: props.view === "surplus" ? Number(draft.min_surplus_w) : power,
+                    match: props.view === "surplus" ? "any" : "all",
+                    conditions,
+                    min_runtime_min: Number(draft.min_runtime_min),
+                    min_off_min: Number(draft.min_off_min),
+                };
+                const ok = draft.id
+                    ? await run("updateConsumer", { ...body, id: draft.id })
+                    : await run("addConsumer", body);
+                if (ok) editorOpen.value = false;
             }
             function draftPayload() {
                 const body = {
@@ -847,6 +1035,8 @@
                     body.deadline = draft.deadline;
                     body.objective = draft.objective;
                     body.earliest_day = draft.earliest_day;
+                    body.door_entity = draft.door_entity.trim() || null;
+                    body.door_openings = Number(draft.door_openings);
                     body.min_surplus_w = Number(draft.nominal_power_w);
                 }
                 return body;
@@ -918,6 +1108,83 @@
                 return parts.join(" · ") || "–";
             };
 
+            const nextOf = (items) => items
+                .filter((item) => item.active)
+                .map((item) => ({ item, at: item.kind === "program" ? (item.plan || item.preview)?.start : (!item.is_on ? item.next_window?.start : null) }))
+                .filter((entry) => entry.at)
+                .sort((left, right) => String(left.at).localeCompare(String(right.at)))[0] || null;
+            const clock = (iso) => {
+                const date = new Date(iso);
+                return Number.isNaN(date.getTime()) ? "–" : date.toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" });
+            };
+            const watts = (value) => (value == null ? null : Math.abs(value) >= 1000 ? `${(value / 1000).toLocaleString(language(), { maximumFractionDigits: 2 })} kW` : `${Math.round(value)} W`);
+            function hubbleFor(view) {
+                const body = status.value || {};
+                const inputs = body.inputs || {};
+                const all = consumers.value;
+                const mine = view === "start" || view === "log" ? all : all.filter((item) => modeOf(item) === view);
+                const active = mine.filter((item) => item.active);
+                const demo = body.mode === "demo";
+                const parts = [];
+                if (demo) parts.push(t("hubble.demo"));
+                const surplus = watts(inputs.surplus_w);
+                const next = nextOf(mine);
+                if (view === "start") {
+                    const headline = active.length ? t(active.length === 1 ? "hubble.startHeadOne" : "hubble.startHead", { n: active.length }) : t("hubble.startEmpty");
+                    if (next) parts.unshift(t("hubble.nextDevice", { name: next.item.name, time: clock(next.at) }));
+                    if (surplus) parts.unshift(t("hubble.surplusNow", { v: surplus }));
+                    return { tone: demo ? "demo" : active.length ? "ok" : "idle", headline, detail: parts.join(" ") };
+                }
+                if (view === "surplus") {
+                    const running = active.filter((item) => item.is_on).length;
+                    let headline;
+                    if (!mine.length) headline = t("hubble.surplusEmpty");
+                    else if (inputs.surplus_w == null) headline = t("hubble.surplusMissing");
+                    else if (running) headline = t(running === 1 ? "hubble.surplusRunningOne" : "hubble.surplusRunning", { n: running });
+                    else headline = t("hubble.surplusIdle");
+                    if (surplus) parts.unshift(t("hubble.surplusNow", { v: surplus }));
+                    parts.push(t("hubble.surplusHow"));
+                    return { tone: demo ? "demo" : inputs.surplus_w == null && mine.length ? "warn" : running ? "ok" : "idle", headline, detail: parts.join(" ") };
+                }
+                if (view === "price") {
+                    const price = inputs.price_ct_kwh;
+                    const headline = !mine.length
+                        ? t("hubble.priceEmpty")
+                        : price == null ? t("hubble.priceMissing") : t("hubble.priceNow", { v: Number(price).toLocaleString(language(), { maximumFractionDigits: 1 }) });
+                    if (next) parts.unshift(t("hubble.nextDevice", { name: next.item.name, time: clock(next.at) }));
+                    if (!inputs.prices_tomorrow && mine.length) parts.push(t("hubble.priceTomorrow"));
+                    return { tone: demo ? "demo" : price == null && mine.length ? "warn" : "ok", headline, detail: parts.join(" ") };
+                }
+                if (view === "loads") {
+                    const planned = active.find((item) => item.kind === "program" && item.state === "planned" && item.plan?.start);
+                    const running = active.find((item) => item.kind === "program" && item.state === "started");
+                    let headline;
+                    if (running) headline = t("hubble.programRunning", { name: running.name });
+                    else if (planned) headline = t("hubble.programPlanned", { name: planned.name, time: clock(planned.plan.start) });
+                    else if (mine.length) headline = t("hubble.programWaiting");
+                    else headline = t("hubble.programEmpty");
+                    const door = active.find((item) => item.kind === "program" && item.door_entity && ["idle", "done"].includes(item.state));
+                    if (running) {
+                        parts.push(running.plan?.end ? t("hubble.programRunningUntil", { time: clock(running.plan.end) }) : t("hubble.programRunningHow"));
+                    } else if (planned) {
+                        parts.push(t("hubble.programPlannedHow", { deadline: planned.deadline || "–", goal: t(`goal.${planned.objective || "both"}`) }));
+                    } else {
+                        parts.push(door ? t("hubble.programDoor", { name: door.name, n: door.door_opens || 0, m: door.door_openings || 2 }) : t("hubble.programHow"));
+                    }
+                    return { tone: demo ? "demo" : running || planned ? "ok" : "idle", headline, detail: parts.join(" ") };
+                }
+                const today = new Date().toDateString();
+                const switched = (body.audit || []).filter((row) => ["on", "off", "start"].includes(row.action) && new Date(row.at).toDateString() === today);
+                const last = (body.audit || [])[0];
+                const headline = switched.length ? t(switched.length === 1 ? "hubble.logTodayOne" : "hubble.logToday", { n: switched.length }) : t("hubble.logQuiet");
+                if (last) parts.push(t("hubble.logLast", { action: actionText(last.action), name: deviceName(last.id), time: clock(last.at), reason: reasonText(last.reason) }));
+                return { tone: demo ? "demo" : "idle", headline, detail: parts.join(" ") };
+            }
+            const hubble = Vue.computed(() => hubbleFor(props.view));
+            Vue.watch(() => [status.value, props.view], () => {
+                if (props.view === "start" && status.value) emit("summary", hubbleFor("start"));
+            });
+
             Vue.onMounted(() => {
                 bridge = new ConsumersBridgeClient(window);
                 bridge.mount(bridgeHost.value);
@@ -930,7 +1197,7 @@
             });
 
             return {
-                t, tabs, activeTab, loading, message, status, busy, ackChecked, isDemo, isLive, acknowledged, consumers, canToggle,
+                t, hubble, modeCards, visibleConsumers, countFor, nextFor, toggleDraftDay, saveSimple, loading, message, status, busy, ackChecked, isDemo, isLive, acknowledged, consumers, canToggle,
                 surplusText, batteryText, typeMismatch, guideParts, activeCount, nextStartText, editorOpen, draft, pendingDelete, newCondition, settings, bridgeHost,
                 weekdays: WEEKDAYS, conditionTypes: CONDITION_TYPES,
                 entityChoices, acknowledge, toggleActive, beginAdd, beginEdit, saveDraft, confirmDelete, addCondition, toggleDay, dayName, saveSettings, run,

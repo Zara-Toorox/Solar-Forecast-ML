@@ -86,6 +86,32 @@ class SolaxCoordinator(DataUpdateCoordinator[dict[str, solax.SolaxDevice]]):
         self.unit_id = int(entry.data.get(CONF_UNIT_ID, solax.DEFAULT_UNIT_ID))
         self._holding: dict[int, int] = {}
         self._optional = list(solax.OPTIONAL_INPUT_BLOCKS)
+        self._legacy_optional = list(solax.LEGACY_INPUT_BLOCKS)
+
+    async def _read_optional(
+        self,
+        client: ModbusTcpClient,
+        blocks: list[tuple[int, int]],
+        function: int,
+        target: dict[int, int],
+    ) -> bool:
+        """Read optional blocks; drop unsupported ones. False after a silent dongle. @zara"""
+        for block in list(blocks):
+            try:
+                target.update(await read_blocks(client, (block,), function))
+            except ModbusError as err:
+                # e.g. models with two PV inputs have no PV3 registers
+                if err.code in UNSUPPORTED_CODES:
+                    blocks.remove(block)
+                else:
+                    LOGGER.debug("SolaX optional block %s: %s", block, err)
+            except (TimeoutError, EOFError) as err:
+                # some dongles stay silent on missing registers; optional blocks
+                # come after the main data, so those stay valid
+                LOGGER.debug("SolaX optional block %s dropped: %s", block, err)
+                blocks.remove(block)
+                return False
+        return True
 
     async def _async_update_data(self) -> dict[str, solax.SolaxDevice]:
         try:
@@ -100,23 +126,20 @@ class SolaxCoordinator(DataUpdateCoordinator[dict[str, solax.SolaxDevice]]):
                 inputs = await read_blocks(
                     client, solax.INPUT_BLOCKS, READ_INPUT_REGISTERS
                 )
-                for block in list(self._optional):
-                    try:
-                        inputs.update(
-                            await read_blocks(client, (block,), READ_INPUT_REGISTERS)
-                        )
-                    except ModbusError as err:
-                        # models with two PV inputs have no PV3 registers
-                        if err.code in UNSUPPORTED_CODES:
-                            self._optional.remove(block)
-                        else:
-                            LOGGER.debug("SolaX optional block %s: %s", block, err)
-                    except (TimeoutError, EOFError) as err:
-                        # some dongles stay silent on missing registers; the block
-                        # is the last request, so the main data stay valid
-                        LOGGER.debug("SolaX optional block %s dropped: %s", block, err)
-                        self._optional.remove(block)
-                        break
+                alive = await self._read_optional(
+                    client, self._optional, READ_INPUT_REGISTERS, inputs
+                )
+                if alive and solax.is_legacy(inputs):
+                    alive = await self._read_optional(
+                        client, self._legacy_optional, READ_INPUT_REGISTERS, inputs
+                    )
+                if alive and solax.needs_machine_type(self._holding):
+                    machine = [solax.MACHINE_TYPE_BLOCK]
+                    await self._read_optional(
+                        client, machine, READ_HOLDING_REGISTERS, self._holding
+                    )
+                    if not machine:  # unsupported: do not ask again
+                        self._holding.setdefault(solax.MACHINE_TYPE_BLOCK[0], 0)
         except READ_ERRORS as err:
             raise UpdateFailed(
                 f"SolaX at {self.host}:{self.port} not readable: {err}"

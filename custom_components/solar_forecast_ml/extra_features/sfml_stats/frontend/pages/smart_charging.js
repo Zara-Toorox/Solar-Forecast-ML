@@ -79,6 +79,8 @@ const SmartChargingPage = ((Vue) => {
                     </div>
                 </div>
 
+                <slot name="intro"></slot>
+
                 <div class="chart-card sc-setup-card" style="margin-bottom: var(--space-lg);" v-if="setupCheckItems.length">
                     <div class="chart-header">
                         <span class="chart-title">{{ $t('smart_charging.setup.title') }}</span>

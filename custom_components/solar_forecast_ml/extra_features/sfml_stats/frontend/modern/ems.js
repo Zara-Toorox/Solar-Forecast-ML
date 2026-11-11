@@ -155,10 +155,40 @@ class EMSBridgeClient {
 }
 
 const ModernEMSPage = {
+    props: ["liveData", "config", "initialSection"],
+    emits: ["navigate"],
     template: `
         <section class="ems-page" aria-labelledby="ems-title">
             <div ref="bridgeHost" class="ems-bridge-host" aria-hidden="true"></div>
 
+            <nav class="ems-tabs" role="tablist" aria-label="Bereiche des EMS">
+                <button v-for="tab in emsTabs" :key="tab.id" type="button" role="tab" :id="'ems-tab-' + tab.id"
+                        :aria-selected="activeTab === tab.id ? 'true' : 'false'" :tabindex="activeTab === tab.id ? 0 : -1"
+                        :class="{ active: activeTab === tab.id }" @click="activeTab = tab.id" @keydown="handleTabKeydown">{{ tab.label }}</button>
+            </nav>
+
+            <div v-if="activeTab === 'start'" class="ems-tab-panel" role="tabpanel" aria-labelledby="ems-tab-start">
+                <hubble-say v-if="startHubble" class="ems-hubble" :tone="startHubble.tone" :headline="startHubble.headline" :detail="startHubble.detail"></hubble-say>
+                <sfml-tab-intro topic="start"></sfml-tab-intro>
+                <div class="ems-mode-grid">
+                    <loads-panel view="start" @open="activeTab = $event" @summary="startHubble = $event"></loads-panel>
+                </div>
+            </div>
+
+            <div v-else-if="activeTab === 'akku'" class="ems-tab-panel" role="tabpanel" aria-labelledby="ems-tab-akku">
+                <smart-charging-panel :live-data="liveData" :config="config" @navigate="(target) => $emit('navigate', target)">
+                    <template #intro><sfml-tab-intro class="ems-smc-intro" topic="akku"></sfml-tab-intro></template>
+                </smart-charging-panel>
+            </div>
+
+            <div v-else-if="activeTab !== 'live'" class="ems-tab-panel" role="tabpanel" :aria-labelledby="'ems-tab-' + activeTab">
+                <div v-if="activeTab === 'surplus' && legacySurplusActor" class="ems-message ok" role="status"><strong>Hinweis:</strong> Im EMS ist noch der alte Überschussverbraucher eingerichtet ({{ legacySurplusActor.label }}). Lege das Gerät hier als Überschuss-Gerät an, damit der Überschuss nur an einer Stelle verteilt wird.</div>
+                <loads-panel :view="loadsView" :key="loadsView" @open="activeTab = $event"></loads-panel>
+            </div>
+
+            <div v-show="activeTab === 'live'" class="ems-tab-live" role="tabpanel" aria-labelledby="ems-tab-live">
+            <hubble-say v-if="!loading && !locked && data" class="ems-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
+            <sfml-tab-intro topic="live"></sfml-tab-intro>
             <header class="ems-status-bar">
                 <div>
                     <span class="ems-eyebrow">Energiemanagement</span>
@@ -173,7 +203,6 @@ const ModernEMSPage = {
                     <span class="ems-pill quiet">{{ currentModeLabel }}</span>
                 </div>
             </header>
-            <hubble-say v-if="!loading && !locked && data" class="ems-hubble" :tone="hubbleSay.tone" :headline="hubbleSay.headline" :detail="hubbleSay.detail"></hubble-say>
 
             <div v-if="message" :class="['ems-message', messageError ? 'error' : 'ok']" :role="messageError ? 'alert' : 'status'">{{ message }}</div>
             <div v-if="data?.safety_alarm" class="ems-message error" role="alert"><strong>Sicherheitsfreigabe ausstehend:</strong> Ein vom EMS übernommenes Gerät konnte noch nicht bestätigt ausgeschaltet werden. Das EMS versucht die Freigabe erneut und bleibt gesperrt.</div>
@@ -340,8 +369,8 @@ const ModernEMSPage = {
 
                 <section class="ems-control-grid">
                     <article class="ems-card ems-mode-card">
-                        <span class="ems-eyebrow">Steuerfreigabe</span><h3>Was darf das EMS tun?</h3>
-                        <p>Lege fest, ob das EMS nur empfiehlt oder freigegebene Geräte schalten darf. Vor jeder Schaltung werden Freigabe, Datenlage und Schutzregeln erneut geprüft.</p>
+                        <span class="ems-eyebrow">EMS-Automatik</span><h3>Was darf das EMS tun?</h3>
+                        <p>Gilt nur für die Geräte, die das EMS selbst schaltet: Wallbox, Wärmepumpe und die Akku-Netzladung des EMS. Geräte unter Überschuss, Preis sowie Programme &amp; Regeln schalten über ihren eigenen Schalter „Regelung aktiv“. Vor jeder Schaltung werden Freigabe, Datenlage und Schutzregeln erneut geprüft.</p>
                         <div :class="['ems-mode-state', data.control_mode]"><strong>{{ currentModeLabel }}</strong><span>{{ currentModeScope }}</span></div>
                         <div class="ems-mode-buttons">
                             <button v-for="mode in modes" :key="mode.id" type="button" :class="[mode.id, { active: data.control_mode === mode.id }]" :disabled="busy || (data.mode !== 'live' && mode.id !== 'observe')" @click="setMode(mode.id)"><strong>{{ mode.label }}</strong><span>{{ mode.help }}</span></button>
@@ -380,6 +409,7 @@ const ModernEMSPage = {
                 </details>
             </template>
             <modern-page-guide page="ems"></modern-page-guide>
+            </div>
         </section>
     `,
     setup() {
@@ -412,6 +442,35 @@ const ModernEMSPage = {
 
         const unwrap = (response) => response?.success === true ? response.data : response?.data ?? response;
         const visibleActors = computed(() => (data.value?.actors || []).filter((actor) => actor.present === true));
+        const tabLabel = (id) => window.SfmlLoadsI18n?.t(`view.${id}`) || id;
+        const emsTabs = ["start", "live", "akku", "surplus", "price", "loads", "log"].map((id) => ({ id, label: tabLabel(id) }));
+        const tabFromHash = () => {
+            const [page, tab = ""] = window.location.hash.slice(1).split("/");
+            return page === "ems" && emsTabs.some((item) => item.id === tab) ? tab : null;
+        };
+        const activeTab = ref(tabFromHash() || "start");
+        const startHubble = ref(null);
+        // Keep the open tab in the address so a reload or a shared link lands on it
+        Vue.watch(activeTab, (tab) => {
+            const target = tab === "start" ? "#ems" : `#ems/${tab}`;
+            if (window.location.hash !== target) window.history.replaceState(null, "", target);
+        });
+        const syncTabFromHash = () => {
+            const tab = tabFromHash();
+            if (tab && tab !== activeTab.value) activeTab.value = tab;
+        };
+        const loadsView = computed(() => (["surplus", "price", "loads", "log"].includes(activeTab.value) ? activeTab.value : "loads"));
+        const legacySurplusActor = computed(() => (data.value?.actors || []).find((actor) => actor.id === "surplus_load" && actor.configured && actor.enabled) || null);
+        const handleTabKeydown = (event) => {
+            const index = emsTabs.findIndex((tab) => tab.id === activeTab.value);
+            let next = index;
+            if (event.key === "ArrowRight") next = (index + 1) % emsTabs.length;
+            else if (event.key === "ArrowLeft") next = (index - 1 + emsTabs.length) % emsTabs.length;
+            else return;
+            event.preventDefault();
+            activeTab.value = emsTabs[next].id;
+            nextTick(() => document.getElementById(`ems-tab-${activeTab.value}`)?.focus());
+        };
         const enabledActorLabels = computed(() => visibleActors.value.filter((actor) => actor.configured && actor.enabled).map((actor) => actor.label));
         const actionPlan = computed(() => Array.isArray(data.value?.action_plan) ? data.value.action_plan : []);
         const primaryAction = computed(() => actionPlan.value[0] || {
@@ -726,6 +785,19 @@ const ModernEMSPage = {
         };
         const handleResize = () => chartInstance?.resize();
 
+        // The chart lives in the hidden Live tab; draw it again once the tab becomes visible
+        Vue.watch(activeTab, (tab) => {
+            if (tab !== "live") return;
+            nextTick(() => {
+                chartRenderAttempts = 0;
+                renderChart();
+                chartInstance?.resize();
+            });
+        });
+
+        onMounted(() => window.addEventListener("hashchange", syncTabFromHash));
+        onUnmounted(() => window.removeEventListener("hashchange", syncTabFromHash));
+
         onMounted(async () => {
             disposed = false;
             bridge = new EMSBridgeClient();
@@ -769,7 +841,7 @@ const ModernEMSPage = {
             parts.push(hT("ems.mode", { mode: currentModeLabel.value }));
             return { tone: live ? "ok" : "demo", headline: hT(live ? "ems.liveHead" : "ems.demoHead"), detail: parts.join(" ") };
         });
-        return { hubbleSay, bridgeHost, chart, dayStrip, data, selectedDate, selectedDay, selectedDayIndex,
+        return { emsTabs, activeTab, startHubble, loadsView, legacySurplusActor, handleTabKeydown, hubbleSay, bridgeHost, chart, dayStrip, data, selectedDate, selectedDay, selectedDayIndex,
             selectedSummary, selectedDayCaption, dayValueScope, demandComponentsLabel, coverageRows, coverageStory,
             chartView, chartAriaLabel, chartSummary, loading, locked, adminLocked, busy, message,
             messageError, detailsOpen, modes, primaryAction, nextActions, todayBrief, forecastWindows,

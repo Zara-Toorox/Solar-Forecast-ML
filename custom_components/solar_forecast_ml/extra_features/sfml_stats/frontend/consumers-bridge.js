@@ -20,7 +20,7 @@ function consumersId(payload) {
   return id;
 }
 
-const CONSUMER_FIELDS = ["name", "kind", "priority", "nominal_power_w", "min_surplus_w", "entity_id", "ready_entity", "match", "conditions", "min_runtime_min", "min_off_min", "deadline", "duration_min", "objective", "earliest_day"];
+const CONSUMER_FIELDS = ["name", "kind", "priority", "nominal_power_w", "min_surplus_w", "entity_id", "ready_entity", "match", "conditions", "min_runtime_min", "min_off_min", "deadline", "duration_min", "objective", "earliest_day", "door_entity", "door_openings"];
 
 const CONSUMERS_OPERATIONS = Object.freeze({
   status: { method: "GET", path: () => "status", payload: () => undefined },

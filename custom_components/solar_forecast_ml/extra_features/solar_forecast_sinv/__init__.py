@@ -103,6 +103,7 @@ from .hoymiles_dtu_coordinator import HoymilesDtuCoordinator
 from .huawei_coordinator import HuaweiCoordinator
 from .kostal_coordinator import KostalCoordinator
 from .maxxisun_coordinator import MaxxisunCoordinator
+from .mtec_coordinator import MtecCoordinator
 from .opendtu_coordinator import OpenDtuCoordinator
 from .services import async_setup_services  # async_remove_services
 from .solakon_coordinator import SolakonCoordinator
@@ -137,6 +138,7 @@ LOCAL_COORDINATORS = {
     "local_emsesp": EmsespCoordinator,
     "ha_bridge": HpBridgeCoordinator,
     "local_modbus_stiebel": StiebelCoordinator,
+    "local_modbus_mtec": MtecCoordinator,
 }
 # Polled energy devices that may switch off at night; heat pumps and the push
 # webhook never sleep.
@@ -145,6 +147,7 @@ SLEEP_CONNECTIONS = frozenset(LOCAL_COORDINATORS) - {
     "local_emsesp",
     "ha_bridge",
     "local_modbus_stiebel",
+    "local_modbus_mtec",
 }
 SITE_PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR, Platform.SWITCH]
 HP_PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]

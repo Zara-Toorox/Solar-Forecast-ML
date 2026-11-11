@@ -108,6 +108,7 @@ from .const import (
     VENDOR_SOLPLANET,
     VENDOR_SOLAX,
     VENDOR_STIEBEL,
+    VENDOR_MTEC,
     VENDOR_SUNGROW,
     VENDOR_ZENDURE,
 )
@@ -127,6 +128,12 @@ from .install_counter import CONF_INSTALL_COUNT, INSTALL_COUNT_DEFAULT
 from .kostal_coordinator import CONF_UNIT_ID
 from .kostal_coordinator import async_probe as async_probe_kostal
 from .modbus_tcp import ModbusError
+from .mtec_coordinator import (
+    MtecError,
+    async_probe as async_probe_mtec,
+    same_target as mtec_same_target,
+    setup_code as mtec_setup_code,
+)
 from .opendtu_coordinator import async_probe as async_probe_opendtu
 from .hp_site import HP_TITLE, HP_UNIQUE_ID
 from .site import SITE_TITLE, SITE_UNIQUE_ID, VENDOR_SITE
@@ -154,6 +161,7 @@ from .vendors import (
     huawei,
     kostal,
     maxxisun,
+    mtec,
     opendtu,
     sigenergy,
     solakon,
@@ -260,6 +268,8 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             return HpBridgeOptionsFlowHandler()
         if config_entry.data.get(CONF_VENDOR) == VENDOR_STIEBEL:
             return StiebelOptionsFlowHandler()
+        if config_entry.data.get(CONF_VENDOR) == VENDOR_MTEC:
+            return MtecOptionsFlowHandler()
         if config_entry.data.get(CONF_VENDOR) in LOCAL_VENDORS:
             return LocalOptionsFlowHandler()
         return AnkerSolixOptionsFlowHandler(config_entry)
@@ -310,6 +320,8 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 return await self.async_step_hp_bridge()
             if self._connection == stiebel_isg.CONNECTION:
                 return await self.async_step_stiebel()
+            if self._connection == mtec.CONNECTION:
+                return await self.async_step_mtec()
             return self.async_abort(reason="heat_pump_pending")
         return self.async_show_form(
             step_id="heat_pump",
@@ -542,6 +554,66 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             ),
             errors=errors,
         )
+
+    async def async_step_mtec(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Ask for the M-TEC controller and read one holding register. Read only. @zara"""
+        errors: dict[str, str] = {}
+        current = user_input or {}
+        if user_input is not None:
+            try:
+                host = normalize_stiebel_host(str(user_input.get(CONF_HOST, "")))
+                port = int(user_input.get(CONF_PORT, mtec.DEFAULT_PORT))
+                unit_id = int(user_input.get(CONF_UNIT_ID, mtec.DEFAULT_UNIT_ID))
+                if not 1 <= port <= 65535 or not 0 <= unit_id <= 255:
+                    raise ValueError("invalid host")
+            except (TypeError, ValueError):
+                errors[CONF_HOST] = "invalid_host"
+            else:
+                try:
+                    await async_probe_mtec(host, port, unit_id)
+                except MtecError as err:
+                    errors[CONF_HOST] = mtec_setup_code(err)
+                else:
+                    if self._mtec_taken(host, port, unit_id):
+                        return self.async_abort(reason="mtec_already_configured")
+                    return self.async_create_entry(
+                        title=mtec.NAME,
+                        data={
+                            CONF_VENDOR: VENDOR_MTEC,
+                            CONF_CONNECTION: mtec.CONNECTION,
+                            CONF_HOST: host,
+                            CONF_PORT: port,
+                            CONF_UNIT_ID: unit_id,
+                        },
+                        options={CONF_SCAN_INTERVAL: mtec.DEFAULT_SCAN_SECONDS},
+                    )
+        return self.async_show_form(
+            step_id="mtec",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOST, default=current.get(CONF_HOST, "")): str,
+                    vol.Required(
+                        CONF_PORT,
+                        default=current.get(CONF_PORT, mtec.DEFAULT_PORT),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+                    vol.Required(
+                        CONF_UNIT_ID,
+                        default=current.get(CONF_UNIT_ID, mtec.DEFAULT_UNIT_ID),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
+                }
+            ),
+            errors=errors,
+        )
+
+    def _mtec_taken(self, host: str, port: int, unit_id: int) -> bool:
+        """Return True when this M-TEC target is already configured. @zara"""
+        entries = []
+        config_entries = getattr(self.hass, "config_entries", None)
+        if config_entries is not None:
+            entries = config_entries.async_entries(DOMAIN)
+        return mtec_same_target(entries, host, port, unit_id, skip=None)
 
     def _stiebel_taken(self, host: str, port: int, unit_id: int) -> bool:
         """Return True when this ISG target is already configured. @zara"""
@@ -1659,6 +1731,13 @@ class HpBridgeOptionsFlowHandler(config_entries.OptionsFlow):
 class StiebelOptionsFlowHandler(config_entries.OptionsFlow):
     """Scan interval and ISG target. The entry id stays the device identity. @zara"""
 
+    _module: Any = stiebel_isg
+    _duplicate = "stiebel_duplicate"
+
+    @staticmethod
+    def _same(entries, host: str, port: int, unit_id: int, *, skip: str | None) -> bool:
+        return stiebel_same_target(entries, host, port, unit_id, skip=skip)
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
@@ -1668,18 +1747,18 @@ class StiebelOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             try:
                 host = normalize_stiebel_host(str(user_input.get(CONF_HOST, "")))
-                port = int(user_input.get(CONF_PORT, stiebel_isg.DEFAULT_PORT))
-                unit_id = int(user_input.get(CONF_UNIT_ID, stiebel_isg.DEFAULT_UNIT_ID))
+                port = int(user_input.get(CONF_PORT, self._module.DEFAULT_PORT))
+                unit_id = int(user_input.get(CONF_UNIT_ID, self._module.DEFAULT_UNIT_ID))
                 seconds = int(user_input[CONF_SCAN_INTERVAL])
                 if not 1 <= port <= 65535 or not 0 <= unit_id <= 255:
                     raise ValueError("invalid host")
-                if seconds < stiebel_isg.MIN_SCAN_SECONDS or seconds > 300:
+                if seconds < self._module.MIN_SCAN_SECONDS or seconds > 300:
                     raise ValueError("invalid host")
             except (TypeError, ValueError, KeyError):
                 errors[CONF_HOST] = "invalid_host"
             else:
                 if self._target_taken(host, port, unit_id):
-                    errors[CONF_HOST] = "stiebel_duplicate"
+                    errors[CONF_HOST] = self._duplicate
                 else:
                     updated = dict(data)
                     updated[CONF_HOST] = host
@@ -1697,20 +1776,20 @@ class StiebelOptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Required(CONF_HOST, default=data.get(CONF_HOST, "")): str,
                     vol.Required(
-                        CONF_PORT, default=data.get(CONF_PORT, stiebel_isg.DEFAULT_PORT)
+                        CONF_PORT, default=data.get(CONF_PORT, self._module.DEFAULT_PORT)
                     ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
                     vol.Required(
                         CONF_UNIT_ID,
-                        default=data.get(CONF_UNIT_ID, stiebel_isg.DEFAULT_UNIT_ID),
+                        default=data.get(CONF_UNIT_ID, self._module.DEFAULT_UNIT_ID),
                     ): vol.All(vol.Coerce(int), vol.Range(min=0, max=255)),
                     vol.Required(
                         CONF_SCAN_INTERVAL,
                         default=self.config_entry.options.get(
-                            CONF_SCAN_INTERVAL, stiebel_isg.DEFAULT_SCAN_SECONDS
+                            CONF_SCAN_INTERVAL, self._module.DEFAULT_SCAN_SECONDS
                         ),
                     ): vol.All(
                         vol.Coerce(int),
-                        vol.Range(min=stiebel_isg.MIN_SCAN_SECONDS, max=300),
+                        vol.Range(min=self._module.MIN_SCAN_SECONDS, max=300),
                     ),
                 }
             ),
@@ -1723,9 +1802,20 @@ class StiebelOptionsFlowHandler(config_entries.OptionsFlow):
         config_entries = getattr(self.hass, "config_entries", None)
         if config_entries is not None:
             entries = config_entries.async_entries(DOMAIN)
-        return stiebel_same_target(
+        return self._same(
             entries, host, port, unit_id, skip=self.config_entry.entry_id
         )
+
+
+class MtecOptionsFlowHandler(StiebelOptionsFlowHandler):
+    """Scan interval and M-TEC target; same form as the ISG. @zara"""
+
+    _module: Any = mtec
+    _duplicate = "mtec_duplicate"
+
+    @staticmethod
+    def _same(entries, host: str, port: int, unit_id: int, *, skip: str | None) -> bool:
+        return mtec_same_target(entries, host, port, unit_id, skip=skip)
 
 
 class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsFlow):

@@ -136,7 +136,8 @@
             "options": {
                 "bosch_emsesp": "Bosch/Buderus (EMS-ESP)",
                 "hp_bridge": "Andere Wärmepumpe (vorhandene HA-Integration)",
-                "stiebel_isg": "Stiebel Eltron (ISG Modbus)"
+                "stiebel_isg": "Stiebel Eltron (ISG Modbus)",
+                "mtec": "M-TEC (Modbus TCP)"
             }
         },
         "heating_circuit": {
@@ -475,6 +476,20 @@
                 "title": "Andere Wärmepumpe",
                 "description": "Wähle die Sensoren deiner bestehenden Wärmepumpen-Integration; S-INV liest nur."
             },
+            "mtec": {
+                "title": "M-TEC Wärmepumpe (Modbus TCP)",
+                "description": "Die Modbus-Schnittstelle der M-TEC-Steuerung muss aktiv sein; S-INV liest nur Holding-Register. Die erste Antwort kann bis zu 10 Sekunden dauern. Gelesen wird Wärmepumpe 1; die thermische Leistung wird nicht veröffentlicht (die Steuerung meldet nur ganze kW).",
+                "data": {
+                    "host": "Host",
+                    "port": "Port",
+                    "unit_id": "Unit"
+                },
+                "data_description": {
+                    "host": "Hostname oder IP-Adresse. Kein Schema, kein Pfad, kein Passwort.",
+                    "port": "502, an der Steuerung fest",
+                    "unit_id": "1, an der Steuerung fest"
+                }
+            },
             "stiebel": {
                 "title": "Stiebel Eltron (ISG Modbus)",
                 "description": "ISG-Software Modbus TCP/IP muss aktiv sein; S-INV liest nur. Eine elektrische Leistung liefert das ISG nicht; dafür den Brücken-Modus oder einen Zähler wählen.",
@@ -538,7 +553,11 @@
             "stiebel_unreachable": "Das ISG ist unter dieser Adresse nicht erreichbar.",
             "stiebel_modbus_inactive": "Die Modbus-Schnittstelle antwortet nicht (zum Beispiel illegale Adresse). Die ISG-Software Modbus TCP/IP muss aktiv sein.",
             "stiebel_modbus_error": "Das ISG hat die Abfrage abgelehnt.",
-            "stiebel_duplicate": "Dieses ISG ist bereits eingerichtet."
+            "stiebel_duplicate": "Dieses ISG ist bereits eingerichtet.",
+            "mtec_unreachable": "Die M-TEC-Steuerung ist unter dieser Adresse nicht erreichbar.",
+            "mtec_modbus_inactive": "Die Modbus-Schnittstelle antwortet nicht (zum Beispiel illegale Adresse). Modbus an der M-TEC-Steuerung aktivieren.",
+            "mtec_modbus_error": "Die M-TEC-Steuerung hat die Abfrage abgelehnt.",
+            "mtec_duplicate": "Diese M-TEC-Steuerung ist bereits eingerichtet."
         },
         "abort": {
             "already_configured": "Dieses Konto ist bereits konfiguriert!",
@@ -548,6 +567,7 @@
             "hp_no_options": "Das Wärmepumpen-Aggregat hat keine Optionen.",
             "emsesp_already_configured": "Dieses Gateway ist bereits eingerichtet.",
             "stiebel_already_configured": "Dieses ISG ist bereits eingerichtet.",
+            "mtec_already_configured": "Diese M-TEC-Steuerung ist bereits eingerichtet.",
             "reauth_successful": "Der Zugriffstoken wurde aktualisiert."
         }
     },

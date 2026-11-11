@@ -136,7 +136,8 @@
             "options": {
                 "bosch_emsesp": "Bosch/Buderus (EMS-ESP)",
                 "hp_bridge": "Other heat pump (existing HA integration)",
-                "stiebel_isg": "Stiebel Eltron (ISG Modbus)"
+                "stiebel_isg": "Stiebel Eltron (ISG Modbus)",
+                "mtec": "M-TEC (Modbus TCP)"
             }
         },
         "heating_circuit": {
@@ -475,6 +476,20 @@
                 "title": "Other heat pump",
                 "description": "Choose the sensors of your existing heat-pump integration; S-INV only reads."
             },
+            "mtec": {
+                "title": "M-TEC heat pump (Modbus TCP)",
+                "description": "The Modbus interface of the M-TEC controller must be enabled; S-INV only reads holding registers. The first answer can take up to 10 seconds. Heat pump 1 is read; thermal power is not published (the controller reports whole kW only).",
+                "data": {
+                    "host": "Host",
+                    "port": "Port",
+                    "unit_id": "Unit"
+                },
+                "data_description": {
+                    "host": "Hostname or IP address. No scheme, path or password.",
+                    "port": "502, fixed by the controller",
+                    "unit_id": "1, fixed by the controller"
+                }
+            },
             "stiebel": {
                 "title": "Stiebel Eltron (ISG Modbus)",
                 "description": "The ISG Modbus TCP/IP software must be enabled; S-INV only reads. The ISG does not provide electric power; use the bridge or a meter for that.",
@@ -538,7 +553,11 @@
             "stiebel_unreachable": "The ISG could not be reached at this address.",
             "stiebel_modbus_inactive": "The Modbus interface did not answer (for example an illegal address). The ISG Modbus TCP/IP software must be enabled.",
             "stiebel_modbus_error": "The ISG rejected the query.",
-            "stiebel_duplicate": "This ISG is already set up."
+            "stiebel_duplicate": "This ISG is already set up.",
+            "mtec_unreachable": "The M-TEC controller could not be reached at this address.",
+            "mtec_modbus_inactive": "The Modbus interface did not answer (for example an illegal address). Enable Modbus on the M-TEC controller.",
+            "mtec_modbus_error": "The M-TEC controller rejected the query.",
+            "mtec_duplicate": "This M-TEC controller is already set up."
         },
         "abort": {
             "already_configured": "This account is already configured",
@@ -548,6 +567,7 @@
             "hp_no_options": "The heat pump aggregate has no options.",
             "emsesp_already_configured": "This gateway is already set up.",
             "stiebel_already_configured": "This ISG is already set up.",
+            "mtec_already_configured": "This M-TEC controller is already set up.",
             "reauth_successful": "The access token was updated."
         }
     },

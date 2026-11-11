@@ -136,7 +136,8 @@
             "options": {
                 "bosch_emsesp": "Bosch/Buderus (EMS-ESP)",
                 "hp_bridge": "Autre pompe à chaleur (intégration HA existante)",
-                "stiebel_isg": "Stiebel Eltron (ISG Modbus)"
+                "stiebel_isg": "Stiebel Eltron (ISG Modbus)",
+                "mtec": "M-TEC (Modbus TCP)"
             }
         },
         "heating_circuit": {
@@ -475,6 +476,20 @@
                 "title": "Autre pompe à chaleur",
                 "description": "Choisissez les capteurs de votre intégration de pompe à chaleur existante ; S-INV lit seulement."
             },
+            "mtec": {
+                "title": "Pompe à chaleur M-TEC (Modbus TCP)",
+                "description": "L'interface Modbus du régulateur M-TEC doit être active ; S-INV lit seulement les registres de maintien. La première réponse peut prendre jusqu'à 10 secondes. La pompe à chaleur 1 est lue ; la puissance thermique n'est pas publiée (le régulateur ne donne que des kW entiers).",
+                "data": {
+                    "host": "Hôte",
+                    "port": "Port",
+                    "unit_id": "Unité"
+                },
+                "data_description": {
+                    "host": "Nom d'hôte ou adresse IP. Pas de schéma, de chemin ni de mot de passe.",
+                    "port": "502, fixé par le régulateur",
+                    "unit_id": "1, fixé par le régulateur"
+                }
+            },
             "stiebel": {
                 "title": "Stiebel Eltron (ISG Modbus)",
                 "description": "Le logiciel ISG Modbus TCP/IP doit être actif ; S-INV lit seulement. L'ISG ne fournit pas la puissance électrique ; utilisez le pont ou un compteur.",
@@ -538,7 +553,11 @@
             "stiebel_unreachable": "L'ISG n'est pas joignable à cette adresse.",
             "stiebel_modbus_inactive": "L'interface Modbus ne répond pas (par exemple une adresse illégale). Le logiciel ISG Modbus TCP/IP doit être actif.",
             "stiebel_modbus_error": "L'ISG a refusé la requête.",
-            "stiebel_duplicate": "Cet ISG est déjà configuré."
+            "stiebel_duplicate": "Cet ISG est déjà configuré.",
+            "mtec_unreachable": "Le régulateur M-TEC n'est pas joignable à cette adresse.",
+            "mtec_modbus_inactive": "L'interface Modbus ne répond pas (par exemple une adresse illégale). Activez Modbus sur le régulateur M-TEC.",
+            "mtec_modbus_error": "Le régulateur M-TEC a refusé la requête.",
+            "mtec_duplicate": "Ce régulateur M-TEC est déjà configuré."
         },
         "abort": {
             "already_configured": "Ce compte est déjà configuré",
@@ -548,6 +567,7 @@
             "hp_no_options": "L'agrégat pompe à chaleur n'a pas d'options.",
             "emsesp_already_configured": "Cette passerelle est déjà configurée.",
             "stiebel_already_configured": "Cet ISG est déjà configuré.",
+            "mtec_already_configured": "Ce régulateur M-TEC est déjà configuré.",
             "reauth_successful": "Le jeton d'accès a été mis à jour."
         }
     },

@@ -111,6 +111,7 @@ LOVELACE_CARD_URLS = (
     "/api/sfml_stats/static/sfml-warning-card.js",
     "/api/sfml_stats/static/sfml-price-card.js",
     "/api/sfml_stats/static/sfml-heating-card.js",
+    "/api/sfml_stats/static/sfml-loads-card.js",
     "/api/sfml_stats/static/sfml-shadow-card.js",
     "/api/sfml_stats/static/sfml-trust-card.js",
 )

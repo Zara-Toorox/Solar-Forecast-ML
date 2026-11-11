@@ -165,3 +165,7 @@
 .loads-table th { color: var(--text-secondary); font-weight: 750; white-space: nowrap; }
 .loads-card .loads-reason { margin: 0; color: var(--text-primary); font-weight: 650; }
 .loads-card .loads-meta { margin: 0; overflow-wrap: anywhere; }
+.loads-intro { margin: 0; color: var(--text-secondary); line-height: 1.45; }
+.loads-mode-card .loads-meta { color: var(--text-secondary); }
+.loads-page details.loads-guide > .loads-form { margin-top: 10px; }
+.loads-page.inline, .loads-page.inline > .loads-stack, .loads-page.inline .loads-grid { display: contents; }

@@ -23,6 +23,15 @@ Documented signs used directly:
 - OnGridPowerSum 0x0034: positive output -> ``power_inverter_ac_output``
 The house consumption is derived: inverter AC output on the grid side minus the
 feed-in, plus the off-grid (EPS) output.
+
+Older firmware follows the Modbus TCP&RTU protocol V3.29 (X1/X3 Hybrid G4,
+X1/X3-IES, X3-ULTRA) and leaves input registers 0x0028..0x003D empty. With that
+whole range at 0 the totals come from the V3.29 registers instead: PV power as
+the sum of the strings, AC output from GridPower (X1 0x0002, X3 per phase
+0x006C/0x0070/0x0074), battery power 0x0016 with the direction of BDCStatus
+0x0019, SOC 0x001C, SOH 0x00BF and capacity 0x0026 (Wh). V3.29 has no inverter
+type in holding 0x0015; holding 0x0105 MachineType (1 = X1, 3 = X3) gives the
+phase count then.
 """
 
 from __future__ import annotations
@@ -49,6 +58,12 @@ INPUT_BLOCKS: tuple[tuple[int, int], ...] = (
     (0x00B8, 1),
 )
 OPTIONAL_INPUT_BLOCKS: tuple[tuple[int, int], ...] = ((0x0122, 3),)  # PV3
+# V3.29 firmware: phases S/T (X3 only) and BMS user SOC/SOH, read only while the
+# V001.02 totals are empty
+LEGACY_INPUT_BLOCKS: tuple[tuple[int, int], ...] = ((0x006E, 8), (0x00BE, 2))
+LEGACY_TOTALS = range(0x0028, 0x003E)
+MACHINE_TYPE_BLOCK: tuple[int, int] = (0x0105, 1)  # holding, V3.29: 1 X1, 3 X3
+MAX_CAPACITY_WH = 500_000
 # (voltage, current, power) registers per PV input
 PV_INPUTS = (
     (0x0003, 0x0005, 0x000A),
@@ -150,6 +165,52 @@ def identity(holding: dict[int, int]) -> dict[str, str] | None:
     return {"serial": serial, "name": model, "model": model}
 
 
+def is_legacy(inputs: dict[int, int]) -> bool:
+    """True when the V001.02 totals 0x0028..0x003D are all empty (V3.29 firmware). @zara"""
+    return not any(inputs.get(address) for address in LEGACY_TOTALS)
+
+
+def needs_machine_type(holding: dict[int, int]) -> bool:
+    """True when holding 0x0015 is empty, as in V3.29, and 0x0105 is not read yet. @zara"""
+    return not u16(holding, 0x0015) and MACHINE_TYPE_BLOCK[0] not in holding
+
+
+def phase_count(holding: dict[int, int]) -> int | None:
+    """1 or 3 from the inverter type, else from V3.29 MachineType; None if unknown. @zara"""
+    inverter_type = u16(holding, 0x0015)
+    if inverter_type in THREE_PHASE_TYPES:
+        return 3
+    if inverter_type in SINGLE_PHASE_TYPES:
+        return 1
+    if inverter_type:  # an unlisted V001.02 type: do not guess
+        return None
+    machine = u16(holding, MACHINE_TYPE_BLOCK[0])
+    return machine if machine in (1, 3) else None
+
+
+def _legacy_ac_output(inputs: dict[int, int], phases: int | None) -> int | None:
+    if phases == 1:
+        return s16(inputs, 0x0002)
+    if phases == 3:
+        powers = [s16(inputs, address) for address in (0x006C, 0x0070, 0x0074)]
+        if None not in powers:
+            return sum(powers)  # type: ignore[arg-type]
+    return None
+
+
+def _legacy_battery_power(inputs: dict[int, int]) -> int | None:
+    """Batpower_Charge1 0x0016; BDCStatus 0x0019 (0 discharge, 1 charge) sets the sign. @zara"""
+    power = s16(inputs, 0x0016)
+    if power is None:
+        return None
+    status = u16(inputs, 0x0019)
+    if status == 1:
+        return abs(power)
+    if status == 0:
+        return -abs(power)
+    return power
+
+
 def _set(device: SolaxDevice, role: str, value: float | None, digits: int = 1) -> None:
     if value is not None:
         device.roles[role] = round(value, digits)
@@ -173,7 +234,10 @@ def build_devices(
         manufacturer=NAME,
         model=ident["model"],
     )
+    legacy = is_legacy(inputs)
+    phases = phase_count(holding)
     count = u16(inputs, 0x001B) or 2
+    string_powers: list[int] = []
     for index, (voltage, current, power) in enumerate(
         PV_INPUTS[: max(0, min(count, 3))], start=1
     ):
@@ -187,18 +251,29 @@ def build_devices(
             indexed_role("current_solar_mppt", index),
             _scaled(u16(inputs, current), 10),
         )
-        _set(device, indexed_role("power_solar_mppt", index), u16(inputs, power), 0)
-    _set(device, "power_solar", u32(inputs, 0x0032), 0)
-    on_grid = s32(inputs, 0x0034)
-    off_grid = s32(inputs, 0x0036)
+        string_power = u16(inputs, power)
+        _set(device, indexed_role("power_solar_mppt", index), string_power, 0)
+        if string_power is not None:
+            string_powers.append(string_power)
+    if legacy:
+        on_grid = _legacy_ac_output(inputs, phases)
+        off_grid = None  # V3.29 reports off-grid power in VA only
+        if string_powers:
+            _set(device, "power_solar", sum(string_powers), 0)
+            device.derived.add("power_solar")
+        if on_grid is not None and phases == 3:
+            device.derived.add("power_inverter_ac_output")
+    else:
+        on_grid = s32(inputs, 0x0034)
+        off_grid = s32(inputs, 0x0036)
+        _set(device, "power_solar", u32(inputs, 0x0032), 0)
     _set(device, "power_inverter_ac_output", on_grid, 0)
     # grid voltage/frequency registers differ by phase count; unknown types skip them
-    inverter_type = u16(holding, 0x0015)
     phase_registers = (
         (0x006A, 0x006D)
-        if inverter_type in THREE_PHASE_TYPES
+        if phases == 3
         else (0x0000, 0x0007)
-        if inverter_type in SINGLE_PHASE_TYPES
+        if phases == 1
         else None
     )
     if phase_registers is not None:
@@ -223,17 +298,25 @@ def build_devices(
             device.derived.add("power_house")
 
     if u16(inputs, 0x0017) == 1:  # BMS1 connected
-        battery = s32(inputs, 0x0038)
+        if legacy:
+            battery = _legacy_battery_power(inputs)
+            soc = u16(inputs, 0x001C)
+            soh = u16(inputs, 0x00BF)
+            capacity = u32(inputs, 0x0026)
+        else:
+            battery = s32(inputs, 0x0038)
+            soc = u16(inputs, 0x003C)
+            soh = u16(inputs, 0x003D)
+            capacity = u32(inputs, 0x003A)
         _set(device, "power_battery", battery, 0)
         if battery is not None:
             _set(device, "power_battery_charge", max(0, battery), 0)
             _set(device, "power_battery_discharge", max(0, -battery), 0)
-        _set(device, "battery_soc", u16(inputs, 0x003C), 0)
-        soh = u16(inputs, 0x003D)
+        if soc is not None and soc <= 100:
+            _set(device, "battery_soc", soc, 0)
         if soh is not None and 0 < soh <= 100:
             device.roles["battery_soh"] = soh
-        capacity = u32(inputs, 0x003A)
-        if capacity:
+        if capacity and capacity <= MAX_CAPACITY_WH:
             _set(device, "capacity_battery", capacity / 1000, 2)
         _set(device, "temperature_battery", s16(inputs, 0x0018))
         _set(device, "energy_battery_charge_total", _scaled(u32(inputs, 0x0021), 10), 1)
