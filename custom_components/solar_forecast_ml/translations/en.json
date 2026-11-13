@@ -225,6 +225,16 @@
         }
       }
     },
+    "set_update_info": {
+      "name": "Switch update information",
+      "description": "Turns update information (beta) on or off without a restart. When nothing is stored, it is on. Switching on sends the daily ping right away.",
+      "fields": {
+        "enabled": {
+          "name": "Enabled",
+          "description": "On: once a day SFML sends only its version to the website. Off: nothing is sent."
+        }
+      }
+    },
     "run_weather_correction": {
       "name": "Rebuild Corrected Weather Forecast",
       "description": "DEVELOPER ONLY or on ADVICE"
@@ -588,9 +598,6 @@
     "switch": {
       "pause_learning": {
         "name": "Pause Learning"
-      },
-      "usage_stats": {
-        "name": "Anonymous installation counter"
       }
     }
   },

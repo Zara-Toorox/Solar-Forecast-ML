@@ -49,9 +49,9 @@ async def async_setup_entry(
     async_add_entities(entities)
     heating = data.get("heating_manager")
     if heating is not None:
-        heating.bind_platforms(sensors=async_add_entities, switches=heating._switch_add)
+        heating.bind_platforms(sensors=async_add_entities)
         async_add_entities(heating.sensor_entities())
     consumers = data.get("consumers_manager")
     if consumers is not None:
-        consumers.bind_platforms(sensors=async_add_entities, switches=consumers._switch_add)
+        consumers.bind_platforms(sensors=async_add_entities)
         async_add_entities(consumers.sensor_entities())

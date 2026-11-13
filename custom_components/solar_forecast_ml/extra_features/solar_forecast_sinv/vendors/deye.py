@@ -42,6 +42,11 @@ battery power (register 190) are not published: the scale of 169 is 1 in one
 table and 10 in another, and neither source states the sign outright.
 ``power_house`` is not derived from them. The single-phase hybrid is read in
 blocks of at most 16 registers.
+
+Every temperature register is offset by 1000 before scaling, so a raw 1000 is
+0 °C. V105.4 prints the offset for register 540 and the lithium battery
+temperature; community map: the same offset on every Deye temperature register,
+including the microinverter at 0.01 °C.
 """
 
 from __future__ import annotations
@@ -143,6 +148,10 @@ MAX_PV_V = 1_000.0
 MAX_PV_A = 40.0
 MAX_ENERGY_TODAY = 10_000.0
 MAX_ENERGY_TOTAL = 10_000_000.0
+TEMP_OFFSET = 1000
+MIN_TEMP_C = -40.0
+MAX_INVERTER_TEMP_C = 120.0
+MAX_BATTERY_TEMP_C = 70.0
 
 
 @dataclass(frozen=True)
@@ -444,6 +453,13 @@ def _scaled(raw: int | None, factor: float, low: float, high: float) -> float | 
     return _between(raw * factor, low, high)
 
 
+def _temperature(raw: int | None, factor: float, high: float) -> float | None:
+    """Temperature in °C from a register offset by 1000. @zara"""
+    if raw is None:
+        return None
+    return _between((raw - TEMP_OFFSET) * factor, MIN_TEMP_C, high)
+
+
 def _build_single_phase(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     """Build a single-phase hybrid from the shared LP1 community tables. @zara"""
     device = _shell(regs)
@@ -502,17 +518,18 @@ def _build_single_phase(regs: dict[int, int]) -> dict[str, DeyeDevice]:
         _scaled(_word(regs, 192), 0.01, 45, 65),
         2,
     )
-    # community map: radiator temperature 90, S16, 0.1 °C
+    # community map: radiator temperature 90, 0.1 °C, offset 1000
     _set(
         device,
         "temperature_inverter",
-        _scaled(_s16(regs, 90), 0.1, 0, 120),
+        _temperature(_word(regs, 90), 0.1, MAX_INVERTER_TEMP_C),
     )
-    # community map: battery temperature 182, 0.1 °C; voltage 183, 0.01 V; SOC 184, 1 %
+    # community map: battery temperature 182, 0.1 °C, offset 1000;
+    # voltage 183, 0.01 V; SOC 184, 1 %
     _set(
         device,
         "temperature_battery",
-        _scaled(_word(regs, 182), 0.1, 0, 70),
+        _temperature(_word(regs, 182), 0.1, MAX_BATTERY_TEMP_C),
     )
     _set(device, "battery_soc", _scaled(_word(regs, 184), 1, 0, 100), 0)
     volts = _scaled(_word(regs, 183), 0.01, 20, 80)
@@ -558,8 +575,12 @@ def _build_string(regs: dict[int, int], latch: Latch) -> dict[str, DeyeDevice]:
     # community map: grid L1 voltage 73, 0.1 V; AC frequency 79, 0.01 Hz
     _set(device, "voltage_grid", _scaled(_word(regs, 73), 0.1, 180, 280))
     _set(device, "frequency_grid", _scaled(_word(regs, 79), 0.01, 45, 65), 2)
-    # community map: radiator temperature 90, 0.1 °C
-    _set(device, "temperature_inverter", _scaled(_word(regs, 90), 0.1, 0, 120))
+    # community map: radiator temperature 90, 0.1 °C, offset 1000
+    _set(
+        device,
+        "temperature_inverter",
+        _temperature(_word(regs, 90), 0.1, MAX_INVERTER_TEMP_C),
+    )
     # community map: load consumption 200 (0.01 kWh) and 201/202 (0.1 kWh)
     _set(
         device,
@@ -654,8 +675,12 @@ def _build_micro(regs: dict[int, int], latch: Latch) -> dict[str, DeyeDevice]:
     # community map: grid L1 voltage 73, 0.1 V; AC frequency 79, 0.01 Hz
     _set(device, "voltage_grid", _scaled(_word(regs, 73), 0.1, 180, 280))
     _set(device, "frequency_grid", _scaled(_word(regs, 79), 0.01, 45, 65), 2)
-    # community map: radiator temperature 90, factor 0.01 °C on this family
-    _set(device, "temperature_inverter", _scaled(_word(regs, 90), 0.01, 0, 120))
+    # community map: radiator temperature 90, factor 0.01 °C on this family, offset 1000
+    _set(
+        device,
+        "temperature_inverter",
+        _temperature(_word(regs, 90), 0.01, MAX_INVERTER_TEMP_C),
+    )
     # No grid-power register on this family.
     return {device.serial: device}
 
@@ -737,10 +762,11 @@ def _build_three_phase(regs: dict[int, int]) -> dict[str, DeyeDevice]:
         _between(None if _word(regs, 638) is None else _word(regs, 638) / 100, 45, 65),
         2,
     )
+    # Heat sink 541, 0.1 °C, offset 1000 as printed for 540 next to it
     _set(
         device,
         "temperature_inverter",
-        _between(None if _word(regs, 541) is None else _word(regs, 541) / 10, 0, 120),
+        _temperature(_word(regs, 541), 0.1, MAX_INVERTER_TEMP_C),
     )
 
     battery_raw = _s16(regs, 590)
@@ -759,10 +785,11 @@ def _build_three_phase(regs: dict[int, int]) -> dict[str, DeyeDevice]:
     soh = _word(regs, 10006)
     if soh is not None and 0 < soh <= 100:
         _set(device, "battery_soh", soh, 0)
+    # Battery 586, 0.1 °C, offset 1000 (community map; V105.4 prints it for the Li battery)
     _set(
         device,
         "temperature_battery",
-        _between(None if _word(regs, 586) is None else _word(regs, 586) / 10, 0, 70),
+        _temperature(_word(regs, 586), 0.1, MAX_BATTERY_TEMP_C),
     )
     volts = _word(regs, 587)
     if volts is not None:

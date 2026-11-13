@@ -2883,6 +2883,37 @@ const _HomePage = {
             }
         }
 
+        // The API omits hours without forecast and actual yield. Add the zero hour
+        // before the first and after the last yield hour, so trimSolarWindow
+        // ramps to zero there instead of overwriting a real edge value.
+        function padSolarEdges(rows) {
+            if (!rows.length) return rows;
+            const hasYield = (row) => (
+                Number(row.customer_prediction_kwh ?? row.prediction_kwh ?? 0) > 0.01
+                || Number(row.actual_kwh ?? 0) > 0.01
+            );
+            const zeroRow = (template, hour) => ({
+                target_date: template.target_date,
+                target_hour: hour,
+                prediction_kwh: 0,
+                customer_prediction_kwh: 0,
+                final_prediction_kwh: 0,
+                actual_kwh: null,
+            });
+            const padded = rows.slice();
+            const first = padded[0];
+            const last = padded[padded.length - 1];
+            const firstHour = Number(first.target_hour);
+            const lastHour = Number(last.target_hour);
+            if (Number.isFinite(firstHour) && firstHour > 0 && hasYield(first)) {
+                padded.unshift(zeroRow(first, firstHour - 1));
+            }
+            if (Number.isFinite(lastHour) && lastHour < 23 && hasYield(last)) {
+                padded.push(zeroRow(last, lastHour + 1));
+            }
+            return padded;
+        }
+
         function trimSolarWindow(actualArr, forecastArr) {
             let start = -1, end = -1;
             for (let i = 0; i < actualArr.length; i++) {
@@ -3193,7 +3224,7 @@ const _HomePage = {
                     return;
                 }
 
-                const todayData = hourly.filter(h => h.target_date === targetDate);
+                const todayData = padSolarEdges(hourly.filter(h => h.target_date === targetDate));
                 if (!todayData.length) {
                     forecastData.hours = [];
                     forecastData.forecast = [];

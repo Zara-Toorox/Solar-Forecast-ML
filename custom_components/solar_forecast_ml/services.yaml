@@ -207,6 +207,17 @@ set_adaptive_forecast_mode:
       selector:
         boolean:
 
+set_update_info:
+  name: "Update-Information schalten"
+  description: "Schaltet die Update-Information (Beta) ohne Neustart ein oder aus. Ohne gespeicherten Wert ist sie an. Beim Einschalten folgt der tägliche Ping sofort."
+  fields:
+    enabled:
+      name: "Aktiviert"
+      description: "An: SFML meldet einmal am Tag nur seine Version an die Website. Aus: es wird nichts gesendet."
+      required: true
+      selector:
+        boolean:
+
 run_operational_reforecast:
   name: "🔄 MDC Re-Forecast-Test Dev-Only"
   description: "Developer only or on advice."

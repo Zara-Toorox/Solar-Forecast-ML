@@ -92,6 +92,7 @@ const COPY = {
         mobile: { dashboard: "Start", home: "Übersicht", solar: "Solar", energy: "Energie" },
         pages: {
             dashboard: ["Übersicht", "Energie und Prognose im Überblick"],
+            tablet: ["Tablett-Mode", "Wandanzeige im neuen Fenster"],
             tomorrow: ["Energietag", "Abgeschlossene Tage und eigener Anteil"],
             home: ["Live & Prognose", "Ausführlicher Energiefluss und Prognosestatus"],
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],
@@ -136,6 +137,7 @@ const COPY = {
         mobile: { dashboard: "Start", home: "Overview", solar: "Solar", energy: "Energy" },
         pages: {
             dashboard: ["Overview", "Energy and forecast at a glance"],
+            tablet: ["Tablet mode", "Wall display in a new window"],
             tomorrow: ["Energy day", "Completed days and your own share"],
             home: ["Live & Forecast", "Detailed energy flow and forecast status"],
             solar: ["Solar & Forecast", "Yield, models, deviations and shading"],
@@ -180,6 +182,7 @@ const COPY = {
         mobile: { dashboard: "Start", home: "Przegląd", solar: "Solar", energy: "Energia" },
         pages: {
             dashboard: ["Przegląd", "Energia i prognoza w skrócie"],
+            tablet: ["Tryb tabletu", "Wyświetlacz ścienny w nowym oknie"],
             tomorrow: ["Dzień energii", "Zakończone dni i własny udział"],
             home: ["Na żywo i prognoza", "Szczegółowy przepływ energii i stan prognozy"],
             solar: ["Energia słoneczna", "Produkcja, modele, odchylenia i cień"],
@@ -438,16 +441,23 @@ const ModernApp = {
                 <nav class="primary-nav">
                     <div v-for="section in navigation" :key="section.id" class="nav-section">
                         <div class="nav-section-label">{{ copy.sections[section.id] }}</div>
-                        <button v-for="item in section.items" :key="item.id" type="button"
-                                class="nav-item" :class="{ active: currentPage === item.id, 'premium-item': item.license, disabled: item.admin && !isAdmin }"
-                                :aria-current="currentPage === item.id ? 'page' : null"
-                                :title="item.admin && !isAdmin ? 'Nur Administrator' : undefined"
-                                @click="navigate(item.id)">
-                            <ui-icon :name="item.icon"></ui-icon>
-                            <span>{{ pageCopy(item.id)[0] }}</span>
-                            <small v-if="item.admin && !isAdmin">Nur Admin</small>
-                            <small v-else-if="item.license && !premiumCorrections">{{ copy.license[item.license] }}</small>
-                        </button>
+                        <template v-for="item in section.items" :key="item.id">
+                            <a v-if="item.href" class="nav-item" :href="item.href"
+                               target="_blank" rel="noopener" :title="pageCopy(item.id)[1]">
+                                <ui-icon :name="item.icon"></ui-icon>
+                                <span>{{ pageCopy(item.id)[0] }}</span>
+                            </a>
+                            <button v-else type="button"
+                                    class="nav-item" :class="{ active: currentPage === item.id, 'premium-item': item.license, disabled: item.admin && !isAdmin }"
+                                    :aria-current="currentPage === item.id ? 'page' : null"
+                                    :title="item.admin && !isAdmin ? 'Nur Administrator' : undefined"
+                                    @click="navigate(item.id)">
+                                <ui-icon :name="item.icon"></ui-icon>
+                                <span>{{ pageCopy(item.id)[0] }}</span>
+                                <small v-if="item.admin && !isAdmin">Nur Admin</small>
+                                <small v-else-if="item.license && !premiumCorrections">{{ copy.license[item.license] }}</small>
+                            </button>
+                        </template>
                     </div>
                 </nav>
 
@@ -619,6 +629,7 @@ const ModernApp = {
                 items: [
                     { id: "home", icon: "home" },
                     { id: "dashboard", icon: "solar", license: "demo" },
+                    { id: "tablet", icon: "monitor", href: "/api/sfml_stats/wall" },
                 ],
             },
             {

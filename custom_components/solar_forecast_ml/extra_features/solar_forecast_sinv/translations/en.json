@@ -122,6 +122,7 @@
                 "deye_solarman_v5": "Deye – Solarman V5",
                 "deye_modbus_tcp": "Deye – Modbus TCP",
                 "solplanet_modbus_tcp": "Solplanet – Modbus TCP",
+                "solplanet_ai_dongle": "Solplanet – Ai-Dongle (HTTP)",
                 "enphase_local_envoy": "Enphase IQ8 / IQ microinverters – IQ Gateway (local network)",
                 "sigenergy_modbus_tcp": "Sigenergy Sigen Hybrid / SigenStor – Modbus TCP"
             }
@@ -407,7 +408,7 @@
             },
             "solplanet": {
                 "title": "Solplanet (Modbus TCP)",
-                "description": "Address of the Solplanet inverter or Ai-logger on the local network. Modbus TCP uses port 502 by default; the Ai-logger also accepts 9999. Unit id 3 is the inverter default, and an Ai-logger answers as unit 239. S-INV only reads input registers and never writes. The Ai-Dongle on port 8484 is not supported.",
+                "description": "Address of the Solplanet inverter or Ai-logger on the local network. Modbus TCP uses port 502 by default; the Ai-logger also accepts 9999. Unit id 3 is the inverter default, and an Ai-logger answers as unit 239. S-INV only reads input registers and never writes. For the Ai-Dongle, choose \"Solplanet – Ai-Dongle\".",
                 "data": {
                     "host": "IP address or host name",
                     "port": "Port",
@@ -417,6 +418,18 @@
                     "host": "For example 192.168.1.50",
                     "port": "502 by default, 9999 on an Ai-logger",
                     "unit_id": "3 by default, 239 for an Ai-logger"
+                }
+            },
+            "solplanet_dongle": {
+                "title": "Solplanet (Ai-Dongle)",
+                "description": "Address of the Solplanet Ai-Dongle on the local network. Older firmware answers over HTTP on port 8484, newer firmware over HTTPS on port 443; with 8484, S-INV also tries 443 on its own. S-INV only reads the inverter, meter and battery and never writes. The dongle values come from community descriptions; please report any value that does not match the Solplanet app.",
+                "data": {
+                    "host": "IP address or host name",
+                    "port": "Port"
+                },
+                "data_description": {
+                    "host": "For example 192.168.1.60",
+                    "port": "8484 by default, 443 on newer firmware"
                 }
             },
             "enphase": {
@@ -526,6 +539,7 @@
             "not_solakon": "No Solakon ONE answers Modbus TCP at this address.",
             "not_deye": "No supported Deye family answered (string 0x0200, single-phase hybrid 0x0300, microinverter 0x0400, three-phase hybrid 0x0500 or 0x0600), or the inverter serial was missing.",
             "not_solplanet": "No Solplanet inverter answered (device type 1 or 3), or the serial number was missing.",
+            "not_solplanet_dongle": "The Ai-Dongle returned no inverter list with a serial number.",
             "enphase_auth": "The IQ Gateway refused the token (expired, revoked or for another gateway).",
             "enphase_token_invalid": "The token contains invalid characters or is empty.",
             "enphase_serial_invalid": "Enter the gateway serial number (letters and digits only).",

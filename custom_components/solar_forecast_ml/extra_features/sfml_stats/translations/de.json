@@ -460,14 +460,6 @@
         }
       }
     },
-    "switch": {
-      "heating_active": {
-        "name": "Regelung aktiv"
-      },
-      "smart_charging_enabled": {
-        "name": "Smart Charging"
-      }
-    },
     "select": {
       "smart_charging_mode": {
         "name": "Smart-Charging-Modus",

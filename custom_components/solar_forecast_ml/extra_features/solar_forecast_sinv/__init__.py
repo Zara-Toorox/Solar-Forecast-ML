@@ -109,6 +109,7 @@ from .services import async_setup_services  # async_remove_services
 from .solakon_coordinator import SolakonCoordinator
 from .sigenergy_coordinator import SigenergyCoordinator
 from .solplanet_coordinator import SolplanetCoordinator
+from .solplanet_dongle_coordinator import SolplanetDongleCoordinator
 from .solax_coordinator import SolaxCoordinator
 from .solixapi.apitypes import ApiCategories, SolixDeviceType
 from .stiebel_isg_coordinator import StiebelCoordinator
@@ -131,6 +132,7 @@ LOCAL_COORDINATORS = {
     "local_solarman_v5": DeyeCoordinator,
     "local_modbus_deye": DeyeCoordinator,
     "local_modbus_solplanet": SolplanetCoordinator,
+    "local_dongle_solplanet": SolplanetDongleCoordinator,
     "local_modbus_sigenergy": SigenergyCoordinator,
     "local_ahoy": AhoyCoordinator,
     "local_envoy": EnphaseCoordinator,

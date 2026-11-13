@@ -17,14 +17,13 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "sfml_stats"
 NAME: Final = "Solar Forecast STATS"
-VERSION: Final = "56.0.0"
+VERSION: Final = "56.0.2"
 RUNTIME_READY_KEY: Final = "_runtime_ready"
 RUNTIME_READY_TIMEOUT_SECONDS: Final = 15.0
 
 PLATFORMS: Final = [
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
-    Platform.SWITCH,
     Platform.SELECT,
     Platform.NUMBER,
 ]

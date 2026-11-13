@@ -15,7 +15,7 @@ from homeassistant.const import Platform
 # Warp Core Identity @starfleet-engineering
 DOMAIN = "solar_forecast_ml"
 NAME = "Solar Forecast ML"
-VERSION = "56.0.0"
+VERSION = "56.0.2"
 SOFTWARE_VERSION = VERSION
 AI_VERSION = "12.0 TFS"
 INTEGRATION_MODEL = f"Solar Forecast ML V{VERSION}"
@@ -264,6 +264,7 @@ SERVICE_RUN_ADAPTIVE_FORECAST = "run_adaptive_forecast"
 SERVICE_RUN_OPERATIONAL_REFORECAST = "run_operational_reforecast"
 SERVICE_SET_OPERATIONAL_REFORECAST_MODE = "set_operational_reforecast_mode"
 SERVICE_SET_ADAPTIVE_FORECAST_MODE = "set_adaptive_forecast_mode"
+SERVICE_SET_UPDATE_INFO = "set_update_info"
 
 # Stellar Cartography Services @starfleet-engineering
 SERVICE_BUILD_ASTRONOMY_CACHE = "build_astronomy_cache"

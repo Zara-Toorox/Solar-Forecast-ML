@@ -225,6 +225,16 @@
         }
       }
     },
+    "set_update_info": {
+      "name": "Cambiar la informacion de actualizaciones",
+      "description": "Activa o desactiva la informacion de actualizaciones (beta) sin reiniciar. Si no hay valor guardado, queda activada. Al activarla, el ping diario se envia de inmediato.",
+      "fields": {
+        "enabled": {
+          "name": "Activada",
+          "description": "Activada: una vez al dia SFML envia solo su version al sitio web. Desactivada: no se envia nada."
+        }
+      }
+    },
     "run_weather_correction": {
       "name": "Recrear prevision meteorologica corregida",
       "description": "DEVELOPER ONLY or on ADVICE"
@@ -588,9 +598,6 @@
     "switch": {
       "pause_learning": {
         "name": "Pausar aprendizaje"
-      },
-      "usage_stats": {
-        "name": "Contador de instalaciones anónimo"
       }
     }
   },

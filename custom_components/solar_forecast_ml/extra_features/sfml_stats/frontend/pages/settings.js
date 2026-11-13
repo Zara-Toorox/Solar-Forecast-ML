@@ -300,6 +300,29 @@ const SettingsPage = {
                     </div>
                 </div>
 
+                <!-- Accordion: Update information -->
+                <div class="accordion-section" :class="{ open: openSection === 'updateInfo' }">
+                    <button class="accordion-header" type="button" @click="toggle('updateInfo')">
+                        <span class="accordion-icon">{{ openSection === 'updateInfo' ? '\u25BE' : '\u25B8' }}</span>
+                        <span class="accordion-title">{{ $t('settings.updateInfo.title') }}</span>
+                        <span v-if="updateInfoKnown && updateInfoAvailable" class="accordion-badge" :class="updateInfoEnabled ? 'ok' : 'warn'">{{ updateInfoEnabled ? $t('settings.updateInfo.on') : $t('settings.updateInfo.off') }}</span>
+                    </button>
+                    <div class="accordion-body" v-show="openSection === 'updateInfo'">
+                        <p class="update-info-text">{{ $t('settings.updateInfo.intro') }}</p>
+                        <p class="update-info-text">{{ $t('settings.updateInfo.pingLead') }}<a href="https://www.solarforecastml.com" target="_blank" rel="noopener noreferrer">www.solarforecastml.com</a>{{ $t('settings.updateInfo.pingMid') }} <strong>{{ $t('settings.updateInfo.pingOnly') }}</strong> {{ $t('settings.updateInfo.pingRest') }} {{ $t('settings.updateInfo.scriptNote') }}</p>
+                        <button type="button" class="button secondary compact update-info-download" @click="downloadUpdateInfoScript" :disabled="updateInfoDownloading">{{ $t('settings.updateInfo.download') }}</button>
+                        <p class="update-info-text"><strong>{{ $t('settings.updateInfo.flowTitle') }}</strong><br>{{ $t('settings.updateInfo.flowLead') }} <strong>Home Assistant</strong> {{ $t('settings.updateInfo.flowRest') }}</p>
+                        <p class="update-info-text">{{ $t('settings.updateInfo.generic') }}</p>
+                        <p class="update-info-text update-info-ask">{{ $t('settings.updateInfo.ask') }}</p>
+                        <p v-if="updateInfoKnown && !updateInfoAvailable" class="dev-access-status">{{ $t('settings.updateInfo.unavailable') }}</p>
+                        <label v-else class="update-info-switch">
+                            <input type="checkbox" :checked="updateInfoEnabled" @change="saveUpdateInfo" :disabled="!updateInfoCanWrite || updateInfoSaving || !updateInfoKnown">
+                            <span>{{ $t('settings.updateInfo.switch') }} — {{ updateInfoEnabled ? $t('settings.updateInfo.on') : $t('settings.updateInfo.off') }}</span>
+                        </label>
+                        <p v-if="updateInfoNotice" class="dev-access-status" role="status">{{ updateInfoNotice }}</p>
+                    </div>
+                </div>
+
                 <!-- Accordion: Exports -->
                 <div class="accordion-section" :class="{ open: openSection === 'exports' }">
                     <button class="accordion-header" @click="toggle('exports')">
@@ -651,6 +674,104 @@ const SettingsPage = {
             }
         }
 
+        const updateInfoEnabled = vRef(false);
+        const updateInfoAvailable = vRef(false);
+        const updateInfoKnown = vRef(false);
+        const updateInfoSaving = vRef(false);
+        const updateInfoCanWrite = vRef(true);
+        const updateInfoNotice = vRef('');
+        const UPDATE_INFO_ENDPOINT = '/api/sfml_stats/update_info';
+        const UPDATE_INFO_SCRIPT_ENDPOINT = '/api/sfml_stats/update_info/script';
+        const updateInfoDownloading = vRef(false);
+
+        async function downloadUpdateInfoScript() {
+            updateInfoDownloading.value = true;
+            try {
+                const response = await fetch(UPDATE_INFO_SCRIPT_ENDPOINT);
+                if (!response.ok) throw new Error(String(response.status));
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'sfml_update_info_script.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (_error) {
+                updateInfoNotice.value = t('settings.updateInfo.downloadFailed');
+            } finally {
+                updateInfoDownloading.value = false;
+            }
+        }
+
+        async function loadUpdateInfo() {
+            try {
+                const data = await SFMLApi.fetch(UPDATE_INFO_ENDPOINT, { forceRefresh: true, ttl: 0 });
+                if (!data || typeof data.enabled !== 'boolean' || typeof data.available !== 'boolean') {
+                    throw new Error('load');
+                }
+                updateInfoEnabled.value = data.enabled;
+                updateInfoAvailable.value = data.available;
+                updateInfoKnown.value = true;
+            } catch (_error) {
+                updateInfoNotice.value = t('settings.updateInfo.loadFailed');
+            }
+        }
+
+        function updateInfoErrorText(err) {
+            const raw = err && err.body && err.body.error;
+            const code = (err && err.code)
+                || (typeof raw === 'string' ? raw : (raw && raw.code))
+                || '';
+            if (code === 'not_applied') return { lock: false, text: t('settings.updateInfo.notApplied') };
+            if (code === 'admin_required' || code === 'unauthorized') {
+                return { lock: true, text: t('settings.updateInfo.adminRequired') };
+            }
+            if (
+                code === 'local_access_required'
+                || code === 'local_write_required'
+                || code === 'authentication_required'
+            ) {
+                return { lock: true, text: t('settings.updateInfo.localRequired') };
+            }
+            if (code === 'service_unavailable' || code === 'service_call_failed') {
+                return { lock: false, text: t('settings.updateInfo.serviceUnavailable') };
+            }
+            return { lock: false, text: t('settings.updateInfo.saveFailed') };
+        }
+
+        async function saveUpdateInfo(event) {
+            if (!updateInfoCanWrite.value || updateInfoSaving.value || !updateInfoKnown.value) {
+                if (event && event.target) event.target.checked = updateInfoEnabled.value;
+                return;
+            }
+            const next = event.target.checked === true;
+            const previous = updateInfoEnabled.value;
+            updateInfoEnabled.value = next;
+            updateInfoSaving.value = true;
+            updateInfoNotice.value = '';
+            try {
+                const data = await SFMLApi.postAuthenticated(UPDATE_INFO_ENDPOINT, { enabled: next });
+                if (!data || data.success !== true || data.enabled !== next) {
+                    updateInfoEnabled.value = previous;
+                    event.target.checked = previous;
+                    updateInfoNotice.value = t('settings.updateInfo.notApplied');
+                    return;
+                }
+                updateInfoEnabled.value = data.enabled;
+                updateInfoNotice.value = t('settings.updateInfo.saved');
+            } catch (err) {
+                updateInfoEnabled.value = previous;
+                if (event && event.target) event.target.checked = previous;
+                const mapped = updateInfoErrorText(err);
+                updateInfoNotice.value = mapped.text;
+                if (mapped.lock) updateInfoCanWrite.value = false;
+            } finally {
+                updateInfoSaving.value = false;
+            }
+        }
+
         function formatDate(ts) {
             if (!ts) return '--';
             try {
@@ -878,6 +999,7 @@ const SettingsPage = {
         onMounted(() => {
             loadSettings();
             loadDevAccess();
+            loadUpdateInfo();
         });
 
         return {
@@ -893,6 +1015,9 @@ const SettingsPage = {
             translateSensorLabel, translateSensorState,
             currentLocale, supportedLocales, localeName, changeLocale, changeTheme,
             configuredConsumers, getConsumerName,
+            updateInfoEnabled, updateInfoAvailable, updateInfoKnown, updateInfoSaving,
+            updateInfoCanWrite, updateInfoNotice, saveUpdateInfo,
+            updateInfoDownloading, downloadUpdateInfoScript,
         };
     },
 };
@@ -1288,6 +1413,28 @@ const SettingsPage = {
             color: var(--text-primary);
         }
         [data-theme="light"] .missing-helpers-section { background: rgba(15, 23, 42, 0.015); }
+        .update-info-text {
+            margin: 0 0 var(--space-sm);
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .update-info-text a {
+            color: var(--accent, var(--text-primary));
+        }
+        .update-info-download {
+            margin: 0 0 var(--space-md, 12px);
+        }
+        .update-info-ask {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .update-info-switch {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            margin-top: var(--space-sm);
+        }
     `;
     document.head.appendChild(style);
 })();

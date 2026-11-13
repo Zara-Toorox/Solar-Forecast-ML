@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b1722">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SFML Stats">
+    <link rel="manifest" href="/api/sfml_stats/wall/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/api/sfml_stats/static/modern/assets/brand-logo-stats.png?v=content">
+    <title>SFML Stats</title>
+    <link rel="stylesheet" href="/api/sfml_stats/static/wall/wall.css?v=content">
+</head>
+<body>
+<main id="board" aria-live="off">
+    <header>
+        <div class="brand">
+            <img class="logo" src="/api/sfml_stats/static/modern/assets/brand-logo-stats.png?v=content" alt="SFML Stats">
+            <div>
+                <div class="brand-name">SFML STATS</div>
+                <div class="edition" id="edition">Solar Forecast ML</div>
+            </div>
+        </div>
+        <div class="clock">
+            <div class="weather-now" id="weatherNow" hidden><svg class="weather-icon" id="weatherIcon" viewBox="0 0 48 48" aria-hidden="true"></svg><span id="weatherTemp"></span></div>
+            <div class="date"><strong id="weekday"></strong><br><span id="datelong"></span></div>
+            <time id="clock">--:--</time>
+        </div>
+    </header>
+    <section class="hero">
+        <div class="solar">
+            <div class="halo" aria-hidden="true"></div>
+            <div class="solar-tag" id="solarTag"></div>
+            <div class="solar-number"><span id="solarValue">–</span><span class="solar-unit">kW</span></div>
+        </div>
+        <div class="flow" id="flow">
+            <svg class="flow-lines" id="flowLines" aria-hidden="true"></svg>
+            <div class="flow-row" id="rowHome">
+                <svg class="icon" viewBox="0 0 48 48" aria-hidden="true"><path d="M5 22 24 6l19 16M10 19v23h28V19M19 42V27h10v15"/></svg>
+                <div class="node">
+                    <div class="node-top"><span class="node-title" id="homeTitle"></span><span class="node-value"><span id="homeValue">–</span> <small id="homeUnit">W</small></span></div>
+                    <dl class="breakdown" id="homeRows"></dl>
+                </div>
+            </div>
+            <div class="flow-row" id="rowBattery">
+                <svg class="icon" viewBox="0 0 48 48" aria-hidden="true"><rect x="8" y="13" width="32" height="28" rx="4"/><path d="M19 8h10v5M15 22h18M15 28h18M15 34h18"/></svg>
+                <div class="node">
+                    <div class="node-top"><span class="node-title"><span id="batteryTitle"></span> <span class="soc" id="batterySoc"></span></span><span class="node-value"><span id="batteryValue">–</span> <small id="batteryUnit">W</small></span></div>
+                    <dl class="breakdown" id="batteryRows"></dl>
+                </div>
+            </div>
+            <div class="flow-row" id="rowGrid">
+                <svg class="icon" viewBox="0 0 48 48" aria-hidden="true"><path d="m24 5-13 38M24 5l13 38M9 17h30M6 26h36M16 17l15 9-17 10h20M24 5v12"/></svg>
+                <div class="node">
+                    <div class="node-top"><span class="node-title" id="gridTitle"></span><span class="node-value"><span id="gridValue">–</span> <small id="gridUnit">W</small></span></div>
+                    <dl class="breakdown" id="gridRows"></dl>
+                </div>
+            </div>
+        </div>
+        <div class="day">
+            <p class="eyebrow" id="yieldLabel"></p>
+            <div class="day-yield"><span id="yieldValue">–</span> <small>kWh</small></div>
+            <div class="forecast-today" id="yieldForecast"></div>
+            <div class="prices" id="prices" hidden>
+                <div class="price-now" id="priceNowRow" hidden><span id="priceNowLabel"></span><strong><span id="priceNowValue"></span> <small>ct/kWh</small></strong></div>
+                <div class="cheapest" id="cheapestBlock" hidden><div id="cheapestLabel"></div><strong id="cheapestValue"></strong></div>
+            </div>
+        </div>
+    </section>
+    <section class="lower">
+        <div class="chart-panel">
+            <div class="chart-heading">
+                <h2 id="chartTitle"></h2>
+                <div class="legend"><span><i></i><b id="legendActual"></b></span><span><i class="forecast-key"></i><b id="legendForecast"></b></span></div>
+            </div>
+            <svg id="chart" viewBox="0 0 970 245" role="img"></svg>
+        </div>
+        <div class="next-days">
+            <h2 id="daysTitle"></h2>
+            <div class="future" id="future"></div>
+        </div>
+    </section>
+    <footer>
+        <div class="footer-left"><span class="dot" id="statusDot" aria-hidden="true"></span><span id="statusText"></span></div>
+    </footer>
+    <button class="fs-hint" id="fsHint" type="button" hidden></button>
+</main>
+<script src="/api/sfml_stats/static/wall/wall.js?v=content"></script>
+</body>
+</html>

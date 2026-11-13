@@ -140,6 +140,7 @@ from .site import SITE_TITLE, SITE_UNIQUE_ID, VENDOR_SITE
 from .solakon_coordinator import async_probe as async_probe_solakon
 from .sigenergy_coordinator import async_probe as async_probe_sigenergy
 from .solplanet_coordinator import async_probe as async_probe_solplanet
+from .solplanet_dongle_coordinator import async_probe as async_probe_solplanet_dongle
 from .solax_coordinator import async_probe as async_probe_solax
 from .solixapi.apitypes import ApiCategories, SolixDeviceType
 from .stiebel_isg_coordinator import (
@@ -166,6 +167,7 @@ from .vendors import (
     sigenergy,
     solakon,
     solplanet,
+    solplanet_dongle,
     solax,
     stiebel_isg,
     sungrow,
@@ -669,6 +671,8 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_deye()
         if self._connection == solplanet.CONNECTION_MODBUS:
             return await self.async_step_solplanet()
+        if self._connection == solplanet_dongle.CONNECTION_DONGLE:
+            return await self.async_step_solplanet_dongle()
         if self._connection == enphase.CONNECTION_LOCAL:
             return await self.async_step_enphase()
         if self._connection == sigenergy.CONNECTION_MODBUS:
@@ -917,6 +921,34 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_UNIT_ID,
                     default=values.get(CONF_UNIT_ID, solplanet.DEFAULT_UNIT_ID),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=247)),
+            },
+        )
+
+    async def async_step_solplanet_dongle(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Step for a Solplanet Ai-Dongle: local HTTP API, read only. @zara"""
+        values = user_input or {}
+
+        async def probe(session, host: str) -> dict[str, Any]:
+            return await async_probe_solplanet_dongle(
+                session,
+                host,
+                int(values.get(CONF_PORT, solplanet_dongle.DEFAULT_PORT)),
+            )
+
+        return await self._async_local_step(
+            "solplanet_dongle",
+            VENDOR_SOLPLANET,
+            probe,
+            solplanet_dongle,
+            user_input,
+            error_key="not_solplanet_dongle",
+            extra_fields={
+                vol.Required(
+                    CONF_PORT,
+                    default=values.get(CONF_PORT, solplanet_dongle.DEFAULT_PORT),
+                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
             },
         )
 
@@ -1845,6 +1877,7 @@ class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsF
             deye.CONNECTION_SOLARMAN: deye,
             deye.CONNECTION_MODBUS: deye,
             solplanet.CONNECTION_MODBUS: solplanet,
+            solplanet_dongle.CONNECTION_DONGLE: solplanet_dongle,
             enphase.CONNECTION_LOCAL: enphase,
             sigenergy.CONNECTION_MODBUS: sigenergy,
         }.get(self.config_entry.data.get(CONF_CONNECTION), fronius)

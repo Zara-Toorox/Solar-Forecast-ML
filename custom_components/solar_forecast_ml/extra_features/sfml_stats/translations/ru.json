@@ -460,14 +460,6 @@
         }
       }
     },
-    "switch": {
-      "heating_active": {
-        "name": "Управление отоплением"
-      },
-      "smart_charging_enabled": {
-        "name": "Умная зарядка"
-      }
-    },
     "select": {
       "smart_charging_mode": {
         "name": "Режим умной зарядки",

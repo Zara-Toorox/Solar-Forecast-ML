@@ -86,7 +86,7 @@ VENDOR_CONNECTIONS: Final[dict[str, tuple[str, ...]]] = {
     VENDOR_SOLAKON: ("local_modbus_solakon",),
     VENDOR_MAXXISUN: ("local_webhook_maxxisun",),
     VENDOR_DEYE: ("local_solarman_v5", "local_modbus_deye"),
-    VENDOR_SOLPLANET: ("local_modbus_solplanet",),
+    VENDOR_SOLPLANET: ("local_modbus_solplanet", "local_dongle_solplanet"),
     VENDOR_ENPHASE: ("local_envoy",),
     VENDOR_SIGENERGY: ("local_modbus_sigenergy",),
     VENDOR_EMSESP: ("local_emsesp",),
@@ -112,6 +112,7 @@ SUPPORTED_SYSTEMS: Final[dict[str, tuple[str, str]]] = {
     "deye_solarman_v5": (VENDOR_DEYE, "local_solarman_v5"),
     "deye_modbus_tcp": (VENDOR_DEYE, "local_modbus_deye"),
     "solplanet_modbus_tcp": (VENDOR_SOLPLANET, "local_modbus_solplanet"),
+    "solplanet_ai_dongle": (VENDOR_SOLPLANET, "local_dongle_solplanet"),
     "enphase_local_envoy": (VENDOR_ENPHASE, "local_envoy"),
     "sigenergy_modbus_tcp": (VENDOR_SIGENERGY, "local_modbus_sigenergy"),
 }

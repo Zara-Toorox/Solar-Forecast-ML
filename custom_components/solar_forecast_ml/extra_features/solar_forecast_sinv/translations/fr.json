@@ -122,6 +122,7 @@
                 "deye_solarman_v5": "Deye – Solarman V5",
                 "deye_modbus_tcp": "Deye – Modbus TCP",
                 "solplanet_modbus_tcp": "Solplanet – Modbus TCP",
+                "solplanet_ai_dongle": "Solplanet – Ai-Dongle (HTTP)",
                 "enphase_local_envoy": "Micro-onduleurs Enphase IQ8 / IQ – IQ Gateway (réseau local)",
                 "sigenergy_modbus_tcp": "Sigenergy Sigen Hybrid / SigenStor – Modbus TCP"
             }
@@ -407,7 +408,7 @@
             },
             "solplanet": {
                 "title": "Solplanet (Modbus TCP)",
-                "description": "Adresse de l'onduleur Solplanet ou de l'Ai-logger sur le réseau local. Modbus TCP utilise le port 502 par défaut ; l'Ai-logger accepte aussi 9999. L'identifiant d'unité 3 est celui de l'onduleur, et un Ai-logger répond comme unité 239. S-INV lit uniquement les registres d'entrée et n'écrit jamais. L'Ai-Dongle sur le port 8484 n'est pas pris en charge.",
+                "description": "Adresse de l'onduleur Solplanet ou de l'Ai-logger sur le réseau local. Modbus TCP utilise le port 502 par défaut ; l'Ai-logger accepte aussi 9999. L'identifiant d'unité 3 est celui de l'onduleur, et un Ai-logger répond comme unité 239. S-INV lit uniquement les registres d'entrée et n'écrit jamais. Pour l'Ai-Dongle, choisissez « Solplanet – Ai-Dongle ».",
                 "data": {
                     "host": "Adresse IP ou nom d'hôte",
                     "port": "Port",
@@ -417,6 +418,18 @@
                     "host": "Par exemple 192.168.1.50",
                     "port": "502 par défaut, 9999 sur un Ai-logger",
                     "unit_id": "3 par défaut, 239 pour un Ai-logger"
+                }
+            },
+            "solplanet_dongle": {
+                "title": "Solplanet (Ai-Dongle)",
+                "description": "Adresse de l'Ai-Dongle Solplanet sur le réseau local. Les anciens firmwares répondent en HTTP sur le port 8484, les plus récents en HTTPS sur le port 443 ; avec 8484, S-INV essaie aussi 443 automatiquement. S-INV lit uniquement l'onduleur, le compteur et la batterie et n'écrit jamais. Les valeurs du dongle proviennent de descriptions de la communauté ; signalez toute valeur qui ne correspond pas à l'application Solplanet.",
+                "data": {
+                    "host": "Adresse IP ou nom d'hôte",
+                    "port": "Port"
+                },
+                "data_description": {
+                    "host": "Par exemple 192.168.1.60",
+                    "port": "8484 par défaut, 443 sur les firmwares récents"
                 }
             },
             "enphase": {
@@ -526,6 +539,7 @@
             "not_solakon": "Aucun Solakon ONE ne répond en Modbus TCP à cette adresse.",
             "not_deye": "Aucune famille Deye prise en charge n'a répondu (string 0x0200, hybride monophasé 0x0300, micro-onduleur 0x0400, hybride triphasé 0x0500 ou 0x0600), ou le numéro de série de l'onduleur manque.",
             "not_solplanet": "Aucun onduleur Solplanet n'a répondu (type 1 ou 3), ou le numéro de série manque.",
+            "not_solplanet_dongle": "L'Ai-Dongle n'a renvoyé aucune liste d'onduleurs avec numéro de série.",
             "enphase_auth": "La passerelle IQ a refusé le jeton (expiré, révoqué ou destiné à une autre passerelle).",
             "enphase_token_invalid": "Le jeton est vide ou contient des caractères non valides.",
             "enphase_serial_invalid": "Saisissez le numéro de série de la passerelle (lettres et chiffres uniquement).",

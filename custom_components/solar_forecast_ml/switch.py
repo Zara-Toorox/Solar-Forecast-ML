@@ -14,7 +14,6 @@ from datetime import datetime
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -22,12 +21,6 @@ from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import DOMAIN
-from .services.service_usage_stats import (
-    CONF_USAGE_STATS,
-    async_report,
-    enabled,
-    get_store,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,10 +33,7 @@ async def async_setup_entry(
     """Set up Solar Forecast ML switches from config entry. @zara"""
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
-    async_add_entities(
-        [PauseLearningSwitch(hass, coordinator, entry), UsageStatsSwitch(entry)],
-        True,
-    )
+    async_add_entities([PauseLearningSwitch(hass, coordinator, entry)], True)
     return True
 
 
@@ -129,42 +119,3 @@ class PauseLearningSwitch(RestoreEntity, SwitchEntity):
             self._unsub_midnight_reset()
             self._unsub_midnight_reset = None
         self.coordinator.learning_paused = False
-
-
-class UsageStatsSwitch(SwitchEntity):
-    """Switch for the anonymous installation counter, on by default. @zara"""
-
-    _attr_has_entity_name = True
-    _attr_translation_key = "usage_stats"
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_icon = "mdi:counter"
-    _attr_should_poll = False
-
-    def __init__(self, entry: ConfigEntry) -> None:
-        """Bind to the config entry, whose options hold the choice. @zara"""
-        self._entry = entry
-        self._attr_unique_id = f"{entry.entry_id}_usage_stats"
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
-
-    @property
-    def is_on(self) -> bool:
-        """Return the user's choice. @zara"""
-        return enabled(self._entry)
-
-    async def async_turn_on(self, **kwargs) -> None:
-        """Switch the counter on; today's report follows right away. @zara"""
-        self._set(True)
-        self.hass.async_create_task(
-            async_report(self.hass, self._entry, get_store(self.hass))
-        )
-
-    async def async_turn_off(self, **kwargs) -> None:
-        """Switch the counter off; nothing is sent any more. @zara"""
-        self._set(False)
-
-    def _set(self, value: bool) -> None:
-        """Store the choice in the entry options. @zara"""
-        self.hass.config_entries.async_update_entry(
-            self._entry, options={**self._entry.options, CONF_USAGE_STATS: value}
-        )
-        self.async_write_ha_state()

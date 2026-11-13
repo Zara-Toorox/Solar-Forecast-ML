@@ -289,6 +289,16 @@
         }
       }
     },
+    "set_update_info": {
+      "name": "Update-Information schalten",
+      "description": "Schaltet die Update-Information (Beta) ohne Neustart ein oder aus. Ohne gespeicherten Wert ist sie an. Beim Einschalten folgt der tägliche Ping sofort.",
+      "fields": {
+        "enabled": {
+          "name": "Aktiviert",
+          "description": "An: SFML meldet einmal am Tag nur seine Version an die Website. Aus: es wird nichts gesendet."
+        }
+      }
+    },
     "run_weather_correction": {
       "name": "Korrigierte Wettervorhersage neu erstellen",
       "description": "DEVELOPER ONLY or on ADVICE"
@@ -652,9 +662,6 @@
     "switch": {
       "pause_learning": {
         "name": "Lernen pausieren"
-      },
-      "usage_stats": {
-        "name": "Anonymer Installationszähler"
       }
     }
   },

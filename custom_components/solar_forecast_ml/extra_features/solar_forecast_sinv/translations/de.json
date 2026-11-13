@@ -122,6 +122,7 @@
                 "deye_solarman_v5": "Deye – Solarman V5",
                 "deye_modbus_tcp": "Deye – Modbus TCP",
                 "solplanet_modbus_tcp": "Solplanet – Modbus TCP",
+                "solplanet_ai_dongle": "Solplanet – Ai-Dongle (HTTP)",
                 "enphase_local_envoy": "Enphase IQ8 / IQ-Mikrowechselrichter – IQ Gateway (lokales Netz)",
                 "sigenergy_modbus_tcp": "Sigenergy Sigen Hybrid / SigenStor – Modbus TCP"
             }
@@ -407,7 +408,7 @@
             },
             "solplanet": {
                 "title": "Solplanet (Modbus TCP)",
-                "description": "Adresse des Solplanet-Wechselrichters oder Ai-Loggers im lokalen Netz. Modbus TCP nutzt ab Werk Port 502; der Ai-Logger akzeptiert auch 9999. Unit-ID 3 ist der Wechselrichter-Standard, ein Ai-Logger antwortet als Unit 239. S-INV liest nur Eingangsregister und schreibt nichts. Der Ai-Dongle auf Port 8484 wird nicht unterstützt.",
+                "description": "Adresse des Solplanet-Wechselrichters oder Ai-Loggers im lokalen Netz. Modbus TCP nutzt ab Werk Port 502; der Ai-Logger akzeptiert auch 9999. Unit-ID 3 ist der Wechselrichter-Standard, ein Ai-Logger antwortet als Unit 239. S-INV liest nur Eingangsregister und schreibt nichts. Für den Ai-Dongle bitte „Solplanet – Ai-Dongle“ wählen.",
                 "data": {
                     "host": "IP-Adresse oder Hostname",
                     "port": "Port",
@@ -417,6 +418,18 @@
                     "host": "Zum Beispiel 192.168.1.50",
                     "port": "Ab Werk 502, am Ai-Logger 9999",
                     "unit_id": "Ab Werk 3, am Ai-Logger 239"
+                }
+            },
+            "solplanet_dongle": {
+                "title": "Solplanet (Ai-Dongle)",
+                "description": "Adresse des Solplanet Ai-Dongles im lokalen Netz. Ältere Firmware antwortet über HTTP auf Port 8484, neuere über HTTPS auf Port 443; bei 8484 versucht S-INV automatisch auch 443. S-INV liest Wechselrichter, Zähler und Akku nur aus und schreibt nichts. Die Werte des Dongles stammen aus Community-Beschreibungen; melde dich bitte, wenn ein Wert nicht zur Solplanet-App passt.",
+                "data": {
+                    "host": "IP-Adresse oder Hostname",
+                    "port": "Port"
+                },
+                "data_description": {
+                    "host": "Zum Beispiel 192.168.1.60",
+                    "port": "Ab Werk 8484, neuere Firmware 443"
                 }
             },
             "enphase": {
@@ -526,6 +539,7 @@
             "not_solakon": "Unter dieser Adresse antwortet kein Solakon ONE über Modbus TCP.",
             "not_deye": "Kein unterstützter Deye-Gerätetyp hat geantwortet (String 0x0200, einphasiger Hybrid 0x0300, Mikro 0x0400, Drehstrom-Hybrid 0x0500 oder 0x0600), oder die Wechselrichter-Seriennummer fehlt.",
             "not_solplanet": "Kein Solplanet-Wechselrichter hat geantwortet (Gerätetyp 1 oder 3), oder die Seriennummer fehlt.",
+            "not_solplanet_dongle": "Der Ai-Dongle hat keine Wechselrichterliste mit Seriennummer geliefert.",
             "enphase_auth": "Das IQ Gateway hat den Token abgelehnt (abgelaufen, widerrufen oder für ein anderes Gateway).",
             "enphase_token_invalid": "Der Token ist leer oder enthält ungültige Zeichen.",
             "enphase_serial_invalid": "Bitte die Seriennummer des Gateways eingeben (nur Buchstaben und Ziffern).",

@@ -861,6 +861,16 @@ async def _write_smc_enabled_for_ems(
 bind_enable_writer(_write_smc_enabled_for_ems)
 
 
+def _remove_retired_switches(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Drop the former switch entities; STATS no longer provides any."""
+    from homeassistant.helpers import entity_registry as er
+
+    registry = er.async_get(hass)
+    for item in er.async_entries_for_config_entry(registry, entry.entry_id):
+        if item.domain == "switch":
+            registry.async_remove(item.entity_id)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up SFML Stats from a config entry. @zara"""
     _LOGGER.info("Setting up %s v%s (Entry: %s)", NAME, VERSION, entry.entry_id)
@@ -988,6 +998,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "heating_manager": heating_manager,
         "consumers_manager": consumers_manager,
     }
+
+    _remove_retired_switches(hass, entry)
 
     # --- Forward sensor platforms ---
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

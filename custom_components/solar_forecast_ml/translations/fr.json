@@ -225,6 +225,16 @@
         }
       }
     },
+    "set_update_info": {
+      "name": "Basculer l'information de mise a jour",
+      "description": "Active ou desactive l'information de mise a jour (beta) sans redemarrage. Sans valeur enregistree, elle reste activee. A l'activation, le ping quotidien part immediatement.",
+      "fields": {
+        "enabled": {
+          "name": "Activee",
+          "description": "Activee : une fois par jour, SFML envoie seulement sa version au site web. Desactivee : rien n'est envoye."
+        }
+      }
+    },
     "run_weather_correction": {
       "name": "Recreer la prevision meteo corrigee",
       "description": "DEVELOPER ONLY or on ADVICE"
@@ -588,9 +598,6 @@
     "switch": {
       "pause_learning": {
         "name": "Suspendre l'apprentissage"
-      },
-      "usage_stats": {
-        "name": "Compteur d'installations anonyme"
       }
     }
   },
