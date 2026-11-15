@@ -108,7 +108,12 @@ def _add_predictions_to_wh_hours(
 
     Each prediction has target_date (YYYY-MM-DD) and target_hour (0-23).
     Values are in kWh, converted to Wh (* 1000).
+
+    The hour before the first and after the last producing hour are sent
+    as 0 Wh, so the dashboard line starts and ends on zero instead of
+    stopping in mid-air at the last producing hour.
     """
+    producing: list[int] = []
     for pred in predictions:
         pred_date = pred.get(PRED_TARGET_DATE)
         if pred_date != date_str:
@@ -132,5 +137,24 @@ def _add_predictions_to_wh_hours(
                 tzinfo=tz,
             )
             wh_hours[dt.isoformat()] = round(kwh * 1000, 1)
+            producing.append(int(hour))
         except (ValueError, TypeError) as e:
             _LOGGER.debug("Skipping invalid prediction entry: %s", e)
+
+    if not producing:
+        return
+    for edge in (min(producing) - 1, max(producing) + 1):
+        if not 0 <= edge <= 23:
+            continue
+        try:
+            dt = datetime(
+                int(date_str[:4]),
+                int(date_str[5:7]),
+                int(date_str[8:10]),
+                edge,
+                0, 0,
+                tzinfo=tz,
+            )
+        except (ValueError, TypeError):
+            continue
+        wh_hours.setdefault(dt.isoformat(), 0.0)

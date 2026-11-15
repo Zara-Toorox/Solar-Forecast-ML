@@ -94,11 +94,11 @@ const _SolarPage = {
                         </div>
                         <div class="annual-kpi-label">{{ $t('solar.kpi.strongestForecastMonth') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: var(--price-cheap);">
+                    <div class="annual-kpi" style="--kpi-accent: var(--price-cheap);" :title="$t('solar.kpi.last12MonthsHint')">
                         <div class="annual-kpi-value" style="color: var(--price-cheap);">
-                            {{ annualKpis.yearKwh }} kWh
+                            {{ annualKpis.windowKwh }} kWh
                         </div>
-                        <div class="annual-kpi-label">{{ $t('solar.kpi.yearForecast', { year: annualKpis.year }) }}</div>
+                        <div class="annual-kpi-label">{{ $t('solar.kpi.last12Months', { range: annualKpis.range }) }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #a855f7;">
                         <div class="annual-kpi-value" style="color: #a855f7;">
@@ -531,29 +531,31 @@ const _SolarPage = {
                 return {
                     totalKwh: '--',
                     bestMonth: '--',
-                    yearKwh: '--',
+                    windowKwh: '--',
                     avgMonth: '--',
-                    year: Number(timeContext.current_year) || new Date().getFullYear(),
+                    range: '--',
                 };
             }
 
             const months = a.months || [];
             const measured = months.filter(m => m.source === 'measured');
             const totalMeasured = measured.reduce((s, m) => s + (m.measured_yield_kwh || 0), 0);
-            const currentYear = Number(timeContext.current_year) || new Date().getFullYear();
+            const monthLabel = (m) => MONTH_NAMES[(m.month - 1) % 12] + ' ' + m.year;
 
-            // Best month
+            // Best month carries the year its data comes from
             let bestMonthName = '--';
-            if (a.annual?.best_month) {
-                bestMonthName = MONTH_NAMES[(a.annual.best_month - 1) % 12] + ' ' + currentYear;
-            } else if (months.length > 0) {
-                const sorted = [...months].sort((a, b) => (b.projected_yield_kwh || 0) - (a.projected_yield_kwh || 0));
-                bestMonthName = MONTH_NAMES[(sorted[0].month - 1) % 12] + ' ' + sorted[0].year;
+            if (months.length > 0) {
+                const best = a.annual?.best_month
+                    ? months.find(m => m.month === a.annual.best_month)
+                    : [...months].sort((x, y) => (y.projected_yield_kwh || 0) - (x.projected_yield_kwh || 0))[0];
+                if (best) bestMonthName = monthLabel(best);
             }
 
-            const yearForecast = months
-                .filter(m => Number(m.year) === currentYear)
-                .reduce((sum, month) => sum + (month.projected_yield_kwh || 0), 0);
+            const windowKwh = months.reduce((sum, month) => sum + (month.projected_yield_kwh || 0), 0);
+            const ordered = [...months].sort((x, y) => (x.year - y.year) || (x.month - y.month));
+            const range = ordered.length > 0
+                ? monthLabel(ordered[0]) + ' – ' + monthLabel(ordered[ordered.length - 1])
+                : '--';
 
             // Average per month (measured only)
             const avgPerMonth = measured.length > 0 ? totalMeasured / measured.length : 0;
@@ -561,9 +563,9 @@ const _SolarPage = {
             return {
                 totalKwh: Math.round(totalMeasured),
                 bestMonth: bestMonthName,
-                yearKwh: Math.round(yearForecast),
+                windowKwh: Math.round(windowKwh),
                 avgMonth: avgPerMonth.toFixed(1),
-                year: currentYear,
+                range,
             };
         });
 
@@ -1408,7 +1410,7 @@ const _SolarPage = {
                         ? `${learningHours}/${learningCandidates} h`
                         : '--',
                     discardedLearning: formatDiscardedLearning(o),
-                    peak: o.peak_kwh != null ? o.peak_kwh.toFixed(2) + ' kWh' : '--',
+                    peak: o.actual_peak_kwh != null ? o.actual_peak_kwh.toFixed(2) + ' kWh' : '--',
                 };
             });
 

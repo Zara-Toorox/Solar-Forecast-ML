@@ -330,9 +330,9 @@ const ModernEMSPage = {
                     <p class="ems-coverage-story">{{ coverageStory }}</p>
                     <p v-if="todayBrief.next_window_label" class="ems-next-window"><strong>Nächstes Fenster:</strong> {{ todayBrief.next_window_label }}<span v-if="todayBrief.next_window_when"> · {{ todayBrief.next_window_when }}</span><small v-if="todayBrief.next_window_detail">{{ todayBrief.next_window_detail }}</small></p>
                     <div class="ems-today-metrics">
-                        <article><span>PV-Ertrag</span><strong>{{ energy(selectedSummary.pv_kwh) }}</strong><small>Solarprognose</small></article>
+                        <article><span>PV-Ertrag</span><strong>{{ energy(selectedSummary.pv_kwh) }}</strong><small>{{ selectedSummary.flow_origin_label || "Solarprognose" }}</small></article>
                         <article><span>Bedarf</span><strong>{{ energy(selectedSummary.demand_kwh) }}</strong><small>{{ demandComponentsLabel }}</small></article>
-                        <article><span>Netzbezug</span><strong>{{ energy(selectedSummary.expected_grid_import_kwh) }}</strong><small>{{ currency(selectedSummary.expected_grid_cost_eur) }}</small></article>
+                        <article><span>Netz → Haus</span><strong>{{ energy(selectedSummary.expected_grid_import_kwh) }}</strong><small>{{ currency(selectedSummary.expected_grid_cost_eur) }}</small></article>
                         <article><span>Autarkie</span><strong>{{ percent(selectedSummary.expected_autarky_percent) }}</strong><small>{{ selectedSummary.autarky_origin_label || "noch ohne Messung" }}</small></article>
                     </div>
                     <div class="ems-coverage" aria-labelledby="ems-coverage-title">
@@ -357,6 +357,7 @@ const ModernEMSPage = {
                     </div>
                     <div class="ems-analysis-tabs" role="tablist" aria-label="Graphansicht"><button id="ems-chart-tab-energy" type="button" role="tab" :aria-selected="chartView === 'energy'" aria-controls="ems-chart-panel" :tabindex="chartView === 'energy' ? 0 : -1" :class="{ active: chartView === 'energy' }" @click="setChartView('energy')" @keydown="handleChartKeydown">Energiefluss</button><button id="ems-chart-tab-grid" type="button" role="tab" :aria-selected="chartView === 'grid'" aria-controls="ems-chart-panel" :tabindex="chartView === 'grid' ? 0 : -1" :class="{ active: chartView === 'grid' }" @click="setChartView('grid')" @keydown="handleChartKeydown">Netz &amp; Potenzial</button><button v-if="hasAllocation" id="ems-chart-tab-allocation" type="button" role="tab" :aria-selected="chartView === 'allocation'" aria-controls="ems-chart-panel" :tabindex="chartView === 'allocation' ? 0 : -1" :class="{ active: chartView === 'allocation' }" @click="setChartView('allocation')" @keydown="handleChartKeydown">Allokation</button></div>
                     <div id="ems-day-panel" role="tabpanel" :aria-labelledby="'ems-day-tab-' + selectedDay.date"><div id="ems-chart-panel" ref="chart" class="ems-chart" role="img" :aria-label="chartAriaLabel"></div><p class="ems-chart-summary">{{ chartSummary }}</p></div>
+                    <p class="ems-chart-note"><strong>Heute:</strong> Abgeschlossene Stunden sind gemessene STATS-Werte, ab der laufenden Stunde gilt die Prognose.</p>
                     <p v-if="data.components?.battery" class="ems-chart-note"><strong>Akku → Haus:</strong> Vorhandene Stunden sind gemessene Werte. Fehlende und kommende Stunden nutzen den Median der letzten 90 Tage für denselben Wochentag und dieselbe Uhrzeit.</p>
                     <div v-if="forecastWindows.length && selectedDay.relative_day === 0" class="ems-window-list">
                         <article v-for="windowItem in forecastWindows" :key="windowItem.id">

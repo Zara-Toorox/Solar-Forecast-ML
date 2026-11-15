@@ -72,7 +72,7 @@ const LOADS_TEXT = {
       "entity_unavailable": "Das Gerät ist nicht erreichbar",
       "inactive": "Regelung nicht aktiv",
       "license_required": "Premium-Lizenz nötig",
-      "waiting_for_arm": "Wartet auf „Beladen, jetzt planen“",
+      "waiting_for_arm": "Wartet auf die Bereitmeldung",
       "planned": "Start geplant",
       "deadline_too_tight": "Frist zu knapp, Start sofort",
       "forecast_unavailable": "Die PV-Prognose fehlt",
@@ -82,7 +82,14 @@ const LOADS_TEXT = {
       "planned_start": "Geplanter Start",
       "user": "Von dir",
       "ready_entity": "Freigabe am Gerät",
-      "invalid_program": "Programmdaten ungültig"
+      "invalid_program": "Programmdaten ungültig",
+      "timed_running": "Steckdose läuft",
+      "run_finished": "Einschaltdauer vorbei, ausgeschaltet",
+      "manual_start": "Von Hand eingeschaltet, Bereitschaft beendet",
+      "manual_stop": "Von Hand ausgeschaltet, Lauf beendet",
+      "off_pending": "Lauf beendet, Steckdose noch an",
+      "socket_on": "Steckdose ist an, erst ausschalten",
+      "deadline_start": "Spätester Start erreicht"
     }
   },
   "en": {
@@ -150,7 +157,7 @@ const LOADS_TEXT = {
       "entity_unavailable": "The device is not reachable",
       "inactive": "Control not active",
       "license_required": "Premium licence required",
-      "waiting_for_arm": "Waiting for “Loaded, plan now”",
+      "waiting_for_arm": "Waiting to be marked ready",
       "planned": "Start planned",
       "deadline_too_tight": "Deadline too tight, starting now",
       "forecast_unavailable": "The PV forecast is missing",
@@ -160,7 +167,14 @@ const LOADS_TEXT = {
       "planned_start": "Planned start",
       "user": "By you",
       "ready_entity": "Release on the device",
-      "invalid_program": "Program data invalid"
+      "invalid_program": "Program data invalid",
+      "timed_running": "Socket running",
+      "run_finished": "On duration over, switched off",
+      "manual_start": "Switched on by hand, ready state ended",
+      "manual_stop": "Switched off by hand, run ended",
+      "off_pending": "Run ended, socket still on",
+      "socket_on": "Socket is on, switch it off first",
+      "deadline_start": "Latest start reached"
     }
   },
   "pl": {
@@ -228,7 +242,7 @@ const LOADS_TEXT = {
       "entity_unavailable": "Urządzenie jest niedostępne",
       "inactive": "Sterowanie nieaktywne",
       "license_required": "Wymagana licencja Premium",
-      "waiting_for_arm": "Czeka na „Załadowane, planuj”",
+      "waiting_for_arm": "Czeka na zgłoszenie gotowości",
       "planned": "Start zaplanowany",
       "deadline_too_tight": "Termin zbyt krótki, start od razu",
       "forecast_unavailable": "Brak prognozy PV",
@@ -238,13 +252,20 @@ const LOADS_TEXT = {
       "planned_start": "Zaplanowany start",
       "user": "Przez Ciebie",
       "ready_entity": "Zwolnienie na urządzeniu",
-      "invalid_program": "Nieprawidłowe dane programu"
+      "invalid_program": "Nieprawidłowe dane programu",
+      "timed_running": "Gniazdo pracuje",
+      "run_finished": "Czas włączenia minął, wyłączono",
+      "manual_start": "Włączono ręcznie, gotowość zakończona",
+      "manual_stop": "Wyłączono ręcznie, cykl zakończony",
+      "off_pending": "Cykl zakończony, gniazdo wciąż włączone",
+      "socket_on": "Gniazdo jest włączone, najpierw je wyłącz",
+      "deadline_start": "Osiągnięto najpóźniejszy start"
     }
   }
 };
 
 const LOADS_REFRESH_MS = 60000;
-const LOADS_ICONS = { program: "dishwasher", switchable: "power-plug-outline" };
+const LOADS_ICONS = { program: "dishwasher", timed: "power-socket-de", switchable: "power-plug-outline" };
 
 class SfmlLoadsCard extends HTMLElement {
   setConfig(config) {
@@ -701,7 +722,7 @@ class SfmlLoadsCard extends HTMLElement {
   _look(device) {
     if (!device.active) return { tone: "", mode: "mode_inactive" };
     if (device.paused) return { tone: "ready", mode: "mode_paused" };
-    if (device.kind === "program") {
+    if (device.kind !== "switchable") {
       if (device.state === "started") return { tone: "run", mode: "mode_running" };
       if (device.state === "planned") return { tone: "plan", mode: "mode_planned" };
       if (device.state === "armed") return { tone: "plan", mode: "mode_armed" };
@@ -710,10 +731,17 @@ class SfmlLoadsCard extends HTMLElement {
     return device.is_on ? { tone: "run", mode: "mode_on" } : { tone: "", mode: "mode_off" };
   }
 
+  // Program: planned window; timed socket: only while it waits; others: next rule window
+  _startOf(d) {
+    if (d.kind === "program") return (d.plan || d.preview)?.start || null;
+    if (d.kind === "timed") return d.state === "armed" ? (d.next_window?.start || d.latest_start || null) : null;
+    return !d.is_on ? d.next_window?.start || null : null;
+  }
+
   _nextStart(devices) {
     const stamps = devices
       .filter((d) => d.active)
-      .map((d) => (d.kind === "program" ? (d.plan || d.preview)?.start : (!d.is_on ? d.next_window?.start : null)))
+      .map((d) => this._startOf(d))
       .map((iso) => ({ iso, at: Date.parse(iso) }))
       .filter((item) => Number.isFinite(item.at) && item.at >= Date.now() - 3600000)
       .sort((a, b) => a.at - b.at);
@@ -765,7 +793,7 @@ class SfmlLoadsCard extends HTMLElement {
     const why = this._why(device);
     const busy = this._busy[device.id] || !this._live;
     let actions = "";
-    if (device.kind === "program" && device.active) {
+    if (device.kind !== "switchable" && device.active) {
       if (device.state === "idle" || device.state === "done") {
         actions = `<button type="button" class="go" data-arm="${id}" ${busy ? "disabled" : ""}>${this._escape(this._t("arm"))}</button>`;
       } else if (device.state === "armed" || device.state === "planned") {
@@ -798,6 +826,12 @@ class SfmlLoadsCard extends HTMLElement {
       if (device.state === "armed") return `– ${small(this._t("beingPlanned"))}`;
       return `– ${small(this._t("notPlanned"))}`;
     }
+    if (device.kind === "timed") {
+      if (device.state === "started" && device.plan?.end) return `${this._time(device.plan.end)} ${small(this._t("endShort"))}`;
+      const start = device.state === "armed" ? this._startOf(device) : null;
+      if (start) return `${this._time(start)} ${small(this._t("nextShort"))}`;
+      return `– ${small(this._t(device.state === "armed" ? "beingPlanned" : "notPlanned"))}`;
+    }
     if (device.is_on) {
       const watts = this._finite(device.nominal_power_w);
       if (watts == null) return "–";
@@ -815,6 +849,8 @@ class SfmlLoadsCard extends HTMLElement {
         const finish = device.deadline ? ` · ${this._t("finishBy", { t: device.deadline })}` : "";
         return { icon: device.objective === "pv" ? "solar-power-variant" : "cash", text: `${goal}${finish}` };
       }
+    }
+    if (device.kind !== "switchable") {
       if ((device.state === "idle" || device.state === "done") && device.has_door) {
         return {
           icon: "door",

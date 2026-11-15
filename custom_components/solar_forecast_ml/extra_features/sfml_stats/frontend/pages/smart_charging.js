@@ -523,46 +523,85 @@ const SmartChargingPage = ((Vue) => {
                     
                     <div class="sc-advisor-grid">
                         <!-- 4.1 Battery Sizing Card -->
-                        <div class="advisor-subcard">
+                        <div class="advisor-subcard advisor-subcard-wide">
                             <div class="advisor-subcard-header">
                                 <span class="subcard-icon">🔋</span>
                                 <div>
                                     <div class="subcard-title">{{ localText('batterySizing') }}</div>
-                                    <div class="subcard-desc">{{ localText('sizingDesc') }}</div>
+                                    <div class="subcard-desc">{{ sizingWindowText() }}</div>
                                 </div>
                             </div>
-                            <div class="advisor-subcard-content">
-                                <div class="advisor-metric-row">
-                                    <span class="metric-label">{{ localText('fullDays') }}</span>
-                                    <span class="metric-value">{{ dashboardData.advisor.has_battery ? (dashboardData.advisor.full_days + ' / ' + dashboardData.advisor.total_days) : localText('noBattery') }}</span>
+                            <div class="sizing-layout" v-if="dashboardData.advisor.has_battery && dashboardData.advisor.sizing">
+                                <div class="sizing-main">
+                                    <div class="advisor-metric-row">
+                                        <span class="metric-label">{{ localText('fullDays') }}</span>
+                                        <span class="metric-value">{{ dashboardData.advisor.sizing.full_days_measurable ? (dashboardData.advisor.sizing.full_days + ' / ' + dashboardData.advisor.sizing.full_days_measurable) : localText('notMeasurable') }}</span>
+                                    </div>
+                                    <div class="metric-help-text">{{ localText('fullDaysSub') }}</div>
+
+                                    <div class="sizing-table-wrap">
+                                        <table class="sizing-steps">
+                                            <thead>
+                                                <tr>
+                                                    <th>{{ localText('colStep') }}</th>
+                                                    <th>{{ localText('colPv') }}</th>
+                                                    <th>{{ localText('colShift') }}</th>
+                                                    <th>{{ localText('colYear') }}</th>
+                                                    <th>{{ localText('colPayback') }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr v-for="step in dashboardData.advisor.sizing.steps" :key="step.step_kwh">
+                                                    <td class="sizing-step">+{{ step.step_kwh.toFixed(1) }} kWh</td>
+                                                    <td>{{ fmtEurRange(step.pv_eur_min, step.pv_eur_max) }}</td>
+                                                    <td>
+                                                        {{ dashboardData.advisor.sizing.time_variable_tariff ? fmtEur(step.shift_eur) : '–' }}
+                                                        <small v-if="dashboardData.advisor.sizing.time_variable_tariff" class="sizing-best">{{ localText('bestCase').replace('{eur}', fmtEur(step.shift_best_eur)) }}</small>
+                                                    </td>
+                                                    <td class="sizing-year">{{ fmtEur(step.annual_eur) }}</td>
+                                                    <td>{{ step.payback_years != null ? localText('years').replace('{years}', step.payback_years.toFixed(0)) : '–' }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="metric-help-text sizing-assumptions">{{ sizingAssumptionsText() }}</div>
                                 </div>
-                                <div class="metric-help-text" v-if="dashboardData.advisor.has_battery">
-                                    {{ localText('fullDaysSub').replace('{days}', dashboardData.advisor.full_days).replace('{total}', dashboardData.advisor.total_days).replace('{pct}', dashboardData.advisor.full_days_percent.toFixed(1)) }}
+
+                                <div class="sizing-side">
+                                    <div class="advisor-recommendation-box">
+                                        <span class="recommendation-badge">{{ localText('sizingRecommendation') }}</span>
+                                        <p class="recommendation-text">{{ getSizingRecommendation() }}</p>
+                                    </div>
+
+                                    <form class="sizing-settings" @submit.prevent="saveSizingSettings">
+                                        <label class="sizing-field">
+                                            <span class="metric-label">{{ localText('setStep') }}</span>
+                                            <input class="sc-number" type="number" min="0.5" step="0.5" v-model="sizingForm.step_kwh" :placeholder="dashboardData.advisor.sizing.step_kwh">
+                                        </label>
+                                        <label class="sizing-field">
+                                            <span class="metric-label">{{ localText('setCost') }}</span>
+                                            <input class="sc-number" type="number" min="1" step="1" v-model="sizingForm.cost_per_kwh_eur" :placeholder="localText('setCostPlaceholder')">
+                                        </label>
+                                        <label class="sizing-field">
+                                            <span class="metric-label">{{ localText('setLifetime') }}</span>
+                                            <input class="sc-number" type="number" min="1" max="40" step="1" v-model="sizingForm.lifetime_years">
+                                        </label>
+                                        <label class="sizing-field">
+                                            <span class="metric-label">{{ localText('setCycles') }}</span>
+                                            <input class="sc-number" type="number" min="500" max="20000" step="100" v-model="sizingForm.cycles">
+                                        </label>
+                                        <div class="sizing-actions">
+                                            <span v-if="sizingError" class="sizing-error">{{ sizingError }}</span>
+                                            <button type="submit" class="button" :disabled="sizingSaving">{{ localText('setSave') }}</button>
+                                        </div>
+                                    </form>
                                 </div>
-                                
-                                <div class="advisor-metric-row">
-                                    <span class="metric-label">{{ localText('unboundPotential') }}</span>
-                                    <span class="metric-value">{{ dashboardData.advisor.has_battery ? (dashboardData.advisor.potential_kwh.toFixed(1) + ' kWh') : localText('noBattery') }}</span>
-                                </div>
-                                <div class="metric-help-text" v-if="dashboardData.advisor.has_battery">{{ localText('unboundPotentialSub') }}</div>
-                                
-                                <div class="advisor-metric-row">
-                                    <span class="metric-label">{{ localText('potentialSavings') }}</span>
-                                    <span class="metric-value" :style="{ color: dashboardData.advisor.has_battery ? '#22c55e' : 'inherit' }">
-                                        {{ dashboardData.advisor.has_battery ? fmtEur(dashboardData.advisor.potential_savings_eur) : localText('noBattery') }}
-                                    </span>
-                                </div>
-                                <div class="metric-help-text" v-if="dashboardData.advisor.has_battery">{{ formatPotentialSavingsSub() }}</div>
-                                
-                                <div class="advisor-recommendation-box">
-                                    <span class="recommendation-badge">{{ localText('sizingRecommendation') }}</span>
-                                    <p class="recommendation-text">
-                                        {{ getSizingRecommendation() }}
-                                    </p>
-                                </div>
+                            </div>
+                            <div class="advisor-subcard-content" v-else>
+                                <div class="metric-help-text">{{ dashboardData.advisor.has_battery ? localText('insufficientData') : localText('noBatteryDesc') }}</div>
                             </div>
                         </div>
-                        
+
                         <!-- 4.2 Solar Performance Card -->
                         <div class="advisor-subcard">
                             <div class="advisor-subcard-header">
@@ -1250,20 +1289,36 @@ const SmartChargingPage = ((Vue) => {
             const localText = (key) => {
                 const bundle = {
                     de: {
-                        advisorTitle: "Hardware- & Kapazitäts-Analysen (2026)",
+                        advisorTitle: "Hardware- & Kapazitäts-Analysen",
                         batterySizing: "Akku-Dimensionierung",
-                        sizingDesc: "Beurteilung der Batteriekapazität",
-                        fullDays: "Vollladungs-Tage",
-                        fullDaysSub: "Akku an {days} von {total} Tagen voll geladen ({pct}%)",
-                        unboundPotential: "Ungenutzter Überschuss",
-                        unboundPotentialSub: "Speicherbarer Export bei vollem Akku, begrenzt auf späteren Netzbezug",
-                        potentialSavings: "Netto-Potenzial",
-                        potentialSavingsSub: "Bewertet mit {value} ct/kWh nach Einspeisevergütung ({feed} ct/kWh) und Speicherverlusten",
+                        sizingWindow: "Letzte 12 Monate ({start} – {end})",
+                        sizingWindowAnnualized: "{start} – {end}, hochgerechnet auf ein Jahr",
+                        fullDays: "Tage mit PV-Überschuss bei vollem Akku",
+                        fullDaysSub: "Gezählt werden Tage, an denen der Akku laut Ladestand mindestens 95 % erreichte und trotzdem eingespeist wurde.",
+                        notMeasurable: "nicht messbar",
+                        colStep: "Erweiterung",
+                        colPv: "durch PV",
+                        colShift: "durch günstige Stunden",
+                        colYear: "pro Jahr",
+                        colPayback: "bezahlt nach",
+                        bestCase: "bestenfalls {eur}",
+                        years: "{years} Jahren",
+                        assumptions: "Wirkungsgrad {eta} %, Verschleiß {wear} ct/kWh. PV-Werte sind an {measured} % der Tage gemessen, der Rest ist geschätzt (Spanne). Günstige Stunden nach deinen Smart-Laden-Schwellen.",
+                        assumptionsNoWear: "Wirkungsgrad {eta} %, Verschleiß nicht berücksichtigt (keine Kosten eingetragen). PV-Werte sind an {measured} % der Tage gemessen, der Rest ist geschätzt (Spanne). Günstige Stunden nach deinen Smart-Laden-Schwellen.",
+                        assumptionsFixed: " Bei festem Strompreis gibt es keine Ersparnis durch günstige Stunden.",
                         sizingRecommendation: "Empfehlung",
+                        setStep: "Schritt (kWh)",
+                        setCost: "Kosten je kWh (€)",
+                        setCostPlaceholder: "z. B. 400",
+                        setLifetime: "Lebensdauer (Jahre)",
+                        setCycles: "Zyklen",
+                        setSave: "Speichern",
+                        setSaveFailed: "Speichern fehlgeschlagen.",
+                        insufficientData: "Für ein Urteil fehlen mir noch Daten. Ich brauche mindestens drei Monate.",
                         solarPerformance: "Solar-Jahresbilanz",
-                        performanceDesc: "Solar-Kennzahlen seit Jahresbeginn",
+                        performanceDesc: "Solar-Kennzahlen der letzten 12 Monate",
                         totalYield: "Gesamt-Ertrag",
-                        totalYieldSub: "Erzeugte Solar-Energie seit Jahresbeginn",
+                        totalYieldSub: "Erzeugte Solar-Energie in den letzten 12 Monaten",
                         avgDailyYield: "Tagesertrag Ø",
                         avgDailyYieldSub: "Durchschnittlicher Ertrag pro Tag",
                         houseConsumption: "Hausverbrauch",
@@ -1276,26 +1331,46 @@ const SmartChargingPage = ((Vue) => {
                         totalChargedSub: "Geladene Energie (PV: {pv}%, Netz: {grid}%)",
                         batteryCycles: "Vollzyklen-Äquivalent",
                         batteryCyclesSub: "Entspricht ca. {cycles} Zyklen pro Tag",
-                        sizingGood: "Dein Akku ({cap} kWh) ist optimal dimensioniert. Eine Vergrößerung hätte bisher nur {savings} Netto-Ersparnis gebracht.",
-                        sizingNeedMore: "Ein größerer Akku könnte sich lohnen! Du hättest in diesem Jahr bereits {savings} netto sparen können.",
+                        verdictCost: "Trag die Kosten je kWh ein, dann rechne ich dir aus, ob sich eine Erweiterung um {step} kWh lohnt. Sie brächte etwa {eur} im Jahr.",
+                        verdictWorth: "Eine Erweiterung um {step} kWh lohnt sich: Sie macht sich nach etwa {years} Jahren bezahlt und bringt rund {eur} im Jahr.",
+                        verdictBorderline: "Eine Erweiterung um {step} kWh ist knapp: Sie macht sich erst nach etwa {years} Jahren bezahlt, bei {life} Jahren Lebensdauer.",
+                        verdictNot: "Eine Erweiterung um {step} kWh lohnt sich nicht: Sie bräuchte etwa {years} Jahre, um sich zu bezahlen, die Lebensdauer liegt bei {life} Jahren.",
+                        verdictNone: "Eine Erweiterung um {step} kWh lohnt sich nicht: Sie würde keine Ersparnis bringen.",
+                        verdictInsufficient: "Für ein Urteil fehlen mir noch Daten. Ich brauche mindestens drei Monate.",
                         noBattery: "Kein Akku",
                         noBatteryDesc: "Keine Akku-Optimierung möglich, da kein Akku konfiguriert ist.",
                     },
                     en: {
-                        advisorTitle: "Hardware & Capacity Analysis (2026)",
+                        advisorTitle: "Hardware & Capacity Analysis",
                         batterySizing: "Battery Sizing",
-                        sizingDesc: "Assessment of battery capacity",
-                        fullDays: "Full Charge Days",
-                        fullDaysSub: "Battery fully charged on {days} of {total} days ({pct}%)",
-                        unboundPotential: "Unused Solar Potential",
-                        unboundPotentialSub: "Storable export while battery was full, capped by later grid import",
-                        potentialSavings: "Net Potential",
-                        potentialSavingsSub: "Valued at {value} ct/kWh after feed-in tariff ({feed} ct/kWh) and storage losses",
+                        sizingWindow: "Last 12 months ({start} – {end})",
+                        sizingWindowAnnualized: "{start} – {end}, extrapolated to one year",
+                        fullDays: "Days with PV surplus on a full battery",
+                        fullDaysSub: "Counted are days on which the battery reached at least 95 % state of charge and power was still exported.",
+                        notMeasurable: "not measurable",
+                        colStep: "Extension",
+                        colPv: "from PV",
+                        colShift: "from cheap hours",
+                        colYear: "per year",
+                        colPayback: "pays back after",
+                        bestCase: "at best {eur}",
+                        years: "{years} years",
+                        assumptions: "Efficiency {eta} %, wear {wear} ct/kWh. PV values are measured on {measured} % of days, the rest is estimated (range). Cheap hours follow your smart-charging thresholds.",
+                        assumptionsNoWear: "Efficiency {eta} %, wear not included (no cost entered). PV values are measured on {measured} % of days, the rest is estimated (range). Cheap hours follow your smart-charging thresholds.",
+                        assumptionsFixed: " With a fixed electricity price there are no savings from cheap hours.",
                         sizingRecommendation: "Recommendation",
+                        setStep: "Step (kWh)",
+                        setCost: "Cost per kWh (€)",
+                        setCostPlaceholder: "e.g. 400",
+                        setLifetime: "Lifetime (years)",
+                        setCycles: "Cycles",
+                        setSave: "Save",
+                        setSaveFailed: "Saving failed.",
+                        insufficientData: "I still need more data for a verdict, at least three months.",
                         solarPerformance: "Annual Solar Yield",
-                        performanceDesc: "Solar metrics since beginning of year",
+                        performanceDesc: "Solar figures of the last 12 months",
                         totalYield: "Total Yield",
-                        totalYieldSub: "Total generated energy this year",
+                        totalYieldSub: "Solar energy produced in the last 12 months",
                         avgDailyYield: "Daily Yield Ø",
                         avgDailyYieldSub: "Average generated energy per day",
                         houseConsumption: "House Consumption",
@@ -1308,26 +1383,46 @@ const SmartChargingPage = ((Vue) => {
                         totalChargedSub: "Charged energy (PV: {pv}%, Netz: {grid}%)",
                         batteryCycles: "Full Cycle Equivalent",
                         batteryCyclesSub: "Equivalent to approx. {cycles} cycles per day",
-                        sizingGood: "Your battery ({cap} kWh) is optimally sized. A larger battery would have only added {savings} net savings so far.",
-                        sizingNeedMore: "A larger battery could be worth it! You could have saved an additional {savings} net so far this year.",
+                        verdictCost: "Enter the cost per kWh and I will work out whether an extension of {step} kWh pays off. It would bring about {eur} a year.",
+                        verdictWorth: "An extension of {step} kWh pays off: it pays for itself after about {years} years and brings around {eur} a year.",
+                        verdictBorderline: "An extension of {step} kWh is borderline: it only pays for itself after about {years} years, with a lifetime of {life} years.",
+                        verdictNot: "An extension of {step} kWh does not pay off: it would need about {years} years to pay for itself, the lifetime is {life} years.",
+                        verdictNone: "An extension of {step} kWh does not pay off: it would not bring any savings.",
+                        verdictInsufficient: "I still need more data for a verdict, at least three months.",
                         noBattery: "No Battery",
                         noBatteryDesc: "No battery optimization possible because no battery is configured.",
                     },
                     pl: {
-                        advisorTitle: "Analiza sprzętu i pojemności (2026)",
+                        advisorTitle: "Analiza sprzętu i pojemności",
                         batterySizing: "Dobór akumulatora",
-                        sizingDesc: "Ocena pojemności akumulatora",
-                        fullDays: "Dni pełnego naładowania",
-                        fullDaysSub: "Akumulator pełny przez {days} z {total} dni ({pct}%)",
-                        unboundPotential: "Niewykorzystany uzysk",
-                        unboundPotentialSub: "Oddawanie do sieci przy pełnym akumulatorze, które dało się zmagazynować, ograniczone późniejszym poborem z sieci",
-                        potentialSavings: "Potencjał netto",
-                        potentialSavingsSub: "Wycenione na {value} ct/kWh po stawce za oddawanie ({feed} ct/kWh) i stratach magazynu",
+                        sizingWindow: "Ostatnie 12 miesięcy ({start} – {end})",
+                        sizingWindowAnnualized: "{start} – {end}, przeliczone na rok",
+                        fullDays: "Dni z nadwyżką PV przy pełnym akumulatorze",
+                        fullDaysSub: "Liczone są dni, w których akumulator osiągnął co najmniej 95 % naładowania, a energia nadal była oddawana do sieci.",
+                        notMeasurable: "niemierzalne",
+                        colStep: "Rozbudowa",
+                        colPv: "z PV",
+                        colShift: "z tanich godzin",
+                        colYear: "rocznie",
+                        colPayback: "zwrot po",
+                        bestCase: "w najlepszym razie {eur}",
+                        years: "{years} latach",
+                        assumptions: "Sprawność {eta} %, zużycie {wear} ct/kWh. Wartości PV zmierzono w {measured} % dni, reszta jest szacowana (zakres). Tanie godziny według Twoich progów inteligentnego ładowania.",
+                        assumptionsNoWear: "Sprawność {eta} %, zużycie nieuwzględnione (brak kosztów). Wartości PV zmierzono w {measured} % dni, reszta jest szacowana (zakres). Tanie godziny według Twoich progów inteligentnego ładowania.",
+                        assumptionsFixed: " Przy stałej cenie prądu tanie godziny nie dają oszczędności.",
                         sizingRecommendation: "Zalecenie",
+                        setStep: "Krok (kWh)",
+                        setCost: "Koszt za kWh (€)",
+                        setCostPlaceholder: "np. 400",
+                        setLifetime: "Żywotność (lata)",
+                        setCycles: "Cykle",
+                        setSave: "Zapisz",
+                        setSaveFailed: "Zapis nie powiódł się.",
+                        insufficientData: "Do oceny potrzebuję jeszcze danych, co najmniej z trzech miesięcy.",
                         solarPerformance: "Roczny bilans PV",
-                        performanceDesc: "Wskaźniki PV od początku roku",
+                        performanceDesc: "Wskaźniki PV z ostatnich 12 miesięcy",
                         totalYield: "Uzysk łącznie",
-                        totalYieldSub: "Energia wytworzona od początku roku",
+                        totalYieldSub: "Energia wytworzona w ostatnich 12 miesiącach",
                         avgDailyYield: "Uzysk dzienny Ø",
                         avgDailyYieldSub: "Średni uzysk na dzień",
                         houseConsumption: "Zużycie domu",
@@ -1340,8 +1435,12 @@ const SmartChargingPage = ((Vue) => {
                         totalChargedSub: "Naładowana energia (PV: {pv}%, sieć: {grid}%)",
                         batteryCycles: "Ekwiwalent pełnych cykli",
                         batteryCyclesSub: "Odpowiada ok. {cycles} cyklom na dzień",
-                        sizingGood: "Twój akumulator ({cap} kWh) jest dobrze dobrany. Powiększenie dałoby dotychczas tylko {savings} oszczędności netto.",
-                        sizingNeedMore: "Większy akumulator może się opłacić. W tym roku dałoby się już zaoszczędzić {savings} netto.",
+                        verdictCost: "Wpisz koszt za kWh, a policzę, czy rozbudowa o {step} kWh się opłaca. Dałaby około {eur} rocznie.",
+                        verdictWorth: "Rozbudowa o {step} kWh się opłaca: zwraca się po około {years} latach i daje około {eur} rocznie.",
+                        verdictBorderline: "Rozbudowa o {step} kWh jest na granicy: zwraca się dopiero po około {years} latach przy żywotności {life} lat.",
+                        verdictNot: "Rozbudowa o {step} kWh się nie opłaca: potrzebowałaby około {years} lat, a żywotność wynosi {life} lat.",
+                        verdictNone: "Rozbudowa o {step} kWh się nie opłaca: nie dałaby żadnych oszczędności.",
+                        verdictInsufficient: "Do oceny potrzebuję jeszcze danych, co najmniej z trzech miesięcy.",
                         noBattery: "Brak akumulatora",
                         noBatteryDesc: "Optymalizacja akumulatora nie jest możliwa, bo żaden akumulator nie jest skonfigurowany.",
                     }
@@ -1350,28 +1449,90 @@ const SmartChargingPage = ((Vue) => {
                 return bundle[lang][key] || key;
             };
 
+            const sizingForm = reactive({ step_kwh: '', cost_per_kwh_eur: '', lifetime_years: '', cycles: '' });
+            const sizingSaving = ref(false);
+            const sizingError = ref('');
+            let sizingFormLoaded = false;
+
+            function applySizingSettings(sizing, force = false) {
+                if (!sizing || (sizingFormLoaded && !force)) return;
+                sizingFormLoaded = true;
+                const stored = sizing.settings || {};
+                sizingForm.step_kwh = stored.step_kwh ?? '';
+                sizingForm.cost_per_kwh_eur = stored.cost_per_kwh_eur ?? '';
+                sizingForm.lifetime_years = stored.lifetime_years ?? '';
+                sizingForm.cycles = stored.cycles ?? '';
+            }
+
+            function fmtEurRange(min, max) {
+                if (min == null && max == null) return '–';
+                if (min == null || Math.abs((max ?? 0) - min) < 0.005) return fmtEur(max ?? min);
+                return min.toFixed(2) + '–' + fmtEur(max);
+            }
+
+            function sizingWindowText() {
+                const sizing = dashboardData.advisor?.sizing;
+                const start = sizing?.window?.start || dashboardData.advisor?.window_start || '';
+                const end = sizing?.window?.end || dashboardData.advisor?.window_end || '';
+                const key = sizing?.window?.annualized ? 'sizingWindowAnnualized' : 'sizingWindow';
+                return localText(key).replace('{start}', start).replace('{end}', end);
+            }
+
+            function sizingAssumptionsText() {
+                const sizing = dashboardData.advisor?.sizing;
+                if (!sizing) return '';
+                const eta = Math.round((dashboardData.advisor.battery_roundtrip_efficiency || 0) * 100);
+                const measured = sizing.pv_measured_days_percent != null ? Math.round(sizing.pv_measured_days_percent) : 0;
+                const base = sizing.wear_ct_per_kwh > 0 ? 'assumptions' : 'assumptionsNoWear';
+                let text = localText(base)
+                    .replace('{eta}', eta)
+                    .replace('{wear}', Number(sizing.wear_ct_per_kwh).toFixed(1))
+                    .replace('{measured}', measured);
+                if (!sizing.time_variable_tariff) text += localText('assumptionsFixed');
+                return text;
+            }
+
             function getSizingRecommendation() {
-                if (!dashboardData.advisor) return '--';
-                if (!dashboardData.advisor.has_battery) return localText('noBatteryDesc');
-                const { potential_savings_eur, battery_capacity } = dashboardData.advisor;
-                if (battery_capacity == null) return localText('noBatteryDesc');
-                if (potential_savings_eur < 15.0) {
-                    return localText('sizingGood')
-                        .replace('{cap}', battery_capacity.toFixed(1))
-                        .replace('{savings}', fmtEur(potential_savings_eur));
-                } else {
-                    return localText('sizingNeedMore')
-                        .replace('{savings}', fmtEur(potential_savings_eur));
+                const advisor = dashboardData.advisor;
+                if (!advisor) return '--';
+                if (!advisor.has_battery) return localText('noBatteryDesc');
+                const sizing = advisor.sizing;
+                const first = sizing?.steps?.[0];
+                if (!first) return localText('verdictInsufficient');
+                const life = Number(sizing.settings?.lifetime_years || 0).toFixed(0);
+                const fill = (key) => localText(key)
+                    .replace('{step}', first.step_kwh.toFixed(1))
+                    .replace('{eur}', fmtEur(first.annual_eur))
+                    .replace('{years}', first.payback_years != null ? first.payback_years.toFixed(0) : '–')
+                    .replace('{life}', life);
+                switch (first.verdict) {
+                    case 'cost_missing': return fill('verdictCost');
+                    case 'worth_it': return fill('verdictWorth');
+                    case 'borderline': return fill('verdictBorderline');
+                    case 'not_worth_it': return fill(first.payback_years != null ? 'verdictNot' : 'verdictNone');
+                    default: return fill('verdictInsufficient');
                 }
             }
 
-            function formatPotentialSavingsSub() {
-                if (!dashboardData.advisor) return localText('potentialSavingsSub');
-                const netValue = Number(dashboardData.advisor.net_value_ct_kwh || 0).toFixed(1);
-                const feedIn = Number(dashboardData.advisor.feed_in_tariff_ct || 0).toFixed(1);
-                return localText('potentialSavingsSub')
-                    .replace('{value}', netValue)
-                    .replace('{feed}', feedIn);
+            async function saveSizingSettings() {
+                sizingSaving.value = true;
+                sizingError.value = '';
+                const toNumber = (value) => (value === '' || value == null ? null : Number(value));
+                try {
+                    const data = await SFMLApi.postAuthenticated('/api/sfml_stats/smart_charging/sizing_settings', {
+                        step_kwh: toNumber(sizingForm.step_kwh),
+                        cost_per_kwh_eur: toNumber(sizingForm.cost_per_kwh_eur),
+                        lifetime_years: toNumber(sizingForm.lifetime_years),
+                        cycles: toNumber(sizingForm.cycles),
+                    });
+                    if (!data || !data.success) throw new Error('save_failed');
+                    sizingFormLoaded = false;
+                    await loadData();
+                } catch (_err) {
+                    sizingError.value = localText('setSaveFailed');
+                } finally {
+                    sizingSaving.value = false;
+                }
             }
 
             function getPvChargePercent() {
@@ -1396,6 +1557,7 @@ const SmartChargingPage = ((Vue) => {
                         dashboardData.kpis = data.kpis;
                         dashboardData.history = data.history;
                         dashboardData.advisor = data.advisor;
+                        applySizingSettings(data.advisor?.sizing);
                         dashboardData.gpm = data.gpm || {};
                         dashboardData.chart_plan = data.chart_plan || null;
                         dashboardData.grid_charge = data.grid_charge || null;
@@ -1644,7 +1806,13 @@ const SmartChargingPage = ((Vue) => {
                 fmtEur,
                 localText,
                 getSizingRecommendation,
-                formatPotentialSavingsSub,
+                sizingWindowText,
+                sizingAssumptionsText,
+                fmtEurRange,
+                sizingForm,
+                sizingSaving,
+                sizingError,
+                saveSizingSettings,
                 getPvChargePercent,
                 getGridChargePercent,
                 settingsData,
@@ -2133,7 +2301,7 @@ const SmartChargingPage = ((Vue) => {
 
         .sc-advisor-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, 1fr);
             gap: var(--space-lg);
             margin-top: var(--space-md);
         }
@@ -2211,6 +2379,105 @@ const SmartChargingPage = ((Vue) => {
             line-height: 1.2;
         }
         
+        .advisor-subcard-wide {
+            grid-column: 1 / -1;
+        }
+        .sizing-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+            gap: var(--space-lg);
+            align-items: start;
+        }
+        .sizing-main,
+        .sizing-side {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+            min-width: 0;
+        }
+        .sizing-table-wrap {
+            overflow-x: auto;
+            margin-top: var(--space-xs);
+        }
+        .sizing-steps {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .sizing-steps thead {
+            background: none;
+        }
+        .sizing-steps th {
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: normal;
+            color: var(--text-secondary);
+            text-align: right;
+            padding: 0 var(--space-sm) var(--space-xs);
+            border-bottom: 1px solid var(--border-default);
+            white-space: nowrap;
+        }
+        .sizing-steps td {
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            color: var(--text-primary);
+            text-align: right;
+            padding: var(--space-sm);
+            border-bottom: 1px solid var(--border-default);
+            white-space: nowrap;
+            vertical-align: top;
+        }
+        .sizing-steps th:first-child,
+        .sizing-steps td:first-child {
+            text-align: left;
+            padding-left: 0;
+        }
+        .sizing-steps th:last-child,
+        .sizing-steps td:last-child {
+            padding-right: 0;
+        }
+        .sizing-steps tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .sizing-step,
+        .sizing-year {
+            font-weight: 700;
+        }
+        .sizing-best {
+            display: block;
+            font-size: 0.7rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        .sizing-assumptions {
+            margin-top: var(--space-xs);
+        }
+        .sizing-side .advisor-recommendation-box {
+            margin-top: 0;
+        }
+        .sizing-settings {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+        .sizing-field {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--space-md);
+        }
+        .sizing-actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: var(--space-md);
+            margin-top: var(--space-xs);
+        }
+        .sizing-error {
+            color: var(--danger, #ef4444);
+            font-size: 0.75rem;
+        }
         .advisor-recommendation-box {
             margin-top: var(--space-md);
             padding: var(--space-md);
@@ -2243,6 +2510,9 @@ const SmartChargingPage = ((Vue) => {
             .sc-advisor-grid {
                 grid-template-columns: 1fr;
                 gap: var(--space-md);
+            }
+            .sizing-layout {
+                grid-template-columns: 1fr;
             }
         }
 

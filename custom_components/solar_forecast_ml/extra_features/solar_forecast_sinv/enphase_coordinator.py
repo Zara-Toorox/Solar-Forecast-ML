@@ -100,7 +100,7 @@ async def async_probe(
 
 
 class EnphaseCoordinator(DataUpdateCoordinator[dict[str, enphase.EnphaseDevice]]):
-    """Fetch microinverters and CT readings of one IQ Gateway per cycle. @zara"""
+    """Fetch microinverters, CT readings and battery live data of one IQ Gateway per cycle. @zara"""
 
     vendor = enphase
 
@@ -121,6 +121,8 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict[str, enphase.EnphaseDevice]]
         self._gateway_serial: str = entry.data[CONF_GATEWAY_SERIAL]
         # the gateway presents a self-signed certificate
         self._session = async_get_clientsession(hass, verify_ssl=False)
+        # an IQ Battery once seen in this run keeps the house balance fail closed
+        self._battery_seen = False
 
     async def _async_update_data(self) -> dict[str, enphase.EnphaseDevice]:
         try:
@@ -166,7 +168,35 @@ class EnphaseCoordinator(DataUpdateCoordinator[dict[str, enphase.EnphaseDevice]]
             # a gateway without CTs may not offer the meter endpoints
             LOGGER.debug("IQ Gateway at %s has no meter data: %s", self.host, err)
             return devices
-        gateway = enphase.build_gateway(self._gateway_serial, meters, readings, now)
+        storage = await self._async_read_storage(root, now)
+        if storage is not None and storage.seen:
+            self._battery_seen = True
+        gateway = enphase.build_gateway(
+            self._gateway_serial,
+            meters,
+            readings,
+            now,
+            battery_power=None if storage is None else storage.power,
+            battery_known=self._battery_seen,
+        )
         if gateway is not None:
             devices[gateway.serial] = gateway
+        if self._battery_seen and (
+            battery := enphase.build_battery(self._gateway_serial, storage)
+        ):
+            devices[battery.serial] = battery
         return devices
+
+    async def _async_read_storage(
+        self, root: str, now: float
+    ) -> enphase.StorageReading | None:
+        """IQ Battery state from livedata; None when the gateway does not offer it. @zara"""
+        try:
+            livedata = await fetch(
+                self._session, f"{root}{enphase.LIVEDATA_PATH}", self._token
+            )
+        except (*FETCH_ERRORS, EnphaseAuthError) as err:
+            # a refused livedata request must not turn into a reauth of a working entry
+            LOGGER.debug("IQ Gateway at %s has no live data: %s", self.host, err)
+            return None
+        return enphase.read_storage(livedata, now)

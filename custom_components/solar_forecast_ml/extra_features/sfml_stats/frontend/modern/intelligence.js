@@ -192,9 +192,9 @@ function iqForecastRating(percent, month) {
     const seasonMonth = Number(month);
     if (!Number.isFinite(value) || !Number.isInteger(seasonMonth) || seasonMonth < 1 || seasonMonth > 12) return null;
     const summer = seasonMonth >= 4 && seasonMonth <= 9;
-    const veryGood = summer ? 85 : 75;
-    const good = summer ? 75 : 65;
-    const usable = summer ? 65 : 55;
+    const veryGood = summer ? 87 : 82;
+    const good = summer ? 82 : 75;
+    const usable = summer ? 75 : 68;
     let rating = "estimate";
     if (value >= veryGood) rating = "veryGood";
     else if (value >= good) rating = "good";
@@ -212,19 +212,19 @@ const IQ_GUIDE = {
         p10Title: "P10 – die sichere Bank",
         p10Text: "Mit 90 % Wahrscheinlichkeit wird mindestens dieser Ertrag erreicht. Für kritische Automationen, zum Beispiel das Laden des Akkus aus dem Netz, ist P10 die empfohlene Grundlage.",
         goodTitle: "Wann ist eine Prognose gut?",
-        goodText: "Bewertet wird der Durchschnitt über 30 Tage, nicht ein einzelner Tag.",
+        goodText: "Bewertet wird der Durchschnitt über 30 Tage, nicht ein einzelner Tag. Zu viel und zu wenig Ertrag zählen gleich. An sehr dunklen Tagen gilt als Bezug mindestens eine halbe Kilowattstunde je Kilowatt Peak, damit eine einzelne unerwartete Sonnenstunde die Güte nicht übermäßig drückt.",
         colRating: "Einstufung",
         colSummer: "Sommerhalbjahr",
         colWinter: "Winterhalbjahr",
         rows: [
-            { id: "veryGood", rating: "Sehr gut", summer: "ab 85 %", winter: "ab 75 %" },
-            { id: "good", rating: "Gut", summer: "75–85 %", winter: "65–75 %" },
-            { id: "usable", rating: "Brauchbar", summer: "65–75 %", winter: "55–65 %" },
-            { id: "estimate", rating: "Eher eine Schätzung", summer: "unter 65 %", winter: "unter 55 %" },
+            { id: "veryGood", rating: "Sehr gut", summer: "ab 87 %", winter: "ab 82 %" },
+            { id: "good", rating: "Gut", summer: "82–87 %", winter: "75–82 %" },
+            { id: "usable", rating: "Brauchbar", summer: "75–82 %", winter: "68–75 %" },
+            { id: "estimate", rating: "Eher eine Schätzung", summer: "unter 75 %", winter: "unter 68 %" },
         ],
         rareDays: "Einzelne schwache Tage, etwa bei Hochnebel, gibt es bei jeder Prognose. Entscheidend ist, dass sie selten bleiben.",
         own: "Deine Prognose: {percent} % in den letzten 30 Tagen – {class} ({season}).",
-        sources: "Grundlage: Fachliteratur zur Bewertung von Solarprognosen, u. a. Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
+        sources: "Die Grenzen sind auf die Berechnung in STATS abgestimmt. Grundlage der Bewertung: Fachliteratur zu Solarprognosen, u. a. Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
     },
     en: {
         title: "How to read the forecast",
@@ -235,19 +235,19 @@ const IQ_GUIDE = {
         p10Title: "P10 – the safe bet",
         p10Text: "With 90 % probability at least this yield is reached. For critical automations, for example charging the battery from the grid, P10 is the recommended basis.",
         goodTitle: "When is a forecast good?",
-        goodText: "It is assessed on the 30-day average, not on a single day.",
+        goodText: "It is assessed on the 30-day average, not on a single day. Too much and too little yield count the same. On very dark days the reference is at least half a kilowatt hour per kilowatt peak, so a single unexpected hour of sun does not drag the accuracy down excessively.",
         colRating: "Rating",
         colSummer: "Summer half-year",
         colWinter: "Winter half-year",
         rows: [
-            { id: "veryGood", rating: "Very good", summer: "from 85 %", winter: "from 75 %" },
-            { id: "good", rating: "Good", summer: "75–85 %", winter: "65–75 %" },
-            { id: "usable", rating: "Usable", summer: "65–75 %", winter: "55–65 %" },
-            { id: "estimate", rating: "Rather an estimate", summer: "below 65 %", winter: "below 55 %" },
+            { id: "veryGood", rating: "Very good", summer: "from 87 %", winter: "from 82 %" },
+            { id: "good", rating: "Good", summer: "82–87 %", winter: "75–82 %" },
+            { id: "usable", rating: "Usable", summer: "75–82 %", winter: "68–75 %" },
+            { id: "estimate", rating: "Rather an estimate", summer: "below 75 %", winter: "below 68 %" },
         ],
         rareDays: "Single weak days, for example with low stratus, happen with every forecast. What matters is that they stay rare.",
         own: "Your forecast: {percent} % over the last 30 days – {class} ({season}).",
-        sources: "Basis: research on solar forecast verification, including Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
+        sources: "The thresholds are tuned to the STATS calculation. Basis of the assessment: research on solar forecast verification, including Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
     },
     pl: {
         title: "Jak czytać prognozę",
@@ -258,19 +258,19 @@ const IQ_GUIDE = {
         p10Title: "P10 – pewna podstawa",
         p10Text: "Z prawdopodobieństwem 90 % osiągnięty zostanie co najmniej ten uzysk. Dla krytycznych automatyzacji, na przykład ładowania akumulatora z sieci, P10 jest zalecaną podstawą.",
         goodTitle: "Kiedy prognoza jest dobra?",
-        goodText: "Ocenie podlega średnia z 30 dni, a nie pojedynczy dzień.",
+        goodText: "Ocenie podlega średnia z 30 dni, a nie pojedynczy dzień. Zbyt duży i zbyt mały uzysk liczą się tak samo. W bardzo ciemne dni punktem odniesienia jest co najmniej pół kilowatogodziny na kilowat mocy szczytowej, aby jedna niespodziewana godzina słońca nie obniżała nadmiernie jakości.",
         colRating: "Ocena",
         colSummer: "Półrocze letnie",
         colWinter: "Półrocze zimowe",
         rows: [
-            { id: "veryGood", rating: "Bardzo dobra", summer: "od 85 %", winter: "od 75 %" },
-            { id: "good", rating: "Dobra", summer: "75–85 %", winter: "65–75 %" },
-            { id: "usable", rating: "Użyteczna", summer: "65–75 %", winter: "55–65 %" },
-            { id: "estimate", rating: "Raczej oszacowanie", summer: "poniżej 65 %", winter: "poniżej 55 %" },
+            { id: "veryGood", rating: "Bardzo dobra", summer: "od 87 %", winter: "od 82 %" },
+            { id: "good", rating: "Dobra", summer: "82–87 %", winter: "75–82 %" },
+            { id: "usable", rating: "Użyteczna", summer: "75–82 %", winter: "68–75 %" },
+            { id: "estimate", rating: "Raczej oszacowanie", summer: "poniżej 75 %", winter: "poniżej 68 %" },
         ],
         rareDays: "Pojedyncze słabe dni, na przykład przy niskich chmurach warstwowych, zdarzają się przy każdej prognozie. Ważne, aby pozostawały rzadkie.",
         own: "Twoja prognoza: {percent} % w ostatnich 30 dniach – {class} ({season}).",
-        sources: "Podstawa: literatura naukowa dotycząca oceny prognoz solarnych, m.in. Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
+        sources: "Progi są dostosowane do obliczeń w STATS. Podstawa oceny: literatura naukowa dotycząca oceny prognoz solarnych, m.in. Murphy (1993), Weather and Forecasting; Yang et al. (2020), Solar Energy; Antonanzas et al. (2016), Solar Energy; Köhler et al. (2017), Renewable Energy.",
     },
 };
 

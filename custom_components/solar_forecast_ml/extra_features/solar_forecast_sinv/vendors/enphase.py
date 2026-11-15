@@ -23,11 +23,15 @@ token-based authentication" (January 2023), HTTPS with a Bearer token:
   ``meteringStatus``)
 - ``GET /ivp/meters/readings``: per CT ``activePower`` (W), ``actEnergyDlvd`` /
   ``actEnergyRcvd`` (Wh), ``voltage``, ``freq``, ``timestamp``
+- ``GET /ivp/livedata/status``: ``meters.last_update`` (epoch s), ``meters.soc``
+  and per flow (``pv``, ``storage``, ``grid``, ``load``) ``agg_p_mw`` (mW)
 The brief only reports AC values, so a microinverter's ``power_solar`` is its AC
 output. An inverter whose last report is older than ``STALE_SECONDS`` is asleep
 and reads 0 W. Only a net-consumption CT at the grid point provides grid roles;
 the house balance needs the production CT as well. Total-consumption and storage
-CTs are not documented in the brief and stay unused.
+CTs are not documented in the brief and stay unused. An IQ Battery is AC coupled
+behind neither CT; its power comes from livedata, where ``load = pv + grid +
+storage``, so ``storage`` is positive while the battery discharges.
 """
 
 from __future__ import annotations
@@ -46,6 +50,7 @@ MIN_SCAN_SECONDS = 30
 INVERTERS_PATH = "/api/v1/production/inverters"
 METERS_PATH = "/ivp/meters"
 READINGS_PATH = "/ivp/meters/readings"
+LIVEDATA_PATH = "/ivp/livedata/status"
 # devType of a microinverter in the production list
 DEV_TYPE_MICROINVERTER = 1
 # microinverters report every 5 minutes; three missed reports mean asleep
@@ -57,6 +62,11 @@ MAX_INVERTER_WATTS = 1000
 MAX_SERIAL_LENGTH = 32
 METER_PRODUCTION = "production"
 METER_NET_CONSUMPTION = "net-consumption"
+# several IQ Batteries together stay well below this
+MAX_BATTERY_WATTS = 50_000
+# below this the storage flow is noise, not a battery
+BATTERY_SEEN_WATTS = 1.0
+BATTERY_SERIAL_SUFFIX = "BAT"
 
 
 @dataclass(frozen=True)
@@ -218,10 +228,92 @@ def _kwh(wh: float | None) -> float | None:
     return None if wh is None or wh < 0 else round(wh / 1000, 3)
 
 
-def build_gateway(
-    gateway_serial: str, meters: Any, readings: Any, now: float
+@dataclass(frozen=True)
+class StorageReading:
+    """Battery state from one fresh livedata answer. @zara"""
+
+    # W, contract sign: positive while charging; None when not plausible
+    power: float | None
+    soc: float | None
+    # the answer shows a battery (state of charge or a real flow)
+    seen: bool
+
+
+def read_storage(livedata: Any, now: float) -> StorageReading | None:
+    """Parse ``/ivp/livedata/status``; None when the answer is unusable or stale. @zara
+
+    A gateway without battery reports ``storage`` and ``soc`` as 0, so a battery
+    counts as seen only with a state of charge above 0 or a flow of at least
+    ``BATTERY_SEEN_WATTS``.
+    """
+    if not isinstance(livedata, dict):
+        return None
+    meters = livedata.get("meters")
+    if not isinstance(meters, dict):
+        return None
+    stamp = _num(meters.get("last_update"))
+    if stamp is None or not (
+        now - STALE_SECONDS <= stamp <= now + FUTURE_TOLERANCE_SECONDS
+    ):
+        return None
+    storage = meters.get("storage")
+    milliwatts = _num(storage.get("agg_p_mw")) if isinstance(storage, dict) else None
+    power = None
+    if milliwatts is not None and abs(milliwatts) <= MAX_BATTERY_WATTS * 1000:
+        # livedata balance: load = pv + grid + storage, storage > 0 discharges
+        power = -milliwatts / 1000
+    soc = _num(meters.get("soc"))
+    if soc is not None and not 0 <= soc <= 100:
+        soc = None
+    seen = (soc is not None and soc > 0) or (
+        power is not None and abs(power) >= BATTERY_SEEN_WATTS
+    )
+    return StorageReading(power, soc, seen)
+
+
+def battery_serial(gateway_serial: str) -> str:
+    """Return the serial of the IQ Battery device of a gateway. @zara"""
+    return f"{gateway_serial}{BATTERY_SERIAL_SUFFIX}"
+
+
+def build_battery(
+    gateway_serial: str, storage: StorageReading | None
 ) -> EnphaseDevice | None:
-    """Gateway device from its production and net-consumption CTs, else None. @zara"""
+    """IQ Battery device (all batteries of the gateway together), else None. @zara"""
+    if storage is None or (storage.power is None and storage.soc is None):
+        return None
+    device = EnphaseDevice(
+        serial=battery_serial(gateway_serial),
+        kind="battery",
+        name=f"{NAME} IQ Battery {gateway_serial}",
+        manufacturer=NAME,
+        model="IQ Battery",
+    )
+    if storage.power is not None:
+        power = round(storage.power)
+        device.roles["power_battery"] = power
+        device.roles["power_battery_charge"] = max(0, power)
+        device.roles["power_battery_discharge"] = max(0, -power)
+        device.derived.update({"power_battery_charge", "power_battery_discharge"})
+    if storage.soc is not None:
+        device.roles["battery_soc"] = round(storage.soc, 1)
+    return device
+
+
+def build_gateway(
+    gateway_serial: str,
+    meters: Any,
+    readings: Any,
+    now: float,
+    battery_power: float | None = None,
+    battery_known: bool = False,
+) -> EnphaseDevice | None:
+    """Gateway device from its production and net-consumption CTs, else None. @zara
+
+    ``battery_power`` is the IQ Battery power (positive while charging) of this
+    cycle. With a known battery and no fresh value the house stays unpublished,
+    since solar plus grid alone would count charging as consumption.
+    """
     active = _active_meters(meters)
     if METER_NET_CONSUMPTION not in active and METER_PRODUCTION not in active:
         return None
@@ -268,7 +360,9 @@ def build_gateway(
     if (frequency := _num(net.get("freq"))) is not None and frequency > 0:
         device.vendor["meter_frequency"] = round(frequency, 2)
     if solar is not None and grid is not None:
-        # house = own AC production + grid import (an energy balance)
-        device.roles["power_house"] = round(solar + grid)
+        if battery_known and battery_power is None:
+            return device
+        # house = own AC production + grid import - battery charge (an energy balance)
+        device.roles["power_house"] = round(solar + grid - (battery_power or 0.0))
         device.derived.add("power_house")
     return device

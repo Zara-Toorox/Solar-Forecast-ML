@@ -12,8 +12,10 @@ const SFML_CARD_TEXT = {
     exceeded: "Prognose übertroffen",
     tomorrow: "Morgen",
     accuracy: "Prognosegüte",
-    peak: "Peak",
+    peak: "Prognose-Peak",
     peakAt: "{h} Uhr",
+    notRated: "{n} Std. nicht bewertet",
+    curtailed: "abgeregelt",
     groups: "Panelgruppen",
     forecast: "Prognose",
     actual: "Ist",
@@ -30,8 +32,10 @@ const SFML_CARD_TEXT = {
     exceeded: "Forecast exceeded",
     tomorrow: "Tomorrow",
     accuracy: "Accuracy",
-    peak: "Peak",
+    peak: "Forecast peak",
     peakAt: "{h}:00",
+    notRated: "{n} h not rated",
+    curtailed: "curtailed",
     groups: "Panel groups",
     forecast: "Forecast",
     actual: "Actual",
@@ -48,8 +52,10 @@ const SFML_CARD_TEXT = {
     exceeded: "Prognoza przekroczona",
     tomorrow: "Jutro",
     accuracy: "Jakość prognozy",
-    peak: "Szczyt",
+    peak: "Szczyt prognozy",
     peakAt: "{h}:00",
+    notRated: "{n} godz. bez oceny",
+    curtailed: "ograniczone",
     groups: "Grupy paneli",
     forecast: "Prognoza",
     actual: "Wynik",
@@ -411,6 +417,15 @@ class SfmlCard extends HTMLElement {
         .legend .l-forecast {
           border: 1.5px dashed var(--sfml-solar);
         }
+        .legend .l-curtailed {
+          border: 1px solid var(--sfml-solar);
+          background: repeating-linear-gradient(135deg, var(--sfml-solar) 0 1.5px, transparent 1.5px 4px);
+        }
+        .bar.curtailed {
+          stroke: var(--sfml-solar);
+          stroke-width: 1;
+          vector-effect: non-scaling-stroke;
+        }
 
         .tiles {
           display: grid;
@@ -446,6 +461,17 @@ class SfmlCard extends HTMLElement {
           overflow: hidden;
           text-overflow: ellipsis;
           font-variant-numeric: tabular-nums;
+        }
+        .tile-main {
+          min-width: 0;
+        }
+        .tile-note {
+          margin-top: 2px;
+          font-size: 11px;
+          color: var(--sfml-muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .good { color: var(--sfml-good); }
         .warn { color: var(--sfml-warn); }
@@ -516,6 +542,7 @@ class SfmlCard extends HTMLElement {
           .tiles { grid-template-columns: 1fr; gap: 6px; }
           .tile { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; }
           .tile-value { margin-top: 0; }
+          .tile-main { text-align: right; }
         }
         @keyframes breathe {
           from { transform: scale(0.95); opacity: 0.75; }
@@ -605,6 +632,7 @@ class SfmlCard extends HTMLElement {
     const tomorrowForecast = Number(summary.today?.forecast_tomorrow ?? 0);
     const accuracy = Number(summary.today?.accuracy ?? 0);
     const peakHour = summary.today?.peak_hour;
+    const notRated = Number(summary.today?.excluded_hours_count ?? 0);
     const livePower = energyFlow.flows?.solar_power;
     const panels = energyFlow.panels || [];
     const currentHour = summary.time_context?.current_hour ?? energyFlow.time_context?.current_hour;
@@ -686,7 +714,10 @@ class SfmlCard extends HTMLElement {
         </div>
         <div class="tile">
           <div class="tile-label"><ha-icon icon="mdi:bullseye-arrow"></ha-icon>${this._t("accuracy")}</div>
-          <div class="tile-value ${accClass}">${this._num(accuracy, 1)} %</div>
+          <div class="tile-main">
+            <div class="tile-value ${accClass}">${this._num(accuracy, 1)} %</div>
+            ${notRated > 0 ? `<div class="tile-note">${this._t("notRated", { n: notRated })}</div>` : ""}
+          </div>
         </div>
         <div class="tile">
           <div class="tile-label"><ha-icon icon="mdi:white-balance-sunny"></ha-icon>${this._t("peak")}</div>
@@ -741,12 +772,19 @@ class SfmlCard extends HTMLElement {
     const area = `${line} L ${points[points.length - 1][0].toFixed(1)},${H} L ${points[0][0].toFixed(1)},${H} Z`;
 
     const barW = Math.max(2, step * 0.62);
+    // a curtailed hour shows a limited inverter, not a forecast miss
+    const curtailed = (row) => Boolean(row && (row.mppt_throttled || row.mppt_throttle_reason || row.inverter_clipped));
+    let anyCurtailed = false;
     const bars = hours.map((h, i) => {
-      const actual = byHour.get(h)?.actual_kwh;
+      const row = byHour.get(h);
+      const actual = row?.actual_kwh;
       if (actual == null || actual <= 0) return "";
       const barH = Math.max(1.5, H - y(actual));
-      const cls = h === currentHour ? "bar current" : "bar";
-      return `<rect class="${cls}" fill="url(#sfml-bar)" x="${(x(i) - barW / 2).toFixed(1)}" y="${(H - barH).toFixed(1)}"
+      const limited = curtailed(row);
+      if (limited) anyCurtailed = true;
+      const cls = `bar${h === currentHour ? " current" : ""}${limited ? " curtailed" : ""}`;
+      const fill = limited ? "url(#sfml-hatch)" : "url(#sfml-bar)";
+      return `<rect class="${cls}" fill="${fill}" x="${(x(i) - barW / 2).toFixed(1)}" y="${(H - barH).toFixed(1)}"
         width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="${Math.min(3, barW / 2).toFixed(1)}"/>`;
     }).join("");
 
@@ -766,6 +804,7 @@ class SfmlCard extends HTMLElement {
         <div class="legend">
           <span><i class="l-actual"></i>${this._t("actual")}</span>
           <span><i class="l-forecast"></i>${this._t("forecast")}</span>
+          ${anyCurtailed ? `<span><i class="l-curtailed"></i>${this._t("curtailed")}</span>` : ""}
         </div>
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
           <defs>
@@ -777,6 +816,9 @@ class SfmlCard extends HTMLElement {
               <stop offset="0" style="stop-color: var(--sfml-solar)"/>
               <stop offset="1" style="stop-color: var(--sfml-solar); stop-opacity: 0.45"/>
             </linearGradient>
+            <pattern id="sfml-hatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <rect width="1.5" height="4" style="fill: var(--sfml-solar); fill-opacity: 0.7"/>
+            </pattern>
           </defs>
           <path fill="url(#sfml-area)" d="${area}"/>
           ${bars}

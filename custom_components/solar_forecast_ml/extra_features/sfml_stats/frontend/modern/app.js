@@ -92,7 +92,7 @@ const COPY = {
         mobile: { dashboard: "Start", home: "Übersicht", solar: "Solar", energy: "Energie" },
         pages: {
             dashboard: ["Übersicht", "Energie und Prognose im Überblick"],
-            tablet: ["Tablett-Mode", "Wandanzeige im neuen Fenster"],
+            tablet: ["Tablet-Modus", "Wandanzeige im neuen Fenster"],
             tomorrow: ["Energietag", "Abgeschlossene Tage und eigener Anteil"],
             home: ["Live & Prognose", "Ausführlicher Energiefluss und Prognosestatus"],
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],

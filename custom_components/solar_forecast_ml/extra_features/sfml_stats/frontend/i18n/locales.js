@@ -813,7 +813,8 @@ window.SFMLLocales = {
                 measuredYield: "Ertrag vollständig erfasster Monate",
                 measuredYieldHint: "Summe aller Monate mit mindestens 80 % gemessenen Tagen. Der laufende Monat kommt hinzu, sobald er diese Abdeckung erreicht.",
                 strongestForecastMonth: "Ertragsstärkster Prognosemonat",
-                yearForecast: "Jahresprognose {year}",
+                last12Months: "Letzte 12 Monate ({range})",
+                last12MonthsHint: "Summe der 12 Monate im Fenster: gemessene Monate, der laufende Monat hochgerechnet, Monate ohne Daten geschätzt.",
                 avgMeasuredMonth: "Ø vollständig erfasster Monat",
             },
             shadow: {
@@ -2768,7 +2769,8 @@ window.SFMLLocales = {
                 measuredYield: "Yield of fully recorded months",
                 measuredYieldHint: "Sum of all months with at least 80% measured days. The current month is added once it reaches this coverage.",
                 strongestForecastMonth: "Highest-yield forecast month",
-                yearForecast: "Annual forecast {year}",
+                last12Months: "Last 12 months ({range})",
+                last12MonthsHint: "Sum of the 12 months in the window: measured months, the current month extrapolated, months without data estimated.",
                 avgMeasuredMonth: "Ø fully recorded month",
             },
             shadow: {
@@ -4724,7 +4726,8 @@ window.SFMLLocales = {
                 measuredYield: "Uzysk w pełni zarejestrowanych miesięcy",
                 measuredYieldHint: "Suma wszystkich miesięcy z co najmniej 80% zmierzonych dni. Bieżący miesiąc zostanie doliczony, gdy osiągnie to pokrycie.",
                 strongestForecastMonth: "Najlepszy miesiąc prognozy",
-                yearForecast: "Prognoza roczna {year}",
+                last12Months: "Ostatnie 12 miesięcy ({range})",
+                last12MonthsHint: "Suma 12 miesięcy w oknie: miesiące zmierzone, bieżący miesiąc ekstrapolowany, miesiące bez danych oszacowane.",
                 avgMeasuredMonth: "Ø w pełni zarejestrowany miesiąc",
             },
             shadow: {
