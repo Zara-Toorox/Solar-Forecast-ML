@@ -20,19 +20,19 @@ let MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'
 function forecastBandColor(errorPercent) {
     if (errorPercent == null || Number.isNaN(errorPercent)) return '#8b949e';
     const error = Math.abs(errorPercent);
-    if (error <= 15) return '#22c55e';
-    if (error <= 25) return '#eab308';
-    if (error <= 35) return '#f97316';
-    return '#ef4444';
+    if (error <= 15) return (window.sfmlThemeColor?.("--success") || "#22c55e");
+    if (error <= 25) return (window.sfmlThemeColor?.("--solar") || "#eab308");
+    if (error <= 35) return (window.sfmlThemeColor?.("--house") || "#f97316");
+    return (window.sfmlThemeColor?.("--danger") || "#ef4444");
 }
 
 function forecastBandBackground(errorPercent) {
     if (errorPercent == null || Number.isNaN(errorPercent)) return 'rgba(139,148,158,0.15)';
     const error = Math.abs(errorPercent);
-    if (error <= 15) return 'rgba(34,197,94,0.2)';
-    if (error <= 25) return 'rgba(234,179,8,0.2)';
-    if (error <= 35) return 'rgba(249,115,22,0.2)';
-    return 'rgba(239,68,68,0.2)';
+    if (error <= 15) return (window.sfmlThemeColor?.("--success", 0.2) || 'rgba(34,197,94,0.2)');
+    if (error <= 25) return (window.sfmlThemeColor?.("--solar", 0.2) || 'rgba(234,179,8,0.2)');
+    if (error <= 35) return (window.sfmlThemeColor?.("--house", 0.2) || 'rgba(249,115,22,0.2)');
+    return (window.sfmlThemeColor?.("--danger", 0.2) || 'rgba(239,68,68,0.2)');
 }
 
 function forecastBandColorFromAccuracy(accuracyPercent) {
@@ -88,7 +88,7 @@ const _SolarPage = {
                         </div>
                         <div class="annual-kpi-label">{{ $t('solar.kpi.measuredYield') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: var(--accent); background: rgba(0,212,255,0.08);">
+                    <div class="annual-kpi" style="--kpi-accent: var(--accent); background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 8%, transparent);">
                         <div class="annual-kpi-value" style="color: var(--text-primary); font-size: 1.3rem;">
                             {{ annualKpis.bestMonth }}
                         </div>
@@ -100,8 +100,8 @@ const _SolarPage = {
                         </div>
                         <div class="annual-kpi-label">{{ $t('solar.kpi.last12Months', { range: annualKpis.range }) }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #a855f7;">
-                        <div class="annual-kpi-value" style="color: #a855f7;">
+                    <div class="annual-kpi" style="--kpi-accent: var(--chart-series-ai, #a855f7);">
+                        <div class="annual-kpi-value" style="color: var(--chart-series-ai, #a855f7);">
                             {{ annualKpis.avgMonth }}
                         </div>
                         <div class="annual-kpi-label">{{ $t('solar.kpi.avgMeasuredMonth') }}</div>
@@ -139,20 +139,20 @@ const _SolarPage = {
 
                 <!-- Shadow KPIs -->
                 <div class="annual-kpi-grid" style="margin-bottom: var(--space-lg);">
-                    <div class="annual-kpi" style="--kpi-accent: #ef4444;">
-                        <div class="annual-kpi-value" style="color: #ef4444;">{{ shadowStats.totalLoss }} kWh</div>
+                    <div class="annual-kpi" style="--kpi-accent: var(--danger, #ef4444);">
+                        <div class="annual-kpi-value" style="color: var(--danger, #ef4444);">{{ shadowStats.totalLoss }} kWh</div>
                         <div class="annual-kpi-label">{{ $t('solar.shadow.lossKwh') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #f59e0b;">
-                        <div class="annual-kpi-value" style="color: #f59e0b;">{{ shadowStats.hours }} h</div>
+                    <div class="annual-kpi" style="--kpi-accent: var(--solar, #f59e0b);">
+                        <div class="annual-kpi-value" style="color: var(--solar, #f59e0b);">{{ shadowStats.hours }} h</div>
                         <div class="annual-kpi-label">{{ $t('solar.shadow.hours') }}</div>
                     </div>
                     <div class="annual-kpi" style="--kpi-accent: #8b949e;">
                         <div class="annual-kpi-value" style="color: #8b949e;">{{ shadowStats.efficiency != null ? shadowStats.efficiency + '%' : '--' }}</div>
                         <div class="annual-kpi-label">{{ $t('solar.shadow.avgEfficiency') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #06b6d4;">
-                        <div class="annual-kpi-value" style="color: #06b6d4;">{{ shadowStats.daysAnalyzed }}</div>
+                    <div class="annual-kpi" style="--kpi-accent: var(--accent, #06b6d4);">
+                        <div class="annual-kpi-value" style="color: var(--accent, #06b6d4);">{{ shadowStats.daysAnalyzed }}</div>
                         <div class="annual-kpi-label">{{ $t('solar.shadow.daysAnalyzed') }}</div>
                     </div>
                 </div>
@@ -207,20 +207,20 @@ const _SolarPage = {
                 <template v-else>
                 <!-- Fingerprint KPIs -->
                 <div class="annual-kpi-grid" style="margin-bottom: var(--space-md);">
-                    <div class="annual-kpi" style="--kpi-accent: #ef4444;">
-                        <div class="annual-kpi-value" style="color: #ef4444;">{{ shadowFingerprint.summary.fixed_obstructions || 0 }}</div>
+                    <div class="annual-kpi" style="--kpi-accent: var(--danger, #ef4444);">
+                        <div class="annual-kpi-value" style="color: var(--danger, #ef4444);">{{ shadowFingerprint.summary.fixed_obstructions || 0 }}</div>
                         <div class="annual-kpi-label">{{ $t('solar.fingerprint.fixedObstructions') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #f59e0b;">
-                        <div class="annual-kpi-value" style="color: #f59e0b;">{{ shadowFingerprint.summary.shadow_hours || 0 }}</div>
+                    <div class="annual-kpi" style="--kpi-accent: var(--solar, #f59e0b);">
+                        <div class="annual-kpi-value" style="color: var(--solar, #f59e0b);">{{ shadowFingerprint.summary.shadow_hours || 0 }}</div>
                         <div class="annual-kpi-label">{{ $t('solar.fingerprint.localShadowHours') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #a855f7;">
-                        <div class="annual-kpi-value" style="color: #a855f7; font-size: 1.2rem;">{{ shadowFingerprint.summary.history_since || '--' }}</div>
+                    <div class="annual-kpi" style="--kpi-accent: var(--chart-series-ai, #a855f7);">
+                        <div class="annual-kpi-value" style="color: var(--chart-series-ai, #a855f7); font-size: 1.2rem;">{{ shadowFingerprint.summary.history_since || '--' }}</div>
                         <div class="annual-kpi-label">{{ $t('solar.fingerprint.dataSince') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #06b6d4;">
-                        <div class="annual-kpi-value" style="color: #06b6d4;">{{ shadowFingerprint.maxIntensity > 0 ? shadowFingerprint.maxIntensity + '%' : '--' }}</div>
+                    <div class="annual-kpi" style="--kpi-accent: var(--accent, #06b6d4);">
+                        <div class="annual-kpi-value" style="color: var(--accent, #06b6d4);">{{ shadowFingerprint.maxIntensity > 0 ? shadowFingerprint.maxIntensity + '%' : '--' }}</div>
                         <div class="annual-kpi-label">{{ $t('solar.fingerprint.maxExpectedShadow') }}</div>
                     </div>
                 </div>
@@ -239,7 +239,7 @@ const _SolarPage = {
                         <div v-for="ins in shadowFingerprint.insights" :key="ins.hour" class="shadow-insight-item" :class="'insight-' + ins.severity">
                             <span class="insight-time">{{ ins.hour }}:00</span>
                             <span class="insight-text">{{ ins.text }}</span>
-                            <span class="insight-pct">{{ ins.avg_percent }}%</span>
+                            <span class="insight-pct">{{ $n(ins.avg_percent, 0, 1) }}%</span>
                         </div>
                     </div>
                 </div>
@@ -260,24 +260,24 @@ const _SolarPage = {
                 </div>
 
                 <div class="annual-kpi-grid" style="margin-bottom: var(--space-md);">
-                    <div class="annual-kpi" style="--kpi-accent: #fbbf24;">
-                        <div class="annual-kpi-value" style="color: #fbbf24;">{{ shadowMovement.currentHour }}:00</div>
+                    <div class="annual-kpi" style="--kpi-accent: var(--solar, #fbbf24);">
+                        <div class="annual-kpi-value" style="color: var(--solar, #fbbf24);">{{ shadowMovement.currentHour }}:00</div>
                         <div class="annual-kpi-label">{{ $t('solar.movement.time') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #ef4444;">
+                    <div class="annual-kpi" style="--kpi-accent: var(--danger, #ef4444);">
                         <div class="annual-kpi-value" :style="{ color: smLossColor }">
                             {{ shadowMovement.hourData.shadowPct }}%
                         </div>
                         <div class="annual-kpi-label">{{ $t('solar.movement.shading') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #22c55e;">
-                        <div class="annual-kpi-value" style="color: #22c55e;">
+                    <div class="annual-kpi" style="--kpi-accent: var(--success, #22c55e);">
+                        <div class="annual-kpi-value" style="color: var(--success, #22c55e);">
                             {{ shadowMovement.hourData.efficiency }}%
                         </div>
                         <div class="annual-kpi-label">{{ $t('solar.movement.efficiency') }}</div>
                     </div>
-                    <div class="annual-kpi" style="--kpi-accent: #f59e0b;">
-                        <div class="annual-kpi-value" style="color: #f59e0b; font-size: 1.1rem;">
+                    <div class="annual-kpi" style="--kpi-accent: var(--solar, #f59e0b);">
+                        <div class="annual-kpi-value" style="color: var(--solar, #f59e0b); font-size: 1.1rem;">
                             {{ shadowMovement.hourData.cause }}
                         </div>
                         <div class="annual-kpi-label">{{ $t('solar.movement.cause') }}</div>
@@ -337,7 +337,7 @@ const _SolarPage = {
                     </div>
 
                     <div class="sm-loss-bar" v-if="shadowMovement.hourData.lossKwh > 0">
-                        <span style="color: #ef4444;">▼ {{ shadowMovement.hourData.lossKwh }} kWh {{ $t('solar.movement.loss') }}</span>
+                        <span style="color: var(--danger, #ef4444);">▼ {{ $n(shadowMovement.hourData.lossKwh, 3) }} kWh {{ $t('solar.movement.loss') }}</span>
                     </div>
                 </div>
 
@@ -386,7 +386,7 @@ const _SolarPage = {
                             <td style="font-family: var(--font-mono);">{{ row.actual }} kWh</td>
                             <td style="font-family: var(--font-mono); color: var(--text-secondary);">{{ row.forecast }} kWh</td>
                             <td :style="{ fontFamily: 'var(--font-mono)', color: row.deltaColor }">
-                                {{ row.delta > 0 ? '+' : '' }}{{ row.delta }}%
+                                {{ row.delta > 0 ? '+' : '' }}{{ $n(row.delta, 0, 1) }}%
                             </td>
                             <td :style="{ fontFamily: 'var(--font-mono)', color: row.forecastErrorColor }">
                                 {{ row.forecastErrorText }}
@@ -409,32 +409,32 @@ const _SolarPage = {
 
                 <!-- Top Row: 3 Prognose KPIs -->
                 <div class="annual-kpi-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: var(--space-md);">
-                    <div class="annual-kpi" style="border-left: 3px solid #fbbf24;">
-                        <div class="annual-kpi-value" style="color: #fbbf24;">{{ yearOverview.optimistic }} kWh</div>
+                    <div class="annual-kpi" style="border-left: 3px solid var(--solar, #fbbf24);">
+                        <div class="annual-kpi-value" style="color: var(--solar, #fbbf24);">{{ yearOverview.optimistic }} kWh</div>
                         <div class="annual-kpi-label">{{ $t('solar.yearOverview.optimistic') }}</div>
                     </div>
-                    <div class="annual-kpi" style="border-left: 3px solid #22c55e;">
-                        <div class="annual-kpi-value" style="color: #22c55e;">{{ yearOverview.expected }} kWh</div>
+                    <div class="annual-kpi" style="border-left: 3px solid var(--success, #22c55e);">
+                        <div class="annual-kpi-value" style="color: var(--success, #22c55e);">{{ yearOverview.expected }} kWh</div>
                         <div class="annual-kpi-label">{{ $t('solar.yearOverview.expected') }}</div>
                     </div>
-                    <div class="annual-kpi" style="border-left: 3px solid #ef4444;">
-                        <div class="annual-kpi-value" style="color: #ef4444;">{{ yearOverview.pessimistic }} kWh</div>
+                    <div class="annual-kpi" style="border-left: 3px solid var(--danger, #ef4444);">
+                        <div class="annual-kpi-value" style="color: var(--danger, #ef4444);">{{ yearOverview.pessimistic }} kWh</div>
                         <div class="annual-kpi-label">{{ $t('solar.yearOverview.pessimistic') }}</div>
                     </div>
                 </div>
 
                 <!-- Bottom Row: 3 System KPIs -->
                 <div class="annual-kpi-grid" style="grid-template-columns: repeat(3, 1fr); margin-bottom: var(--space-md);">
-                    <div class="annual-kpi" style="border-left: 3px solid #fbbf24;">
-                        <div class="annual-kpi-value" style="color: #fbbf24; font-size: 1.3rem;">{{ yearOverview.bestDay }} kWh</div>
+                    <div class="annual-kpi" style="border-left: 3px solid var(--solar, #fbbf24);">
+                        <div class="annual-kpi-value" style="color: var(--solar, #fbbf24); font-size: 1.3rem;">{{ yearOverview.bestDay }} kWh</div>
                         <div class="annual-kpi-label">{{ $t('solar.yearOverview.recordDay') }} ({{ yearOverview.bestDayDate }})</div>
                     </div>
                     <div class="annual-kpi">
                         <div class="annual-kpi-value" style="font-size: 1.3rem;">{{ yearOverview.peakPower }} W</div>
                         <div class="annual-kpi-label">{{ $t('solar.yearOverview.peakPower') }}</div>
                     </div>
-                    <div class="annual-kpi" style="border-left: 3px solid #22c55e;">
-                        <div class="annual-kpi-value" style="color: #22c55e; font-size: 1.3rem;">{{ yearOverview.installedKwp }} kWp</div>
+                    <div class="annual-kpi" style="border-left: 3px solid var(--success, #22c55e);">
+                        <div class="annual-kpi-value" style="color: var(--success, #22c55e); font-size: 1.3rem;">{{ yearOverview.installedKwp }} kWp</div>
                         <div class="annual-kpi-label">{{ $t('solar.yearOverview.installedPower') }}</div>
                     </div>
                 </div>
@@ -442,7 +442,7 @@ const _SolarPage = {
                 <!-- Panel Groups -->
                 <div v-if="yearOverview.panelGroups.length > 0" class="annual-kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
                     <div class="annual-kpi" v-for="pg in yearOverview.panelGroups" :key="pg.name"
-                         style="background: linear-gradient(135deg, rgba(139,92,246,0.06), rgba(6,182,212,0.06));">
+                         style="background: linear-gradient(135deg, color-mix(in srgb, var(--chart-series-ai, rgb(139, 92, 246)) 6%, transparent), color-mix(in srgb, var(--accent, rgb(6, 182, 212)) 6%, transparent));">
                         <div class="annual-kpi-value" style="font-size: 1.1rem; color: var(--text-primary);">{{ pg.name }}</div>
                         <div class="annual-kpi-label" style="margin-top: var(--space-sm);">
                             {{ $t('solar.yearOverview.factorSamples', { factor: pg.factor, samples: pg.samples }) }}
@@ -561,10 +561,10 @@ const _SolarPage = {
             const avgPerMonth = measured.length > 0 ? totalMeasured / measured.length : 0;
 
             return {
-                totalKwh: Math.round(totalMeasured),
+                totalKwh: window.SFMLI18n.formatNumber(totalMeasured, 0),
                 bestMonth: bestMonthName,
-                windowKwh: Math.round(windowKwh),
-                avgMonth: avgPerMonth.toFixed(1),
+                windowKwh: window.SFMLI18n.formatNumber(windowKwh, 0),
+                avgMonth: window.SFMLI18n.formatNumber(avgPerMonth, 1),
                 range,
             };
         });
@@ -729,15 +729,15 @@ const _SolarPage = {
                     formatter: (p) => {
                         const d = metaMap[`${p.data[0]}-${p.data[1]}`] || {};
                         return `${shadowFingerprintGroupLabel(shadowFingerprint.displayedGroup)} · ${MONTH_SHORT[p.data[1]]} · ${hours[p.data[0]]}:00\n`
-                            + `${t('solar.fingerprint.tooltipShadow')}: ${d.avg_percent || 0}%\n`
-                            + `${t('solar.fingerprint.tooltipFrequency')}: ${((d.rate || 0) * 100).toFixed(0)}%\n`
+                            + `${t('solar.fingerprint.tooltipShadow')}: ${window.SFMLI18n.formatNumber(d.avg_percent || 0, 0, 1)}%\n`
+                            + `${t('solar.fingerprint.tooltipFrequency')}: ${window.SFMLI18n.formatNumber((d.rate || 0) * 100, 0)}%\n`
                             + `${t('solar.fingerprint.tooltipCause')}: ${d.cause ? shadowCauseLabel(d.cause) : '--'}\n`
-                            + `${t('solar.fingerprint.tooltipSamples')}: ${d.samples || 0} · ${t('solar.fingerprint.tooltipConfidence')}: ${((d.confidence || 0) * 100).toFixed(0)}%`;
+                            + `${t('solar.fingerprint.tooltipSamples')}: ${d.samples || 0} · ${t('solar.fingerprint.tooltipConfidence')}: ${window.SFMLI18n.formatNumber((d.confidence || 0) * 100, 0)}%`;
                     },
                 },
                 xAxis: {
                     type: 'category', data: hours,
-                    axisLabel: { color: getThemeColor('--text-secondary', '#94a3b8'), interval: 1, fontSize: 10 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#94a3b8'), interval: 1, fontSize: 12 },
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', '#334155') } },
                     axisTick: { show: false },
                 },
@@ -753,7 +753,7 @@ const _SolarPage = {
                     textStyle: { color: getThemeColor('--text-secondary', '#94a3b8') },
                     itemWidth: 20,
                     inRange: {
-                        color: ['#1e40af', '#7c3aed', '#db2777', '#ea580c', '#dc2626'],
+                        color: [(window.sfmlThemeColor?.("--grid") || "#1e40af"), (window.sfmlThemeColor?.("--chart-series-ai") || "#7c3aed"), (window.sfmlThemeColor?.("--chart-series-conservative") || "#db2777"), (window.sfmlThemeColor?.("--house") || "#ea580c"), (window.sfmlThemeColor?.("--danger") || "#dc2626")],
                     },
                     text: [t('solar.fingerprint.visualMapHigh'), t('solar.fingerprint.visualMapLow')],
                 },
@@ -794,10 +794,10 @@ const _SolarPage = {
 
         const smLossColor = computed(() => {
             const p = shadowMovement.hourData.shadowPct;
-            if (p >= 60) return '#ef4444';
-            if (p >= 30) return '#f59e0b';
-            if (p > 5) return '#eab308';
-            return '#22c55e';
+            if (p >= 60) return (window.sfmlThemeColor?.("--danger") || "#ef4444");
+            if (p >= 30) return (window.sfmlThemeColor?.("--warning") || "#f59e0b");
+            if (p > 5) return (window.sfmlThemeColor?.("--solar") || "#eab308");
+            return (window.sfmlThemeColor?.("--success") || "#22c55e");
         });
         const smSceneModeLabel = computed(() => shadowMovement.selectedDate === 'typical'
             ? t('solar.movement.sceneTypical')
@@ -816,9 +816,9 @@ const _SolarPage = {
 
         function smEffColor(v) {
             if (typeof v !== 'number') return '#94a3b8';
-            if (v >= 85) return '#22c55e';
-            if (v >= 60) return '#eab308';
-            return '#ef4444';
+            if (v >= 85) return (window.sfmlThemeColor?.("--success") || "#22c55e");
+            if (v >= 60) return (window.sfmlThemeColor?.("--solar") || "#eab308");
+            return (window.sfmlThemeColor?.("--danger") || "#ef4444");
         }
         function smShadowSeverity(shadowPct, hasData) {
             if (!hasData) return 'nodata';
@@ -916,8 +916,8 @@ const _SolarPage = {
 	                    ? smRoundPct(panelEfficiencies.reduce((sum, value) => sum + value, 0) / panelEfficiencies.length)
 	                    : (validPanels.length ? Math.max(0, 100 - shadowPct) : 0));
 	            const lossKwh = cleanLoss != null
-	                ? cleanLoss.toFixed(3)
-	                : (panelLoss > 0 ? panelLoss.toFixed(3) : (excludedPanels.length ? 0 : (fallbackShadow.loss || 0)));
+	                ? Math.round(cleanLoss * 1000) / 1000
+	                : (panelLoss > 0 ? Math.round(panelLoss * 1000) / 1000 : (excludedPanels.length ? 0 : (fallbackShadow.loss || 0)));
 	            const cause = validPanels.length
 	                ? (SHADOW_CAUSE_LABELS[fallbackShadow.cause] || fallbackShadow.cause || t('solar.movement.noShadow'))
 	                : (excludedPanels.length ? smDominantExclusionLabel(excludedPanels) : t('solar.movement.noShadow'));
@@ -963,10 +963,10 @@ const _SolarPage = {
 	                shadowPct,
 	                shadowLabel: isExcluded
 	                    ? t('solar.movement.notShadow')
-	                    : (shadowPct == null ? t('solar.movement.shadowUnknown') : `${Math.round(shadowPct || 0)}% ${t('solar.movement.shadowShort')}`),
+	                    : (shadowPct == null ? t('solar.movement.shadowUnknown') : `${window.SFMLI18n.formatNumber(shadowPct || 0, 0)}% ${t('solar.movement.shadowShort')}`),
 	                actualLabel: hasActual
-	                    ? actualValue.toFixed(3)
-	                    : (hasPrediction ? `~${predictionValue.toFixed(3)}` : '--'),
+	                    ? window.SFMLI18n.formatNumber(actualValue, 3)
+	                    : (hasPrediction ? `~${window.SFMLI18n.formatNumber(predictionValue, 3)}` : '--'),
 	                sourceLabel: isExcluded
 	                    ? t('solar.movement.excluded')
 	                    : (hasActual ? t('solar.movement.actual') : (hasPrediction ? t('solar.movement.forecastValue') : t('common.noData'))),
@@ -990,7 +990,7 @@ const _SolarPage = {
 
 	        function smPanelStyle(panel) {
 	            if (panel?.excluded) {
-	                return { background: 'linear-gradient(180deg, rgba(59,130,246,0.10), rgba(15,23,42,0.08))' };
+	                return { background: 'linear-gradient(180deg, color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 10%, transparent), rgba(15,23,42,0.08))' };
 	            }
 	            return smPanelBg(panel?.efficiencyValue || 0);
 	        }
@@ -1001,14 +1001,14 @@ const _SolarPage = {
             return {
 	                width: `${width}%`,
 	                background: panel?.excluded
-	                    ? 'linear-gradient(90deg, rgba(59,130,246,0.65), rgba(96,165,250,0.35))'
+	                    ? 'linear-gradient(90deg, color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 65%, transparent), color-mix(in srgb, var(--grid, rgb(96, 165, 250)) 35%, transparent))'
 	                    : typeof panel?.efficiencyValue !== 'number'
 	                    ? 'linear-gradient(90deg, rgba(148,163,184,0.45), rgba(148,163,184,0.2))'
 	                    : width >= 85
-	                        ? 'linear-gradient(90deg, rgba(34,197,94,0.95), rgba(74,222,128,0.85))'
+	                        ? 'linear-gradient(90deg, color-mix(in srgb, var(--success, rgb(34, 197, 94)) 95%, transparent), color-mix(in srgb, var(--success, rgb(74, 222, 128)) 85%, transparent))'
 	                        : width >= 60
-	                            ? 'linear-gradient(90deg, rgba(234,179,8,0.95), rgba(251,191,36,0.85))'
-	                            : 'linear-gradient(90deg, rgba(239,68,68,0.95), rgba(248,113,113,0.85))',
+	                            ? 'linear-gradient(90deg, color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 95%, transparent), color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 85%, transparent))'
+	                            : 'linear-gradient(90deg, color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 95%, transparent), color-mix(in srgb, var(--danger, rgb(248, 113, 113)) 85%, transparent))',
 	            };
 	        }
 
@@ -1108,7 +1108,7 @@ const _SolarPage = {
 	                        efficiencyValue: eff,
 	                        efficiencyLabel: `${eff}%`,
 	                        shadowPct: d.shadowPct || 0,
-	                        shadowLabel: `${Math.round(d.shadowPct || 0)}% ${t('solar.movement.shadowShort')}`,
+	                        shadowLabel: `${window.SFMLI18n.formatNumber(d.shadowPct || 0, 0)}% ${t('solar.movement.shadowShort')}`,
 	                        actualLabel: '--',
 	                        sourceLabel: t('solar.movement.forecastValue'),
 	                        severity: smShadowSeverity(d.shadowPct || 0, true),
@@ -1179,7 +1179,7 @@ const _SolarPage = {
                     trigger: 'axis',
                     backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'),
                     borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
-                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 },
                     formatter: function(p) {
                         return p[0].axisValue + '<br/>' + t('solar.movement.timelineShadow') + ': <b>' + p[0].value + '%</b>';
                     },
@@ -1187,7 +1187,7 @@ const _SolarPage = {
                 xAxis: {
                     type: 'category',
                     data: smHourRange.map(h => h + ':00'),
-                    axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 9 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 12 },
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
                 },
                 yAxis: { type: 'value', max: 100, show: false },
@@ -1196,7 +1196,7 @@ const _SolarPage = {
                     data: data.map((v, i) => ({
                         value: v,
                         itemStyle: {
-                            color: v >= 60 ? '#ef4444' : v >= 30 ? '#f59e0b' : v > 5 ? '#eab308' : 'rgba(34,197,94,0.3)',
+                            color: v >= 60 ? (window.sfmlThemeColor?.("--danger") || "#ef4444") : v >= 30 ? (window.sfmlThemeColor?.("--warning") || "#f59e0b") : v > 5 ? (window.sfmlThemeColor?.("--solar") || "#eab308") : (window.sfmlThemeColor?.("--success", 0.3) || 'rgba(34,197,94,0.3)'),
                             borderRadius: [2, 2, 0, 0],
                             opacity: smHourRange[i] === shadowMovement.currentHour ? 1 : 0.4,
                         },
@@ -1215,13 +1215,13 @@ const _SolarPage = {
             // Get peak from summary daily_stats (alltime_peak)
             const peakW = rec.peak_power_w || summaryData.value?.alltime_peak?.watts || summaryData.value?.daily_stats?.peak_solar_w || 0;
             return {
-                optimistic: Math.round(ann.optimistic_kwh || 0),
-                expected: Math.round(ann.yield_kwh || 0),
-                pessimistic: Math.round(ann.pessimistic_kwh || 0),
-                bestDay: (rec.best_day_kwh || 0).toFixed(2),
+                optimistic: window.SFMLI18n.formatNumber(ann.optimistic_kwh || 0, 0),
+                expected: window.SFMLI18n.formatNumber(ann.yield_kwh || 0, 0),
+                pessimistic: window.SFMLI18n.formatNumber(ann.pessimistic_kwh || 0, 0),
+                bestDay: window.SFMLI18n.formatNumber(rec.best_day_kwh || 0, 2),
                 bestDayDate: rec.best_day_date || '--',
-                peakPower: Math.round(peakW),
-                installedKwp: (sys.installed_kwp || 0).toFixed(2),
+                peakPower: window.SFMLI18n.formatNumber(peakW, 0),
+                installedKwp: window.SFMLI18n.formatNumber(sys.installed_kwp || 0, 2),
                 panelGroups: (sys.panel_groups || [])
                     .filter(pg => {
                         const name = String(pg.original_name || pg.group_name || '').trim();
@@ -1236,7 +1236,7 @@ const _SolarPage = {
                     })
                     .map(pg => ({
                         name: pg.group_name,
-                        factor: (pg.global_factor || 0).toFixed(3),
+                        factor: window.SFMLI18n.formatNumber(pg.global_factor || 0, 3),
                         samples: pg.sample_count || 0,
                     })),
             };
@@ -1245,11 +1245,11 @@ const _SolarPage = {
         const summaryData = ref(null);
 
         const SHADOW_CAUSE_COLORS = {
-            low_radiation: '#94a3b8', low_sun_angle: '#f59e0b', panel_frost: '#38bdf8',
-            panel_frost_snow: '#38bdf8', snow_frost: '#38bdf8',
-            building_tree_obstruction: '#ef4444', possible_obstruction: '#f97316',
+            low_radiation: '#94a3b8', low_sun_angle: (window.sfmlThemeColor?.("--solar") || "#f59e0b"), panel_frost: (window.sfmlThemeColor?.("--accent") || "#38bdf8"),
+            panel_frost_snow: (window.sfmlThemeColor?.("--accent") || "#38bdf8"), snow_frost: (window.sfmlThemeColor?.("--accent") || "#38bdf8"),
+            building_tree_obstruction: (window.sfmlThemeColor?.("--danger") || "#ef4444"), possible_obstruction: (window.sfmlThemeColor?.("--house") || "#f97316"),
             weather_clouds: '#64748b', clouds: '#64748b', unknown: '#4b5563',
-            weather_better_than_forecast: '#10b981',
+            weather_better_than_forecast: (window.sfmlThemeColor?.("--success") || "#10b981"),
         };
         // Look up via i18n so the label changes with the active locale.
         const shadowCauseLabel = (cause) => {
@@ -1393,24 +1393,24 @@ const _SolarPage = {
                 const learningCandidates = o.learning_candidate_hours_count ?? o.production_candidate_hours_count ?? null;
                 return {
                     day: formatDay(d.date),
-                    actual: actual.toFixed(2),
-                    forecast: forecast.toFixed(2),
+                    actual: window.SFMLI18n.formatNumber(actual, 2),
+                    forecast: window.SFMLI18n.formatNumber(forecast, 2),
                     delta: parseFloat(delta.toFixed(1)),
                     deltaColor: forecastBandColor(delta),
                     forecastError: forecastError != null ? parseFloat(forecastError.toFixed(1)) : null,
                     forecastErrorColor: forecastBandColor(forecastError),
                     forecastErrorText: forecastError != null
-                        ? `${forecastError >= 0 ? '+' : ''}${forecastError.toFixed(1)}%`
+                        ? `${forecastError >= 0 ? '+' : ''}${window.SFMLI18n.formatNumber(forecastError, 1)}%`
                         : '--',
                     accuracyValue,
                     accuracyColor: forecastBandColorFromAccuracy(accuracyValue),
                     accuracyBg: forecastBandBackgroundFromAccuracy(accuracyValue),
-                    accuracy: accuracyValue != null ? accuracyValue.toFixed(1) + '%' : '--',
+                    accuracy: accuracyValue != null ? window.SFMLI18n.formatNumber(accuracyValue, 1) + '%' : '--',
                     learningBasis: learningHours != null && learningCandidates != null
                         ? `${learningHours}/${learningCandidates} h`
                         : '--',
                     discardedLearning: formatDiscardedLearning(o),
-                    peak: o.actual_peak_kwh != null ? o.actual_peak_kwh.toFixed(2) + ' kWh' : '--',
+                    peak: o.actual_peak_kwh != null ? window.SFMLI18n.formatNumber(o.actual_peak_kwh, 2) + ' kWh' : '--',
                 };
             });
 
@@ -1419,10 +1419,10 @@ const _SolarPage = {
             publicShadowKwh.value = sh?.public_summary?.today_loss_kwh ?? null;
             if (devOn.value && sh?.stats) {
                 shadowStats.value = {
-                    totalLoss: (sh.stats.total_loss_kwh || 0).toFixed(1),
+                    totalLoss: window.SFMLI18n.formatNumber(sh.stats.total_loss_kwh || 0, 1),
                     hours: sh.stats.shadow_hours || 0,
                     efficiency: sh.stats.avg_efficiency != null
-                        ? (sh.stats.avg_efficiency * 100).toFixed(0)
+                        ? window.SFMLI18n.formatNumber(sh.stats.avg_efficiency * 100, 0)
                         : null,
                     daysAnalyzed: sh.stats.days_analyzed || 0,
                 };
@@ -1469,7 +1469,7 @@ const _SolarPage = {
             const yearKeys = Object.keys(years).sort();
 
             // Colors per year
-            const yearColors = { '2025': '#6366f1', '2026': '#fbbf24', '2027': '#22c55e' };
+            const yearColors = { '2025': (window.sfmlThemeColor?.("--grid") || "#6366f1"), '2026': (window.sfmlThemeColor?.("--solar") || "#fbbf24"), '2027': (window.sfmlThemeColor?.("--success") || "#22c55e") };
 
             const series = yearKeys.map(year => {
                 const data = [];
@@ -1510,7 +1510,7 @@ const _SolarPage = {
                             if (p.value > 0) {
                                 s += '<span style="color:' + (yearColors[p.seriesName] || '#8b949e') + '">'
                                     + '● ' + p.seriesName + ':</span> '
-                                    + p.value.toFixed(1) + ' kWh<br/>';
+                                    + window.SFMLI18n.formatNumber(p.value, 1) + ' kWh<br/>';
                             }
                         });
                         return s;
@@ -1518,7 +1518,7 @@ const _SolarPage = {
                 },
                 legend: {
                     bottom: 0,
-                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                     data: yearKeys,
                 },
                 grid: { left: 55, right: 20, top: 15, bottom: 40 },
@@ -1526,14 +1526,14 @@ const _SolarPage = {
                     type: 'category',
                     data: MONTH_NAMES,
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                 },
                 yAxis: {
                     type: 'value',
                     name: 'kWh',
-                    nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 },
+                    nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 12 },
                     splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                 },
                 series: series,
                 animationDuration: 1000,
@@ -1587,7 +1587,7 @@ const _SolarPage = {
                         const date = dateLabels[p.data[0]] || '';
                         const hour = hours[p.data[1]] || '';
                         const val = p.data[2] || 0;
-                        return date + ' · ' + hour + '<br/><b style="color:#fbbf24">' + val.toFixed(0) + ' Wh</b>';
+                        return date + ' · ' + hour + '<br/><b style="color:var(--solar, #fbbf24)">' + window.SFMLI18n.formatNumber(val, 0) + ' Wh</b>';
                     },
                 },
                 grid: { left: 60, right: 30, top: 10, bottom: 40 },
@@ -1595,14 +1595,14 @@ const _SolarPage = {
                     type: 'category',
                     data: dateLabels,
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                     splitArea: { show: false },
                 },
                 yAxis: {
                     type: 'category',
                     data: hours,
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                     splitArea: { show: false },
                 },
                 visualMap: {
@@ -1613,10 +1613,10 @@ const _SolarPage = {
                     right: 10,
                     bottom: 0,
                     inRange: {
-                        color: ['#1a1a2e', '#4a2800', '#8b4513', '#d2691e', '#ff8c00', '#fbbf24', '#fef08a'],
+                        color: [(window.sfmlThemeColor?.("--bg-card") || "#1a1a2e"), (window.sfmlThemeColor?.("--copper", 0.35) || "#4a2800"), (window.sfmlThemeColor?.("--copper", 0.7) || "#8b4513"), (window.sfmlThemeColor?.("--copper") || "#d2691e"), (window.sfmlThemeColor?.("--warning") || "#ff8c00"), (window.sfmlThemeColor?.("--amber") || "#fbbf24"), (window.sfmlThemeColor?.("--amber-hi") || "#fef08a")],
                     },
-                    textStyle: { color: '#6e7681', fontSize: 10 },
-                    formatter: v => v.toFixed(0) + ' Wh',
+                    textStyle: { color: '#6e7681', fontSize: 12 },
+                    formatter: v => window.SFMLI18n.formatNumber(v, 0) + ' Wh',
                 },
                 series: [{
                     type: 'heatmap',
@@ -1645,11 +1645,11 @@ const _SolarPage = {
                 }));
                 causesChart.setOption({
                     backgroundColor: 'transparent',
-                    tooltip: { trigger: 'item', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc') }, formatter: p => p.name + ': ' + p.value + 'h (' + p.percent.toFixed(1) + '%)' },
+                    tooltip: { trigger: 'item', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc') }, formatter: p => p.name + ': ' + p.value + 'h (' + window.SFMLI18n.formatNumber(p.percent, 1) + '%)' },
                     series: [{
                         type: 'pie', radius: ['40%', '72%'],
                         data: pieData,
-                        label: { show: true, color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, formatter: '{b}\n{d}%' },
+                        label: { show: true, color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12, formatter: '{b}\n{d}%' },
                         labelLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.15)') } },
                         emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.3)' } },
                     }],
@@ -1665,11 +1665,11 @@ const _SolarPage = {
                 const losses = sh.daily_loss.map(d => d.loss_kwh || 0);
                 lossChart.setOption({
                     backgroundColor: 'transparent',
-                    tooltip: { trigger: 'axis', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 }, formatter: p => p[0].axisValue + '<br/>' + t('solar.shadow.referenceGap') + ': <b>' + p[0].value.toFixed(2) + ' kWh</b>' },
+                    tooltip: { trigger: 'axis', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.95)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 }, formatter: p => p[0].axisValue + '<br/>' + t('solar.shadow.referenceGap') + ': <b>' + window.SFMLI18n.formatNumber(p[0].value, 2) + ' kWh</b>' },
                     grid: { left: 45, right: 15, top: 10, bottom: 40 },
-                    xAxis: { type: 'category', data: dates, axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10, rotate: 45 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } } },
-                    yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } }, axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 } },
-                    series: [{ type: 'bar', data: losses, itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#ef4444' }, { offset: 1, color: '#991b1b' }] }, borderRadius: [3,3,0,0] }, barMaxWidth: 16 }],
+                    xAxis: { type: 'category', data: dates, axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 12, rotate: 45 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } } },
+                    yAxis: { type: 'value', name: 'kWh', nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 12 }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } }, axisLabel: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 12 } },
+                    series: [{ type: 'bar', data: losses, itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: (window.sfmlThemeColor?.("--danger") || "#ef4444") }, { offset: 1, color: (window.sfmlThemeColor?.("--danger") || "#991b1b") }] }, borderRadius: [3,3,0,0] }, barMaxWidth: 16 }],
                     animationDuration: 800,
                 }, true);
             }
@@ -1698,8 +1698,8 @@ const _SolarPage = {
                     smooth: true,
                     symbol: 'circle',
                     symbolSize: 6,
-                    lineStyle: { color: getThemeColor('--price-cheap', '#22c55e'), width: 3 },
-                    itemStyle: { color: getThemeColor('--price-cheap', '#22c55e') },
+                    lineStyle: { color: getThemeColor('--price-cheap', (window.sfmlThemeColor?.("--success") || "#22c55e")), width: 3 },
+                    itemStyle: { color: getThemeColor('--price-cheap', (window.sfmlThemeColor?.("--success") || "#22c55e")) },
                     areaStyle: {
                         color: {
                             type: 'linear',
@@ -1708,8 +1708,8 @@ const _SolarPage = {
                             x2: 0,
                             y2: 1,
                             colorStops: [
-                                { offset: 0, color: 'rgba(34, 197, 94, 0.15)' },
-                                { offset: 1, color: 'rgba(34, 197, 94, 0.0)' }
+                                { offset: 0, color: (window.sfmlThemeColor?.("--success", 0.15) || 'rgba(34, 197, 94, 0.15)') },
+                                { offset: 1, color: (window.sfmlThemeColor?.("--success", 0.0) || 'rgba(34, 197, 94, 0.0)') }
                             ]
                         }
                     }
@@ -1721,8 +1721,8 @@ const _SolarPage = {
                     smooth: true,
                     symbol: 'circle',
                     symbolSize: 5,
-                    lineStyle: { color: getThemeColor('--solar', '#fbbf24'), width: 2 },
-                    itemStyle: { color: getThemeColor('--solar', '#fbbf24') }
+                    lineStyle: { color: getThemeColor('--solar', (window.sfmlThemeColor?.("--solar") || "#fbbf24")), width: 2 },
+                    itemStyle: { color: getThemeColor('--solar', (window.sfmlThemeColor?.("--solar") || "#fbbf24")) }
                 }
             ];
 
@@ -1734,8 +1734,8 @@ const _SolarPage = {
                     data: ext1,
                     smooth: true,
                     symbol: 'none',
-                    lineStyle: { color: getThemeColor('--grid', '#6366f1'), width: 1.5, type: 'dashed' },
-                    itemStyle: { color: getThemeColor('--grid', '#6366f1') }
+                    lineStyle: { color: getThemeColor('--grid', (window.sfmlThemeColor?.("--grid") || "#6366f1")), width: 1.5, type: 'dashed' },
+                    itemStyle: { color: getThemeColor('--grid', (window.sfmlThemeColor?.("--grid") || "#6366f1")) }
                 });
             }
 
@@ -1747,8 +1747,8 @@ const _SolarPage = {
                     data: ext2,
                     smooth: true,
                     symbol: 'none',
-                    lineStyle: { color: getThemeColor('--house', '#8b5cf6'), width: 1.5, type: 'dotted' },
-                    itemStyle: { color: getThemeColor('--house', '#8b5cf6') }
+                    lineStyle: { color: getThemeColor('--house', (window.sfmlThemeColor?.("--chart-series-ai") || "#8b5cf6")), width: 1.5, type: 'dotted' },
+                    itemStyle: { color: getThemeColor('--house', (window.sfmlThemeColor?.("--chart-series-ai") || "#8b5cf6")) }
                 });
             }
 
@@ -1770,11 +1770,11 @@ const _SolarPage = {
                         });
                         params.forEach(p => {
                             if (p.value !== null && p.value !== undefined) {
-                                s += '<span style="color:' + p.color + '">● ' + p.seriesName + ':</span> ' + p.value.toFixed(2) + ' kWh';
+                                s += '<span style="color:' + p.color + '">● ' + p.seriesName + ':</span> ' + window.SFMLI18n.formatNumber(p.value, 2) + ' kWh';
                                 if (p.seriesName !== actualName && actualVal !== null && actualVal !== undefined && actualVal > 0) {
                                     const diffPct = ((p.value - actualVal) / actualVal) * 100;
                                     const diffSign = diffPct >= 0 ? '+' : '';
-                                    s += ' <span style="font-size: 0.8rem; opacity: 0.85;">(' + diffSign + diffPct.toFixed(1) + '%)</span>';
+                                    s += ' <span style="font-size: 0.8rem; opacity: 0.85;">(' + diffSign + window.SFMLI18n.formatNumber(diffPct, 1) + '%)</span>';
                                 }
                                 s += '<br/>';
                             }
@@ -1784,7 +1784,7 @@ const _SolarPage = {
                 },
                 legend: {
                     bottom: 0,
-                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                     data: legendData
                 },
                 grid: { left: 45, right: 20, top: 20, bottom: 40 },
@@ -1792,14 +1792,14 @@ const _SolarPage = {
                     type: 'category',
                     data: dates,
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 }
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 }
                 },
                 yAxis: {
                     type: 'value',
                     name: 'kWh',
-                    nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 10 },
+                    nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681'), fontSize: 12 },
                     splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 }
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 }
                 },
                 series: series,
                 animationDuration: 1000,
@@ -2010,12 +2010,12 @@ const _SolarPage = {
             font-size: 0.85rem;
         }
         .shadow-insight-item.insight-high {
-            background: rgba(239,68,68,0.08);
-            border-left: 3px solid #ef4444;
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 8%, transparent);
+            border-left: 3px solid var(--danger, #ef4444);
         }
         .shadow-insight-item.insight-mid {
-            background: rgba(245,158,11,0.08);
-            border-left: 3px solid #f59e0b;
+            background: color-mix(in srgb, var(--solar, rgb(245, 158, 11)) 8%, transparent);
+            border-left: 3px solid var(--solar, #f59e0b);
         }
         .insight-time {
             font-family: var(--font-mono);
@@ -2059,7 +2059,7 @@ const _SolarPage = {
             border-radius: 999px;
             background: color-mix(in srgb, var(--accent) 10%, transparent);
             color: var(--accent);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 700;
         }
         .fingerprint-group-control {
@@ -2067,7 +2067,7 @@ const _SolarPage = {
             gap: 4px;
             flex: 0 0 min(220px, 35%);
             color: var(--text-muted);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.04em;
@@ -2105,7 +2105,7 @@ const _SolarPage = {
             border: 1px solid var(--border-default);
             border-radius: var(--radius-md);
             background:
-                radial-gradient(circle at top, rgba(56, 189, 248, 0.08), transparent 40%),
+                radial-gradient(circle at top, color-mix(in srgb, var(--accent, rgb(56, 189, 248)) 8%, transparent), transparent 40%),
                 linear-gradient(180deg, rgba(4, 8, 18, 0.92), rgba(10, 14, 24, 0.86));
             margin-bottom: var(--space-md);
         }
@@ -2141,7 +2141,7 @@ const _SolarPage = {
             border: 1px solid rgba(255,255,255,0.08);
             background: rgba(255,255,255,0.05);
             color: var(--text-secondary);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 700;
             letter-spacing: 0.01em;
         }
@@ -2163,7 +2163,7 @@ const _SolarPage = {
             width: 54px;
             height: 24px;
             transform: translateX(-50%);
-            background: radial-gradient(circle, rgba(251,191,36,0.28), rgba(251,191,36,0));
+            background: radial-gradient(circle, color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 28%, transparent), color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 0%, transparent));
             filter: blur(2px);
         }
         .sm-sun {
@@ -2172,7 +2172,7 @@ const _SolarPage = {
             font-size: 1.5rem;
             transform: translateX(-50%);
             transition: left 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-            filter: drop-shadow(0 0 8px rgba(251,191,36,0.6));
+            filter: drop-shadow(0 0 8px color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 60%, transparent));
         }
         .sm-panels {
             display: grid;
@@ -2211,7 +2211,7 @@ const _SolarPage = {
         }
         .sm-panel-status {
             z-index: 1;
-            font-size: 0.68rem;
+            font-size: 0.75rem;
             font-weight: 800;
             padding: 5px 8px;
             border-radius: 999px;
@@ -2221,46 +2221,46 @@ const _SolarPage = {
         }
         .sm-panel-status.severity-heavy,
         .sm-badge.severity-heavy {
-            color: #fecaca;
-            background: rgba(239,68,68,0.14);
-            border-color: rgba(239,68,68,0.28);
+            color: var(--danger, #fecaca);
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 14%, transparent);
+            border-color: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 28%, transparent);
         }
 	        .sm-panel-status.severity-forecast {
-	            color: #bfdbfe;
-	            background: rgba(59,130,246,0.14);
-	            border-color: rgba(59,130,246,0.28);
+	            color: var(--grid, #bfdbfe);
+	            background: color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 14%, transparent);
+	            border-color: color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 28%, transparent);
 	        }
 	        .sm-panel-status.severity-throttled,
 	        .sm-badge.severity-throttled {
-	            color: #bfdbfe;
-	            background: rgba(59,130,246,0.16);
-	            border-color: rgba(59,130,246,0.32);
+	            color: var(--grid, #bfdbfe);
+	            background: color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 16%, transparent);
+	            border-color: color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 32%, transparent);
 	        }
         .sm-panel-status.severity-medium,
         .sm-badge.severity-medium {
-            color: #fde68a;
-            background: rgba(245,158,11,0.14);
-            border-color: rgba(245,158,11,0.28);
+            color: var(--solar, #fde68a);
+            background: color-mix(in srgb, var(--solar, rgb(245, 158, 11)) 14%, transparent);
+            border-color: color-mix(in srgb, var(--solar, rgb(245, 158, 11)) 28%, transparent);
         }
         .sm-panel-status.severity-light,
         .sm-badge.severity-light {
-            color: #fef08a;
-            background: rgba(234,179,8,0.14);
-            border-color: rgba(234,179,8,0.28);
+            color: var(--solar, #fef08a);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 14%, transparent);
+            border-color: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 28%, transparent);
         }
         .sm-panel-status.severity-clear,
         .sm-badge.severity-clear {
-            color: #bbf7d0;
-            background: rgba(34,197,94,0.14);
-            border-color: rgba(34,197,94,0.28);
+            color: var(--success, #bbf7d0);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 14%, transparent);
+            border-color: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 28%, transparent);
         }
 	        .sm-panel-status.severity-nodata {
-	            color: #cbd5e1;
+	            color: var(--grid, #cbd5e1);
 	            background: rgba(148,163,184,0.14);
 	            border-color: rgba(148,163,184,0.24);
 	        }
 	        .sm-badge.severity-nodata {
-	            color: #cbd5e1;
+	            color: var(--grid, #cbd5e1);
 	            background: rgba(148,163,184,0.10);
 	            border-color: rgba(148,163,184,0.20);
 	        }
@@ -2291,7 +2291,7 @@ const _SolarPage = {
             height: 100%;
             border-radius: 999px;
             transition: width 0.5s ease;
-            box-shadow: 0 0 12px rgba(251,191,36,0.22);
+            box-shadow: 0 0 12px color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 22%, transparent);
         }
         .sm-panel-meta {
             display: flex;
@@ -2299,7 +2299,7 @@ const _SolarPage = {
             align-items: center;
             gap: 10px;
             width: 100%;
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             z-index: 1;
         }
@@ -2312,7 +2312,7 @@ const _SolarPage = {
 	            z-index: 0;
 	        }
 	        .sm-panel-shadow-overlay.is-excluded {
-	            background: linear-gradient(135deg, rgba(59,130,246,0.32), rgba(15,23,42,0.20));
+	            background: linear-gradient(135deg, color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 32%, transparent), rgba(15,23,42,0.20));
 	        }
         .sm-loss-bar {
             text-align: center;
@@ -2358,15 +2358,15 @@ const _SolarPage = {
             width: 18px;
             height: 18px;
             border-radius: 50%;
-            background: #fbbf24;
+            background: var(--solar, #fbbf24);
             cursor: pointer;
-            box-shadow: 0 0 8px rgba(251,191,36,0.5);
+            box-shadow: 0 0 8px color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 50%, transparent);
         }
         .sm-hour-labels {
             display: flex;
             justify-content: space-between;
             padding: var(--space-xs) 0 0 44px;
-            font-size: 0.65rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             font-family: var(--font-mono);
         }
@@ -2377,8 +2377,8 @@ const _SolarPage = {
             transition: all var(--transition-normal);
         }
         .sm-hour-labels .sm-hour-active {
-            color: #fbbf24;
-            background: rgba(251,191,36,0.15);
+            color: var(--solar, #fbbf24);
+            background: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 15%, transparent);
             font-weight: 700;
         }
         .sm-date-bar {
@@ -2398,9 +2398,9 @@ const _SolarPage = {
             transition: all var(--transition-normal);
         }
         .sm-mode-btn.active {
-            background: rgba(251,191,36,0.15);
-            border-color: rgba(251,191,36,0.4);
-            color: #fbbf24;
+            background: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 15%, transparent);
+            border-color: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 40%, transparent);
+            color: var(--solar, #fbbf24);
         }
 
         /* Light Theme overrides */
@@ -2414,14 +2414,14 @@ const _SolarPage = {
             background: rgba(15, 23, 42, 0.02);
         }
         [data-theme="light"] .shadow-insight-item.insight-high {
-            background: rgba(239, 68, 68, 0.05);
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 5%, transparent);
         }
         [data-theme="light"] .shadow-insight-item.insight-mid {
-            background: rgba(245, 158, 11, 0.05);
+            background: color-mix(in srgb, var(--solar, rgb(245, 158, 11)) 5%, transparent);
         }
         [data-theme="light"] .sm-panel-container {
             background:
-                radial-gradient(circle at top, rgba(2, 132, 199, 0.05), transparent 40%),
+                radial-gradient(circle at top, color-mix(in srgb, var(--grid, rgb(2, 132, 199)) 5%, transparent), transparent 40%),
                 linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(241, 245, 249, 0.5));
             border-color: rgba(15, 23, 42, 0.08);
         }
@@ -2453,38 +2453,38 @@ const _SolarPage = {
         }
         [data-theme="light"] .sm-panel-status.severity-heavy,
         [data-theme="light"] .sm-badge.severity-heavy {
-            color: #b91c1c;
-            background: rgba(239,68,68,0.08);
-            border-color: rgba(239,68,68,0.18);
+            color: var(--danger, #b91c1c);
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 8%, transparent);
+            border-color: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 18%, transparent);
         }
 	        [data-theme="light"] .sm-panel-status.severity-forecast {
-	            color: #1d4ed8;
-	            background: rgba(59,130,246,0.08);
-	            border-color: rgba(59,130,246,0.18);
+	            color: var(--grid, #1d4ed8);
+	            background: color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 8%, transparent);
+	            border-color: color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 18%, transparent);
 	        }
 	        [data-theme="light"] .sm-panel-status.severity-throttled,
 	        [data-theme="light"] .sm-badge.severity-throttled {
-	            color: #1d4ed8;
-	            background: rgba(59,130,246,0.09);
-	            border-color: rgba(59,130,246,0.20);
+	            color: var(--grid, #1d4ed8);
+	            background: color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 9%, transparent);
+	            border-color: color-mix(in srgb, var(--grid, rgb(59, 130, 246)) 20%, transparent);
 	        }
         [data-theme="light"] .sm-panel-status.severity-medium,
         [data-theme="light"] .sm-badge.severity-medium {
-            color: #b45309;
-            background: rgba(245,158,11,0.08);
-            border-color: rgba(245,158,11,0.18);
+            color: var(--house, #b45309);
+            background: color-mix(in srgb, var(--solar, rgb(245, 158, 11)) 8%, transparent);
+            border-color: color-mix(in srgb, var(--solar, rgb(245, 158, 11)) 18%, transparent);
         }
         [data-theme="light"] .sm-panel-status.severity-light,
         [data-theme="light"] .sm-badge.severity-light {
-            color: #a16207;
-            background: rgba(234,179,8,0.08);
-            border-color: rgba(234,179,8,0.18);
+            color: var(--solar, #a16207);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 8%, transparent);
+            border-color: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 18%, transparent);
         }
         [data-theme="light"] .sm-panel-status.severity-clear,
         [data-theme="light"] .sm-badge.severity-clear {
-            color: #15803d;
-            background: rgba(34,197,94,0.08);
-            border-color: rgba(34,197,94,0.18);
+            color: var(--success, #15803d);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 8%, transparent);
+            border-color: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 18%, transparent);
         }
 	        [data-theme="light"] .sm-panel-status.severity-nodata {
 	            color: #475569;
@@ -2546,7 +2546,7 @@ const _SolarPage = {
             border-radius: var(--radius-sm);
             background: rgba(255, 255, 255, 0.03);
             color: var(--text-muted);
-            font-size: 0.68rem;
+            font-size: 0.75rem;
         }
     `;
     document.head.appendChild(style);

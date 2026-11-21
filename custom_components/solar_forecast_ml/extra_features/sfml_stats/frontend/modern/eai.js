@@ -7,6 +7,92 @@ const EAI_ALLOCATION = typeof module !== "undefined"
 
 const assessEaiEnergyAllocation = EAI_ALLOCATION.assessEnergyAllocation;
 
+function finiteOrNull(value) {
+    return value == null || value === "" ? null : (Number.isFinite(+value) ? +value : null);
+}
+
+function ctNumber(value) {
+    const amount = finiteOrNull(value);
+    if (amount == null) return "\u2013";
+    // Node-side callers (tests) run without the browser i18n runtime
+    return typeof window !== "undefined" && window.SFMLI18n ? window.SFMLI18n.formatNumber(amount, 1) : amount.toFixed(1);
+}
+
+function ctText(value) {
+    const text = ctNumber(value);
+    return text === "\u2013" ? text : `${text} ct/kWh`;
+}
+
+function euroText(value) {
+    const number = finiteOrNull(value);
+    return number == null ? "\u2013" : `${EAI_NUMBER_FORMAT.format(number)} €`;
+}
+
+function timelineHourPrices(hourlyPrices) {
+    const source = Array.isArray(hourlyPrices) ? hourlyPrices : [];
+    return Array.from({ length: 24 }, (_, hour) => finiteOrNull(source[hour]));
+}
+
+function hourlySlotsFromPriceHours(priceHours) {
+    const byHour = new Map();
+    const rows = Array.isArray(priceHours) ? priceHours : [];
+    rows.forEach((point) => {
+        if (!point || point.is_tomorrow) return;
+        const hour = finiteOrNull(point.hour);
+        if (hour == null || !Number.isInteger(hour) || hour < 0 || hour > 23) return;
+        // An hour listed twice has no single price.
+        byHour.set(hour, byHour.has(hour) ? null : finiteOrNull(point.total_price));
+    });
+    return Array.from({ length: 24 }, (_, hour) => (byHour.has(hour) ? byHour.get(hour) : null));
+}
+
+function feedInTariffFromStatus(payload) {
+    const tariff = payload && typeof payload.tariff === "object" ? payload.tariff : null;
+    if (!tariff) return null;
+    return finiteOrNull(tariff.feed_in_tariff_ct);
+}
+
+function liveAdvisoryMoney(options) {
+    const source = options || {};
+    // Live yearly euros come from the backend later; no averaged or manual price stands in.
+    const price = source.demo === true ? finiteOrNull(source.manualPrice) : null;
+    return advisoryMoney(price, source.feedInCt, source.annualHeatKwh, source.pvSharePercent, source.cop);
+}
+
+function advisorySavingsFromBackend(block) {
+    const source = block && typeof block === "object" ? block : null;
+    if (!source || source.complete !== true) {
+        return { cop: 3.5, gridReduction: null, currentCost: null, advisedCost: null, savings: null };
+    }
+    return {
+        cop: finiteOrNull(source.cop) ?? 3.5,
+        gridReduction: finiteOrNull(source.grid_reduction_kwh),
+        currentCost: finiteOrNull(source.current_cost_eur),
+        advisedCost: finiteOrNull(source.advised_cost_eur),
+        savings: finiteOrNull(source.savings_eur),
+    };
+}
+
+function advisoryMoney(priceCt, feedInCt, annualHeatKwh, pvSharePercent, cop) {
+    const measuredCop = finiteOrNull(cop);
+    const copValue = measuredCop != null && measuredCop >= 1.5 ? measuredCop : 3.5;
+    const heat = finiteOrNull(annualHeatKwh);
+    const share = finiteOrNull(pvSharePercent);
+    if (heat == null || share == null) {
+        return { cop: copValue, gridReduction: null, currentCost: null, advisedCost: null, savings: null };
+    }
+    const electric = heat / copValue;
+    const shiftRate = Math.min(0.18, Math.max(0, (100 - share) / 100 * 0.45));
+    const gridReduction = Math.round(electric * shiftRate);
+    return {
+        cop: copValue,
+        gridReduction,
+        currentCost: null,
+        advisedCost: null,
+        savings: null,
+    };
+}
+
 const ModernEAIPage = {
     components: { AllocationWaterfall: EAI_ALLOCATION.AllocationWaterfall },
     template: `
@@ -44,14 +130,15 @@ const ModernEAIPage = {
                     </header>
                     <div class="savings-layout">
                         <div class="calculator-controls">
-                            <label><span>Strompreis <strong>{{ electricityPrice.toFixed(1) }} ct/kWh</strong></span><input v-model.number="electricityPrice" type="range" min="15" max="70" step="0.5" aria-label="Strompreis in Cent pro Kilowattstunde"></label>
+                            <label><span>Strompreis <strong>{{ ctText(shownElectricityPrice) }}</strong></span><input v-if="status.is_demo" :value="electricityPrice == null ? 15 : electricityPrice" @input="setElectricityPrice" type="range" min="15" max="70" step="0.5" aria-label="Strompreis in Cent pro Kilowattstunde"></label>
                             <label><span>Heutige PV-Deckung der Wärmepumpe <strong>{{ pvShare }} %</strong></span><input v-model.number="pvShare" type="range" min="0" max="80" step="1" aria-label="Heutige PV-Deckung in Prozent"></label>
                             <label><span>Jährlicher Wärmebedarf <strong>{{ annualHeat.toLocaleString(EAI_LOCALE) }} kWh</strong></span><input v-model.number="annualHeat" type="range" min="3000" max="30000" step="250" aria-label="Jährlicher Wärmebedarf in Kilowattstunden"></label>
                             <p class="calculator-source">{{ calculatorSource }}</p>
+                            <p v-if="status.is_demo && demoSliderActive" class="calculator-source" role="status"><strong>Simulation – Beispielwerte</strong> Die Euro-Beträge zeigen weiterhin die Ausgangs-Beispielwerte aus dem Backend.</p>
                         </div>
                         <div class="savings-result" aria-live="polite">
-                            <span>Orientierungswert pro Jahr</span><strong><small>≈</small> {{ animatedSavings.toLocaleString(EAI_LOCALE) }} €</strong><p>{{ potential.gridReduction.toLocaleString(EAI_LOCALE) }} kWh weniger Netzbezug im dargestellten Szenario</p>
-                            <div class="result-comparison"><span><small>Heute</small>{{ potential.currentCost.toLocaleString(EAI_LOCALE) }} €</span><i>→</i><span><small>Mit genutzten Zeitfenstern</small>{{ potential.advisedCost.toLocaleString(EAI_LOCALE) }} €</span></div>
+                            <span>Orientierungswert pro Jahr</span><strong v-if="potential.savings == null">–</strong><strong v-else><small>≈</small> {{ animatedSavings.toLocaleString(EAI_LOCALE) }} €</strong><p>{{ potential.gridReduction == null ? "–" : potential.gridReduction.toLocaleString(EAI_LOCALE) }} kWh weniger Netzbezug im dargestellten Szenario</p>
+                            <div class="result-comparison"><span><small>Heute</small>{{ euroText(potential.currentCost) }}</span><i>→</i><span><small>Mit genutzten Zeitfenstern</small>{{ euroText(potential.advisedCost) }}</span></div>
                         </div>
                     </div>
                     <allocation-waterfall :model="pvWaterfall"></allocation-waterfall>
@@ -59,7 +146,7 @@ const ModernEAIPage = {
                         <div class="timeline-heading"><div><strong>24-Stunden-Potenzial</strong><span>Vorher und empfohlenes Zeitfenster – keine ausgeführten Schaltungen</span></div><div class="timeline-legend"><span class="before-key">Heute</span><span class="after-key">Beratung</span><span class="pv-key">PV</span></div></div>
                         <div class="advisory-timeline"><div v-for="point in timeline" :key="point.hour" class="timeline-hour" :class="{ cheap: point.cheap }" tabindex="0" role="img" :title="timelinePointLabel(point)" :aria-label="timelinePointLabel(point)"><span class="price-layer" :style="{ height: point.priceHeight + '%' }"></span><span class="pv-layer" :style="{ height: point.pv + '%' }"></span><span class="before-layer" :style="{ height: point.before + '%' }"></span><span class="after-layer" :style="{ height: point.after + '%' }"></span><small v-if="point.hour % 3 === 0">{{ point.hour }}</small></div></div>
                     </div>
-                    <footer class="calculator-disclaimer">STATS-Preisbasis: {{ tariffSourceLabel }}. Annahmen: COP {{ potential.cop.toFixed(1) }}, {{ feedInTariff.toFixed(1) }} ct/kWh Einspeisevergütung und maximal 18 % zeitlich nutzbarer Wärmepumpenstrom. Grundgebühren werden nicht als Einsparung gerechnet. Das Ergebnis ist eine Modellrechnung, keine Steuerung und keine Garantie.</footer>
+                    <footer class="calculator-disclaimer">STATS-Preisbasis: {{ tariffSourceLabel }}. Annahmen: COP {{ $n(potential.cop, 1) }}, {{ ctNumber(feedInTariff) }} ct/kWh Einspeisevergütung und maximal 18 % zeitlich nutzbarer Wärmepumpenstrom. Grundgebühren werden nicht als Einsparung gerechnet. Das Ergebnis ist eine Modellrechnung, keine Steuerung und keine Garantie.</footer>
                 </article>
                 <div class="eai-wow-grid">
                     <article v-if="devOn" class="eai-card wow-card accent"><span class="eyebrow">Warum läuft sie gerade?</span><h3>{{ whyNow.headline || "Noch keine Erklärung verfügbar" }}</h3><p>{{ whyNow.explanation }}</p><ul><li v-for="item in whyNow.evidence || []" :key="item">{{ item }}</li></ul><footer><span class="confidence">{{ format(whyNow.confidence_percent, " % Vertrauen") }}</span></footer></article>
@@ -146,16 +233,16 @@ const ModernEAIPage = {
             diagnostics: {},
             setup: {},
         });
-        const electricityPrice = ref(36.9);
+        const electricityPrice = ref(null);
         const pvShare = ref(35);
         const annualHeat = ref(12000);
         const animatedSavings = ref(0);
-        const priceFromStats = ref(false);
-        const feedInTariff = ref(8.2);
+        const feedInTariff = ref(null);
         const tariffMode = ref("Dynamischer Mock-Tarif");
         const tariffSourceLabel = ref("Mock-Tarifdaten");
         const liveEnergyFlow = reactive({ household_kw: null, solar_to_house_kw: null, battery_to_house_kw: null, grid_to_house_kw: null });
-        const hourlyPrices = ref([31.2, 29.8, 28.6, 27.9, 29.4, 34.8, 41.6, 45.2, 42.8, 35.4, 27.2, 21.8, 18.6, 17.9, 20.4, 26.8, 34.2, 43.7, 49.1, 46.3, 40.8, 36.1, 33.4, 32.0]);
+        const hourlyPrices = ref(Array(24).fill(null));
+        const hourlyCheap = ref(Array(24).fill(null));
         const scenario = new URLSearchParams(window.location.search).get("eai_scenario");
         const endpoint = (section) => `/api/sfml_stats/modern/eai/${section}${scenario ? `?scenario=${encodeURIComponent(scenario)}` : ""}`;
         const refreshIntervalMs = 15000;
@@ -202,13 +289,19 @@ const ModernEAIPage = {
                 error.value = "";
                 if (status.is_demo) {
                     const mockTariff = sections.overview?.calculator_defaults || {};
-                    electricityPrice.value = Number(mockTariff.electricity_price_ct ?? 36.9);
-                    feedInTariff.value = Number(mockTariff.feed_in_tariff_ct ?? 8.2);
-                    annualHeat.value = Number(mockTariff.annual_heat_demand_kwh ?? 12000);
-                    pvShare.value = Number(mockTariff.heat_pump_pv_coverage_percent ?? 35);
+                    electricityPrice.value = finiteOrNull(mockTariff.electricity_price_ct);
+                    feedInTariff.value = finiteOrNull(mockTariff.feed_in_tariff_ct);
+                    const mockHeat = finiteOrNull(mockTariff.annual_heat_demand_kwh);
+                    const mockShare = finiteOrNull(mockTariff.heat_pump_pv_coverage_percent);
+                    if (mockHeat != null) annualHeat.value = mockHeat;
+                    if (mockShare != null) pvShare.value = mockShare;
                     tariffMode.value = mockTariff.tariff_mode || "Mock-Tarif";
                     tariffSourceLabel.value = mockTariff.tariff_source || "Mock-Tarifdaten";
-                    if (Array.isArray(mockTariff.hourly_prices_ct) && mockTariff.hourly_prices_ct.length === 24) hourlyPrices.value = mockTariff.hourly_prices_ct.map(Number);
+                    hourlyCheap.value = Array(24).fill(null);
+                    if (Array.isArray(mockTariff.hourly_prices_ct) && mockTariff.hourly_prices_ct.length === 24) {
+                        const hours = mockTariff.hourly_prices_ct.map(finiteOrNull);
+                        if (hours.every((value) => value != null)) hourlyPrices.value = hours;
+                    }
                 }
                 const livePv = Number(sections.energy?.pv_coverage_percent ?? sections.overview?.pv_coverage_percent);
                 if (!status.is_demo && Number.isFinite(livePv)) pvShare.value = Math.round(livePv);
@@ -216,37 +309,33 @@ const ModernEAIPage = {
                     const forecastElectric = Number(sections.overview?.expected_today_kwh);
                     const measuredCop = Number(sections.efficiency?.cop);
                     if (Number.isFinite(forecastElectric) && forecastElectric > 0) annualHeat.value = Math.min(30000, Math.max(3000, Math.round(forecastElectric * (Number.isFinite(measuredCop) ? measuredCop : 3.5) * 365 / 250) * 250));
-                    const [billingResult, settingsResult, pricesResult, energyFlowResult] = await Promise.allSettled([
-                        SFMLApi.fetch("/api/sfml_stats/billing", { forceRefresh: true, ttl: 0 }),
-                        SFMLApi.fetch("/api/sfml_stats/settings/dashboard", { forceRefresh: true, ttl: 0 }),
+                    const [pricesResult, energyFlowResult, gpmStatusResult] = await Promise.allSettled([
                         SFMLApi.fetch("/api/sfml_stats/gpm_prices", { forceRefresh: true, ttl: 0 }),
                         SFMLApi.fetch("/api/sfml_stats/energy_flow", { forceRefresh: true, ttl: 0 }),
+                        SFMLApi.fetch("/api/sfml_stats/gpm/status", { forceRefresh: true, ttl: 0 }),
                     ]);
-                    const billing = billingResult.status === "fulfilled" ? billingResult.value : {};
-                    const settings = settingsResult.status === "fulfilled" ? settingsResult.value : {};
                     const prices = pricesResult.status === "fulfilled" ? pricesResult.value : {};
                     const energyFlow = energyFlowResult.status === "fulfilled" ? energyFlowResult.value : {};
+                    const gpmStatus = gpmStatusResult.status === "fulfilled" ? gpmStatusResult.value : null;
                     const wattsToKw = (value) => Number.isFinite(Number(value)) ? Math.round(Number(value) / 10) / 100 : null;
                     liveEnergyFlow.household_kw = wattsToKw(energyFlow?.home?.consumption);
                     liveEnergyFlow.solar_to_house_kw = wattsToKw(energyFlow?.flows?.solar_to_house);
                     liveEnergyFlow.battery_to_house_kw = wattsToKw(energyFlow?.flows?.battery_to_house);
                     liveEnergyFlow.grid_to_house_kw = wattsToKw(energyFlow?.flows?.grid_to_house);
-                    const configuredPrice = Number(settings?.price?.energy_price) + Number(settings?.price?.grid_fees);
-                    const candidates = [billing?.finance?.avg_price_ct, Number.isFinite(configuredPrice) && configuredPrice > 0 ? configuredPrice : null, prices?.average_price_today, prices?.total_price];
-                    const statsPrice = candidates.map(Number).find((value) => Number.isFinite(value) && value > 0);
-                    if (statsPrice) { electricityPrice.value = Math.round(statsPrice * 10) / 10; priceFromStats.value = true; }
-                    const statsFeedIn = Number(settings?.price?.feed_in_tariff ?? billing?.finance?.feed_in_tariff_ct);
-                    if (Number.isFinite(statsFeedIn) && statsFeedIn >= 0) feedInTariff.value = statsFeedIn;
-                    tariffMode.value = settings?.price?.mode || prices?.price_mode || "STATS-Tarif";
-                    const todayPrices = (prices?.price_hours || []).filter((point) => !point.is_tomorrow && Number.isFinite(Number(point.total_price)));
-                    if (todayPrices.length) {
-                        const byHour = new Map(todayPrices.map((point) => [Number(point.hour), Number(point.total_price)]));
-                        hourlyPrices.value = Array.from({ length: 24 }, (_, hour) => byHour.get(hour) ?? electricityPrice.value);
-                    } else {
-                        hourlyPrices.value = Array(24).fill(electricityPrice.value);
-                    }
-                    const priceOrigin = Number(billing?.finance?.avg_price_ct) > 0 ? "gewichteter Abrechnungspreis" : settings?.price?.mode ? "konfigurierter Tarif" : "aktueller STATS-Preis";
-                    tariffSourceLabel.value = `${priceOrigin}, ${tariffMode.value}`;
+                    const currentPrice = finiteOrNull(prices?.total_price);
+                    electricityPrice.value = null;
+                    feedInTariff.value = feedInTariffFromStatus(gpmStatus);
+                    tariffMode.value = prices?.price_mode || "—";
+                    const cheapByHour = new Map();
+                    (prices?.price_hours || []).forEach((point) => {
+                        if (point?.is_tomorrow) return;
+                        const hour = finiteOrNull(point?.hour);
+                        if (hour == null || !Number.isInteger(hour) || hour < 0 || hour > 23) return;
+                        if (typeof point.is_cheap === "boolean") cheapByHour.set(hour, point.is_cheap);
+                    });
+                    hourlyPrices.value = hourlySlotsFromPriceHours(prices?.price_hours);
+                    hourlyCheap.value = Array.from({ length: 24 }, (_, hour) => cheapByHour.has(hour) ? cheapByHour.get(hour) : null);
+                    tariffSourceLabel.value = currentPrice == null ? "kein GPM-Stundenpreis" : `GPM-Stundenpreis, ${tariffMode.value}`;
                 }
             } catch {
                 if (!hasLoaded) {
@@ -522,7 +611,7 @@ const ModernEAIPage = {
                     text: `${missingIndoor ? "Ohne Innentemperatur kann das Gebäudeverhalten nicht belastbar gelernt werden. " : ""}${EAI_NUMBER_FORMAT.format(observed)} von ${EAI_NUMBER_FORMAT.format(required)} Beobachtungsstunden · Lernfortschritt: ${Math.round(progress)} %.`,
                 };
             }
-            return { progress, title: `${building.value.thermal_inertia_hours} h Wärmespeicher`, text: `Geschätzter Wärmeverlust: ${building.value.heat_loss_kw} kW · Modellfortschritt: ${Math.round(progress)} %.` };
+            return { progress, title: `${building.value.thermal_inertia_hours} h Wärmespeicher`, text: `Geschätzter Wärmeverlust: ${building.value.heat_loss_kw} kW · Modellfortschritt: ${window.SFMLI18n.formatNumber(progress, 0)} %.` };
         });
         const thermalLossDisplay = computed(() => {
             const loss = thermalLoss.value;
@@ -603,7 +692,7 @@ const ModernEAIPage = {
         ));
         const confidenceOrbitStyle = computed(() => {
             const confidence = Math.min(100, Math.max(0, Number(orbitConfidence.value) || 0));
-            return { background: `conic-gradient(#45c7bb ${confidence}%, color-mix(in srgb, #45c7bb 12%, var(--bg-elevated)) 0)` };
+            return { background: `conic-gradient(var(--accent, #45c7bb) ${confidence}%, color-mix(in srgb, var(--accent, #45c7bb) 12%, var(--bg-elevated)) 0)` };
         });
         const modeLabel = computed(() => {
             if (sampleReason.value === "feature_off") return "Beispieldaten";
@@ -685,38 +774,79 @@ const ModernEAIPage = {
                 { label: "Energiekontext-Abdeckung", value: format(energy.energy_context_quality_percent, " %"), description: "Abdeckung der benötigten STATS-Kontextdaten; keine Gesamtbewertung der Modellqualität." },
             ];
         });
-        const potential = computed(() => {
-            const measuredCop = Number(sections.efficiency?.cop);
-            const cop = Number.isFinite(measuredCop) && measuredCop >= 1.5 ? measuredCop : 3.5;
-            const electric = annualHeat.value / cop;
-            const currentPv = electric * pvShare.value / 100;
-            const shiftRate = Math.min(0.18, Math.max(0, (100 - pvShare.value) / 100 * 0.45));
-            const gridReduction = electric * shiftRate;
-            const currentGrid = Math.max(0, electric - currentPv);
-            const advisedGrid = Math.max(0, currentGrid - gridReduction);
-            const currentCost = currentGrid * electricityPrice.value / 100;
-            const netValue = Math.max(0, electricityPrice.value / 100 - feedInTariff.value / 100);
-            const savings = gridReduction * netValue;
-            return { cop, gridReduction: Math.round(gridReduction), currentCost: Math.round(currentCost), advisedCost: Math.round(currentCost - savings), savings: Math.round(savings) };
+        const shownElectricityPrice = computed(() => (
+            status.is_demo === true ? electricityPrice.value : null
+        ));
+        const demoSliderActive = computed(() => {
+            if (status.is_demo !== true) return false;
+            const defaults = sections.overview?.calculator_defaults || {};
+            const price = finiteOrNull(defaults.electricity_price_ct);
+            const heat = finiteOrNull(defaults.annual_heat_demand_kwh);
+            const share = finiteOrNull(defaults.heat_pump_pv_coverage_percent);
+            return electricityPrice.value !== price
+                || annualHeat.value !== heat
+                || pvShare.value !== share;
         });
-        const calculatorSource = computed(() => status.is_demo ? "Demo: Strompreis, Einspeisevergütung und Stundenprofil sind eindeutig gekennzeichnete Mock-Tarifdaten." : priceFromStats.value ? "Live: Gewichteter STATS-Preis, Tarif, Einspeisevergütung sowie EAI-Prognosedaten wurden vorbelegt. Die Rechnung bleibt eine Simulation." : "Live: EAI-Prognosedaten wurden vorbelegt; STATS hatte keinen belastbaren Preis. Den Strompreis kannst du manuell setzen.");
-        const timeline = computed(() => Array.from({ length: 24 }, (_, hour) => {
-            const morning = Math.max(0, 1 - Math.abs(hour - 6) / 4);
-            const evening = Math.max(0, 1 - Math.abs(hour - 19) / 5);
-            const solar = Math.max(0, Math.sin((hour - 6) * Math.PI / 12));
-            const before = 24 + Math.max(morning, evening) * 66;
-            const shiftStrength = Math.min(1, potential.value.gridReduction / 900);
-            const price = Number(hourlyPrices.value[hour] ?? electricityPrice.value);
-            const maxPrice = Math.max(...hourlyPrices.value, electricityPrice.value, 1);
-            const minPrice = Math.min(...hourlyPrices.value, electricityPrice.value);
-            const priceAdvantage = maxPrice > minPrice ? (maxPrice - price) / (maxPrice - minPrice) : 0;
-            const advisedWindow = Math.max(solar, priceAdvantage * 0.8);
-            const after = Math.max(14, before * (1 - shiftStrength * 0.3) + advisedWindow * shiftStrength * 45);
-            return { hour, before: Math.round(before), after: Math.round(after), pv: Math.round(solar * pvShare.value), price, priceHeight: Math.round(price / maxPrice * 100), cheap: price < electricityPrice.value * 0.82 };
-        }));
-        const timelinePointLabel = (point) => `${point.hour}:00 Uhr, Strompreis ${point.price.toFixed(1)} Cent pro Kilowattstunde, PV-Potenzial ${point.pv} Prozent, heutiges Lastprofil ${point.before} Prozent, beratenes Lastprofil ${point.after} Prozent${point.cheap ? ", günstige Stunde" : ""}`;
+        const potential = computed(() => (
+            status.is_demo === true
+                ? advisorySavingsFromBackend(sections.overview?.advisory_savings)
+                : advisoryMoney(
+                    shownElectricityPrice.value,
+                    feedInTariff.value,
+                    annualHeat.value,
+                    pvShare.value,
+                    sections.efficiency?.cop,
+                )
+        ));
+        const calculatorSource = computed(() => {
+            if (status.is_demo === true) return "Demo: Strompreis, Einspeisevergütung und Stundenprofil sind eindeutig gekennzeichnete Mock-Tarifdaten.";
+            return "Live: Jahresbeträge in Euro werden hier noch nicht berechnet; Stundenpreise siehe Zeitleiste.";
+        });
+        const setElectricityPrice = (event) => {
+            if (status.is_demo !== true) return;
+            electricityPrice.value = finiteOrNull(event?.target?.value);
+        };
+        const timeline = computed(() => {
+            const hourPrices = timelineHourPrices(hourlyPrices.value);
+            const finitePrices = hourPrices.filter((value) => value != null);
+            const maxPrice = finitePrices.length ? Math.max(...finitePrices) : null;
+            const minPrice = finitePrices.length ? Math.min(...finitePrices) : null;
+            return Array.from({ length: 24 }, (_, hour) => {
+                const morning = Math.max(0, 1 - Math.abs(hour - 6) / 4);
+                const evening = Math.max(0, 1 - Math.abs(hour - 19) / 5);
+                const solar = Math.max(0, Math.sin((hour - 6) * Math.PI / 12));
+                const before = 24 + Math.max(morning, evening) * 66;
+                const reduction = Number(potential.value.gridReduction);
+                const shiftStrength = Number.isFinite(reduction) ? Math.min(1, reduction / 900) : 0;
+                const price = hourPrices[hour];
+                const priceAdvantage = price != null && maxPrice != null && minPrice != null && maxPrice > minPrice
+                    ? (maxPrice - price) / (maxPrice - minPrice)
+                    : 0;
+                const advisedWindow = Math.max(solar, priceAdvantage * 0.8);
+                const after = Math.max(14, before * (1 - shiftStrength * 0.3) + advisedWindow * shiftStrength * 45);
+                const priceHeight = price != null && maxPrice != null && maxPrice !== 0
+                    ? Math.max(0, Math.round(price / maxPrice * 100))
+                    : 0;
+                return {
+                    hour,
+                    before: Math.round(before),
+                    after: Math.round(after),
+                    pv: Math.round(solar * pvShare.value),
+                    price,
+                    priceHeight,
+                    cheap: hourlyCheap.value[hour] === true,
+                };
+            });
+        });
+        const timelinePointLabel = (point) => `${point.hour}:00 Uhr, Strompreis ${point.price == null ? "nicht verfügbar" : `${window.SFMLI18n.formatNumber(point.price, 1)} Cent pro Kilowattstunde`}, PV-Potenzial ${point.pv} Prozent, heutiges Lastprofil ${point.before} Prozent, beratenes Lastprofil ${point.after} Prozent${point.cheap ? ", günstige Stunde" : ""}`;
         let savingsAnimation = null;
         watch(() => potential.value.savings, (target, previous = 0) => {
+            if (target == null || !Number.isFinite(Number(target))) {
+                if (savingsAnimation !== null) cancelAnimationFrame(savingsAnimation);
+                savingsAnimation = null;
+                animatedSavings.value = 0;
+                return;
+            }
             if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { animatedSavings.value = target; return; }
             if (savingsAnimation !== null) cancelAnimationFrame(savingsAnimation);
             const start = Number(animatedSavings.value || previous);
@@ -832,7 +962,7 @@ const ModernEAIPage = {
             const live = status.data_mode === "live";
             return { tone: live ? "ok" : (status.data_mode === "degraded" ? "normal" : "demo"), headline: hT("eai.head", { headline: whyNow.value.headline }), detail: parts.filter(Boolean).join(" ") };
         });
-        return { hubbleSay, EAI_LOCALE, tabs, devOn, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, orbitConfidence, splitConfidence, horizonAverageConfidence, windowConfidence, coldStartHint, windowProvisional, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
+        return { hubbleSay, EAI_LOCALE, tabs, devOn, activeTab, selectTab, handleTabKeydown, loading, error, status, sampleReason, current, operation, forecast, diagnostics, building, diagnosticGroups, thermalLossDisplay, whyNow, briefing, optimization, optimizationExplanation, forecastUncertainty, confidenceOrbitStyle, orbitConfidence, splitConfidence, horizonAverageConfidence, windowConfidence, coldStartHint, windowProvisional, modeLabel, capabilityLabel, dataStatus, notice, windowLabel, healthStatus, buildingStatus, overviewMetrics, detailItems, energyItems, energyAudit, pvWaterfall, locked, entitlementLabel, electricityPrice, shownElectricityPrice, setElectricityPrice, ctText, ctNumber, euroText, pvShare, annualHeat, animatedSavings, feedInTariff, tariffMode, tariffSourceLabel, potential, demoSliderActive, calculatorSource, timeline, timelinePointLabel, format, formatDurationMinutes, powerHeight, bandStyle, forecastPointTitle, setupGroups, setupLink, setupMenu, setupStatusLabel, setupChipClass };
     },
 };
 
@@ -948,5 +1078,15 @@ if (typeof module !== "undefined") {
         resolveSetupComplete,
         customerDataStatus,
         customerSetupStatus,
+        finiteOrNull,
+        ctNumber,
+        ctText,
+        euroText,
+        timelineHourPrices,
+        hourlySlotsFromPriceHours,
+        feedInTariffFromStatus,
+        liveAdvisoryMoney,
+        advisoryMoney,
+        advisorySavingsFromBackend,
     };
 }

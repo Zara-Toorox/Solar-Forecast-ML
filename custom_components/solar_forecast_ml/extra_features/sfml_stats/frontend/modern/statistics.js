@@ -21,6 +21,90 @@ const STATISTICS_RESULT_METRICS = [
     "grid_import_day_kwh",
 ];
 
+function statisticsResolveLocale() {
+    const active = typeof window !== "undefined" ? window.SFMLI18n?.current : "en";
+    return ({ de: "de-DE", en: "en-US", pl: "pl-PL" })[active] || "en-US";
+}
+
+function statisticsFiniteOrNull(value) {
+    return value == null || value === "" ? null : (Number.isFinite(+value) ? +value : null);
+}
+
+function statisticsCompressDayRanges(days) {
+    if (!Array.isArray(days) || !days.length) return [];
+    const sorted = days.slice().sort();
+    const ranges = [];
+    let start = sorted[0];
+    let end = sorted[0];
+    const nextDay = (iso) => {
+        const parts = iso.split("-").map(Number);
+        const nextUtc = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12));
+        nextUtc.setUTCDate(nextUtc.getUTCDate() + 1);
+        return nextUtc.toISOString().slice(0, 10);
+    };
+    for (let index = 1; index < sorted.length; index += 1) {
+        const day = sorted[index];
+        if (day === nextDay(end)) end = day;
+        else {
+            ranges.push([start, end]);
+            start = day;
+            end = day;
+        }
+    }
+    ranges.push([start, end]);
+    return ranges;
+}
+
+function statisticsFormatDayRanges(days) {
+    const locale = statisticsResolveLocale();
+    return statisticsCompressDayRanges(days)
+        .map(([start, end]) => {
+            const left = new Intl.DateTimeFormat(locale, {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+            }).format(new Date(`${start}T12:00:00`));
+            if (start === end) return left;
+            const right = new Intl.DateTimeFormat(locale, {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+            }).format(new Date(`${end}T12:00:00`));
+            return `${left}\u2013${right}`;
+        })
+        .join(", ");
+}
+
+function statisticsShownCost(record) {
+    const source = record && typeof record === "object" ? record : null;
+    if (!source) return { amount: null, incomplete: false };
+    const main = statisticsFiniteOrNull(source.cost_eur);
+    if (main != null) return { amount: main, incomplete: false };
+    const part = statisticsFiniteOrNull(source.cost_eur_priced_part);
+    if (part != null && source.complete === false) return { amount: part, incomplete: true };
+    return { amount: null, incomplete: false };
+}
+
+function statisticsFormatKwh(value) {
+    const number = Number(value ?? 0);
+    if (!Number.isFinite(number)) return "\u2013";
+    const formatted = new Intl.NumberFormat(statisticsResolveLocale(), {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+    }).format(number);
+    return `${formatted} kWh`;
+}
+
+function statisticsFormatMoney(value) {
+    const number = statisticsFiniteOrNull(value);
+    if (number == null) return "\u2013";
+    const formatted = new Intl.NumberFormat(statisticsResolveLocale(), {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(number);
+    return `${formatted} €`;
+}
+
 const statisticsIso = (date) => {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
@@ -98,7 +182,7 @@ const ModernStatisticsPage = {
                 </form>
                 <div v-if="message" class="statistics-state error" role="alert">{{ message }}</div>
                 <div class="statistics-kpis" :aria-label="text('statistics.kpi', 'Kennzahlen')">
-                    <article class="statistics-card"><span>{{ text('statistics.cost', 'Kosten') }}</span><strong>{{ money(totals.cost_eur) }}</strong><small>{{ text('statistics.pricedPortion', 'davon bepreist') }} {{ kwh(totals.kwh) }}</small></article>
+                    <article class="statistics-card"><span>{{ text('statistics.cost', 'Kosten') }}</span><strong>{{ costMain(totals) }}<span v-if="costShown(totals).incomplete" class="statistics-incomplete"> {{ text('statistics.costIncomplete', 'unvollständig') }}</span></strong><small v-if="costFoot(totals)">{{ costFoot(totals) }}</small><small v-if="missingPriceHint(totals)" class="statistics-price-hint">{{ missingPriceHint(totals) }}<a class="statistics-price-hint-link" href="#gpm/gpm-csv-import" @click.prevent="openGpmCsvImport">{{ text('gpm.missingGpmPricesCsv', 'per CSV-Import in GPM ergänzen') }}</a>{{ text('gpm.missingGpmPricesEnd', '.') }}</small></article>
                     <button v-for="metric in resultMetrics" :key="metric" class="statistics-card" type="button" :data-metric="metric" :aria-pressed="selectedMetric === metric" @click="selectedMetric = metric"><span>{{ metricLabel(metric) }}</span><strong>{{ kwh(metricTotal(metric)) }}</strong></button>
                 </div>
                 <div class="statistics-card">
@@ -130,7 +214,7 @@ const ModernStatisticsPage = {
                                 <tbody>
                                     <tr v-for="row in rows" :key="row.period">
                                         <td>{{ row.period }}</td>
-                                        <td>{{ money(row.cost_eur) }}</td>
+                                        <td>{{ costMain(row) }}<template v-if="costShown(row).incomplete"> {{ text('statistics.costIncomplete', 'unvollständig') }}</template><div v-if="costFoot(row)" class="statistics-cost-foot">{{ costFoot(row) }}</div><div v-if="missingPriceHint(row)" class="statistics-cost-foot statistics-price-hint">{{ missingPriceHint(row) }}<a class="statistics-price-hint-link" href="#gpm/gpm-csv-import" @click.prevent="openGpmCsvImport">{{ text('gpm.missingGpmPricesCsv', 'per CSV-Import in GPM ergänzen') }}</a>{{ text('gpm.missingGpmPricesEnd', '.') }}</div></td>
                                         <td v-for="metric in visibleMetrics" :key="metric" :class="{ 'statistics-corrected': correctedMetric(row, metric) }">{{ kwh(row.metrics[metric]) }}</td>
                                     </tr>
                                 </tbody>
@@ -175,11 +259,67 @@ const ModernStatisticsPage = {
         const metricIds = computed(() => payload.value?.metrics || []);
         const resultMetrics = STATISTICS_RESULT_METRICS;
         const rows = computed(() => payload.value?.datasets?.[grain.value] || []);
-        const totals = computed(() => payload.value?.totals || { cost_eur: 0, kwh: 0, metrics: {} });
+        const totals = computed(() => payload.value?.totals || { cost_eur: null, kwh: 0, metrics: {} });
         const metricLabel = (metric) => text(STATISTICS_METRIC_KEYS[metric] || metric, metric);
         const metricTotal = (metric) => totals.value.metrics?.[metric];
-        const money = (value) => `${Number(value || 0).toFixed(2)} €`;
-        const kwh = (value) => `${Number(value || 0).toFixed(3)} kWh`;
+        function money(value) {
+            return statisticsFormatMoney(value);
+        }
+        const kwh = (value) => statisticsFormatKwh(value);
+        const costShown = (record) => statisticsShownCost(record);
+        const costMain = (record) => {
+            const shown = statisticsShownCost(record);
+            return shown.amount == null ? "\u2013" : statisticsFormatMoney(shown.amount);
+        };
+        const gridImportKwh = (record) => {
+            const fromMetric = record?.metrics?.grid_import_day_kwh;
+            if (fromMetric != null && Number.isFinite(Number(fromMetric))) return Number(fromMetric);
+            return statisticsFiniteOrNull(record?.kwh);
+        };
+        const pricedImportKwh = (record) => {
+            const total = gridImportKwh(record);
+            if (total == null) return null;
+            const unpriced = statisticsFiniteOrNull(record?.unpriced_import_kwh) ?? 0;
+            return Math.max(0, total - unpriced);
+        };
+        const dayMeanNote = (record) => {
+            const days = statisticsFiniteOrNull(record?.days_day_mean);
+            if (days == null || days <= 0) return "";
+            return text(
+                "statistics.dayMeanDays",
+                "{days} Tage mit Tagesmittel (ohne Stundenwerte)",
+                { days: String(window.SFMLI18n.formatNumber(days, 0)) },
+            );
+        };
+        const costFoot = (record) => {
+            const parts = [];
+            const dayMean = dayMeanNote(record);
+            if (dayMean) parts.push(dayMean);
+            const shown = statisticsShownCost(record);
+            if (shown.incomplete) {
+                const total = gridImportKwh(record);
+                const priced = pricedImportKwh(record);
+                if (total != null && priced != null) {
+                    parts.push(text(
+                        "statistics.pricedOfTotal",
+                        "{priced} von {total} bepreist",
+                        { priced: statisticsFormatKwh(priced), total: statisticsFormatKwh(total) },
+                    ));
+                }
+            }
+            return parts.join(" · ");
+        };
+        const missingPriceHint = (record) => {
+            const days = record && Array.isArray(record.days_without_price) ? record.days_without_price : [];
+            if (!days.length || !statisticsShownCost(record).incomplete) return "";
+            return text("gpm.missingGpmPricesLead", "Für {count} Tage fehlen GPM-Preise (z. B. {ranges}). GPM lädt sie automatisch nach, sofern die Preisquelle sie liefert; sonst ", {
+                count: String(days.length),
+                ranges: statisticsFormatDayRanges(days),
+            });
+        };
+        const openGpmCsvImport = () => {
+            window.location.hash = "gpm/gpm-csv-import";
+        };
         const correctedMetric = (row, metric) => Array.isArray(row.corrected_metrics) && row.corrected_metrics.includes(metric);
         const visibleMetrics = computed(() => {
             if (!showAll.value) return [selectedMetric.value];
@@ -197,7 +337,7 @@ const ModernStatisticsPage = {
         const chartColor = () => {
             const token = getComputedStyle(document.documentElement).getPropertyValue("--chart-series-ai").trim();
             if (token) return token;
-            return document.documentElement.getAttribute("data-theme") === "light" ? "#4e64b8" : "#8fa8ff";
+            return document.documentElement.getAttribute("data-theme") === "light" ? (window.sfmlThemeColor?.("--grid") || "#4e64b8") : (window.sfmlThemeColor?.("--grid") || "#8fa8ff");
         };
         const disposeChart = () => {
             if (!chartInstance) return;
@@ -212,7 +352,6 @@ const ModernStatisticsPage = {
             const gridColor = getComputedStyle(document.documentElement).getPropertyValue("--chart-grid").trim();
             const option = {
                 animation: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-                tooltip: { trigger: "axis" },
                 grid: { left: 8, right: 8, top: 16, bottom: 8, containLabel: true },
                 xAxis: {
                     type: "category",
@@ -220,7 +359,19 @@ const ModernStatisticsPage = {
                     boundaryGap: false,
                     axisLabel: { color: axis || undefined, hideOverlap: true },
                 },
-                yAxis: { type: "value", name: "kWh", axisLabel: { color: axis || undefined }, splitLine: { lineStyle: { color: gridColor || undefined } } },
+                yAxis: {
+                    type: "value",
+                    name: "kWh",
+                    axisLabel: {
+                        color: axis || undefined,
+                        formatter: (value) => statisticsFormatKwh(value).replace(/ kWh$/, ""),
+                    },
+                    splitLine: { lineStyle: { color: gridColor || undefined } },
+                },
+                tooltip: {
+                    trigger: "axis",
+                    valueFormatter: (value) => statisticsFormatKwh(value),
+                },
                 series: [{
                     name: metricLabel(metric),
                     type: "line",
@@ -317,7 +468,8 @@ const ModernStatisticsPage = {
         });
         return {
             periodFrom, periodTo, grain, grains, selectedMetric, showAll, loading, locked, message, rows, totals, metricIds, resultMetrics,
-            visibleMetrics, correctedPeriods, correctionNote, chartEl, text, metricLabel, metricTotal, money, kwh, correctedMetric, load, download,
+            visibleMetrics, correctedPeriods, correctionNote, chartEl, text, metricLabel, metricTotal, money, kwh,
+            costShown, costMain, costFoot, missingPriceHint, openGpmCsvImport, correctedMetric, load, download,
         };
     },
 };
@@ -325,4 +477,8 @@ const ModernStatisticsPage = {
 if (typeof window !== "undefined") {
     window.ModernStatisticsPage = ModernStatisticsPage;
     window.statisticsGrainForSpan = statisticsGrainForSpan;
+    window.statisticsFormatKwh = statisticsFormatKwh;
+    window.statisticsFormatMoney = statisticsFormatMoney;
+    window.statisticsShownCost = statisticsShownCost;
+    window.statisticsResolveLocale = statisticsResolveLocale;
 }

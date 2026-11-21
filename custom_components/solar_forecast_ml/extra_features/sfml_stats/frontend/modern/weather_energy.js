@@ -343,13 +343,13 @@ window.ModernWeatherEnergyPage = {
                 if (!visibleSeries[id]) return;
                 series.push({ name, type, xAxisIndex, yAxisIndex, data: day.value.hours.map((item) => item[field]), connectNulls: false, showSymbol: false, symbolSize: 6, lineStyle: { width: 2, color }, itemStyle: { color }, ...extra });
             };
-            add("solarActual", copy.series.solarActual, "solar_actual_wm2", 0, 0, "#d99820", "line", { areaStyle: { color: "rgba(217,152,32,.12)" } });
-            add("solarForecast", copy.series.solarForecast, "solar_forecast_wm2", 0, 0, "#c47a20", "line", { lineStyle: { width: 2, type: "dashed", color: "#c47a20" } });
+            add("solarActual", copy.series.solarActual, "solar_actual_wm2", 0, 0, (window.sfmlThemeColor?.("--solar") || "#d99820"), "line", { areaStyle: { color: (window.sfmlThemeColor?.("--solar", .12) || "rgba(217,152,32,.12)") } });
+            add("solarForecast", copy.series.solarForecast, "solar_forecast_wm2", 0, 0, (window.sfmlThemeColor?.("--house") || "#c47a20"), "line", { lineStyle: { width: 2, type: "dashed", color: (window.sfmlThemeColor?.("--house") || "#c47a20") } });
             add("clearSky", copy.series.clearSky, "clear_sky_wm2", 0, 0, "#8e9da3", "line", { lineStyle: { width: 1.5, type: "dotted", color: "#8e9da3" } });
-            add("forecast", copy.series.forecast, "forecast_kwh", 1, 1, "#168f87");
-            add("actual", copy.series.actual, "actual_kwh", 1, 1, "#2f8f5b", "line", { areaStyle: { color: "rgba(47,143,91,.10)" } });
+            add("forecast", copy.series.forecast, "forecast_kwh", 1, 1, (window.sfmlThemeColor?.("--accent") || "#168f87"));
+            add("actual", copy.series.actual, "actual_kwh", 1, 1, (window.sfmlThemeColor?.("--success") || "#2f8f5b"), "line", { areaStyle: { color: (window.sfmlThemeColor?.("--success", .10) || "rgba(47,143,91,.10)") } });
             add("clouds", copy.series.clouds, "cloud_actual_percent", 2, 2, "#6b7f8c", "bar", { barMaxWidth: 18, itemStyle: { color: "rgba(107,127,140,.55)" } });
-            add("sun", copy.series.sun, "sun_elevation_deg", 2, 3, "#d99820");
+            add("sun", copy.series.sun, "sun_elevation_deg", 2, 3, (window.sfmlThemeColor?.("--solar") || "#d99820"));
             storyChartInstance.setOption({
                 animation: !matchMedia("(prefers-reduced-motion: reduce)").matches,
                 tooltip: { trigger: "axis", axisPointer: { type: "cross" } },
@@ -389,8 +389,8 @@ window.ModernWeatherEnergyPage = {
                 xAxis: { type: "category", data: hours, axisLabel: { interval: 2 } },
                 yAxis: { type: "value", name: "W/m²", min: 0 },
                 series: [
-                    { name: weDate(target.date), type: "line", data: target.solar_profile, connectNulls: false, showSymbol: false, lineStyle: { width: 2.5, color: "#168f87" }, itemStyle: { color: "#168f87" } },
-                    { name: weDate(other.date), type: "line", data: other.solar_profile, connectNulls: false, showSymbol: false, lineStyle: { width: 2, type: "dashed", color: "#c47a20" }, itemStyle: { color: "#c47a20" } },
+                    { name: weDate(target.date), type: "line", data: target.solar_profile, connectNulls: false, showSymbol: false, lineStyle: { width: 2.5, color: (window.sfmlThemeColor?.("--accent") || "#168f87") }, itemStyle: { color: (window.sfmlThemeColor?.("--accent") || "#168f87") } },
+                    { name: weDate(other.date), type: "line", data: other.solar_profile, connectNulls: false, showSymbol: false, lineStyle: { width: 2, type: "dashed", color: (window.sfmlThemeColor?.("--house") || "#c47a20") }, itemStyle: { color: (window.sfmlThemeColor?.("--house") || "#c47a20") } },
                 ],
             }, true);
         }

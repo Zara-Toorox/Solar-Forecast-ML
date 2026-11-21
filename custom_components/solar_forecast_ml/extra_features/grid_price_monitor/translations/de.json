@@ -218,6 +218,7 @@
         "menu_options": {
           "tariff": "Tarif und Preise",
           "common": "Schwelle, Batterie und Gebühren",
+          "fee_history": "Gebühren und Historie",
           "license": "Lizenz",
           "csv_import": "CSV-Import",
           "monthly_correction": "Monatskorrektur",
@@ -359,6 +360,20 @@
           "base_fee_eur_month": "Monatlicher Grundpreis in EUR"
         }
       },
+      "fee_history": {
+        "title": "Gebühren und Historie",
+        "description": "{demo_hint}Vorhandene Einträge, neueste zuerst:\n{history}\n\nGültig ab ist der lokale Tagesbeginn. Leere Gebührenfelder bedeuten ohne Wert. Ein neuer Eintrag löscht keine älteren.",
+        "data": {
+          "valid_from": "Gültig ab",
+          "base_fee_eur_month": "Monatliche Grundgebühr",
+          "feed_in_tariff_ct": "Einspeisevergütung"
+        },
+        "data_description": {
+          "valid_from": "Lokales Datum. Ein Datum in der Zukunft wird abgelehnt.",
+          "base_fee_eur_month": "EUR pro Monat. Leer lassen bedeutet ohne Wert.",
+          "feed_in_tariff_ct": "ct/kWh. Leer lassen bedeutet ohne Wert."
+        }
+      },
       "csv_import": {
         "title": "CSV-Import",
         "description": "Lade eine Preisliste oder eine Gemeinschafts-CSV hoch. Die Verarbeitung bleibt auf diesem Home Assistant. Denselben Import findest du auf der GPM-Seite in STATS.",
@@ -481,7 +496,14 @@
       "correction_low_coverage": "Die Abdeckung beträgt {coverage} %. Aktiviere Force unter 50 %.",
       "correction_verify_failed": "Die korrigierten Preise verfehlten das Rechnungsziel um {deviation} ct/kWh.",
       "correction_not_found": "Diese Korrektur wurde nicht gefunden.",
-      "correction_not_applied": "Nur angewendete Korrekturen können rückgängig gemacht werden."
+      "correction_not_applied": "Nur angewendete Korrekturen können rückgängig gemacht werden.",
+      "fee_history_future": "Das Datum darf nicht in der Zukunft liegen.",
+      "fee_history_negative": "Der Wert muss null oder größer sein.",
+      "fee_history_invalid_date": "Gib ein gültiges Datum ein.",
+      "fee_history_invalid_number": "Gib eine Zahl ab null ein oder lass das Feld leer.",
+      "fee_history_demo": "Im Demo-Modus werden Gebühren nicht gespeichert.",
+      "fee_history_not_ready": "Die Gebührenhistorie ist noch nicht bereit.",
+      "fee_history_failed": "Der Gebühreneintrag konnte nicht gespeichert werden."
     },
     "abort": {
       "license_required": "Diese Funktion erfordert eine Lizenz.",

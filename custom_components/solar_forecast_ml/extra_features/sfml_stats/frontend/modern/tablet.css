@@ -1,0 +1,15 @@
+.tablet-page { display: grid; gap: 18px; }
+.tablet-page * { box-sizing: border-box; }
+.tablet-modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap: 18px; }
+.tablet-mode { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-default); border-radius: var(--radius-xl); background: var(--bg-card); box-shadow: var(--glass-shadow); }
+.tablet-mode-preview { display: block; padding: 14px; background: var(--surface-inset); border-bottom: 1px solid var(--border-default); }
+.tablet-mode-preview img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); box-shadow: 0 6px 18px rgba(0, 0, 0, .28); }
+.tablet-mode-body { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 20px 22px 22px; }
+.tablet-mode-body h3 { margin: 0; font-size: 1.18rem; }
+.tablet-mode-body p { margin: 0; color: var(--text-secondary); line-height: 1.5; }
+.tablet-mode-label { margin-top: 4px; color: var(--text-muted); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.tablet-mode-body ul { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--text-secondary); font-size: .9rem; line-height: 1.4; }
+.tablet-mode-open { align-self: flex-start; margin-top: auto; padding: 10px 20px; border-radius: 999px; background: var(--accent); color: var(--surface-inset); font-weight: 750; text-decoration: none; }
+[data-theme="light"] .tablet-mode-open { color: #fff; }
+.tablet-mode-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tablet-hint { margin: 0; color: var(--text-muted); font-size: .85rem; }

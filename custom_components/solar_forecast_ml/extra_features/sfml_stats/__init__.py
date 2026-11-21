@@ -921,11 +921,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     from .core.hourly_aggregator import HourlyBillingAggregator
 
     hourly_aggregator = HourlyBillingAggregator(hass, config_path)
-    from .core.price_mode import effective_price_mode
+    from .core.price_mode import resolve_price_mode
 
     _LOGGER.info(
         "Hourly billing aggregator initialized (price_mode: %s)",
-        effective_price_mode(hass, entry_config),
+        resolve_price_mode(hass, entry_config),
     )
 
     energy_context_provider = (
@@ -1080,6 +1080,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 success = await hourly_aggregator.async_aggregate_hourly()
                 if success:
                     _LOGGER.debug("Hourly billing aggregation completed")
+                    from .core import priced_cache
+
+                    priced_cache.invalidate()
                     if energy_context_provider is not None:
                         await energy_context_provider.async_refresh()
                 else:
@@ -1119,6 +1122,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await async_reprice_from_revision(
                 hass, config=entry_config, payload=payload or {}
             )
+            from .api.smart_charging_dashboard import (
+                invalidate_smart_charging_dashboard_cache,
+            )
+            from .core import priced_cache
+
+            invalidate_smart_charging_dashboard_cache()
+            priced_cache.invalidate()
         except Exception as err:
             _LOGGER.error("STATS reprice after GPM revision failed: %s", err)
 
@@ -1138,8 +1148,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 async_backfill_grid_split,
             )
 
+            from .core import priced_cache
+
             await async_backfill_grid_split(hass, config=entry_config)
+            priced_cache.invalidate()
             await async_backfill_daily_grid_split(hass)
+            priced_cache.invalidate()
         except Exception as err:
             _LOGGER.error("Grid-split backfill failed: %s", err)
 
@@ -1234,6 +1248,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entry.entry_id,
         )
         return False
+
+    from .core import priced_cache
+
+    priced_cache.invalidate()
 
     gpm_coordinator = entry_data.get("gpm_coordinator")
     if gpm_coordinator is not None:
@@ -1366,6 +1384,12 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
                     obj.invalidate_cache()
             except Exception as err:
                 _LOGGER.warning("Error updating %s: %s", key, err)
+
+    from .api.smart_charging_dashboard import invalidate_smart_charging_dashboard_cache
+    from .core import priced_cache
+
+    invalidate_smart_charging_dashboard_cache()
+    priced_cache.invalidate()
 
     for key in ("aggregator", "power_sources_collector"):
         obj = entry_data.get(key)

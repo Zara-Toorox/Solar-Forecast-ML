@@ -218,6 +218,7 @@
         "menu_options": {
           "tariff": "Tariff and prices",
           "common": "Threshold, battery and fees",
+          "fee_history": "Fees and history",
           "license": "License",
           "csv_import": "CSV import",
           "monthly_correction": "Monthly correction",
@@ -359,6 +360,20 @@
           "base_fee_eur_month": "Monthly standing charge in EUR"
         }
       },
+      "fee_history": {
+        "title": "Fees and history",
+        "description": "{demo_hint}Existing entries, newest first:\n{history}\n\nValid from is the local start of that day. Empty fee fields mean no value. A new entry does not delete older ones.",
+        "data": {
+          "valid_from": "Valid from",
+          "base_fee_eur_month": "Monthly base fee",
+          "feed_in_tariff_ct": "Feed-in tariff"
+        },
+        "data_description": {
+          "valid_from": "Local date. Future dates are rejected.",
+          "base_fee_eur_month": "EUR per month. Leave empty for no value.",
+          "feed_in_tariff_ct": "ct/kWh. Leave empty for no value."
+        }
+      },
       "csv_import": {
         "title": "CSV import",
         "description": "Upload a price list or community-share CSV. Processing stays on this Home Assistant. The same upload is available on the GPM page in STATS.",
@@ -481,7 +496,14 @@
       "correction_low_coverage": "Coverage is {coverage}%. Enable force to apply below 50%.",
       "correction_verify_failed": "Corrected prices missed the billed target by {deviation} ct/kWh.",
       "correction_not_found": "This correction was not found.",
-      "correction_not_applied": "Only applied corrections can be reverted."
+      "correction_not_applied": "Only applied corrections can be reverted.",
+      "fee_history_future": "The date must not be in the future.",
+      "fee_history_negative": "The value must be zero or greater.",
+      "fee_history_invalid_date": "Enter a valid date.",
+      "fee_history_invalid_number": "Enter a number that is zero or greater, or leave the field empty.",
+      "fee_history_demo": "Demo mode does not save fees.",
+      "fee_history_not_ready": "Fee history is not ready yet.",
+      "fee_history_failed": "The fee entry could not be saved."
     },
     "abort": {
       "license_required": "This function requires a license.",

@@ -8,7 +8,7 @@
 .sinv-map-table th, .sinv-map-table td { padding: 8px 10px; border-bottom: 1px solid var(--border-default); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
 .sinv-map-table th { color: var(--text-secondary); font-size: .78rem; font-weight: 750; }
 .sinv-map-table td { color: var(--text-primary); font-size: .85rem; }
-.sinv-map-note { display: block; margin-top: 4px; color: var(--text-secondary); font-size: .72rem; font-weight: 650; }
+.sinv-map-note { display: block; margin-top: 4px; color: var(--text-secondary); font-size: .75rem; font-weight: 650; }
 .sinv-map-status { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 10px; border-radius: 999px; font-size: .76rem; font-weight: 750; border: 1px solid var(--border-default); color: var(--text-secondary); background: color-mix(in srgb, var(--text-secondary) 8%, transparent); }
 .sinv-map-status[data-status="add"] { color: var(--info); border-color: color-mix(in srgb, var(--info) 45%, var(--border-default)); background: color-mix(in srgb, var(--info) 12%, transparent); }
 .sinv-map-status[data-status="replace"] { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 45%, var(--border-default)); background: color-mix(in srgb, var(--warning) 12%, transparent); }
@@ -58,7 +58,7 @@
 .sinv-day-summary div { display: grid; gap: 2px; min-width: 0; }
 .sinv-day-summary dt { color: var(--text-secondary); font-size: .75rem; font-weight: 650; }
 .sinv-day-summary dd { margin: 0; color: var(--text-primary); font-size: 1.05rem; font-weight: 750; font-variant-numeric: tabular-nums; }
-.sinv-day-summary small { color: var(--text-secondary); font-size: .72rem; font-weight: 600; }
+.sinv-day-summary small { color: var(--text-secondary); font-size: .75rem; font-weight: 600; }
 .sinv-chart-block { display: grid; gap: 6px; min-width: 0; }
 .sinv-chart-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-secondary); font-size: .75rem; font-weight: 700; }
 .sinv-line-spark { color: var(--solar); }
@@ -133,5 +133,5 @@
     .sinv-tile-value { font-size: 1.1rem; }
     .sinv-device-head { flex-direction: column; }
     .sinv-chart { grid-template-columns: 3.5rem minmax(0, 1fr); }
-    .sinv-y-axis, .sinv-x-axis { font-size: .7rem; }
+    .sinv-y-axis, .sinv-x-axis { font-size: .75rem; }
 }

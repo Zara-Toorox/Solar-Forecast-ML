@@ -864,6 +864,12 @@
         ["Große Änderung: zweite Bestätigung erforderlich.","Duża zmiana: wymagane drugie potwierdzenie."],
         ["Ich habe Vorher/Nachher geprüft und bestätige die große Änderung.","Sprawdziłem stan przed/po i potwierdzam dużą zmianę."],
         ["Rückgängig","Cofnij"],
+        ["Die gezeigten Stunden weichen vom EAI-Plan ab (Regler verändert oder EAI-Stundenwerte unvollständig). Für diese Simulation liegt kein Backend-Betrag vor.","Pokazane godziny różnią się od planu EAI (zmienione regulatory lub niepełne wartości godzinowe EAI). Ta symulacja nie ma kwoty z backendu."],
+        ["Simulation – Beispielwerte","Symulacja – wartości przykładowe"],
+        ["Die Regler verändern nur die Darstellung. Kosten bleiben die Ausgangs-Beispielwerte aus dem Backend:","Regulatory zmieniają tylko widok. Koszty pozostają wartościami wyjściowymi z backendu:"],
+        ["Simulation – Beispielwerte","Symulacja – wartości przykładowe"],
+        [" Die Euro-Beträge zeigen weiterhin die Ausgangs-Beispielwerte aus dem Backend."," Kwoty w euro nadal pokazują wartości wyjściowe z backendu."],
+        ["unvollständig","niepełny"],
     ]);
 
     const dynamicTranslations = [

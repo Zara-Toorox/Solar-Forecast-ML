@@ -1,6 +1,219 @@
 // Solar Command Center — Settings Page
 // (C) 2026 Zara-Toorox
 
+function sfmlGpmList(value) {
+    if (value == null || value === '') return [];
+    if (Array.isArray(value)) return value.map((item) => String(item));
+    return [String(value)];
+}
+
+function sfmlGpmFieldKind(field) {
+    const selector = field && field.selector;
+    if (selector && typeof selector === 'object') {
+        if (selector.number) return 'number';
+        if (selector.select) return 'select';
+        if (selector.boolean) return 'boolean';
+        if (selector.date) return 'date';
+        if (selector.entity) return 'entity';
+        if (selector.text) return 'text';
+    }
+    const type = field && field.type;
+    if (type === 'integer' || type === 'float' || type === 'number') return 'number';
+    if (type === 'select' || type === 'multi_select') return 'select';
+    if (type === 'boolean') return 'boolean';
+    if (type === 'date') return 'date';
+    if (type === 'entity') return 'entity';
+    return 'text';
+}
+
+function sfmlGpmNumberLimits(field) {
+    const number = field && field.selector && field.selector.number;
+    const source = number && typeof number === 'object' ? number : {};
+    const min = source.min != null ? source.min : (field && field.valueMin != null ? field.valueMin : null);
+    const max = source.max != null ? source.max : (field && field.valueMax != null ? field.valueMax : null);
+    const step = source.step != null ? source.step : (field && field.valueStep != null ? field.valueStep : null);
+    const unit = source.unit_of_measurement || (field && field.unit_of_measurement) || '';
+    return { min: min, max: max, step: step, unit: unit };
+}
+
+function sfmlGpmSelectMultiple(field) {
+    const select = field && field.selector && field.selector.select;
+    if (select && typeof select === 'object' && select.multiple === true) return true;
+    return field && field.type === 'multi_select';
+}
+
+function sfmlGpmSelectOptions(field) {
+    const select = field && field.selector && field.selector.select;
+    const raw = (select && select.options) || (field && field.options) || [];
+    const options = [];
+    if (!Array.isArray(raw) && raw && typeof raw === 'object') {
+        Object.keys(raw).forEach((key) => {
+            options.push({ value: String(key), label: String(raw[key]) });
+        });
+        return options;
+    }
+    (Array.isArray(raw) ? raw : []).forEach((item) => {
+        if (Array.isArray(item)) {
+            const label = item.length > 1 ? item[1] : item[0];
+            options.push({ value: String(item[0]), label: String(label) });
+            return;
+        }
+        if (item && typeof item === 'object') {
+            const value = item.value != null ? item.value : item.id;
+            const label = item.label != null ? item.label : value;
+            options.push({ value: String(value), label: String(label) });
+            return;
+        }
+        options.push({ value: String(item), label: String(item) });
+    });
+    return options;
+}
+
+function sfmlGpmEntityOptions(states, field) {
+    const selector = field && field.selector && field.selector.entity;
+    const config = selector && typeof selector === 'object' ? selector : {};
+    const domains = sfmlGpmList(config.domain);
+    const classes = sfmlGpmList(config.device_class);
+    const source = states && typeof states === 'object' ? states : {};
+    const found = [];
+    Object.keys(source).forEach((entityId) => {
+        const state = source[entityId] || {};
+        const id = String(state.entity_id || entityId);
+        const domain = id.split('.')[0];
+        if (domains.length && domains.indexOf(domain) === -1) return;
+        const deviceClass = (state.attributes && state.attributes.device_class) || '';
+        if (classes.length && classes.indexOf(String(deviceClass)) === -1) return;
+        found.push(id);
+    });
+    found.sort();
+    return found;
+}
+
+function sfmlGpmBlank(value) {
+    if (value == null || value === '') return '\u2013';
+    return String(value);
+}
+
+function sfmlGpmInitialValues(fields) {
+    const values = {};
+    (fields || []).forEach((field) => {
+        const name = field && field.name;
+        if (!name) return;
+        const kind = sfmlGpmFieldKind(field);
+        if (sfmlGpmSelectMultiple(field)) {
+            if (Array.isArray(field.default)) {
+                values[name] = field.default.map((item) => String(item));
+            } else if (field.default !== undefined && field.default !== null && field.default !== '') {
+                values[name] = sfmlGpmList(field.default);
+            } else {
+                values[name] = [];
+            }
+            return;
+        }
+        if (field.default !== undefined && field.default !== null) {
+            values[name] = kind === 'number' ? String(field.default) : field.default;
+            return;
+        }
+        values[name] = kind === 'boolean' ? false : '';
+    });
+    return values;
+}
+
+function sfmlGpmSubmitData(fields, values) {
+    const data = {};
+    (fields || []).forEach((field) => {
+        const name = field && field.name;
+        if (!name) return;
+        const kind = sfmlGpmFieldKind(field);
+        const value = values ? values[name] : undefined;
+        if (kind === 'number') {
+            if (value == null || value === '') {
+                data[name] = null;
+                return;
+            }
+            const number = Number(value);
+            data[name] = Number.isFinite(number) ? number : null;
+            return;
+        }
+        if (kind === 'boolean') {
+            data[name] = value === true;
+            return;
+        }
+        if (sfmlGpmSelectMultiple(field)) {
+            const list = Array.isArray(value) ? value : sfmlGpmList(value);
+            data[name] = list.map((item) => String(item));
+            return;
+        }
+        data[name] = value == null ? '' : String(value);
+    });
+    return data;
+}
+
+let sfmlGpmStartEpoch = 0;
+
+function sfmlGpmBumpStartEpoch() {
+    sfmlGpmStartEpoch += 1;
+    return sfmlGpmStartEpoch;
+}
+
+function sfmlGpmStartEpochCurrent(token) {
+    return token === sfmlGpmStartEpoch;
+}
+
+function sfmlGpmFieldViews(fields, states) {
+    return (fields || []).filter((field) => field && field.name).map((field) => {
+        const kind = sfmlGpmFieldKind(field);
+        const limits = kind === 'number' ? sfmlGpmNumberLimits(field) : null;
+        return {
+            name: field.name,
+            kind: kind,
+            label: field.label || field.name,
+            required: field.required === true,
+            description: field.description || '',
+            min: limits ? limits.min : null,
+            max: limits ? limits.max : null,
+            step: limits ? limits.step : null,
+            unit: limits ? limits.unit : '',
+            options: kind === 'select' ? sfmlGpmSelectOptions(field) : [],
+            multiple: kind === 'select' && sfmlGpmSelectMultiple(field),
+            entities: kind === 'entity' ? sfmlGpmEntityOptions(states, field) : [],
+        };
+    });
+}
+
+function sfmlStatsIsAdmin() {
+    try {
+        if (window.parent === window || window.top !== window.parent) return true;
+        const root = window.parent.document.querySelector('home-assistant');
+        const user = root && root.hass && root.hass.user;
+        if (!user) return true;
+        return user.is_admin === true;
+    } catch (_error) {
+        return true;
+    }
+}
+
+function sfmlSettingsSectionFromHash(hash) {
+    const text = String(hash || '');
+    const clean = text.charAt(0) === '#' ? text.slice(1) : text;
+    const parts = clean.split('/');
+    if (parts[0] === 'settings' && parts[1] === 'price') return 'price';
+    return '';
+}
+
+function sfmlHassStates() {
+    try {
+        const root = window.parent && window.parent.document
+            ? window.parent.document.querySelector('home-assistant')
+            : null;
+        const states = root && root.hass && root.hass.states;
+        if (states && typeof states === 'object') return states;
+    } catch (_error) {
+        return {};
+    }
+    return {};
+}
+
 const SettingsPage = {
     props: ['liveData', 'config'],
 
@@ -99,23 +312,99 @@ const SettingsPage = {
                                 <span class="settings-item-value">{{ priceInfo.mode || '--' }}</span>
                             </div>
                             <div class="settings-item">
-                                <span class="settings-item-label">{{ $t('settings.energyPrice') }}</span>
-                                <span class="settings-item-value">{{ priceInfo.energy_price != null ? priceInfo.energy_price.toFixed(2) + ' ct/kWh' : '--' }}</span>
+                                <span class="settings-item-label">{{ priceInfo.energy_price_is_total ? $t('settings.sensorLabel.totalPrice') : $t('settings.energyPrice') }}</span>
+                                <span class="settings-item-value">{{ priceInfo.energy_price != null ? $n(priceInfo.energy_price, 2) + ' ct/kWh' : '--' }}</span>
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.gridFees') }}</span>
-                                <span class="settings-item-value">{{ priceInfo.grid_fees != null ? priceInfo.grid_fees.toFixed(2) + ' ct/kWh' : '--' }}</span>
+                                <span class="settings-item-value">{{ priceInfo.grid_fees != null ? $n(priceInfo.grid_fees, 2) + ' ct/kWh' : '--' }}</span>
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.baseFee') }}</span>
-                                <span class="settings-item-value">{{ priceInfo.base_fee != null ? priceInfo.base_fee.toFixed(2) + ' EUR/' + $t('settings.month') : '--' }}</span>
+                                <span class="settings-item-value">{{ priceInfo.base_fee != null ? $n(priceInfo.base_fee, 2) + ' EUR/' + $t('settings.month') : '--' }}</span>
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.feedInTariff') }}</span>
-                                <span class="settings-item-value">{{ priceInfo.feed_in_tariff != null ? priceInfo.feed_in_tariff.toFixed(2) + ' ct/kWh' : '--' }}</span>
+                                <span class="settings-item-value">{{ priceInfo.feed_in_tariff != null ? $n(priceInfo.feed_in_tariff, 2) + ' ct/kWh' : '--' }}</span>
                             </div>
                         </div>
-                        <a class="settings-link" :href="haConfigUrl" @click="openHaLink($event, haConfigUrl)">
+                        <div v-if="gpmIsAdmin()" class="gpm-config-actions">
+                            <button type="button" class="export-btn" @click="openGpmStep('tariff')">{{ $t('settings.gpmConfig.tariff') }}</button>
+                            <button type="button" class="export-btn" @click="openGpmStep('common')">{{ $t('settings.gpmConfig.common') }}</button>
+                            <button type="button" class="export-btn" @click="openGpmStep('fee_history')">{{ $t('settings.gpmConfig.fees') }}</button>
+                            <button type="button" class="export-btn" @click="openGpmStep('license')">{{ $t('settings.gpmConfig.license') }}</button>
+                        </div>
+                        <p v-else class="gpm-config-hint">{{ $t('settings.gpmConfig.adminOnly') }}</p>
+                        <p v-if="gpmNotice" class="gpm-config-notice" :class="gpmNoticeOk ? 'ok' : ''">{{ gpmNotice }}</p>
+                        <p v-if="gpmUnavailable" class="gpm-config-hint">{{ $t('settings.gpmConfig.unavailable') }}</p>
+                        <form v-if="gpmForm.open" class="gpm-config-form" @submit.prevent="submitGpmForm">
+                            <p v-if="gpmForm.description">{{ gpmForm.description }}</p>
+                            <p v-if="gpmForm.errors.base" class="gpm-config-error">{{ gpmForm.errors.base }}</p>
+                            <label v-for="field in gpmFieldViews" :key="field.name" class="gpm-config-field">
+                                <span>{{ field.label }}<span v-if="field.required"> *</span></span>
+                                <span v-if="field.description" class="gpm-config-help">{{ field.description }}</span>
+                                <template v-if="field.kind === 'number'">
+                                    <span class="gpm-config-number">
+                                        <input type="number" v-model="gpmForm.values[field.name]" :min="field.min" :max="field.max" :step="field.step" />
+                                        <span v-if="field.unit">{{ field.unit }}</span>
+                                    </span>
+                                </template>
+                                <template v-else-if="field.kind === 'select' && field.multiple">
+                                    <span class="gpm-config-multi">
+                                        <label v-for="opt in field.options" :key="opt.value" class="gpm-config-multi-item">
+                                            <input type="checkbox" :value="opt.value" v-model="gpmForm.values[field.name]" />
+                                            <span>{{ opt.label }}</span>
+                                        </label>
+                                    </span>
+                                </template>
+                                <template v-else-if="field.kind === 'select'">
+                                    <select v-model="gpmForm.values[field.name]">
+                                        <option v-for="opt in field.options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                                    </select>
+                                </template>
+                                <template v-else-if="field.kind === 'boolean'">
+                                    <input type="checkbox" v-model="gpmForm.values[field.name]" />
+                                </template>
+                                <template v-else-if="field.kind === 'date'">
+                                    <input type="date" v-model="gpmForm.values[field.name]" />
+                                </template>
+                                <template v-else-if="field.kind === 'entity'">
+                                    <input type="text" v-model="gpmForm.values[field.name]" :list="'gpm-entity-' + field.name" />
+                                    <datalist :id="'gpm-entity-' + field.name">
+                                        <option v-for="ent in field.entities" :key="ent" :value="ent"></option>
+                                    </datalist>
+                                </template>
+                                <template v-else>
+                                    <input type="text" v-model="gpmForm.values[field.name]" />
+                                </template>
+                                <span v-if="gpmForm.errors[field.name]" class="gpm-config-error">{{ gpmForm.errors[field.name] }}</span>
+                            </label>
+                            <div class="gpm-config-actions">
+                                <button type="submit" class="export-btn" :disabled="gpmForm.busy">{{ $t('common.save') }}</button>
+                                <button type="button" class="export-btn" @click="cancelGpmForm(false)" :disabled="gpmForm.busy">{{ $t('common.cancel') }}</button>
+                            </div>
+                        </form>
+                        <h3 class="gpm-history-title">{{ $t('settings.gpmConfig.history') }}</h3>
+                        <table class="gpm-fee-table" v-if="gpmHistoryRows.length">
+                            <thead>
+                                <tr>
+                                    <th>{{ $t('settings.gpmConfig.validFrom') }}</th>
+                                    <th>{{ $t('settings.gpmConfig.baseFee') }}</th>
+                                    <th>{{ $t('settings.gpmConfig.feedIn') }}</th>
+                                    <th>{{ $t('settings.gpmConfig.origin') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(row, index) in gpmHistoryRows" :key="index" :class="{ 'gpm-fee-current': row.current }">
+                                    <td>{{ gpmBlank(row.valid_from) }}</td>
+                                    <td>{{ gpmBlank(row.base_fee_eur_month) }}</td>
+                                    <td>{{ gpmBlank(row.feed_in_tariff_ct) }}</td>
+                                    <td>{{ gpmOriginLabel(row.origin) }}<span v-if="row.current"> · {{ $t('settings.gpmConfig.current') }}</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p v-else-if="!gpmUnavailable" class="gpm-config-hint">{{ $t('settings.gpmConfig.historyEmpty') }}</p>
+                        <a class="settings-link" :href="priceConfigUrl" @click="openHaLink($event, priceConfigUrl)">
                             {{ $t('settings.configurePrice') }} &rarr;
                         </a>
                     </div>
@@ -146,7 +435,7 @@ const SettingsPage = {
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.currentPrice') }}</span>
-                                    <span class="settings-item-value" :class="chargingPriceClass">{{ chargingInfo.current_price != null ? chargingInfo.current_price.toFixed(2) + ' ct/kWh' : '--' }}{{ chargingPriceSuffix }}</span>
+                                    <span class="settings-item-value" :class="chargingPriceClass">{{ chargingInfo.current_price != null ? $n(chargingInfo.current_price, 2) + ' ct/kWh' : '--' }}{{ chargingPriceSuffix }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.batteryCapacity') }}</span>
@@ -162,11 +451,11 @@ const SettingsPage = {
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.currentSoc') }}</span>
-                                    <span class="settings-item-value">{{ chargingInfo.current_soc != null ? chargingInfo.current_soc.toFixed(1) + '%' : '--' }}</span>
+                                    <span class="settings-item-value">{{ chargingInfo.current_soc != null ? $n(chargingInfo.current_soc, 1) + '%' : '--' }}</span>
                                 </div>
                                 <div class="settings-item">
                                     <span class="settings-item-label">{{ $t('settings.targetSoc') }}</span>
-                                    <span class="settings-item-value">{{ chargingInfo.target_soc != null ? chargingInfo.target_soc.toFixed(1) + '%' : '--' }}</span>
+                                    <span class="settings-item-value">{{ chargingInfo.target_soc != null ? $n(chargingInfo.target_soc, 1) + '%' : '--' }}</span>
                                 </div>
                                 <div class="settings-item" style="grid-column: 1 / -1;">
                                     <span class="settings-item-label">{{ $t('settings.decision') }}</span>
@@ -206,11 +495,11 @@ const SettingsPage = {
                                 </div>
                                 <div class="settings-item" v-if="devOn && pg.factor != null">
                                     <span class="settings-item-label">{{ $t('settings.physicsFactor') }}</span>
-                                    <span class="settings-item-value">{{ pg.factor.toFixed(3) }}</span>
+                                    <span class="settings-item-value">{{ $n(pg.factor, 3) }}</span>
                                 </div>
                                 <div class="settings-item" v-if="devOn && pg.confidence != null">
                                     <span class="settings-item-label">{{ $t('settings.confidence') }}</span>
-                                    <span class="settings-item-value">{{ (pg.confidence * 100).toFixed(0) }}%</span>
+                                    <span class="settings-item-value">{{ $n(pg.confidence * 100, 0) }}%</span>
                                 </div>
                             </div>
                         </div>
@@ -237,15 +526,15 @@ const SettingsPage = {
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.accuracy') }}</span>
-                                <span class="settings-item-value">{{ aiInfo.accuracy_percent != null ? aiInfo.accuracy_percent.toFixed(1) + ' %' : '--' }}</span>
+                                <span class="settings-item-value">{{ aiInfo.accuracy_percent != null ? $n(aiInfo.accuracy_percent, 1) + ' %' : '--' }}</span>
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">RMSE</span>
-                                <span class="settings-item-value">{{ aiInfo.rmse != null ? aiInfo.rmse.toFixed(4) : '--' }}</span>
+                                <span class="settings-item-value">{{ aiInfo.rmse != null ? $n(aiInfo.rmse, 4) : '--' }}</span>
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.trainingSamples') }}</span>
-                                <span class="settings-item-value">{{ aiInfo.training_samples != null ? aiInfo.training_samples.toLocaleString() : '--' }}</span>
+                                <span class="settings-item-value">{{ aiInfo.training_samples != null ? $n(aiInfo.training_samples, 0) : '--' }}</span>
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.lastTraining') }}</span>
@@ -253,7 +542,7 @@ const SettingsPage = {
                             </div>
                             <div v-if="aiInfo.coordinator" class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.expectedToday') }}</span>
-                                <span class="settings-item-value">{{ aiInfo.coordinator.expected_kwh_today != null ? aiInfo.coordinator.expected_kwh_today.toFixed(2) + ' kWh' : '--' }}</span>
+                                <span class="settings-item-value">{{ aiInfo.coordinator.expected_kwh_today != null ? $n(aiInfo.coordinator.expected_kwh_today, 2) + ' kWh' : '--' }}</span>
                             </div>
                             <div v-if="aiInfo.drift" class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.driftStatus') }}</span>
@@ -294,7 +583,7 @@ const SettingsPage = {
                             </div>
                             <div class="settings-item">
                                 <span class="settings-item-label">{{ $t('settings.dataPoints') }}</span>
-                                <span class="settings-item-value">{{ systemInfo.data_points != null ? systemInfo.data_points.toLocaleString() : '--' }}</span>
+                                <span class="settings-item-value">{{ systemInfo.data_points != null ? $n(systemInfo.data_points, 0) : '--' }}</span>
                             </div>
                         </div>
                     </div>
@@ -379,7 +668,7 @@ const SettingsPage = {
     `,
 
     setup(props, { emit }) {
-        const { ref: vRef, reactive, computed, onMounted } = Vue;
+        const { ref: vRef, reactive, computed, onMounted, onUnmounted } = Vue;
         const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
         const currentLocale = vRef((window.SFMLI18n && window.SFMLI18n.current) || 'en');
         const locale = currentLocale;
@@ -505,7 +794,26 @@ const SettingsPage = {
 
         const sensors = vRef([]);
         const configuredConsumers = vRef([]);
-        const priceInfo = reactive({ country: '', vat: null, mode: '', energy_price: null, grid_fees: null, base_fee: null, feed_in_tariff: null });
+        const priceInfo = reactive({ country: '', vat: null, mode: '', mode_key: '', energy_price: null, energy_price_is_total: false, grid_fees: null, base_fee: null, feed_in_tariff: null });
+        const gpmForm = reactive({
+            open: false,
+            busy: false,
+            flowId: '',
+            stepId: '',
+            description: '',
+            fields: [],
+            errors: {},
+            values: {},
+        });
+        const gpmHistory = vRef({ available: true, rows: [] });
+        const gpmUnavailable = vRef(false);
+        const gpmNotice = vRef('');
+        const gpmNoticeOk = vRef(false);
+        const gpmFieldViews = computed(() => sfmlGpmFieldViews(gpmForm.fields, sfmlHassStates()));
+        const gpmHistoryRows = computed(() => {
+            const rows = gpmHistory.value && gpmHistory.value.rows;
+            return Array.isArray(rows) ? rows : [];
+        });
         const chargingInfo = reactive({
             enabled: false, capacity: null, min_soc: null, max_soc: null,
             max_price: null, soc_sensor: null, soc_sensor_configured: false,
@@ -544,7 +852,7 @@ const SettingsPage = {
             if (chargingInfo.threshold_mode === 'below_average') {
                 return chargingInfo.below_average_pct != null ? String(chargingInfo.below_average_pct) + ' %' : '--';
             }
-            return chargingInfo.max_price != null ? chargingInfo.max_price.toFixed(1) + ' ct/kWh' : '--';
+            return chargingInfo.max_price != null ? window.SFMLI18n.formatNumber(chargingInfo.max_price, 1) + ' ct/kWh' : '--';
         });
 
         const chargingPriceSuffix = computed(() => {
@@ -789,11 +1097,16 @@ const SettingsPage = {
         }
         function formatValue(value, digits = 0, suffix = '') {
             if (value == null || Number.isNaN(Number(value))) return '--';
-            return Number(value).toFixed(digits) + suffix;
+            return window.SFMLI18n.formatNumber(value, digits) + suffix;
         }
 
         const haConfigUrl = computed(() => {
             return '/config/integrations/integration/sfml_stats';
+        });
+
+        const priceConfigUrl = computed(() => {
+            if (priceInfo.mode_key === 'legacy_fixed') return haConfigUrl.value;
+            return '/config/integrations/integration/grid_price_monitor';
         });
 
         function openHaLink(event, path) {
@@ -849,7 +1162,9 @@ const SettingsPage = {
         });
 
         function toggle(section) {
+            const wasPrice = openSection.value === 'price';
             openSection.value = openSection.value === section ? null : section;
+            if (wasPrice && openSection.value !== 'price') abortGpmConfig(true);
             if (openSection.value === 'charging') loadChargingThresholds();
         }
 
@@ -920,6 +1235,8 @@ const SettingsPage = {
                     priceInfo.country = pc.country || props.config?.country || '';
                     priceInfo.vat = pc.vat ?? null;
                     priceInfo.mode = pc.mode || '';
+                    priceInfo.mode_key = pc.mode_key || '';
+                    priceInfo.energy_price_is_total = pc.energy_price_is_total === true;
                     priceInfo.energy_price = pc.energy_price ?? null;
                     priceInfo.grid_fees = pc.grid_fees ?? null;
                     priceInfo.base_fee = pc.base_fee ?? null;
@@ -996,10 +1313,166 @@ const SettingsPage = {
             }
         }
 
+        function applyGpmForm(payload, keepValues) {
+            const previous = keepValues ? Object.assign({}, gpmForm.values) : null;
+            gpmForm.open = true;
+            gpmForm.flowId = payload.flow_id || '';
+            gpmForm.stepId = payload.step_id || '';
+            gpmForm.description = payload.description || '';
+            gpmForm.fields = Array.isArray(payload.fields) ? payload.fields : [];
+            gpmForm.errors = payload.errors && typeof payload.errors === 'object' ? payload.errors : {};
+            const initial = sfmlGpmInitialValues(gpmForm.fields);
+            if (previous) {
+                gpmForm.fields.forEach((field) => {
+                    if (field && previous[field.name] !== undefined) initial[field.name] = previous[field.name];
+                });
+            }
+            gpmForm.values = initial;
+        }
+
+        async function loadGpmFeeHistory() {
+            try {
+                const payload = await SFMLApi.fetch('/api/sfml_stats/gpm/fee_history', {
+                    forceRefresh: true,
+                    ttl: 0,
+                    authenticated: true,
+                });
+                const data = payload && typeof payload === 'object' ? payload : { available: false, rows: [] };
+                gpmHistory.value = data;
+                gpmUnavailable.value = data.available === false;
+            } catch (_error) {
+                gpmHistory.value = { available: false, rows: [] };
+                gpmUnavailable.value = true;
+            }
+        }
+
+        async function abortOpenGpmFlow(silent) {
+            const flowId = gpmForm.flowId;
+            gpmForm.open = false;
+            gpmForm.busy = false;
+            gpmForm.flowId = '';
+            gpmForm.stepId = '';
+            gpmForm.description = '';
+            gpmForm.fields = [];
+            gpmForm.errors = {};
+            gpmForm.values = {};
+            if (!flowId) return;
+            try {
+                await SFMLApi.postAuthenticated('/api/sfml_stats/gpm/config/cancel', { flow_id: flowId });
+            } catch (_error) {
+                if (!silent) {
+                    gpmNotice.value = t('settings.gpmConfig.failed');
+                    gpmNoticeOk.value = false;
+                }
+            }
+        }
+
+        async function abortGpmConfig(silent) {
+            sfmlGpmBumpStartEpoch();
+            await abortOpenGpmFlow(silent);
+        }
+
+        async function cancelGpmForm(silent) {
+            await abortGpmConfig(silent);
+        }
+
+        async function discardStaleGpmStart(token, payload) {
+            const flowId = payload && payload.flow_id;
+            if (!flowId) return;
+            try {
+                await SFMLApi.postAuthenticated('/api/sfml_stats/gpm/config/cancel', { flow_id: flowId });
+            } catch (_error) {
+                /* orphan flow cleanup */
+            }
+        }
+
+        async function openGpmStep(step) {
+            if (!sfmlStatsIsAdmin()) return;
+            gpmNotice.value = '';
+            const startToken = sfmlGpmBumpStartEpoch();
+            await abortOpenGpmFlow(true);
+            gpmForm.busy = true;
+            try {
+                const payload = await SFMLApi.postAuthenticated('/api/sfml_stats/gpm/config/start', { step: step });
+                if (!sfmlGpmStartEpochCurrent(startToken)) {
+                    await discardStaleGpmStart(startToken, payload);
+                    return;
+                }
+                if (!payload || payload.available === false) {
+                    gpmUnavailable.value = true;
+                    gpmForm.open = false;
+                    return;
+                }
+                gpmUnavailable.value = false;
+                applyGpmForm(payload, false);
+            } catch (_error) {
+                if (sfmlGpmStartEpochCurrent(startToken)) {
+                    gpmNotice.value = t('settings.gpmConfig.failed');
+                    gpmNoticeOk.value = false;
+                }
+            } finally {
+                if (sfmlGpmStartEpochCurrent(startToken)) gpmForm.busy = false;
+            }
+        }
+
+        async function submitGpmForm() {
+            const data = sfmlGpmSubmitData(gpmForm.fields, gpmForm.values);
+            gpmForm.busy = true;
+            gpmNotice.value = '';
+            try {
+                const payload = await SFMLApi.postAuthenticated('/api/sfml_stats/gpm/config/submit', {
+                    flow_id: gpmForm.flowId,
+                    data: data,
+                });
+                if (!payload || payload.available === false) {
+                    gpmUnavailable.value = true;
+                    gpmForm.open = false;
+                    gpmForm.flowId = '';
+                    return;
+                }
+                if (payload.type === 'done') {
+                    gpmForm.open = false;
+                    gpmForm.flowId = '';
+                    gpmForm.fields = [];
+                    gpmNotice.value = t('settings.gpmConfig.saved');
+                    gpmNoticeOk.value = true;
+                    await loadSettings();
+                    await loadGpmFeeHistory();
+                    return;
+                }
+                applyGpmForm(payload, true);
+            } catch (_error) {
+                gpmNotice.value = t('settings.gpmConfig.failed');
+                gpmNoticeOk.value = false;
+            } finally {
+                gpmForm.busy = false;
+            }
+        }
+
+        function gpmOriginLabel(origin) {
+            if (origin == null || origin === '') return sfmlGpmBlank(origin);
+            if (origin === 'manual') return t('settings.gpmConfig.originManual');
+            if (origin === 'first_start') return t('settings.gpmConfig.originFirstStart');
+            return String(origin);
+        }
+
+        function applySettingsHash() {
+            if (sfmlSettingsSectionFromHash(window.location.hash) === 'price') {
+                openSection.value = 'price';
+            }
+        }
+
         onMounted(() => {
+            applySettingsHash();
             loadSettings();
+            loadGpmFeeHistory();
             loadDevAccess();
             loadUpdateInfo();
+            window.addEventListener('hashchange', applySettingsHash);
+        });
+        onUnmounted(() => {
+            window.removeEventListener('hashchange', applySettingsHash);
+            abortGpmConfig(true);
         });
 
         return {
@@ -1008,7 +1481,9 @@ const SettingsPage = {
             devOn, devInstallHash, devInstallLabel, devInstallBlocked, devInstallTitle, devBadgeText, devBadgeClass,
             devToken, devMessage, devCopied,
             copyInstallHash, activateDevToken, clearDevToken,
-            haConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
+            haConfigUrl, priceConfigUrl, sensorStatusClass, sensorStatusText, driftStatusClass, driftStatusText,
+            gpmIsAdmin: sfmlStatsIsAdmin, gpmForm, gpmFieldViews, gpmHistoryRows, gpmUnavailable, gpmNotice, gpmNoticeOk,
+            openGpmStep, submitGpmForm, cancelGpmForm, gpmBlank: sfmlGpmBlank, gpmOriginLabel,
             chargingBadgeText, chargingBadgeClass, chargingStatusText, chargingReasonText,
             chargingThresholdLabel, chargingThresholdValue, chargingPriceSuffix, chargingPriceClass,
             toggle, exportDataset, formatDate, formatValue, openHaLink, openIntegration,
@@ -1078,14 +1553,14 @@ const SettingsPage = {
             font-family: var(--font-mono);
         }
         .accordion-badge.ok {
-            background: rgba(34,197,94,0.15);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 15%, transparent);
             color: var(--success);
-            border: 1px solid rgba(34,197,94,0.3);
+            border: 1px solid color-mix(in srgb, var(--success, rgb(34, 197, 94)) 30%, transparent);
         }
         .accordion-badge.warn {
-            background: rgba(234,179,8,0.15);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 15%, transparent);
             color: var(--warning);
-            border: 1px solid rgba(234,179,8,0.3);
+            border: 1px solid color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 30%, transparent);
         }
         .accordion-badge.neutral {
             background: rgba(255,255,255,0.06);
@@ -1165,7 +1640,7 @@ const SettingsPage = {
             gap: 2px;
         }
         .settings-item-label {
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -1206,7 +1681,7 @@ const SettingsPage = {
             padding: var(--space-sm) var(--space-lg);
             border: 1px solid var(--accent);
             border-radius: var(--radius-md);
-            background: rgba(0,212,255,0.08);
+            background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 8%, transparent);
             color: var(--accent);
             font-size: 0.85rem;
             font-weight: 600;
@@ -1214,7 +1689,7 @@ const SettingsPage = {
             transition: all var(--transition-fast);
         }
         .export-btn:hover:not(:disabled) {
-            background: rgba(0,212,255,0.18);
+            background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 18%, transparent);
         }
         .export-btn:disabled {
             opacity: 0.5;
@@ -1241,7 +1716,7 @@ const SettingsPage = {
         }
         .export-option:hover:not(:disabled) {
             border-color: var(--accent);
-            background: rgba(0,212,255,0.08);
+            background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 8%, transparent);
         }
         .export-option:disabled {
             opacity: 0.55;
@@ -1255,7 +1730,7 @@ const SettingsPage = {
         }
         .export-option-format {
             flex: 0 0 auto;
-            font: 700 0.7rem var(--font-mono);
+            font: 700 0.75rem var(--font-mono);
             color: var(--accent);
         }
         .empty-state {
@@ -1304,7 +1779,7 @@ const SettingsPage = {
         }
         .create-helper-btn {
             padding: 6px 12px;
-            background: rgba(234, 179, 8, 0.1);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 10%, transparent);
             border: 1px solid var(--warning);
             color: var(--warning);
             border-radius: var(--radius-sm);
@@ -1314,7 +1789,7 @@ const SettingsPage = {
             transition: all var(--transition-fast);
         }
         .create-helper-btn:hover:not(:disabled) {
-            background: rgba(234, 179, 8, 0.2);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 20%, transparent);
             color: var(--text-primary);
         }
         .create-helper-btn:disabled {
@@ -1329,14 +1804,14 @@ const SettingsPage = {
             text-align: center;
         }
         .helper-status-msg.success {
-            background: rgba(34, 197, 94, 0.1);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 10%, transparent);
             color: var(--success);
-            border: 1px solid rgba(34, 197, 94, 0.2);
+            border: 1px solid color-mix(in srgb, var(--success, rgb(34, 197, 94)) 20%, transparent);
         }
         .helper-status-msg.error {
-            background: rgba(239, 68, 68, 0.1);
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 10%, transparent);
             color: var(--danger);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            border: 1px solid color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 20%, transparent);
         }
 
         @media (max-width: 768px) {
@@ -1434,6 +1909,83 @@ const SettingsPage = {
             align-items: center;
             gap: 0.6rem;
             margin-top: var(--space-sm);
+        }
+        .gpm-config-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+        .gpm-config-form {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+        }
+        .gpm-config-field,
+        .gpm-config-number {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.85rem;
+        }
+        .gpm-config-number {
+            flex-direction: row;
+            align-items: center;
+        }
+        .gpm-config-multi {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        .gpm-config-multi-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-weight: normal;
+        }
+        .gpm-config-field input,
+        .gpm-config-field select {
+            min-height: 36px;
+            padding: 6px 8px;
+            border: 1px solid var(--border-default);
+            border-radius: var(--radius-sm);
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+        .gpm-config-help,
+        .gpm-config-hint,
+        .gpm-config-notice {
+            margin-top: var(--space-sm);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        .gpm-config-error {
+            color: var(--danger, #ef4444);
+            font-size: 0.8rem;
+        }
+        .gpm-config-notice.ok {
+            color: var(--success, #22c55e);
+        }
+        .gpm-history-title {
+            margin: var(--space-md) 0 var(--space-sm);
+            font-size: 0.95rem;
+        }
+        .gpm-fee-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: var(--space-sm);
+            font-size: 0.85rem;
+        }
+        .gpm-fee-table th,
+        .gpm-fee-table td {
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border-default);
+        }
+        .gpm-fee-current {
+            background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 12%, transparent);
+            font-weight: 600;
         }
     `;
     document.head.appendChild(style);

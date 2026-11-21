@@ -16,7 +16,7 @@ from homeassistant.const import Platform
 # ============================================================================
 DOMAIN = "grid_price_monitor"
 NAME = "Solar Forecast GPM"
-VERSION = "56.0.8"
+VERSION = "60.0.0"
 
 # ============================================================================
 # PLATFORMS
@@ -137,6 +137,10 @@ MAX_TARIFF_WINDOWS = 12
 
 SIGNAL_PRICES_REVISED = f"{DOMAIN}_prices_revised"
 BACKFILL_DAYS = 35
+HISTORY_BACKFILL_MAX_DAYS = 730
+HISTORY_BACKFILL_BLOCK_DAYS = 7
+HISTORY_BACKFILL_FETCH_PAUSE = 2
+HISTORY_BACKFILL_MAX_FETCHES = 20
 
 LICENSE_RECHECK_INTERVAL_SECONDS = 300
 LICENSE_RECHECK_WINDOW_SECONDS = 3600

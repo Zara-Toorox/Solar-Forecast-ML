@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#000000">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SFML Stats">
+    <link rel="manifest" href="/api/sfml_stats/wall/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/api/sfml_stats/static/modern/assets/brand-logo-stats.png?v=content">
+    <title>SFML Stats</title>
+    <link rel="stylesheet" href="/api/sfml_stats/static/wall/lcars.css?v=content">
+</head>
+<body>
+<main id="board" aria-live="off">
+    <div class="lc-frame" aria-hidden="true">
+        <div class="lc-elbow-top"><span id="lcSide1"></span></div>
+        <div class="lc-bar lc-c-orange" style="left:140px;width:735px"></div>
+        <div class="lc-bar lc-c-lilac" style="left:884px;width:188px"></div>
+        <div class="lc-bar lc-c-peach" style="left:1081px;width:94px"></div>
+        <div class="lc-bar lc-c-violet" style="left:1184px;width:360px"></div>
+        <div class="lc-bar lc-bar-cap lc-c-orange" style="left:1553px;width:22px"></div>
+        <div class="lc-side lc-c-lilac" style="top:313px;height:142px"><span id="lcSide2"></span></div>
+        <div class="lc-side lc-c-peach" style="top:463px;height:107px"><span id="lcSide3"></span></div>
+        <div class="lc-side lc-c-orange" style="top:578px;height:32px"><span id="lcStardate"></span></div>
+        <div class="lc-side lc-c-blue" style="top:618px;height:150px"><span id="lcSide4"></span></div>
+        <div class="lc-elbow-bottom"><span id="lcSide5"></span></div>
+        <div class="lc-foot-bar lc-c-violet" style="left:140px;width:375px"></div>
+    </div>
+    <div class="lc-panel"></div>
+
+    <header>
+        <img class="lc-logo" src="/api/sfml_stats/static/modern/assets/brand-logo-stats.png?v=content" alt="SFML Stats">
+        <div class="lc-brand">
+            <div class="lc-brand-name">SFML STATS</div>
+            <div class="lc-brand-sub">SOLAR FORECAST ML</div>
+        </div>
+        <div class="lc-sensors">
+            <div class="lc-pills" id="lcPills"></div>
+            <div class="lc-sensor-code" id="lcSensorCode"></div>
+        </div>
+        <svg class="lc-emblem" viewBox="0 0 96 96" aria-hidden="true">
+            <defs>
+                <linearGradient id="lcGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe7a8"/><stop offset=".5" stop-color="#e2a540"/><stop offset="1" stop-color="#8a5718"/></linearGradient>
+                <linearGradient id="lcSilver" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f4f7"/><stop offset=".6" stop-color="#a7aab2"/><stop offset="1" stop-color="#5f626b"/></linearGradient>
+            </defs>
+            <ellipse cx="48" cy="56" rx="45" ry="25" fill="url(#lcSilver)"/>
+            <ellipse cx="48" cy="56" rx="39" ry="20" fill="none" stroke="#ffffff55" stroke-width="1.2"/>
+            <path d="M48 4C53 30 60 58 70 90C62 81 55 76 48 76C41 76 34 81 26 90C36 58 43 30 48 4Z" fill="url(#lcGold)" stroke="#5c3a10" stroke-width="1"/>
+            <path d="M48 4C46 30 44 58 42 76C44 75.4 46 75.2 48 75.2Z" fill="#fff3c8" fill-opacity=".35"/>
+        </svg>
+        <div class="lc-weather" id="lcWeather" hidden>
+            <div class="lc-weather-top"><svg class="lc-weather-icon" id="lcWeatherIcon" viewBox="0 0 48 48" aria-hidden="true"></svg><span class="lc-temp" id="lcTemp"></span><small>°C</small></div>
+            <div class="lc-sky" id="lcSkyText"></div>
+        </div>
+        <div class="lc-date"><div class="lc-weekday" id="lcWeekday"></div><div class="lc-datelong" id="lcDate"></div></div>
+        <div class="lc-clock" id="lcClock"></div>
+    </header>
+
+    <section class="lc-box lc-pv">
+        <div class="lc-head lc-peach"><span class="lc-pill" id="lcPvTitle"></span><i class="lc-line"></i><b class="lc-cap"></b></div>
+        <div class="lc-pv-value"><span id="lcPvDigits"></span><span class="lc-pv-unit">kW</span></div>
+        <svg class="lc-scope" id="lcScope" viewBox="0 0 320 125" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="lc-caption" id="lcScopeCaption"></div>
+    </section>
+
+    <section class="lc-box lc-flow">
+        <div class="lc-head lc-lilac"><span class="lc-pill" id="lcFlowTitle"></span><i class="lc-line"></i><b class="lc-cap"></b></div>
+        <div class="lc-node" id="lcHome">
+            <div class="lc-node-top"><span class="lc-tag lc-c-orange" id="lcHomeTitle"></span><span class="lc-node-value" id="lcHomeValue"></span></div>
+            <div class="lc-cells" id="lcHomeCells"></div>
+        </div>
+        <div class="lc-node" id="lcBattery">
+            <div class="lc-node-top"><span class="lc-tag lc-c-peach" id="lcBatteryTitle"></span><span class="lc-soc" id="lcSoc"></span><span class="lc-soc-bar" id="lcSocBar"></span><span class="lc-node-value" id="lcBatteryValue"></span></div>
+            <div class="lc-cells" id="lcBatteryCells"></div>
+        </div>
+        <div class="lc-node" id="lcGrid">
+            <div class="lc-node-top"><span class="lc-tag lc-c-blue" id="lcGridTitle"></span><span class="lc-node-value" id="lcGridValue"></span></div>
+            <div class="lc-cells" id="lcGridCells"></div>
+        </div>
+    </section>
+
+    <section class="lc-box lc-yield">
+        <div class="lc-head lc-peach"><span class="lc-pill" id="lcYieldTitle"></span><i class="lc-line"></i><b class="lc-cap"></b></div>
+        <div class="lc-yield-row">
+            <div class="lc-yield-value" id="lcYieldValue"></div>
+            <div class="lc-forecast"><div class="lc-forecast-label" id="lcForecastLabel"></div><div class="lc-forecast-value" id="lcForecastValue"></div></div>
+        </div>
+        <div class="lc-yield-bar" id="lcYieldBar"></div>
+        <div class="lc-yield-scale" id="lcYieldScale"></div>
+    </section>
+
+    <section class="lc-box lc-facts" id="lcPrices" hidden>
+        <div class="lc-head lc-orange"><span class="lc-pill" id="lcPriceTitle"></span><i class="lc-line"></i><b class="lc-cap"></b></div>
+        <div class="lc-fact" id="lcPriceNow" hidden><span class="lc-fact-label" id="lcPriceNowLabel"></span><span class="lc-fact-value" id="lcPriceNowValue"></span></div>
+        <div class="lc-fact" id="lcCheapest" hidden><span class="lc-fact-label" id="lcCheapestLabel"></span><span class="lc-fact-value lc-amber" id="lcCheapestValue"></span></div>
+    </section>
+    <section class="lc-box lc-facts" id="lcUsage" hidden>
+        <div class="lc-head lc-orange"><span class="lc-pill" id="lcUsageTitle"></span><i class="lc-line"></i><b class="lc-cap"></b></div>
+        <div class="lc-fact" id="lcConsumption" hidden><span class="lc-fact-label" id="lcConsumptionLabel"></span><span class="lc-fact-value" id="lcConsumptionValue"></span></div>
+        <div class="lc-fact" id="lcCharged" hidden><span class="lc-fact-label" id="lcChargedLabel"></span><span class="lc-fact-value lc-amber" id="lcChargedValue"></span></div>
+    </section>
+
+    <section class="lc-box lc-chart">
+        <div class="lc-head lc-blue"><span class="lc-pill" id="lcChartTitle"></span><i class="lc-line"></i><span class="lc-legend"><span><i></i><b id="lcLegendActual"></b></span><span><i class="dash"></i><b id="lcLegendForecast"></b></span></span><b class="lc-cap"></b></div>
+        <svg id="lcChart" role="img"></svg>
+    </section>
+
+    <section class="lc-box lc-days">
+        <div class="lc-head lc-orange"><span class="lc-pill" id="lcDaysTitle"></span><i class="lc-line"></i><b class="lc-cap"></b></div>
+        <div class="lc-days-grid" id="lcDays"></div>
+    </section>
+
+    <footer>
+        <span class="lc-foot-block lc-c-orange" style="left:524px;width:110px">47-SFML</span>
+        <span class="lc-live stale" id="lcLive"><i></i><span id="lcLiveText"></span></span>
+        <span class="lc-foot-block lc-c-lilac lc-scan" style="left:790px;width:445px" id="lcScan"></span>
+        <span class="lc-foot-block lc-c-peach" style="left:1244px;width:28px"></span>
+        <button class="lc-fs" id="fsHint" type="button" hidden></button>
+        <span class="lc-foot-block lc-foot-cap lc-c-blue"></span>
+    </footer>
+</main>
+<script src="/api/sfml_stats/static/wall/lcars.js?v=content"></script>
+</body>
+</html>

@@ -92,7 +92,7 @@ const COPY = {
         mobile: { dashboard: "Start", home: "Übersicht", solar: "Solar", energy: "Energie" },
         pages: {
             dashboard: ["Übersicht", "Energie und Prognose im Überblick"],
-            tablet: ["Tablet-Modus", "Wandanzeige im neuen Fenster"],
+            tablet: ["Tablet-Modus", "Vollbild-Anzeigen für ein Wand-Tablet"],
             tomorrow: ["Energietag", "Abgeschlossene Tage und eigener Anteil"],
             home: ["Live & Prognose", "Ausführlicher Energiefluss und Prognosestatus"],
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],
@@ -137,7 +137,7 @@ const COPY = {
         mobile: { dashboard: "Start", home: "Overview", solar: "Solar", energy: "Energy" },
         pages: {
             dashboard: ["Overview", "Energy and forecast at a glance"],
-            tablet: ["Tablet mode", "Wall display in a new window"],
+            tablet: ["Tablet mode", "Full-screen displays for a wall tablet"],
             tomorrow: ["Energy day", "Completed days and your own share"],
             home: ["Live & Forecast", "Detailed energy flow and forecast status"],
             solar: ["Solar & Forecast", "Yield, models, deviations and shading"],
@@ -182,7 +182,7 @@ const COPY = {
         mobile: { dashboard: "Start", home: "Przegląd", solar: "Solar", energy: "Energia" },
         pages: {
             dashboard: ["Przegląd", "Energia i prognoza w skrócie"],
-            tablet: ["Tryb tabletu", "Wyświetlacz ścienny w nowym oknie"],
+            tablet: ["Tryb tabletu", "Widoki pełnoekranowe dla tabletu ściennego"],
             tomorrow: ["Dzień energii", "Zakończone dni i własny udział"],
             home: ["Na żywo i prognoza", "Szczegółowy przepływ energii i stan prognozy"],
             solar: ["Energia słoneczna", "Produkcja, modele, odchylenia i cień"],
@@ -242,21 +242,21 @@ function installModernChartDefaults() {
     const semanticSeries = [
         {
             terms: ["actual", "ist", "gemessen", "ertrag"],
-            colorToken: "--success",
+            colorToken: "--chart-actual",
             fallback: "#5bd8a6",
             lineType: "solid",
             symbol: "circle",
         },
         {
             terms: ["final", "finale prognose", "prediction"],
-            colorToken: "--accent",
+            colorToken: "--chart-forecast",
             fallback: "#3ec9ff",
             lineType: "solid",
             symbol: "roundRect",
         },
         {
             terms: ["physics", "physik", "rule based", "regelbasiert"],
-            colorToken: "--solar",
+            colorToken: "--chart-hybrid",
             fallback: "#ffbf2f",
             lineType: "dashed",
             symbol: "triangle",
@@ -309,12 +309,12 @@ function installModernChartDefaults() {
         option.animationDuration = 280;
         option.animationDurationUpdate = 180;
         option.color = [
-            token("--accent", "#3ec9ff"),
             token("--solar", "#ffbf2f"),
+            token("--steel", "#8fa8ff"),
+            token("--copper", "#e89a67"),
             token("--success", "#5bd8a6"),
-            token("--chart-series-ai", "#8fa8ff"),
-            token("--house", "#e89a67"),
-            token("--chart-series-conservative", "#c7a9e8"),
+            token("--accent", "#3ec9ff"),
+            token("--warning", "#c7a9e8"),
             token("--danger", "#f27676"),
         ];
         option.textStyle = { ...option.textStyle, color: textSecondary };
@@ -442,12 +442,7 @@ const ModernApp = {
                     <div v-for="section in navigation" :key="section.id" class="nav-section">
                         <div class="nav-section-label">{{ copy.sections[section.id] }}</div>
                         <template v-for="item in section.items" :key="item.id">
-                            <a v-if="item.href" class="nav-item" :href="item.href"
-                               target="_blank" rel="noopener" :title="pageCopy(item.id)[1]">
-                                <ui-icon :name="item.icon"></ui-icon>
-                                <span>{{ pageCopy(item.id)[0] }}</span>
-                            </a>
-                            <button v-else type="button"
+                            <button type="button"
                                     class="nav-item" :class="{ active: currentPage === item.id, 'premium-item': item.license, disabled: item.admin && !isAdmin }"
                                     :aria-current="currentPage === item.id ? 'page' : null"
                                     :title="item.admin && !isAdmin ? 'Nur Administrator' : undefined"
@@ -504,7 +499,7 @@ const ModernApp = {
                         </button>
                         <div>
                             <div class="eyebrow">{{ copy.product }}</div>
-                            <h1>{{ currentPageCopy[0] }} <span v-if="currentPage === 'ems'" class="page-beta">BETA v2!</span></h1>
+                            <h1>{{ currentPageCopy[0] }}</h1>
                             <p>{{ currentPageCopy[1] }}</p>
                         </div>
                     </div>
@@ -516,7 +511,7 @@ const ModernApp = {
                                 <span>PV</span><strong>{{ formatPower(liveData.solar_power) }}</strong>
                             </div>
                             <div v-if="liveData.battery_soc != null" class="live-metric">
-                                <span>SoC</span><strong>{{ Math.round(liveData.battery_soc) }}%</strong>
+                                <span>SoC</span><strong>{{ $n(liveData.battery_soc, 0) }}%</strong>
                             </div>
                             <div v-if="liveData.total_price != null" class="live-metric">
                                 <span>Preis</span><strong>{{ formatPrice(liveData.total_price) }}</strong>
@@ -629,7 +624,7 @@ const ModernApp = {
                 items: [
                     { id: "home", icon: "home" },
                     { id: "dashboard", icon: "solar", license: "demo" },
-                    { id: "tablet", icon: "monitor", href: "/api/sfml_stats/wall" },
+                    { id: "tablet", icon: "monitor" },
                 ],
             },
             {
@@ -718,6 +713,7 @@ const ModernApp = {
             corrections: window.ModernCorrectionsPage,
             statistics: window.ModernStatisticsPage,
             settings: window.SettingsPage,
+            tablet: window.TabletModesPage,
             support: window.ModernSupportPage,
         };
 
@@ -743,14 +739,14 @@ const ModernApp = {
             const watts = Number(value);
             if (!Number.isFinite(watts)) return "–";
             return Math.abs(watts) >= 1000
-                ? `${(watts / 1000).toFixed(1)} kW`
-                : `${Math.round(watts)} W`;
+                ? `${window.SFMLI18n.formatNumber(watts / 1000, 1)} kW`
+                : `${window.SFMLI18n.formatNumber(watts, 0)} W`;
         }
 
         function formatPrice(value) {
             const price = Number(value);
             if (!Number.isFinite(price)) return "–";
-            return `${price.toFixed(2)} ct`;
+            return `${window.SFMLI18n.formatNumber(price, 2)} ct`;
         }
 
         function resolveTheme() {
@@ -915,8 +911,7 @@ const ModernApp = {
             requestPending.value = true;
             try {
                 const options = forceRefresh ? { forceRefresh: true } : {};
-                const [summary, prices, energyFlow] = await Promise.all([
-                    SFMLApi.fetch("/api/sfml_stats/summary", options),
+                const [prices, energyFlow] = await Promise.all([
                     SFMLApi.fetch("/api/sfml_stats/gpm_prices", options),
                     SFMLApi.fetch("/api/sfml_stats/energy_flow", options),
                 ]);
@@ -927,7 +922,7 @@ const ModernApp = {
                 const flows = energyFlow?.flows || {};
                 const battery = energyFlow?.battery || {};
                 const home = energyFlow?.home || {};
-                liveData.total_price = prices?.total_price ?? summary?.kpis?.price_current ?? null;
+                liveData.total_price = prices?.total_price ?? null;
                 liveData.battery_soc = battery.soc ?? null;
                 liveData.solar_power = flows.solar_power ?? 0;
                 liveData.home_consumption = home.consumption ?? 0;
@@ -1135,4 +1130,5 @@ sfmlStatsModernApp.component("smart-charging-panel", window.SmartChargingPage);
 sfmlStatsModernApp.component("modern-forecast-guide", window.ModernForecastGuide);
 sfmlStatsModernApp.component("modern-intelligence-overview", window.ModernIntelligenceOverview);
 sfmlStatsModernApp.config.globalProperties.$t = window.SFMLI18n?.t || ((key) => key);
+sfmlStatsModernApp.config.globalProperties.$n = window.SFMLI18n?.formatNumber || ((value) => String(value ?? "–"));
 sfmlStatsModernApp.mount("#app");

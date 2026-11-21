@@ -10,9 +10,11 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, time
+import math
+from datetime import date, datetime, time, timezone
 from functools import partial
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -360,6 +362,102 @@ def _as_clock(value: Any, fallback: str = "00:00:00") -> time:
 def _clock_text(value: Any, fallback: str = "00:00:00") -> str:
     clock = _as_clock(value, fallback)
     return clock.strftime("%H:%M:%S")
+
+
+def _ha_zone(hass: Any) -> Any:
+    zone_name = getattr(getattr(hass, "config", None), "time_zone", None)
+    if isinstance(zone_name, str) and zone_name:
+        try:
+            return ZoneInfo(zone_name)
+        except Exception:
+            _LOGGER.warning("Unknown Home Assistant time zone %s", zone_name)
+    return datetime.now().astimezone().tzinfo or timezone.utc
+
+
+def _coerce_date(value: Any) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return date.fromisoformat(text[:10])
+        except ValueError:
+            return None
+    return None
+
+
+def _optional_non_negative(raw: Any) -> tuple[float | None, str | None]:
+    """Empty means no value. A negative number is a form error."""
+    if raw is None or raw == "":
+        return None, None
+    try:
+        number = float(raw)
+    except (TypeError, ValueError):
+        return None, "fee_history_invalid_number"
+    if not math.isfinite(number):
+        return None, "fee_history_invalid_number"
+    if number < 0:
+        return None, "fee_history_negative"
+    return number, None
+
+
+def _parse_fee_history_input(
+    user_input: dict[str, Any], today: date
+) -> tuple[dict[str, Any] | None, dict[str, str]]:
+    errors: dict[str, str] = {}
+    valid_from = _coerce_date(user_input.get("valid_from"))
+    if valid_from is None:
+        errors["valid_from"] = "fee_history_invalid_date"
+    elif valid_from > today:
+        errors["valid_from"] = "fee_history_future"
+    base_fee, base_error = _optional_non_negative(user_input.get(CONF_BASE_FEE_EUR_MONTH))
+    feed_in, feed_error = _optional_non_negative(user_input.get(CONF_FEED_IN_TARIFF_CT))
+    if base_error:
+        errors[CONF_BASE_FEE_EUR_MONTH] = base_error
+    if feed_error:
+        errors[CONF_FEED_IN_TARIFF_CT] = feed_error
+    if errors or valid_from is None:
+        return None, errors
+    return {
+        "valid_from_date": valid_from,
+        "base_fee": base_fee,
+        "feed_in": feed_in,
+    }, {}
+
+
+def _fee_history_demo_hint(hass: Any, demo: bool) -> str:
+    if not demo:
+        return ""
+    language = str(getattr(getattr(hass, "config", None), "language", "") or "")
+    if language.lower().startswith("de"):
+        return "Im Demo-Modus werden Gebühren nicht gespeichert.\n\n"
+    return "Demo mode does not save fees.\n\n"
+
+
+def _fee_history_schema(today: date) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required("valid_from", default=today.isoformat()): selector.DateSelector(),
+            vol.Optional(CONF_BASE_FEE_EUR_MONTH): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    step=0.01,
+                    unit_of_measurement="EUR",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+            vol.Optional(CONF_FEED_IN_TARIFF_CT): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    step=0.01,
+                    unit_of_measurement="ct/kWh",
+                    mode=selector.NumberSelectorMode.BOX,
+                )
+            ),
+        }
+    )
 
 
 def _common_schema(defaults: dict | None = None) -> vol.Schema:
@@ -1100,16 +1198,24 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 }
                 data.update(self._mode_payload)
                 if not is_reconfigure and self._reauth_entry is None:
-                    data[CONF_FEED_IN_TARIFF_CT] = DEFAULT_FEED_IN_TARIFF_CT
-                    data[CONF_BASE_FEE_EUR_MONTH] = DEFAULT_BASE_FEE_EUR_MONTH
-                else:
-                    existing = self._existing_data or (
-                        dict(self._reauth_entry.data) if self._reauth_entry is not None else {}
-                    )
-                    if CONF_FEED_IN_TARIFF_CT in existing:
-                        data[CONF_FEED_IN_TARIFF_CT] = existing[CONF_FEED_IN_TARIFF_CT]
-                    if CONF_BASE_FEE_EUR_MONTH in existing:
-                        data[CONF_BASE_FEE_EUR_MONTH] = existing[CONF_BASE_FEE_EUR_MONTH]
+                    self._selected_vat_rate = vat_rate
+                    self._existing_data = {
+                        **self._existing_data,
+                        CONF_COUNTRY: self._selected_country,
+                        CONF_VAT_RATE: vat_rate,
+                        CONF_GRID_FEE: grid_fee,
+                        CONF_TAXES_FEES: taxes_fees,
+                        CONF_PROVIDER_MARKUP: provider_markup,
+                        CONF_BATTERY_POWER_SENSOR: battery_sensor,
+                    }
+                    return await self.async_step_common()
+                existing = self._existing_data or (
+                    dict(self._reauth_entry.data) if self._reauth_entry is not None else {}
+                )
+                if CONF_FEED_IN_TARIFF_CT in existing:
+                    data[CONF_FEED_IN_TARIFF_CT] = existing[CONF_FEED_IN_TARIFF_CT]
+                if CONF_BASE_FEE_EUR_MONTH in existing:
+                    data[CONF_BASE_FEE_EUR_MONTH] = existing[CONF_BASE_FEE_EUR_MONTH]
 
                 if is_reconfigure:
                     return self._finish_reconfigure(data)
@@ -1124,11 +1230,6 @@ class GridPriceMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         data=merged,
                         reason="reauth_successful",
                     )
-
-                return self.async_create_entry(
-                    title=NAME,
-                    data=data,
-                )
 
         # Fetch current spot price for calibration display
         if self._calibration_spot_price is None:
@@ -1424,6 +1525,7 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
             menu_options=[
                 "tariff",
                 "common",
+                "fee_history",
                 "license",
                 "csv_import",
                 "monthly_correction",
@@ -1802,6 +1904,64 @@ class GridPriceMonitorOptionsFlow(OptionsFlowWithReload):
             }
             return self.async_create_entry(title="", data=new_options)
         return self.async_show_form(step_id="common", data_schema=_common_schema(current))
+
+    async def async_step_fee_history(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Append one manual fee row valid from a local date."""
+        coordinator = self._coordinator()
+        demo = bool(getattr(coordinator, "is_demo", False)) if coordinator is not None else False
+        today = datetime.now(_ha_zone(self.hass)).date()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            if demo:
+                errors["base"] = "fee_history_demo"
+            else:
+                parsed, errors = _parse_fee_history_input(user_input, today)
+                if not errors and parsed is not None:
+                    if coordinator is None or not hasattr(
+                        coordinator, "async_record_manual_fee"
+                    ):
+                        errors["base"] = "fee_history_not_ready"
+                    else:
+                        try:
+                            result = await coordinator.async_record_manual_fee(
+                                valid_from_date=parsed["valid_from_date"],
+                                base_fee=parsed["base_fee"],
+                                feed_in=parsed["feed_in"],
+                            )
+                        except Exception:
+                            _LOGGER.exception("Failed to record manual fee")
+                            errors["base"] = "fee_history_failed"
+                        else:
+                            if result.get("demo"):
+                                errors["base"] = "fee_history_demo"
+                            else:
+                                options = dict(self.config_entry.options)
+                                if result.get("is_current"):
+                                    options[CONF_FEED_IN_TARIFF_CT] = result.get(
+                                        "feed_in_tariff_ct"
+                                    )
+                                    options[CONF_BASE_FEE_EUR_MONTH] = result.get(
+                                        "base_fee_eur_month"
+                                    )
+                                return self.async_create_entry(title="", data=options)
+        history = ""
+        if coordinator is not None and hasattr(coordinator, "async_fee_history_text"):
+            try:
+                history = await coordinator.async_fee_history_text()
+            except Exception:
+                _LOGGER.exception("Failed to read fee history")
+                history = ""
+        return self.async_show_form(
+            step_id="fee_history",
+            data_schema=_fee_history_schema(today),
+            errors=errors,
+            description_placeholders={
+                "history": history or "-",
+                "demo_hint": _fee_history_demo_hint(self.hass, demo),
+            },
+        )
 
     async def async_step_tariff(
         self, user_input: dict[str, Any] | None = None

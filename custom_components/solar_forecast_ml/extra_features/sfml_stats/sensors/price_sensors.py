@@ -70,6 +70,12 @@ class SFMLStatsBaseSensor(CoordinatorEntity, SensorEntity):
             "has_spot_component": data.get("has_spot_component"),
         }
 
+    def _demo_price(self) -> bool:
+        data = self.coordinator.data or {}
+        if data.get("is_demo") is True:
+            return True
+        return str(data.get("tariff_mode") or "") == "demo"
+
 
 class SpotPriceSensor(SFMLStatsBaseSensor):
     """Current spot price sensor. @zara"""
@@ -90,6 +96,8 @@ class SpotPriceSensor(SFMLStatsBaseSensor):
     @property
     def native_value(self) -> float | None:
         """Return current spot price. @zara"""
+        if self._demo_price():
+            return None
         if self.coordinator.data:
             return self.coordinator.data.get("spot_price")
         return None
@@ -107,6 +115,8 @@ class TotalPriceSensor(SFMLStatsBaseSensor):
     @property
     def native_value(self) -> float | None:
         """Return current total price. @zara"""
+        if self._demo_price():
+            return None
         if self.coordinator.data:
             return self.coordinator.data.get("total_price")
         return None
@@ -133,6 +143,8 @@ class SpotPriceNextHourSensor(SFMLStatsBaseSensor):
     @property
     def native_value(self) -> float | None:
         """Return spot price for the next hour. @zara"""
+        if self._demo_price():
+            return None
         if self.coordinator.data:
             return self.coordinator.data.get("spot_price_next_hour")
         return None
@@ -152,6 +164,8 @@ class TotalPriceNextHourSensor(SFMLStatsBaseSensor):
     @property
     def native_value(self) -> float | None:
         """Return total price for the next hour. @zara"""
+        if self._demo_price():
+            return None
         if self.coordinator.data:
             return self.coordinator.data.get("total_price_next_hour")
         return None
@@ -170,6 +184,8 @@ class CheapestHourSensor(SFMLStatsBaseSensor):
     @property
     def native_value(self) -> int | None:
         """Return the cheapest hour of today as integer (0-23). @zara"""
+        if self._demo_price():
+            return None
         if self.coordinator.data:
             return self.coordinator.data.get("cheapest_hour_today")
         return None
@@ -188,6 +204,8 @@ class MostExpensiveHourSensor(SFMLStatsBaseSensor):
     @property
     def native_value(self) -> int | None:
         """Return the most expensive hour of today as integer (0-23). @zara"""
+        if self._demo_price():
+            return None
         if self.coordinator.data:
             return self.coordinator.data.get("most_expensive_hour_today")
         return None
@@ -207,6 +225,8 @@ class AveragePriceTodaySensor(SFMLStatsBaseSensor):
     @property
     def native_value(self) -> float | None:
         """Return the average price of today. @zara"""
+        if self._demo_price():
+            return None
         if self.coordinator.data:
             return self.coordinator.data.get("average_price_today")
         return None

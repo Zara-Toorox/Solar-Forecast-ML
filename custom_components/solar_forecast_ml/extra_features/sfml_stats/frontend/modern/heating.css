@@ -3,7 +3,7 @@
 .heating-hero-band { display: grid; gap: 8px; min-width: 0; padding: 18px; border: 1px solid var(--border-default); border-radius: var(--radius-xl, 16px); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--bg-card)), var(--bg-card)); box-shadow: var(--glass-shadow); }
 .heating-hero-band h3, .heating-hero-band p { margin: 0; }
 .heating-hero-band h3 { color: var(--text-primary); font-size: 1.35rem; }
-.heating-kicker { color: var(--accent); font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.heating-kicker { color: var(--accent); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .heating-lead, .heating-close { color: var(--text-primary); font-weight: 700; }
 .heating-hero-band p { color: var(--text-secondary); }
 .heating-chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -47,7 +47,7 @@
 .heating-tile-name { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
 .heating-tile-copy { display: grid; min-width: 0; }
 .heating-tile.missing { border-style: dashed; border-color: var(--warning); background: color-mix(in srgb, var(--warning) 10%, var(--bg-card)); }
-.heating-tile.missing small { color: var(--warning); font-size: .72rem; font-weight: 750; }
+.heating-tile.missing small { color: var(--warning); font-size: .75rem; font-weight: 750; }
 .heating-missing-hint { margin: 0; color: var(--warning); font-weight: 700; }
 .heating-dirty { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--warning); font-weight: 700; }
 .heating-switch { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: center; min-height: 44px; margin: 0; cursor: pointer; }
@@ -102,7 +102,7 @@
 .heating-week-row span { color: var(--text-secondary); font-size: .78rem; }
 .heating-week-track { position: relative; height: 14px; border-radius: 99px; background: color-mix(in srgb, var(--text-secondary) 16%, transparent); overflow: hidden; }
 .heating-week-track i { position: absolute; top: 0; bottom: 0; background: var(--accent); }
-.heating-week-axis { display: flex; justify-content: space-between; margin-left: calc(2.2rem + 8px); color: var(--text-secondary); font-size: .7rem; }
+.heating-week-axis { display: flex; justify-content: space-between; margin-left: calc(2.2rem + 8px); color: var(--text-secondary); font-size: .75rem; }
 .heating-window { display: grid; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--border-default); }
 .heating-days { display: flex; flex-wrap: wrap; gap: 4px; }
 .heating-days button { min-width: 44px; min-height: 44px; padding: 4px 6px; }

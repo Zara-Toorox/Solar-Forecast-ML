@@ -112,9 +112,9 @@ const _WeatherPage = {
                 </div>
                 <div ref="radiationChartEl" class="weather-chart" style="height: 360px;"></div>
                 <div class="weather-legend" v-if="radiationKpis">
-                    <span class="legend-item"><span class="legend-dot" style="background:#fbbf24"></span> {{ $t('weather.ghiPeak') }}: {{ radiationKpis.ghi_peak }} W/m²</span>
-                    <span class="legend-item"><span class="legend-dot" style="background:#f97316"></span> {{ $t('weather.dniPeak') }}: {{ radiationKpis.dni_peak }} W/m²</span>
-                    <span class="legend-item"><span class="legend-dot" style="background:#60a5fa"></span> {{ $t('weather.dhiPeak') }}: {{ radiationKpis.dhi_peak }} W/m²</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:var(--solar, #fbbf24)"></span> {{ $t('weather.ghiPeak') }}: {{ $n(radiationKpis.ghi_peak, 0) }} W/m²</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:var(--house, #f97316)"></span> {{ $t('weather.dniPeak') }}: {{ $n(radiationKpis.dni_peak, 0) }} W/m²</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:var(--grid, #60a5fa)"></span> {{ $t('weather.dhiPeak') }}: {{ $n(radiationKpis.dhi_peak, 0) }} W/m²</span>
                 </div>
             </div>
 
@@ -225,23 +225,23 @@ const _WeatherPage = {
                             <div class="history-kpi-label">Ø {{ $t('weather.temperature') }}</div>
                         </div>
                         <div class="history-kpi">
-                            <div class="history-kpi-value" style="color:#ef4444;">{{ fmt(history.stats.maxTemp, 1) }}°C</div>
+                            <div class="history-kpi-value" style="color:var(--danger, #ef4444);">{{ fmt(history.stats.maxTemp, 1) }}°C</div>
                             <div class="history-kpi-label">{{ $t('common.max') }}</div>
                         </div>
                         <div class="history-kpi">
-                            <div class="history-kpi-value" style="color:#60a5fa;">{{ fmt(history.stats.minTemp, 1) }}°C</div>
+                            <div class="history-kpi-value" style="color:var(--grid, #60a5fa);">{{ fmt(history.stats.minTemp, 1) }}°C</div>
                             <div class="history-kpi-label">{{ $t('common.min') }}</div>
                         </div>
                         <div class="history-kpi">
-                            <div class="history-kpi-value" style="color:#3b82f6;">{{ fmt(rainHistoryValue, 1) }} {{ rainHistoryUnit }}</div>
+                            <div class="history-kpi-value" style="color:var(--grid, #3b82f6);">{{ fmt(rainHistoryValue, 1) }} {{ rainHistoryUnit }}</div>
                             <div class="history-kpi-label">{{ $t('weather.precipitation') }}</div>
                         </div>
                         <div class="history-kpi">
-                            <div class="history-kpi-value" style="color:#10b981;">{{ fmt(history.stats.avgWind, 1) }} m/s</div>
+                            <div class="history-kpi-value" style="color:var(--success, #10b981);">{{ fmt(history.stats.avgWind, 1) }} m/s</div>
                             <div class="history-kpi-label">Ø {{ $t('weather.wind') }}</div>
                         </div>
                         <div class="history-kpi">
-                            <div class="history-kpi-value" style="color:#fbbf24;">{{ fmt(history.stats.sunHours, 0) }} h</div>
+                            <div class="history-kpi-value" style="color:var(--solar, #fbbf24);">{{ fmt(history.stats.sunHours, 0) }} h</div>
                             <div class="history-kpi-label">{{ $t('weather.sunHours') }}</div>
                         </div>
                     </div>
@@ -476,7 +476,7 @@ const _WeatherPage = {
         // Helpers ------------------------------------------------------
         function fmt(v, digits = 1) {
             if (v == null || v === '' || Number.isNaN(Number(v))) return '--';
-            return Number(v).toFixed(digits);
+            return window.SFMLI18n.formatNumber(v, digits);
         }
         function syncTimeContext(payload) {
             const ctx = payload?.time_context;
@@ -533,7 +533,7 @@ const _WeatherPage = {
         });
         const fmtVisibility = computed(() => {
             if (current.visibility_km == null) return '--';
-            return Number(current.visibility_km).toFixed(1);
+            return window.SFMLI18n.formatNumber(current.visibility_km, 1);
         });
         const dayLengthText = computed(() => {
             if (!astronomy.day_length_min) return '--';
@@ -623,7 +623,7 @@ const _WeatherPage = {
                 xAxis: {
                     type: 'category',
                     data: dayLabels,
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), interval: 2, fontSize: 10 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), interval: 2, fontSize: 12 },
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } },
                 },
                 yAxis: [
@@ -635,8 +635,8 @@ const _WeatherPage = {
                         name: t('weather.temperature'), type: 'line', yAxisIndex: 0,
                         data: forecast.value.map(r => r.temperature),
                         smooth: true, symbol: 'none',
-                        lineStyle: { color: '#ef4444', width: 2 },
-                        itemStyle: { color: '#ef4444' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--danger") || "#ef4444"), width: 2 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--danger") || "#ef4444") },
                     },
                     {
                         name: t('weather.cloudCover'), type: 'line', yAxisIndex: 1,
@@ -649,15 +649,15 @@ const _WeatherPage = {
                     {
                         name: t('weather.precipitation'), type: 'bar', yAxisIndex: 0,
                         data: forecast.value.map(r => r.rain),
-                        itemStyle: { color: '#3b82f6' },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--grid") || "#3b82f6") },
                         barWidth: 4,
                     },
                     {
                         name: t('weather.wind'), type: 'line', yAxisIndex: 0,
                         data: forecast.value.map(r => r.wind),
                         smooth: true, symbol: 'none',
-                        lineStyle: { color: '#10b981', width: 1, type: 'dashed' },
-                        itemStyle: { color: '#10b981' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--success") || "#10b981"), width: 1, type: 'dashed' },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#10b981") },
                     },
                 ],
             });
@@ -684,7 +684,7 @@ const _WeatherPage = {
                     extraCssText: 'backdrop-filter: blur(8px);',
                 },
                 legend: { data: [t('weather.ghiActual'), t('weather.ghiForecast'), 'DNI', 'DHI', t('weather.clearSky')], top: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e') } },
-                xAxis: { type: 'category', data: hours, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10, interval: 2 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
+                xAxis: { type: 'category', data: hours, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12, interval: 2 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
                 yAxis: { type: 'value', name: 'W/m²', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.06)') } } },
                 series: [
                     csMap.size > 0 ? {
@@ -698,30 +698,30 @@ const _WeatherPage = {
                         name: t('weather.ghiForecast'), type: 'line',
                         data: hours.map((_, h) => fcMap.get(h)?.ghi ?? null),
                         smooth: true, symbol: 'none',
-                        lineStyle: { color: '#fbbf24', width: 1, type: 'dashed' },
-                        itemStyle: { color: '#fbbf24' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24"), width: 1, type: 'dashed' },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24") },
                     },
                     {
                         name: t('weather.ghiActual'), type: 'line',
                         data: hours.map((_, h) => actualMap.get(h) ?? null),
                         smooth: true, symbol: 'circle', symbolSize: 5,
-                        lineStyle: { color: '#fbbf24', width: 2 },
-                        itemStyle: { color: '#fbbf24' },
-                        areaStyle: { color: 'rgba(251,191,36,0.15)' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24"), width: 2 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24") },
+                        areaStyle: { color: (window.sfmlThemeColor?.("--solar", 0.15) || 'rgba(251,191,36,0.15)') },
                     },
                     {
                         name: 'DNI', type: 'line',
                         data: hours.map((_, h) => fcMap.get(h)?.dni ?? null),
                         smooth: true, symbol: 'none',
-                        lineStyle: { color: '#f97316', width: 1 },
-                        itemStyle: { color: '#f97316' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--house") || "#f97316"), width: 1 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--house") || "#f97316") },
                     },
                     {
                         name: 'DHI', type: 'line',
                         data: hours.map((_, h) => fcMap.get(h)?.dhi ?? null),
                         smooth: true, symbol: 'none',
-                        lineStyle: { color: '#60a5fa', width: 1 },
-                        itemStyle: { color: '#60a5fa' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--grid") || "#60a5fa"), width: 1 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--grid") || "#60a5fa") },
                     },
                 ].filter(Boolean),
             });
@@ -745,16 +745,16 @@ const _WeatherPage = {
                     extraCssText: 'backdrop-filter: blur(8px);',
                 },
                 legend: { data: [t('weather.tempAvg'), t('weather.tempMax'), t('weather.tempMin'), t('weather.precipitation')], top: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e') } },
-                xAxis: { type: 'category', data: dates, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
+                xAxis: { type: 'category', data: dates, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
                 yAxis: [
                     { type: 'value', name: '°C', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.06)') } } },
                     { type: 'value', name: rainAxis, position: 'right', axisLabel: { color: getThemeColor('--text-muted', '#6e7681') }, splitLine: { show: false } },
                 ],
                 series: [
-                    { name: t('weather.tempMax'), type: 'line', data: history.data.map(d => d.temp_max), smooth: true, symbol: 'none', lineStyle: { color: '#ef4444', width: 1 }, itemStyle: { color: '#ef4444' } },
-                    { name: t('weather.tempAvg'), type: 'line', data: history.data.map(d => d.temp_avg), smooth: true, symbol: 'none', lineStyle: { color: '#fbbf24', width: 2 }, itemStyle: { color: '#fbbf24' } },
-                    { name: t('weather.tempMin'), type: 'line', data: history.data.map(d => d.temp_min), smooth: true, symbol: 'none', lineStyle: { color: '#60a5fa', width: 1 }, itemStyle: { color: '#60a5fa' } },
-                    { name: t('weather.precipitation'), type: 'bar', yAxisIndex: 1, data: history.data.map(d => d.rain), itemStyle: { color: '#3b82f6' }, barWidth: 6 },
+                    { name: t('weather.tempMax'), type: 'line', data: history.data.map(d => d.temp_max), smooth: true, symbol: 'none', lineStyle: { color: (window.sfmlThemeColor?.("--danger") || "#ef4444"), width: 1 }, itemStyle: { color: (window.sfmlThemeColor?.("--danger") || "#ef4444") } },
+                    { name: t('weather.tempAvg'), type: 'line', data: history.data.map(d => d.temp_avg), smooth: true, symbol: 'none', lineStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24"), width: 2 }, itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24") } },
+                    { name: t('weather.tempMin'), type: 'line', data: history.data.map(d => d.temp_min), smooth: true, symbol: 'none', lineStyle: { color: (window.sfmlThemeColor?.("--grid") || "#60a5fa"), width: 1 }, itemStyle: { color: (window.sfmlThemeColor?.("--grid") || "#60a5fa") } },
+                    { name: t('weather.precipitation'), type: 'bar', yAxisIndex: 1, data: history.data.map(d => d.rain), itemStyle: { color: (window.sfmlThemeColor?.("--grid") || "#3b82f6") }, barWidth: 6 },
                 ],
             });
             historyChart.resize();
@@ -921,14 +921,14 @@ const _WeatherPage = {
             min-width: 140px;
             border: 1px solid var(--border-default);
         }
-        .potential-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+        .potential-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
         .potential-value { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
-        .potential-good { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.4); }
-        .potential-good .potential-value { color: #10b981; }
-        .potential-medium { background: rgba(251,191,36,0.12); border-color: rgba(251,191,36,0.4); }
-        .potential-medium .potential-value { color: #fbbf24; }
-        .potential-poor { background: rgba(239,68,68,0.12); border-color: rgba(239,68,68,0.4); }
-        .potential-poor .potential-value { color: #ef4444; }
+        .potential-good { background: color-mix(in srgb, var(--success, rgb(16, 185, 129)) 12%, transparent); border-color: color-mix(in srgb, var(--success, rgb(16, 185, 129)) 40%, transparent); }
+        .potential-good .potential-value { color: var(--success, #10b981); }
+        .potential-medium { background: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 12%, transparent); border-color: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 40%, transparent); }
+        .potential-medium .potential-value { color: var(--solar, #fbbf24); }
+        .potential-poor { background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 12%, transparent); border-color: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 40%, transparent); }
+        .potential-poor .potential-value { color: var(--danger, #ef4444); }
         .potential-none .potential-value { color: var(--text-muted); }
  
         .weather-stats-grid {
@@ -958,7 +958,7 @@ const _WeatherPage = {
             color: var(--text-primary);
         }
         .weather-stat-unit { font-size: 0.8rem; color: var(--text-muted); font-weight: 400; margin-left: 2px; }
-        .weather-stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
+        .weather-stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; }
 
         .weather-row-2col {
             display: grid;
@@ -1016,15 +1016,15 @@ const _WeatherPage = {
         }
         .clothing-icon { font-size: 2rem; }
         .clothing-name { font-weight: 600; margin-top: 6px; font-size: 0.85rem; }
-        .clothing-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+        .clothing-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
         .clothing-extras { margin-top: var(--space-md); display: flex; flex-wrap: wrap; gap: 6px; }
         .clothing-extra-chip {
             padding: 4px 10px;
-            background: rgba(236,72,153,0.12);
-            color: #ec4899;
+            background: color-mix(in srgb, var(--chart-series-conservative, rgb(236, 72, 153)) 12%, transparent);
+            color: var(--chart-series-conservative, #ec4899);
             border-radius: 12px;
             font-size: 0.8rem;
-            border: 1px solid rgba(236,72,153,0.3);
+            border: 1px solid color-mix(in srgb, var(--chart-series-conservative, rgb(236, 72, 153)) 30%, transparent);
         }
 
         .astro-grid {
@@ -1047,9 +1047,9 @@ const _WeatherPage = {
         }
         .astro-icon { font-size: 1.6rem; }
         .astro-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 600; margin-top: 4px; color: var(--text-primary); }
-        .astro-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; }
-        .delta-up { color: #10b981; }
-        .delta-down { color: #ef4444; }
+        .astro-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; }
+        .delta-up { color: var(--success, #10b981); }
+        .delta-down { color: var(--danger, #ef4444); }
 
         .history-tabs { display: inline-flex; gap: 4px; margin-left: auto; }
         .history-tab {
@@ -1096,7 +1096,7 @@ const _WeatherPage = {
             transform: translateY(-2px);
         }
         .history-kpi-value { font-family: var(--font-mono); font-size: 1.4rem; font-weight: 700; color: var(--text-primary); }
-        .history-kpi-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em; }
+        .history-kpi-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; letter-spacing: 0.05em; }
 
         @media (max-width: 768px) {
             .weather-hero-main {

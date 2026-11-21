@@ -6,8 +6,8 @@
 # ******************************************************************************
 """Core business logic modules for SFML Stats. @zara"""
 
-from .price_mode import effective_price_mode
+from .price_mode import resolve_price_mode
 
 __all__ = [
-    "effective_price_mode",
+    "resolve_price_mode",
 ]

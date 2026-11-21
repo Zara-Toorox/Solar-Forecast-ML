@@ -28,10 +28,11 @@
             cheapestHour: "Günstigste Stunde",
             cheapestHourTomorrow: "Günstigste Stunde morgen",
             cheapestValue: "{hour} Uhr · {price} <small>ct/kWh</small>",
+            consumptionToday: "Hausverbrauch heute",
+            batteryChargedToday: "Zum Akku heute",
             chartTitle: "Dein Energietag",
             legendActual: "Ertrag",
             legendForecast: "Prognose",
-            forecastSoFar: "{kwh} kWh bis jetzt",
             noForecast: "Keine Prognosewerte für heute",
             daysTitle: "Die nächsten Tage",
             tomorrow: "Morgen",
@@ -63,10 +64,11 @@
             cheapestHour: "Cheapest hour",
             cheapestHourTomorrow: "Cheapest hour tomorrow",
             cheapestValue: "{hour}:00 · {price} <small>ct/kWh</small>",
+            consumptionToday: "Home consumption today",
+            batteryChargedToday: "Into battery today",
             chartTitle: "Your energy day",
             legendActual: "Yield",
             legendForecast: "Forecast",
-            forecastSoFar: "{kwh} kWh so far",
             noForecast: "No forecast values for today",
             daysTitle: "The next days",
             tomorrow: "Tomorrow",
@@ -98,10 +100,11 @@
             cheapestHour: "Najtańsza godzina",
             cheapestHourTomorrow: "Najtańsza godzina jutro",
             cheapestValue: "{hour}:00 · {price} <small>ct/kWh</small>",
+            consumptionToday: "Zużycie domu dziś",
+            batteryChargedToday: "Do baterii dziś",
             chartTitle: "Twój dzień energii",
             legendActual: "Uzysk",
             legendForecast: "Prognoza",
-            forecastSoFar: "{kwh} kWh do teraz",
             noForecast: "Brak wartości prognozy na dziś",
             daysTitle: "Najbliższe dni",
             tomorrow: "Jutro",
@@ -127,7 +130,9 @@
         moon_partly: "M7 20A10 10 0 0 1 20 7A12 12 0 0 0 7 20ZM40 36H18a8 8 0 1 1 3-15 10 10 0 0 1 18 7 4 4 0 0 1 1 8Z"
     };
 
+    var MODES = ["grid", "consumption"];
     var locale = pickLocale();
+    var mode = pickMode();
     var copy = TEXT[locale];
     var state = { data: null, failures: 0 };
     var timeFormat = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -152,6 +157,16 @@
             if (TEXT[code]) return code;
         }
         return "de";
+    }
+
+    function pickMode() {
+        var wanted = null;
+        try {
+            wanted = new URLSearchParams(window.location.search).get("mode");
+        } catch (e) {
+            wanted = null;
+        }
+        return MODES.indexOf(wanted) >= 0 ? wanted : "grid";
     }
 
     function byId(id) {
@@ -214,6 +229,12 @@
         byId("gridTitle").textContent = copy.grid;
         byId("yieldLabel").textContent = copy.yieldLabel;
         byId("priceNowLabel").textContent = copy.priceNow;
+        if (mode !== "grid") {
+            var manifest = document.querySelector('link[rel="manifest"]');
+            if (manifest) manifest.setAttribute("href", manifest.getAttribute("href") + "?mode=" + mode);
+        }
+        byId("consumptionLabel").textContent = copy.consumptionToday;
+        byId("batteryChargedLabel").textContent = copy.batteryChargedToday;
         byId("chartTitle").textContent = copy.chartTitle;
         byId("legendActual").textContent = copy.legendActual;
         byId("legendForecast").textContent = copy.legendForecast;
@@ -322,6 +343,10 @@
         byId("yieldValue").textContent = yieldKwh == null ? "–" : one.format(yieldKwh);
         byId("yieldForecast").innerHTML = forecast == null ? "" : fill(copy.forecastToday, { kwh: one.format(forecast) });
 
+        if (mode === "consumption") {
+            renderUsage(today);
+            return;
+        }
         var priceNow = state.data.price_now_ct_kwh;
         byId("priceNowRow").hidden = priceNow == null;
         if (priceNow != null) byId("priceNowValue").textContent = one.format(priceNow);
@@ -337,6 +362,17 @@
             });
         }
         byId("prices").hidden = priceNow == null && !hasCheapest;
+    }
+
+    function renderUsage(today) {
+        byId("prices").hidden = true;
+        var consumption = today.home_consumption_kwh;
+        var charged = (state.data.power || {}).battery_soc_percent == null ? null : today.battery_charged_kwh;
+        byId("consumptionRow").hidden = consumption == null;
+        if (consumption != null) byId("consumptionValue").textContent = one.format(consumption);
+        byId("batteryChargedBlock").hidden = charged == null;
+        if (charged != null) byId("batteryChargedValue").textContent = one.format(charged);
+        byId("usage").hidden = consumption == null && charged == null;
     }
 
     function niceMax(value) {
@@ -422,10 +458,6 @@
             el("line", { x1: x(nowHour), x2: x(nowHour), y1: 35, y2: 200, stroke: "#ffca7a50", "stroke-width": 1 }, svg);
             el("path", { d: path(actualLine), fill: "none", stroke: "#ffca7a", "stroke-width": 4, "stroke-linecap": "round", "stroke-linejoin": "round" }, svg);
             el("circle", { cx: x(end[0]), cy: y(end[1]), r: 6, fill: "#ffca7a", stroke: "#0b1722", "stroke-width": 3 }, svg);
-        }
-        if (chart.forecast_to_now_kwh != null) {
-            var soFar = el("text", { x: right, y: 26, fill: "#8cb9dc", "font-size": 26, "text-anchor": "end" }, svg);
-            soFar.textContent = fill(copy.forecastSoFar, { kwh: one.format(chart.forecast_to_now_kwh) });
         }
     }
 

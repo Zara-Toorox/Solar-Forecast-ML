@@ -84,6 +84,7 @@ from .sensors.sensor_diagnostic import (
     NextProductionStartSensor,
     NextScheduledUpdateSensor,
     PhysicsSamplesSensor,
+    RadiationSensorCalibratedSensor,
     WorkflowStatusSensor,
     YesterdayDeviationSensor,
 )
@@ -188,26 +189,27 @@ async def async_setup_entry(
             NextProductionStartSensor(coordinator, entry),
             MLMetricsSensor(coordinator, entry),
             AIGateStatusSensor(coordinator, entry),
-        ]
-    )
-
-    if dev_active:
-        dev_entities = [
+            RadiationSensorCalibratedSensor(coordinator, entry),
             AverageAccuracy30DaysSensor(coordinator, entry),
             EvaluationCoverage7DaysSensor(coordinator, entry),
             EvaluationCoverage30DaysSensor(coordinator, entry),
             ExcludedMpptHours7DaysSensor(coordinator, entry),
             ExcludedMpptHours30DaysSensor(coordinator, entry),
+            YesterdayDeviationSensor(coordinator, entry),
+            CloudinessVolatilitySensor(coordinator, entry),
+        ]
+    )
+
+    if dev_active:
+        dev_entities = [
             DataFilesStatusSensor(coordinator, entry),
             WorkflowStatusSensor(coordinator, entry),
             ExternalSensorsStatusSensor(hass, entry),
             AIRmseSensor(coordinator, entry),
             ActivePredictionModelSensor(coordinator, entry),
             PhysicsSamplesSensor(coordinator, entry),
-            YesterdayDeviationSensor(coordinator, entry),
             CloudinessTrend1hSensor(coordinator, entry),
             CloudinessTrend3hSensor(coordinator, entry),
-            CloudinessVolatilitySensor(coordinator, entry),
             LastCoordinatorUpdateSensor(coordinator, entry),
             LastMLTrainingSensor(coordinator, entry),
             NextScheduledUpdateSensor(coordinator, entry),

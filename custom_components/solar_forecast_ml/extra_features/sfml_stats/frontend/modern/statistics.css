@@ -6,7 +6,7 @@
 .statistics-hero > div { min-width: 0; max-width: 100%; }
 .statistics-hero h2 { margin: 5px 0 8px; font-size: clamp(1.6rem, 3vw, 2.25rem); overflow-wrap: break-word; }
 .statistics-hero p { margin: 0; color: var(--text-secondary); line-height: 1.55; overflow-wrap: break-word; }
-.statistics-kicker { color: var(--accent); font-size: .72rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
+.statistics-kicker { color: var(--accent); font-size: .75rem; font-weight: 800; letter-spacing: .11em; text-transform: uppercase; }
 .statistics-card { min-width: 0; max-width: 100%; padding: 22px; border: 1px solid var(--border-default); border-radius: var(--radius-xl); background: var(--bg-card); box-shadow: var(--glass-shadow); }
 .statistics-card label { display: grid; gap: 7px; color: var(--text-secondary); font-size: .86rem; font-weight: 700; }
 .statistics-card input, .statistics-card select { width: 100%; min-width: 0; max-width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); color: var(--text-primary); background: var(--surface-inset); font: inherit; }

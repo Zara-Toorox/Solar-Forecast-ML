@@ -864,6 +864,12 @@
         ["Große Änderung: zweite Bestätigung erforderlich.","Large change: second confirmation required."],
         ["Ich habe Vorher/Nachher geprüft und bestätige die große Änderung.","I have checked before/after and confirm the large change."],
         ["Rückgängig","Undo"],
+        ["Die gezeigten Stunden weichen vom EAI-Plan ab (Regler verändert oder EAI-Stundenwerte unvollständig). Für diese Simulation liegt kein Backend-Betrag vor.","The hours shown differ from the EAI plan (controls changed or EAI hourly values incomplete). This simulation has no backend amount."],
+        ["Simulation – Beispielwerte","Simulation – example values"],
+        ["Die Regler verändern nur die Darstellung. Kosten bleiben die Ausgangs-Beispielwerte aus dem Backend:","The controls only change the display. Costs remain the baseline example amounts from the backend:"],
+        ["Simulation – Beispielwerte","Simulation – example values"],
+        [" Die Euro-Beträge zeigen weiterhin die Ausgangs-Beispielwerte aus dem Backend."," Euro amounts still show the baseline example amounts from the backend."],
+        ["unvollständig","incomplete"],
     ]);
 
     const dynamicTranslations = [

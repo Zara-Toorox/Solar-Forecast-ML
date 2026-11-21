@@ -470,6 +470,14 @@
           "forecast_learning": "Prognose lernt noch, Werte sind vorsichtig"
         }
       },
+      "radiation_sensor_calibrated": {
+        "name": "Strahlungssensor geeicht",
+        "state": {
+          "yes": "Ja",
+          "no": "Nein",
+          "not_available": "Nicht verfügbar"
+        }
+      },
       "ai_rmse": {
         "name": "AI RMSE",
         "state": {
@@ -526,7 +534,7 @@
         }
       },
       "cloudiness_volatility": {
-        "name": "Wetterstabilität",
+        "name": "Stabilität der prognostizierten Bewölkung",
         "state": {
           "very_stable": "Sehr stabil",
           "stable": "Stabil",

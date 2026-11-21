@@ -884,7 +884,7 @@
         const minutes = Math.max(0, Math.round((Date.now() - then) / 60000));
         if (minutes < 1) return text("justNow");
         if (minutes < 60) return text("minutesAgo").replace("{n}", String(minutes));
-        return text("hoursAgo").replace("{n}", String(Math.round(minutes / 60)));
+        return text("hoursAgo").replace("{n}", window.SFMLI18n.formatNumber(minutes / 60, 0));
     }
 
     function reading(device, role) {

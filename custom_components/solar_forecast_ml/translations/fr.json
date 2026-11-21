@@ -406,6 +406,14 @@
           "forecast_learning": "La prévision apprend encore, les valeurs sont prudentes"
         }
       },
+      "radiation_sensor_calibrated": {
+        "name": "Capteur de rayonnement étalonné",
+        "state": {
+          "yes": "Oui",
+          "no": "Non",
+          "not_available": "Non disponible"
+        }
+      },
       "ai_rmse": {
         "name": "IA RMSE",
         "state": {
@@ -462,7 +470,7 @@
         }
       },
       "cloudiness_volatility": {
-        "name": "Stabilite meteo",
+        "name": "Stabilité de la nébulosité prévue",
         "state": {
           "very_stable": "Tres stable",
           "stable": "Stable",

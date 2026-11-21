@@ -34,10 +34,10 @@ const WEATHER_SYMBOLS = {
 function forecastBandColor(errorPercent) {
     if (errorPercent == null || Number.isNaN(errorPercent)) return '#8b949e';
     const error = Math.abs(errorPercent);
-    if (error <= 15) return '#22c55e';
-    if (error <= 25) return '#eab308';
-    if (error <= 35) return '#f97316';
-    return '#ef4444';
+    if (error <= 15) return (window.sfmlThemeColor?.("--success") || "#22c55e");
+    if (error <= 25) return (window.sfmlThemeColor?.("--solar") || "#eab308");
+    if (error <= 35) return (window.sfmlThemeColor?.("--house") || "#f97316");
+    return (window.sfmlThemeColor?.("--danger") || "#ef4444");
 }
 
 function forecastBandColorFromAccuracy(accuracyPercent) {
@@ -47,7 +47,7 @@ function forecastBandColorFromAccuracy(accuracyPercent) {
 
 function yieldDeviationColor(deviation) {
     if (deviation == null || Number.isNaN(deviation)) return '#8b949e';
-    if (deviation >= 0) return deviation > 0 ? '#22c55e' : '#38bdf8';
+    if (deviation >= 0) return deviation > 0 ? (window.sfmlThemeColor?.("--success") || "#22c55e") : (window.sfmlThemeColor?.("--accent") || "#38bdf8");
     return forecastBandColor(deviation);
 }
 
@@ -149,11 +149,11 @@ const _HomePage = {
                     <div class="weather-badges" v-if="infoData.outdoorTemp != null || infoData.outdoorClouds != null">
                         <div class="weather-badge temp-badge" v-if="infoData.outdoorTemp != null" :title="$t('weather.temperature')">
                             <span class="badge-icon">🌡️</span>
-                            <span class="badge-val">{{ infoData.outdoorTemp.toFixed(1) }}°C</span>
+                            <span class="badge-val">{{ $n(infoData.outdoorTemp, 1) }}°C</span>
                         </div>
                         <div class="weather-badge clouds-badge" v-if="infoData.outdoorClouds != null" :title="$t('weather.cloudCover')">
                             <span class="badge-icon">{{ getWeatherSymbol(infoData.outdoorCondition, infoData.outdoorClouds) }}</span>
-                            <span class="badge-val">{{ Math.round(infoData.outdoorClouds) }}% {{ $t('weather.cloudCover') }}</span>
+                            <span class="badge-val">{{ $n(infoData.outdoorClouds, 0) }}% {{ $t('weather.cloudCover') }}</span>
                         </div>
                         <div class="weather-badge source-badge" v-if="infoData.outdoorSource === 'forecast'">
                             <span class="badge-val">{{ $t('common.forecast') }}</span>
@@ -244,12 +244,12 @@ const _HomePage = {
 
                 <!-- 0. PEAK TODAY / ALLTIME -->
                 <g transform="translate(135, 44)" class="text-block-left">
-                    <text x="0" y="0" class="val-main solar">{{ infoData.peakTodayW != null ? infoData.peakTodayW + ' W' : '--' }}</text>
+                    <text x="0" y="0" class="val-main solar">{{ infoData.peakTodayW != null ? $n(infoData.peakTodayW, 0) + ' W' : '--' }}</text>
                     <text x="0" y="16" class="label-sub">{{ localText('peakToday') }}</text>
                     <text x="0" y="32" class="status-sub neutral">{{ infoData.peakTodayTime || '--' }}</text>
                 </g>
                 <g transform="translate(165, 44)">
-                    <text x="0" y="0" class="val-main" style="filter: drop-shadow(0 0 1px rgba(253,230,138,0.3));">{{ infoData.peakAlltimeW != null ? infoData.peakAlltimeW + ' W' : '--' }}</text>
+                    <text x="0" y="0" class="val-main" style="filter: drop-shadow(0 0 1px color-mix(in srgb, var(--solar, rgb(253, 230, 138)) 30%, transparent));">{{ infoData.peakAlltimeW != null ? infoData.peakAlltimeW + ' W' : '--' }}</text>
                     <text x="0" y="16" class="label-sub">{{ localText('alltime') }}</text>
                     <text x="0" y="32" class="status-sub neutral">{{ infoData.peakAlltimeDate || '--' }}</text>
                 </g>
@@ -301,7 +301,7 @@ const _HomePage = {
                 <!-- 5. BATTERY -->
                 <g transform="translate(623, 520)" v-if="flow.battery_soc != null">
                     <text x="0" y="0" class="val-main battery">{{ batteryPowerText }}</text>
-                    <text x="0" y="16" class="label-sub">{{ localText('battery') }} · {{ flow.battery_soc != null ? flow.battery_soc.toFixed(0) + '%' : '--' }}</text>
+                    <text x="0" y="16" class="label-sub">{{ localText('battery') }} · {{ flow.battery_soc != null ? $n(flow.battery_soc, 0) + '%' : '--' }}</text>
                     <text x="0" y="32" class="status-sub" :class="batteryStateClass">
                         {{ batteryStateTextLocal }}
                     </text>
@@ -320,7 +320,7 @@ const _HomePage = {
                 </div>
                 <div class="info-item">
                     <span class="info-label">🔋 {{ $t('home.panel.battery') }}</span>
-                    <span class="info-value" :style="{color: flow.battery_power > 0 ? 'var(--price-cheap)' : flow.battery_power < 0 ? '#f97316' : 'var(--text-secondary)'}">
+                    <span class="info-value" :style="{color: flow.battery_power > 0 ? 'var(--price-cheap)' : flow.battery_power < 0 ? 'var(--house, #f97316)' : 'var(--text-secondary)'}">
                         {{ flow.battery_power > 0 ? '+' : '' }}{{ fmtW(flow.battery_power) }}
                     </span>
                     <span v-if="flow.grid_to_battery > 10" class="info-value info-small" style="color: var(--price-expensive)">{{ $t('home.panel.batteryFromGrid', { value: fmtW(flow.grid_to_battery) }) }}</span>
@@ -578,7 +578,7 @@ const _HomePage = {
                     <div v-if="todayForecastAccuracyPercent != null" class="metric-badge-card">
                         <span class="metric-badge-icon">🎯</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" :style="{ color: forecastBandColorFromAccuracy(todayForecastAccuracyPercent) }">{{ todayForecastAccuracyPercent.toFixed(1) }}%</span>
+                            <span class="metric-badge-value" :style="{ color: forecastBandColorFromAccuracy(todayForecastAccuracyPercent) }">{{ $n(todayForecastAccuracyPercent, 1) }}%</span>
                             <span class="metric-badge-label">{{ dayQualityLabel }}</span>
                         </div>
                     </div>
@@ -592,14 +592,14 @@ const _HomePage = {
                     <div v-if="devOn && todayLearningBasisLabel" class="metric-badge-card">
                         <span class="metric-badge-icon">⏱️</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" style="color: #fbbf24">{{ todayLearningBasisLabel }}</span>
+                            <span class="metric-badge-value" style="color: var(--solar, #fbbf24)">{{ todayLearningBasisLabel }}</span>
                             <span class="metric-badge-label">{{ dayLearningBasisLabel }}</span>
                         </div>
                     </div>
                     <div v-if="devOn && todayDiscardedLearningLabel" class="metric-badge-card" :title="todayDiscardedLearningLabel">
                         <span class="metric-badge-icon">🗑️</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" style="color: #f87171">{{ todayDiscardedLearningLabel }}</span>
+                            <span class="metric-badge-value" style="color: var(--danger, #f87171)">{{ todayDiscardedLearningLabel }}</span>
                             <span class="metric-badge-label">{{ dayDiscardedLabel }}</span>
                         </div>
                     </div>
@@ -609,29 +609,29 @@ const _HomePage = {
                     <div class="metric-badge-card" :title="$t('home.forecastActualKpiTitle')">
                         <span class="metric-badge-icon">📈</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" style="color: #22c55e">{{ actualTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-value" style="color: var(--chart-actual, #22c55e)">{{ $n(actualTotal, 1) }} <span class="unit">kWh</span></span>
                             <span class="metric-badge-label">{{ $t('home.forecastActualKpi') }}</span>
                         </div>
                     </div>
                     <div class="metric-badge-card" :title="usesHybridDayTotal ? $t('home.forecastDayKpiHybridTitle') : ''">
                         <span class="metric-badge-icon">📉</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" style="color: #fbbf24">{{ forecastDayKpiValue }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-value" style="color: var(--chart-forecast, #fbbf24)">{{ $n(forecastDayKpiValue, 1) }} <span class="unit">kWh</span></span>
                             <span class="metric-badge-label">{{ $t('home.forecastDayKpi') }}</span>
-                            <span v-if="usesHybridDayTotal" class="metric-badge-label" style="color: #38bdf8">{{ $t('home.forecastDayKpiHybrid') }}</span>
+                            <span v-if="usesHybridDayTotal" class="metric-badge-label" style="color: var(--accent, #38bdf8)">{{ $t('home.forecastDayKpiHybrid') }}</span>
                         </div>
                     </div>
                     <div v-if="restOfDayForecastTotal != null" class="metric-badge-card" :title="$t('home.restOfDayKpiTitle')">
                         <span class="metric-badge-icon">🔄</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" style="color: #38bdf8">{{ restOfDayForecastTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-value" style="color: var(--accent, #38bdf8)">{{ $n(restOfDayForecastTotal, 1) }} <span class="unit">kWh</span></span>
                             <span class="metric-badge-label">{{ $t('home.restOfDayKpi') }}</span>
                         </div>
                     </div>
                     <div v-if="hasConservativeForecast" class="metric-badge-card">
                         <span class="metric-badge-icon">🔀</span>
                         <div class="metric-badge-info">
-                            <span class="metric-badge-value" style="color: #2dd4bf">{{ conservativeForecastTotal }} <span class="unit">kWh</span></span>
+                            <span class="metric-badge-value" style="color: var(--accent, #2dd4bf)">{{ $n(conservativeForecastTotal, 1) }} <span class="unit">kWh</span></span>
                             <span class="metric-badge-label">{{ $t('home.conservativeDayKpi') }}</span>
                         </div>
                     </div>
@@ -688,7 +688,7 @@ const _HomePage = {
                 <span class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.firstHit') }}</span> {{ shadowTimeline.first }}</span>
                 <span class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.lastHit') }}</span> {{ shadowTimeline.last }}</span>
                 <span class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.duration') }}</span> {{ shadowTimeline.duration }}</span>
-                <span v-if="shadowTimeline.maxLoss > 0" class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.maxLoss') }}</span> −{{ shadowTimeline.maxLoss }} %</span>
+                <span v-if="shadowTimeline.maxLoss > 0" class="shadow-timeline-item"><span class="shadow-timeline-label">{{ $t('home.shadowTimeline.maxLoss') }}</span> −{{ $n(shadowTimeline.maxLoss, 0, 1) }} %</span>
                 <span v-if="shadowTimeline.tip" class="shadow-timeline-tip">💡 {{ shadowTimeline.tip }}</span>
             </div>
         </div>
@@ -703,7 +703,7 @@ const _HomePage = {
                      class="chart-card" style="flex:1; min-width:140px; padding:var(--space-md); text-align:center;">
                     <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">{{ fc.label }}</div>
                     <div style="font-size:1.5rem; font-weight:700; color:var(--solar); font-family:var(--font-mono);">
-                        {{ fc.kwh }} kWh
+                        {{ $n(fc.kwh, 0, 2) }} kWh
                     </div>
                     <div style="font-size:0.75rem; color:var(--text-muted);">{{ fc.date }}</div>
                 </div>
@@ -730,7 +730,7 @@ const _HomePage = {
                                 {{ $t('home.panelGroups.liveOnly') }}
                             </span>
                             <span v-if="panelDayProgressPercent(group) != null" class="pg-badge progress" :style="{ color: panelDayProgressColor(group), borderColor: panelDayProgressColor(group) + '33' }" :title="panelDayProgressTitle(group)">
-                                {{ panelDayProgressPercent(group).toFixed(0) }}%
+                                {{ $n(panelDayProgressPercent(group), 0) }}%
                             </span>
                         </div>
                     </div>
@@ -754,7 +754,7 @@ const _HomePage = {
                 </div>
                 <div class="pg-stats">
                     <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono)">
-                        {{ $t('common.peak') }}: <span style="color:var(--solar)">{{ infoData.peakTodayW || '--' }} W</span>
+                        {{ $t('common.peak') }}: <span style="color:var(--solar)">{{ infoData.peakTodayW ? $n(infoData.peakTodayW, 0) : '--' }} W</span>
                         <span v-if="infoData.peakTodayTime" style="color:var(--text-muted)"> ({{ infoData.peakTodayTime }})</span>
                     </span>
                     <span style="font-size:0.8rem; color:var(--text-muted); font-family:var(--font-mono)">
@@ -770,10 +770,10 @@ const _HomePage = {
                     <div class="panel-live-icon">☀</div>
                     <div class="panel-live-name">{{ panel.name }}</div>
                     <div class="panel-live-power">
-                        {{ panel.power != null ? panel.power.toFixed(0) : '0' }}<span class="panel-live-unit"> W</span>
+                        {{ panel.power != null ? $n(panel.power, 0) : '0' }}<span class="panel-live-unit"> W</span>
                     </div>
-                    <div class="panel-live-peak" v-if="panel.max_today != null" style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">
-                        Peak: {{ panel.max_today.toFixed(0) }} W
+                    <div class="panel-live-peak" v-if="panel.max_today != null" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 4px;">
+                        Peak: {{ $n(panel.max_today, 0) }} W
                     </div>
                 </div>
             </div>
@@ -783,7 +783,7 @@ const _HomePage = {
             <div class="chart-header" style="flex-wrap:wrap; gap:6px;">
                 <div style="display:flex; align-items:center; gap:var(--space-md)">
                     <span class="chart-title">🔋 Akku-Ladestand</span>
-                    <span style="color:#38bdf8; font-size:1.3rem; font-weight:700; font-family:var(--font-mono)">
+                    <span style="color:var(--accent, #38bdf8); font-size:1.3rem; font-weight:700; font-family:var(--font-mono)">
                         {{ batteryChartStats.socText }}
                     </span>
                 </div>
@@ -1018,7 +1018,7 @@ const _HomePage = {
             reloadSelectedDayData();
         }
         const valueOrZero = (value) => value ?? 0;
-        const fmtKwh = (value, digits = 2) => Number(valueOrZero(value)).toFixed(digits);
+        const fmtKwh = (value, digits = 2) => window.SFMLI18n.formatNumber(valueOrZero(value), digits);
         const groupHasHourly = (group) => Array.isArray(group?.hourly) && group.hourly.length > 0;
         const finiteNumber = (value) => {
             const number = Number(value);
@@ -1026,7 +1026,7 @@ const _HomePage = {
         };
         const formatPanelPercent = (value, digits = 0) => {
             const number = finiteNumber(value);
-            return number == null ? null : number.toFixed(digits);
+            return number == null ? null : window.SFMLI18n.formatNumber(number, digits);
         };
         const panelDayProgressPercent = (group) => {
             const provided = finiteNumber(group?.day_progress_percent);
@@ -1039,9 +1039,9 @@ const _HomePage = {
         const panelDayProgressColor = (group) => {
             const progress = panelDayProgressPercent(group);
             if (progress == null) return '#8b949e';
-            if (progress >= 100) return '#22c55e';
-            if (progress >= 70) return '#fbbf24';
-            if (progress >= 35) return '#38bdf8';
+            if (progress >= 100) return (window.sfmlThemeColor?.("--success") || "#22c55e");
+            if (progress >= 70) return (window.sfmlThemeColor?.("--solar") || "#fbbf24");
+            if (progress >= 35) return (window.sfmlThemeColor?.("--accent") || "#38bdf8");
             return '#8b949e';
         };
         const panelDayProgressTitle = (group) => {
@@ -1070,13 +1070,13 @@ const _HomePage = {
             const elapsedHours = finiteNumber(group.elapsed_hours_count);
             if (devOn.value && cleanHours != null && elapsedHours != null && elapsedHours > 0) {
                 parts.push(t('home.panelGroups.learningBasisShort', {
-                    clean: cleanHours.toFixed(0),
-                    elapsed: elapsedHours.toFixed(0),
+                    clean: window.SFMLI18n.formatNumber(cleanHours, 0),
+                    elapsed: window.SFMLI18n.formatNumber(elapsedHours, 0),
                 }));
             }
             const excludedHours = finiteNumber(group.excluded_hours_count);
             if (devOn.value && excludedHours != null && excludedHours > 0) {
-                parts.push(t('home.panelGroups.discardedShort', { value: excludedHours.toFixed(0) }));
+                parts.push(t('home.panelGroups.discardedShort', { value: window.SFMLI18n.formatNumber(excludedHours, 0) }));
             }
             return parts;
         };
@@ -1165,11 +1165,11 @@ const _HomePage = {
             const maxSoc = socValues.length ? Math.max(...socValues) : null;
 
             return {
-                socText: soc == null ? '--' : `${Number(soc).toFixed(0)}%`,
-                minSocText: minSoc == null ? '--' : `${minSoc.toFixed(0)}%`,
-                maxSocText: maxSoc == null ? '--' : `${maxSoc.toFixed(0)}%`,
-                chargeKwh: `${charge.toFixed(2)} kWh`,
-                dischargeKwh: `${discharge.toFixed(2)} kWh`,
+                socText: soc == null ? '--' : `${window.SFMLI18n.formatNumber(Number(soc), 0)}%`,
+                minSocText: minSoc == null ? '--' : `${window.SFMLI18n.formatNumber(minSoc, 0)}%`,
+                maxSocText: maxSoc == null ? '--' : `${window.SFMLI18n.formatNumber(maxSoc, 0)}%`,
+                chargeKwh: `${window.SFMLI18n.formatNumber(charge, 2)} kWh`,
+                dischargeKwh: `${window.SFMLI18n.formatNumber(discharge, 2)} kWh`,
             };
         });
 
@@ -1485,7 +1485,7 @@ const _HomePage = {
         const quality30Sentence = computed(() => {
             const value = Number(cleanEvalStats.last30.accuracy);
             if (!Number.isFinite(value)) return "";
-            return t("home.quality30").replace("{percent}", value.toFixed(0));
+            return t("home.quality30").replace("{percent}", window.SFMLI18n.formatNumber(value, 0));
         });
 
         // ========== HUBBLE TRUST BAND + SHADOW TIMELINE ==========
@@ -1682,7 +1682,7 @@ const _HomePage = {
 
         const deviationLabel = computed(() => {
             const prefix = isTodayPartial.value ? (t('common.live') + ' ') : '';
-            return `${prefix}${deviationPercent.value >= 0 ? '+' : ''}${deviationPercent.value.toFixed(0)}%`;
+            return `${prefix}${deviationPercent.value >= 0 ? '+' : ''}${window.SFMLI18n.formatNumber(deviationPercent.value, 0)}%`;
         });
 
         const todayForecastErrorPercent = computed(() => {
@@ -1702,7 +1702,7 @@ const _HomePage = {
         const todayForecastErrorLabel = computed(() => {
             const value = todayForecastErrorPercent.value;
             if (value == null || Number.isNaN(value)) return null;
-            return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`;
+            return `${value >= 0 ? '+' : ''}${window.SFMLI18n.formatNumber(value, 1)}%`;
         });
 
         const todayForecastErrorIcon = computed(() => {
@@ -1723,7 +1723,7 @@ const _HomePage = {
         const forecastDeviationKwhLabel = computed(() => {
             const value = forecastDeviationKwh.value;
             if (value == null || Number.isNaN(value)) return '--';
-            return `${value >= 0 ? '+' : ''}${value.toFixed(1)} kWh`;
+            return `${value >= 0 ? '+' : ''}${window.SFMLI18n.formatNumber(value, 1)} kWh`;
         });
 
         const hybridDeviationPercent = computed(() => {
@@ -1750,7 +1750,7 @@ const _HomePage = {
             const value = hybridDeviationPercent.value;
             if (value == null || Number.isNaN(value)) return '--';
             const prefix = isTodayPartial.value ? (t('common.live') + ' ') : '';
-            return `${prefix}${value >= 0 ? '+' : ''}${value.toFixed(0)}%`;
+            return `${prefix}${value >= 0 ? '+' : ''}${window.SFMLI18n.formatNumber(value, 0)}%`;
         });
 
         const todayLearningBasisLabel = computed(() => {
@@ -1840,7 +1840,7 @@ const _HomePage = {
             const actual = formatHubbleNumber(metrics.evaluation_actual_kwh, 2);
             const absError = formatHubbleNumber(Math.abs(Number(metrics.forecast_error_percent)), 0);
             const consumptionRatio = buildHubbleConsumptionRatio(metrics);
-            const consumptionShare = consumptionRatio != null ? consumptionRatio.toFixed(0) : '--';
+            const consumptionShare = consumptionRatio != null ? window.SFMLI18n.formatNumber(consumptionRatio, 0) : '--';
             const peakPower = formatHubblePower(metrics.peak_solar_w);
             const peakTime = metrics.peak_solar_time || '--';
             const declineHour = metrics.decline_hour != null
@@ -2184,8 +2184,8 @@ const _HomePage = {
         function fmtW(val) {
             if (val == null) return '0 W';
             const abs = Math.abs(val);
-            if (abs >= 1000) return (val / 1000).toFixed(1) + ' kW';
-            return Math.round(val) + ' W';
+            if (abs >= 1000) return window.SFMLI18n.formatNumber(val / 1000, 1) + ' kW';
+            return window.SFMLI18n.formatNumber(val, 0) + ' W';
         }
 
         function restoreForecastLegendSelected() {
@@ -2218,14 +2218,14 @@ const _HomePage = {
         function fmtKw(val) {
             if (val == null) return '0 W';
             const abs = Math.abs(val);
-            if (abs >= 1000) return (val / 1000).toFixed(1) + ' kW';
-            return Math.round(val) + ' W';
+            if (abs >= 1000) return window.SFMLI18n.formatNumber(val / 1000, 1) + ' kW';
+            return window.SFMLI18n.formatNumber(val, 0) + ' W';
         }
 
         function getGridPower() {
-            if (flow.house_to_grid > 0) return '-' + flow.house_to_grid.toFixed(0);
+            if (flow.house_to_grid > 0) return '-' + window.SFMLI18n.formatNumber(flow.house_to_grid, 0);
             const imp = (flow.grid_to_house || 0) + (flow.grid_to_battery || 0);
-            return imp > 0 ? '+' + imp.toFixed(0) : '0';
+            return imp > 0 ? '+' + window.SFMLI18n.formatNumber(imp, 0) : '0';
         }
 
         function getGridLabel() {
@@ -2236,27 +2236,27 @@ const _HomePage = {
 
         function fmtKw(w) {
             if (w == null) return '--';
-            if (Math.abs(w) >= 1000) return (w / 1000).toFixed(1) + ' kW';
-            return Math.round(w) + ' W';
+            if (Math.abs(w) >= 1000) return window.SFMLI18n.formatNumber(w / 1000, 1) + ' kW';
+            return window.SFMLI18n.formatNumber(w, 0) + ' W';
         }
 
         function formatHubbleNumber(value, digits = 1) {
             const number = Number(value);
             if (!Number.isFinite(number)) return '--';
-            return number.toFixed(digits);
+            return window.SFMLI18n.formatNumber(number, digits);
         }
 
         function formatHubblePower(value) {
             const number = Number(value);
             if (!Number.isFinite(number)) return '--';
-            if (Math.abs(number) >= 1000) return `${(number / 1000).toFixed(1)} kW`;
-            return `${Math.round(number)} W`;
+            if (Math.abs(number) >= 1000) return `${window.SFMLI18n.formatNumber(number / 1000, 1)} kW`;
+            return `${window.SFMLI18n.formatNumber(number, 0)} W`;
         }
 
         function formatHubbleSigned(value, digits = 1) {
             const number = Number(value);
             if (!Number.isFinite(number)) return '--';
-            return `${number >= 0 ? '+' : ''}${number.toFixed(digits)}`;
+            return `${number >= 0 ? '+' : ''}${window.SFMLI18n.formatNumber(number, digits)}`;
         }
 
         function formatHubbleTime(value) {
@@ -2808,7 +2808,7 @@ const _HomePage = {
                     infoData.sunrise = data.sun_times.sunrise || null;
                     infoData.sunset = data.sun_times.sunset || null;
                     const dh = data.production_time?.duration_seconds;
-                    infoData.productionHours = dh ? (dh / 3600).toFixed(1) : null;
+                    infoData.productionHours = dh ? window.SFMLI18n.formatNumber(dh / 3600, 1) : null;
                     updatePowerChart();
                 }
 
@@ -2825,13 +2825,13 @@ const _HomePage = {
                     : null);
                 const weatherBits = [];
                 if (outdoorTemperature != null) {
-                    weatherBits.push(`${outdoorTemperature.toFixed(1)}°C`);
+                    weatherBits.push(`${window.SFMLI18n.formatNumber(outdoorTemperature, 1)}°C`);
                 }
                 if (symbol) {
                     weatherBits.push(symbol);
                 }
                 if (cloudCover != null) {
-                    weatherBits.push(`${Math.round(cloudCover)}%`);
+                    weatherBits.push(`${window.SFMLI18n.formatNumber(cloudCover, 0)}%`);
                 }
 
                 if (weatherBits.length > 0) {
@@ -3000,10 +3000,10 @@ const _HomePage = {
             const clouds = weather.clouds ?? weather.cloud_cover_percent ?? weather.cloud_cover;
             const precipitation = weather.precipitation ?? weather.precipitation_mm;
             const radiation = weather.solar_radiation_wm2 ?? weather.solar_radiation;
-            if (temp != null) parts.push(`${Number(temp).toFixed(1)}°C`);
-            if (clouds != null) parts.push(t('home.weatherTrace.cloudsLine', { value: Math.round(Number(clouds)) }));
-            if (precipitation != null) parts.push(t('home.weatherTrace.rainLine', { value: Number(precipitation).toFixed(1) }));
-            if (radiation != null) parts.push(`${Math.round(Number(radiation))} W/m²`);
+            if (temp != null) parts.push(`${window.SFMLI18n.formatNumber(Number(temp), 1)}°C`);
+            if (clouds != null) parts.push(t('home.weatherTrace.cloudsLine', { value: window.SFMLI18n.formatNumber(Number(clouds), 0) }));
+            if (precipitation != null) parts.push(t('home.weatherTrace.rainLine', { value: window.SFMLI18n.formatNumber(Number(precipitation), 1) }));
+            if (radiation != null) parts.push(`${window.SFMLI18n.formatNumber(Number(radiation), 0)} W/m²`);
             return parts.length ? parts.join(' · ') : t('home.weatherTrace.noDetails');
         }
 
@@ -3021,13 +3021,13 @@ const _HomePage = {
             const details = [];
             if (!Number.isNaN(expectedClouds) && !Number.isNaN(actualClouds)) {
                 const cloudDelta = Math.abs(expectedClouds - actualClouds);
-                details.push(t('home.weatherTrace.cloudsDelta', { value: cloudDelta.toFixed(0) }));
+                details.push(t('home.weatherTrace.cloudsDelta', { value: window.SFMLI18n.formatNumber(cloudDelta, 0) }));
                 score += cloudDelta <= 20 ? 0 : cloudDelta <= 40 ? 1 : 2;
             }
 
             const rainDelta = Math.abs(expectedRain - actualRain);
             if (expectedRain > 0 || actualRain > 0) {
-                details.push(t('home.weatherTrace.rainDelta', { value: rainDelta.toFixed(1) }));
+                details.push(t('home.weatherTrace.rainDelta', { value: window.SFMLI18n.formatNumber(rainDelta, 1) }));
             }
             score += rainDelta <= 0.3 ? 0 : rainDelta <= 1.5 ? 1 : 2;
 
@@ -3131,17 +3131,17 @@ const _HomePage = {
                             borderRadius: 8,
                             padding: [8, 12],
                             extraCssText: 'backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.05)',
-                            textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 11, fontFamily: 'var(--font-sans)' },
+                            textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-sans)' },
                             formatter: function(params) {
                                 let s = '<div style="font-family:var(--font-sans)">';
-                                s += '<div style="font-weight:700;font-size:11px;margin-bottom:4px">' + params[0].axisValue + '</div>';
+                                s += '<div style="font-weight:700;font-size:12px;margin-bottom:4px">' + params[0].axisValue + '</div>';
                                 params.forEach(p => {
                                     const dot = p.seriesName === t('common.actual')
-                                        ? '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:#22c55e;"></span>'
-                                        : '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:#fbbf24;"></span>';
-                                    s += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;gap:12px">'
+                                        ? '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:var(--success, #22c55e);"></span>'
+                                        : '<span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:var(--solar, #fbbf24);"></span>';
+                                    s += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;gap:12px">'
                                       + '<span>' + dot + p.seriesName + ':</span>'
-                                      + '<span style="font-weight:700;font-family:var(--font-mono)">' + (p.value == null ? '--' : p.value.toFixed(3)) + ' kWh</span></div>';
+                                      + '<span style="font-weight:700;font-family:var(--font-mono)">' + (p.value == null ? '--' : window.SFMLI18n.formatNumber(p.value, 3)) + ' kWh</span></div>';
                                 });
                                 s += '</div>';
                                 return s;
@@ -3149,7 +3149,7 @@ const _HomePage = {
                         },
                         legend: {
                             data: [t('common.actual'), t('common.forecast')],
-                            textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 },
+                            textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                             top: 0,
                             right: 0,
                             itemGap: 12,
@@ -3159,7 +3159,7 @@ const _HomePage = {
                         xAxis: {
                             type: 'category',
                             data: hours.map(h => String(h).padStart(2, '0') + ':00'),
-                            axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10, interval: 3 },
+                            axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12, interval: 3 },
                             axisLine: { show: false },
                             axisTick: { show: false },
                         },
@@ -3167,20 +3167,20 @@ const _HomePage = {
                             type: 'value',
                             axisLine: { show: false },
                             axisTick: { show: false },
-                            axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10, formatter: v => v.toFixed(2) },
+                            axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12, formatter: v => window.SFMLI18n.formatNumber(v, 2) },
                             splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.02)'), type: 'dashed' } },
                         },
                         series: [
                             {
                                 name: t('common.actual'), type: 'line', data: actualData,
                                 smooth: true, connectNulls: false,
-                                lineStyle: { color: '#22c55e', width: 2.5, shadowColor: 'rgba(34,197,94,0.25)', shadowBlur: 8, shadowOffsetY: 2 },
-                                itemStyle: { color: '#22c55e' },
+                                lineStyle: { color: (window.sfmlThemeColor?.("--chart-actual") || "#22c55e"), width: 2.5, shadowColor: (window.sfmlThemeColor?.("--chart-actual", 0.25) || 'rgba(34,197,94,0.25)'), shadowBlur: 8, shadowOffsetY: 2 },
+                                itemStyle: { color: (window.sfmlThemeColor?.("--chart-actual") || "#22c55e") },
                                 symbol: 'none',
                                 areaStyle: {
                                     color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                        { offset: 0, color: 'rgba(34,197,94,0.12)' },
-                                        { offset: 1, color: 'rgba(34,197,94,0)' }
+                                        { offset: 0, color: (window.sfmlThemeColor?.("--chart-actual", 0.12) || 'rgba(34,197,94,0.12)') },
+                                        { offset: 1, color: (window.sfmlThemeColor?.("--chart-actual", 0) || 'rgba(34,197,94,0)') }
                                     ])
                                 },
                                 z: 6,
@@ -3188,8 +3188,8 @@ const _HomePage = {
                             {
                                 name: t('common.forecast'), type: 'line', data: forecastD,
                                 smooth: true, connectNulls: false,
-                                lineStyle: { color: '#fbbf24', width: 2.5, shadowColor: 'rgba(251,191,36,0.2)', shadowBlur: 8, shadowOffsetY: 2 },
-                                itemStyle: { color: '#fbbf24' },
+                                lineStyle: { color: (window.sfmlThemeColor?.("--chart-forecast") || "#fbbf24"), width: 2.5, shadowColor: (window.sfmlThemeColor?.("--chart-forecast", 0.2) || 'rgba(251,191,36,0.2)'), shadowBlur: 8, shadowOffsetY: 2 },
+                                itemStyle: { color: (window.sfmlThemeColor?.("--chart-forecast") || "#fbbf24") },
                                 symbol: 'none',
                                 z: 5,
                             },
@@ -3400,7 +3400,6 @@ const _HomePage = {
                         const actValue = actualRows[idx] ?? null;
                         const act = actValue == null ? null : Number(actValue);
                         const conf = forecastData.confidence[idx] ?? 0;
-                        const mlPct = forecastData.ml_pct[idx] ?? 0;
                         const method = forecastData.method[idx] || '--';
                         const temp = forecastData.temperature[idx];
                         const rad = forecastData.radiation[idx];
@@ -3411,24 +3410,24 @@ const _HomePage = {
                         let s = '<div style="min-width:180px">';
                         s += '<div style="font-weight:700;font-size:13px;margin-bottom:6px">' + String(hour).padStart(2,'0') + ':00 ' + t('home.oClock') + '</div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:4px 0 6px"></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#fbbf24">' + t('common.forecast') + ':</span><span>' + pred.toFixed(2) + ' kWh</span></div>';
-                        if (conservative != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#2dd4bf">' + t('home.p10') + ':</span><span>' + conservative.toFixed(2) + ' kWh</span></div>';
-                        if (hybrid != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#38bdf8">' + t('home.hybrid') + ':</span><span>' + hybrid.toFixed(2) + ' kWh</span></div>';
-                        if (tfs != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#a855f7">' + t('home.tfs') + ':</span><span>' + Number(tfs).toFixed(2) + ' kWh</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between"><span style="color:#22c55e">' + t('common.actual') + ':</span><span>' + (act == null ? '--' : act.toFixed(2) + ' kWh') + '</span></div>';
-                        if (delta != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('common.yield') + ' &Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + delta + '%</span></div>';
-                        if (forecastError != null) s += '<div style="display:flex;justify-content:space-between"><span style="color:#94a3b8">' + t('solar.weeklyTable.forecastError') + ':</span><span style="color:' + forecastBandColor(parseFloat(forecastError)) + '">' + (parseFloat(forecastError) >= 0 ? '+' : '') + forecastError + '%</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--chart-forecast, #fbbf24)">' + t('common.forecast') + ':</span><span>' + window.SFMLI18n.formatNumber(pred, 2) + ' kWh</span></div>';
+                        if (conservative != null) s += '<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--chart-series-conservative, #2dd4bf)">' + t('home.p10') + ':</span><span>' + window.SFMLI18n.formatNumber(conservative, 2) + ' kWh</span></div>';
+                        if (hybrid != null) s += '<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--chart-hybrid, #38bdf8)">' + t('home.hybrid') + ':</span><span>' + window.SFMLI18n.formatNumber(hybrid, 2) + ' kWh</span></div>';
+                        if (tfs != null) s += '<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--chart-series-ai, #a855f7)">' + t('home.tfs') + ':</span><span>' + window.SFMLI18n.formatNumber(Number(tfs), 2) + ' kWh</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:var(--chart-actual, #22c55e)">' + t('common.actual') + ':</span><span>' + (act == null ? '--' : window.SFMLI18n.formatNumber(act, 2) + ' kWh') + '</span></div>';
+                        if (delta != null) s += '<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#94a3b8">' + t('common.yield') + ' &Delta;:</span><span style="color:' + forecastBandColor(parseFloat(delta)) + '">' + (parseFloat(delta) >= 0 ? '+' : '') + window.SFMLI18n.formatNumber(delta, 1) + '%</span></div>';
+                        if (forecastError != null) s += '<div style="display:flex;justify-content:space-between;gap:12px"><span style="color:#94a3b8">' + t('solar.weeklyTable.forecastError') + ':</span><span style="color:' + forecastBandColor(parseFloat(forecastError)) + '">' + (parseFloat(forecastError) >= 0 ? '+' : '') + window.SFMLI18n.formatNumber(forecastError, 1) + '%</span></div>';
                         s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
-                        s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">AI Stack:</div>';
-                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.mlShare') + ':</span><span>' + mlPct.toFixed(0) + '%</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('settings.confidence') + ':</span><span>' + conf.toFixed(0) + '%</span></div>';
-                        s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.method') + ':</span><span>' + method + '</span></div>';
+                        s += '<div style="font-size:12px;color:#8b949e;margin-bottom:3px">AI Stack:</div>';
+                        s += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px"><span>' + t('home.mlShare') + ':</span><span>' + t('home.aiActive') + '</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px"><span>' + t('settings.confidence') + ':</span><span>' + window.SFMLI18n.formatNumber(conf, 0) + '%</span></div>';
+                        s += '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px"><span>' + t('home.method') + ':</span><span>' + method + '</span></div>';
                         if (temp != null || rad != null || clouds != null) {
                             s += '<div style="border-top:1px solid rgba(255,255,255,0.15);margin:6px 0 4px"></div>';
-                            s += '<div style="font-size:11px;color:#8b949e;margin-bottom:3px">' + t('nav.weather') + ':</div>';
-                            if (temp != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.tempShort') + ':</span><span>' + temp.toFixed(1) + '\u00B0C</span></div>';
-                            if (clouds != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.cloudsShort') + ':</span><span>' + clouds.toFixed(0) + '%</span></div>';
-                            if (rad != null) s += '<div style="display:flex;justify-content:space-between;font-size:11px"><span>' + t('home.irradianceShort') + ':</span><span>' + rad.toFixed(0) + ' W/m\u00B2</span></div>';
+                            s += '<div style="font-size:12px;color:#8b949e;margin-bottom:3px">' + t('nav.weather') + ':</div>';
+                            if (temp != null) s += '<div style="display:flex;justify-content:space-between;font-size:12px"><span>' + t('home.tempShort') + ':</span><span>' + window.SFMLI18n.formatNumber(temp, 1) + '\u00B0C</span></div>';
+                            if (clouds != null) s += '<div style="display:flex;justify-content:space-between;font-size:12px"><span>' + t('home.cloudsShort') + ':</span><span>' + window.SFMLI18n.formatNumber(clouds, 0) + '%</span></div>';
+                            if (rad != null) s += '<div style="display:flex;justify-content:space-between;font-size:12px"><span>' + t('home.irradianceShort') + ':</span><span>' + window.SFMLI18n.formatNumber(rad, 0) + ' W/m\u00B2</span></div>';
                         }
                         s += '</div>';
                         return s;
@@ -3438,15 +3437,15 @@ const _HomePage = {
                     type: 'category',
                     data: forecastData.hours.map(h => String(h).padStart(2, '0')),
                     axisLine: { show: false },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, margin: 12 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12, margin: 12 },
                 },
                 yAxis: {
                     type: 'value',
                     name: 'kWh',
-                    nameTextStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 },
+                    nameTextStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                     axisLine: { show: false },
                     splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.025)'), type: 'dashed' } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                 },
                 series: [
                     // P10 lower boundary (invisible, stacked base)
@@ -3471,7 +3470,7 @@ const _HomePage = {
                         symbol: 'none',
                         smooth: true, connectNulls: false,
                         stack: 'band',
-                        areaStyle: { color: 'rgba(251,191,36,0.06)' },
+                        areaStyle: { color: (window.sfmlThemeColor?.("--chart-forecast", 0.06) || 'rgba(251,191,36,0.06)') },
                         z: 1,
                     },
                     // Learned shadow windows (today only) as overlay on the yield curve
@@ -3483,7 +3482,7 @@ const _HomePage = {
                         silent: true,
                         markArea: {
                             silent: true,
-                            label: { show: true, position: 'insideTop', color: getThemeColor('--text-muted', '#94a3b8'), fontSize: 9 },
+                            label: { show: true, position: 'insideTop', color: getThemeColor('--text-muted', '#94a3b8'), fontSize: 12 },
                             data: shadowMarkAreas(),
                         },
                         z: 0,
@@ -3492,8 +3491,8 @@ const _HomePage = {
                         name: 'Prognose',
                         type: 'line',
                         data: forecastData.forecast,
-                        lineStyle: { color: '#fbbf24', width: 3, shadowColor: 'rgba(251,191,36,0.25)', shadowBlur: 10, shadowOffsetY: 3 },
-                        itemStyle: { color: '#fbbf24' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--chart-forecast") || "#fbbf24"), width: 3, shadowColor: (window.sfmlThemeColor?.("--chart-forecast", 0.25) || 'rgba(251,191,36,0.25)'), shadowBlur: 10, shadowOffsetY: 3 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--chart-forecast") || "#fbbf24") },
                         symbol: 'none',
                         smooth: true, connectNulls: false,
                         z: 5,
@@ -3502,8 +3501,8 @@ const _HomePage = {
                         name: 'P10',
                         type: 'line',
                         data: forecastData.conservative,
-                        lineStyle: { color: '#2dd4bf', width: 2, type: 'dashed', shadowColor: 'rgba(45,212,191,0.18)', shadowBlur: 6 },
-                        itemStyle: { color: '#2dd4bf' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--chart-series-conservative") || "#2dd4bf"), width: 2, type: 'dashed', shadowColor: (window.sfmlThemeColor?.("--chart-series-conservative", 0.18) || 'rgba(45,212,191,0.18)'), shadowBlur: 6 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-conservative") || "#2dd4bf") },
                         symbol: 'none',
                         smooth: true,
                         connectNulls: false,
@@ -3513,8 +3512,8 @@ const _HomePage = {
                         name: 'Hybrid',
                         type: 'line',
                         data: forecastData.hybrid,
-                        lineStyle: { color: '#38bdf8', width: 2, type: 'dashed', shadowColor: 'rgba(56,189,248,0.2)', shadowBlur: 6 },
-                        itemStyle: { color: '#38bdf8' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--chart-hybrid") || "#38bdf8"), width: 2, type: 'dashed', shadowColor: (window.sfmlThemeColor?.("--chart-hybrid", 0.2) || 'rgba(56,189,248,0.2)'), shadowBlur: 6 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--chart-hybrid") || "#38bdf8") },
                         symbol: 'none',
                         smooth: true,
                         connectNulls: false,
@@ -3524,8 +3523,8 @@ const _HomePage = {
                         name: 'TFS',
                         type: 'line',
                         data: forecastData.tfs,
-                        lineStyle: { color: '#a855f7', width: 2, type: 'dotted', shadowColor: 'rgba(168,85,247,0.2)', shadowBlur: 6 },
-                        itemStyle: { color: '#a855f7' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7"), width: 2, type: 'dotted', shadowColor: (window.sfmlThemeColor?.("--chart-series-ai", 0.2) || 'rgba(168,85,247,0.2)'), shadowBlur: 6 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7") },
                         symbol: 'none',
                         smooth: true,
                         connectNulls: false,
@@ -3536,15 +3535,15 @@ const _HomePage = {
                         name: 'IST',
                         type: 'line',
                         data: actualRows,
-                        lineStyle: { color: '#22c55e', width: 3, shadowColor: 'rgba(34,197,94,0.3)', shadowBlur: 12, shadowOffsetY: 3 },
-                        itemStyle: { color: '#22c55e' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--chart-actual") || "#22c55e"), width: 3, shadowColor: (window.sfmlThemeColor?.("--chart-actual", 0.3) || 'rgba(34,197,94,0.3)'), shadowBlur: 12, shadowOffsetY: 3 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--chart-actual") || "#22c55e") },
                         symbol: 'none',
                         smooth: true,
                         connectNulls: false,
                         areaStyle: {
                             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: 'rgba(34,197,94,0.18)' },
-                                { offset: 1, color: 'rgba(34,197,94,0)' }
+                                { offset: 0, color: (window.sfmlThemeColor?.("--chart-actual", 0.18) || 'rgba(34,197,94,0.18)') },
+                                { offset: 1, color: (window.sfmlThemeColor?.("--chart-actual", 0) || 'rgba(34,197,94,0)') }
                             ])
                         },
                         z: 6,
@@ -3556,7 +3555,7 @@ const _HomePage = {
                             silent: true,
                             symbol: 'none',
                             lineStyle: { color: getThemeColor('--text-muted', 'rgba(255,255,255,0.25)'), width: 1, type: 'dashed' },
-                            label: { show: true, formatter: t('home.now'), color: getThemeColor('--text-secondary', '#f0f6fc'), fontSize: 10, position: 'start', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.85)'), padding: [2, 4], borderRadius: 4 },
+                            label: { show: true, formatter: t('home.now'), color: getThemeColor('--text-secondary', '#f0f6fc'), fontSize: 12, position: 'start', backgroundColor: getThemeColor('--bg-app', 'rgba(10,14,20,0.85)'), padding: [2, 4], borderRadius: 4 },
                             data: [{ xAxis: String(nowHour).padStart(2, '0') }],
                         },
                         data: [],
@@ -3566,7 +3565,7 @@ const _HomePage = {
                     show: true,
                     top: 0,
                     right: 10,
-                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                     // Series names are stable internal identifiers ("Prognose"/"IST"/…)
                     // so legend selection state survives across locale changes;
                     // formatter renders the localized label.
@@ -3620,11 +3619,11 @@ const _HomePage = {
                     textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12, fontFamily: 'var(--font-sans)' },
                     formatter: function(params) {
                         const val = params[0]?.value ?? 0;
-                        const formattedVal = val >= 1000 ? (val/1000).toFixed(2) + ' kW' : Math.round(val) + ' W';
+                        const formattedVal = val >= 1000 ? window.SFMLI18n.formatNumber(val/1000, 2) + ' kW' : window.SFMLI18n.formatNumber(val, 0) + ' W';
                         return '<div style="font-family:var(--font-sans)">'
                              + '<div style="font-weight:700;font-size:12px;margin-bottom:4px">' + params[0].axisValue + '</div>'
                              + '<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;gap:12px">'
-                             + '<span><span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:#fbbf24;"></span>' + t('home.pvPower') + ':</span>'
+                             + '<span><span style="display:inline-block;margin-right:4px;border-radius:10px;width:8px;height:8px;background-color:var(--solar, #fbbf24);"></span>' + t('home.pvPower') + ':</span>'
                              + '<span style="font-weight:700;font-family:var(--font-mono)">' + formattedVal + '</span></div>'
                              + '</div>';
                     }
@@ -3635,7 +3634,7 @@ const _HomePage = {
                     axisLine: { show: false },
                     axisLabel: {
                         color: getThemeColor('--text-secondary', '#8b949e'),
-                        fontSize: 10,
+                        fontSize: 12,
                         interval: Math.max(0, Math.floor(times.length / 12) - 1),
                         margin: 10
                     },
@@ -3645,21 +3644,21 @@ const _HomePage = {
                     axisLine: { show: false },
                     axisTick: { show: false },
                     splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.02)'), type: 'dashed' } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, formatter: v => v >= 1000 ? (v/1000).toFixed(1)+' kW' : v + ' W' },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12, formatter: v => v >= 1000 ? window.SFMLI18n.formatNumber(v/1000, 1)+' kW' : window.SFMLI18n.formatNumber(v, 0) + ' W' },
                 },
                 series: [
                     {
                         name: 'PV-Leistung',
                         type: 'line',
                         data: solarPower,
-                        lineStyle: { color: '#fbbf24', width: 3, shadowColor: 'rgba(251,191,36,0.3)', shadowBlur: 10, shadowOffsetY: 3 },
-                        itemStyle: { color: '#fbbf24' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24"), width: 3, shadowColor: (window.sfmlThemeColor?.("--solar", 0.3) || 'rgba(251,191,36,0.3)'), shadowBlur: 10, shadowOffsetY: 3 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24") },
                         symbol: 'none',
                         smooth: true,
                         areaStyle: {
                             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: 'rgba(251,191,36,0.18)' },
-                                { offset: 1, color: 'rgba(251,191,36,0)' }
+                                { offset: 0, color: (window.sfmlThemeColor?.("--solar", 0.18) || 'rgba(251,191,36,0.18)') },
+                                { offset: 1, color: (window.sfmlThemeColor?.("--solar", 0) || 'rgba(251,191,36,0)') }
                             ])
                         },
                     },
@@ -3668,7 +3667,7 @@ const _HomePage = {
                     show: true,
                     data: ['PV-Leistung'],
                     formatter: (name) => name === 'PV-Leistung' ? t('home.pvPower') : name,
-                    top: 0, right: 10, textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    top: 0, right: 10, textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                 },
             });
         }
@@ -3734,7 +3733,7 @@ const _HomePage = {
                         const soc = Number(point[1]);
                         let html = '<div style="font-family:var(--font-sans);min-width:170px">';
                         html += '<div style="font-weight:700;font-size:12px;margin-bottom:6px">' + formatHaTime(point[0], { hour: '2-digit', minute: '2-digit' }) + '</div>';
-                        html += '<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:#38bdf8">Akkuladung:</span><span style="font-family:var(--font-mono);font-weight:700">' + soc.toFixed(0) + '%</span></div>';
+                        html += '<div style="display:flex;justify-content:space-between;gap:14px"><span style="color:var(--accent, #38bdf8)">Akkuladung:</span><span style="font-family:var(--font-mono);font-weight:700">' + window.SFMLI18n.formatNumber(soc, 0) + '%</span></div>';
                         html += '</div>';
                         return html;
                     }
@@ -3751,7 +3750,7 @@ const _HomePage = {
                     axisTick: { show: true, alignWithLabel: true },
                     axisLabel: {
                         color: getThemeColor('--text-secondary', '#8b949e'),
-                        fontSize: 9,
+                        fontSize: 12,
                         margin: 10,
                         hideOverlap: false,
                         showMinLabel: true,
@@ -3767,23 +3766,23 @@ const _HomePage = {
                     axisLine: { show: false },
                     axisTick: { show: false },
                     splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.02)'), type: 'dashed' } },
-                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11, formatter: v => `${Math.round(v)}%` },
+                    axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12, formatter: v => `${window.SFMLI18n.formatNumber(v, 0)}%` },
                 },
                 series: [
                     {
                         name: 'Akkuladung',
                         type: 'line',
                         data: socSeries,
-                        lineStyle: { color: '#38bdf8', width: 2.5, shadowColor: 'rgba(56,189,248,0.18)', shadowBlur: 8 },
-                        itemStyle: { color: '#38bdf8' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--accent") || "#38bdf8"), width: 2.5, shadowColor: (window.sfmlThemeColor?.("--accent", 0.18) || 'rgba(56,189,248,0.18)'), shadowBlur: 8 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--accent") || "#38bdf8") },
                         symbol: socSeries.length > 1 ? 'none' : 'circle',
                         symbolSize: 6,
                         smooth: true,
                         connectNulls: true,
                         areaStyle: {
                             color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                { offset: 0, color: 'rgba(56,189,248,0.18)' },
-                                { offset: 1, color: 'rgba(56,189,248,0)' }
+                                { offset: 0, color: (window.sfmlThemeColor?.("--accent", 0.18) || 'rgba(56,189,248,0.18)') },
+                                { offset: 1, color: (window.sfmlThemeColor?.("--accent", 0) || 'rgba(56,189,248,0)') }
                             ])
                         },
                     },
@@ -3793,7 +3792,7 @@ const _HomePage = {
                     data: ['Akkuladung'],
                     top: 8,
                     left: 16,
-                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                 },
             });
             batteryChartInstance.resize();
@@ -4029,10 +4028,10 @@ const _HomePage = {
         .sc-status-idle { --sc-ampel: var(--text-muted, #9ca3af); }
         .sc-status-warn { --sc-ampel: var(--warning, #e9a94b); }
         .sc-home-setup-badge {
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             font-weight: 700;
-            color: #92400e;
-            background: #fde68a;
+            color: var(--house, #92400e);
+            background: var(--solar, #fde68a);
             border-radius: 999px;
             padding: 2px 8px;
         }
@@ -4103,14 +4102,14 @@ const _HomePage = {
             clip-path: circle(50%);
             border-radius: 50%;
             background: #05121a;
-            box-shadow: 0 0 6px rgba(62, 201, 255, 0.35);
+            box-shadow: 0 0 6px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 35%, transparent);
         }
         .hubble-sensor-ring-container .hubble-persona.pulse {
             animation: hubble-persona-glow 2.4s ease-in-out infinite;
         }
         @keyframes hubble-persona-glow {
-            0%, 100% { box-shadow: 0 0 4px rgba(62, 201, 255, 0.25); }
-            50% { box-shadow: 0 0 10px rgba(62, 201, 255, 0.6); }
+            0%, 100% { box-shadow: 0 0 4px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 25%, transparent); }
+            50% { box-shadow: 0 0 10px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 60%, transparent); }
         }
         .hubble-sensor-ring {
             width: 100%;
@@ -4169,7 +4168,7 @@ const _HomePage = {
         }
         .hubble-kicker {
             color: var(--accent);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 700;
             letter-spacing: 0.08em;
             text-transform: uppercase;
@@ -4191,7 +4190,7 @@ const _HomePage = {
         }
         .hubble-day-balance-title {
             color: var(--accent);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -4202,7 +4201,7 @@ const _HomePage = {
             gap: 5px;
             color: var(--text-secondary);
             font-family: var(--font-mono);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
         }
         .hubble-day-balance-total strong {
             color: var(--text-primary);
@@ -4211,7 +4210,7 @@ const _HomePage = {
         .hubble-day-balance-subtitle {
             margin-top: -2px;
             color: var(--text-muted);
-            font-size: 0.7rem;
+            font-size: 0.75rem;
         }
         .hubble-day-balance-bar {
             display: flex;
@@ -4228,11 +4227,11 @@ const _HomePage = {
             min-width: 0;
         }
         .hubble-day-balance-segment.solar,
-        .hubble-day-balance-dot.solar { background: #fbbf24; }
+        .hubble-day-balance-dot.solar { background: var(--solar, #fbbf24); }
         .hubble-day-balance-segment.battery,
-        .hubble-day-balance-dot.battery { background: #22c55e; }
+        .hubble-day-balance-dot.battery { background: var(--success, #22c55e); }
         .hubble-day-balance-segment.grid,
-        .hubble-day-balance-dot.grid { background: #a855f7; }
+        .hubble-day-balance-dot.grid { background: var(--chart-series-ai, #a855f7); }
         .hubble-day-balance-segment.unknown,
         .hubble-day-balance-dot.unknown { background: #64748b; }
         .hubble-day-balance-sources {
@@ -4248,7 +4247,7 @@ const _HomePage = {
             gap: 4px;
             white-space: nowrap;
             color: var(--text-secondary);
-            font-size: 0.68rem;
+            font-size: 0.75rem;
         }
         .hubble-day-balance-dot {
             align-self: center;
@@ -4259,7 +4258,7 @@ const _HomePage = {
         .hubble-day-balance-source strong {
             color: var(--text-primary);
             font-family: var(--font-mono);
-            font-size: 0.7rem;
+            font-size: 0.75rem;
         }
         .hubble-day-balance-percent {
             color: var(--text-muted);
@@ -4292,28 +4291,28 @@ const _HomePage = {
         }
         .hubble-energy-chain-subtitle {
             color: var(--text-muted);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
         }
         .hubble-energy-chain-status {
             flex: 0 0 auto;
             padding: 4px 8px;
-            border: 1px solid rgba(34, 197, 94, 0.28);
+            border: 1px solid color-mix(in srgb, var(--success, rgb(34, 197, 94)) 28%, transparent);
             border-radius: 6px;
-            color: #22c55e;
-            background: rgba(34, 197, 94, 0.07);
-            font-size: 0.68rem;
+            color: var(--success, #22c55e);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 7%, transparent);
+            font-size: 0.75rem;
             font-weight: 750;
         }
         .hubble-energy-chain.partial .hubble-energy-chain-status,
         .hubble-energy-chain.pending .hubble-energy-chain-status {
-            border-color: rgba(245, 158, 11, 0.28);
-            color: #f59e0b;
-            background: rgba(245, 158, 11, 0.07);
+            border-color: color-mix(in srgb, var(--solar, rgb(245, 158, 11)) 28%, transparent);
+            color: var(--solar, #f59e0b);
+            background: color-mix(in srgb, var(--solar, rgb(245, 158, 11)) 7%, transparent);
         }
         .hubble-energy-chain.inconsistent .hubble-energy-chain-status {
-            border-color: rgba(239, 68, 68, 0.3);
-            color: #ef4444;
-            background: rgba(239, 68, 68, 0.07);
+            border-color: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 30%, transparent);
+            color: var(--danger, #ef4444);
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 7%, transparent);
         }
         .hubble-energy-chain-flow {
             display: grid;
@@ -4336,7 +4335,7 @@ const _HomePage = {
         }
         .hubble-energy-chain-node-label {
             color: var(--text-muted);
-            font-size: 0.7rem;
+            font-size: 0.75rem;
         }
         .hubble-energy-chain-node strong {
             color: var(--text-primary);
@@ -4344,13 +4343,13 @@ const _HomePage = {
         }
         .hubble-energy-chain-node strong small {
             color: var(--text-muted);
-            font-size: 0.62rem;
+            font-size: 0.75rem;
             font-weight: 600;
         }
         .hubble-energy-chain-route {
             position: relative;
             height: 2px;
-            background: #22d3ee;
+            background: var(--accent, #22d3ee);
         }
         .hubble-energy-chain-route::after {
             content: ;
@@ -4359,22 +4358,22 @@ const _HomePage = {
             right: -1px;
             width: 7px;
             height: 7px;
-            border-top: 2px solid #22d3ee;
-            border-right: 2px solid #22d3ee;
+            border-top: 2px solid var(--accent, #22d3ee);
+            border-right: 2px solid var(--accent, #22d3ee);
             transform: translateY(-50%) rotate(45deg);
         }
         .hubble-energy-chain-route.loss {
-            background: #fbbf24;
+            background: var(--solar, #fbbf24);
         }
         .hubble-energy-chain-route.loss::after {
-            border-color: #fbbf24;
+            border-color: var(--solar, #fbbf24);
         }
         .hubble-energy-chain-route.loss span {
             position: absolute;
             left: 50%;
             bottom: 7px;
             color: var(--text-muted);
-            font: 600 0.62rem var(--font-mono);
+            font: 600 0.75rem var(--font-mono);
             white-space: nowrap;
             transform: translateX(-50%);
         }
@@ -4388,7 +4387,7 @@ const _HomePage = {
             bottom: calc(100% + 5px);
             left: 50%;
             color: var(--text-muted);
-            font-size: 0.58rem;
+            font-size: 0.75rem;
             font-weight: 700;
             text-transform: uppercase;
             white-space: nowrap;
@@ -4434,20 +4433,20 @@ const _HomePage = {
             align-items: baseline;
             gap: 7px;
             color: var(--text-secondary);
-            font-size: 0.68rem;
+            font-size: 0.75rem;
         }
         .hubble-energy-chain-branch::before {
             content: ;
             width: 7px;
             height: 7px;
             border-radius: 50%;
-            background: #fbbf24;
+            background: var(--solar, #fbbf24);
         }
         .hubble-energy-chain-branch.battery::before {
-            background: #22c55e;
+            background: var(--success, #22c55e);
         }
         .hubble-energy-chain-branch.mixed::before {
-            background: #06b6d4;
+            background: var(--accent, #06b6d4);
         }
         .hubble-energy-chain-branch.pending::before {
             background: #64748b;
@@ -4476,7 +4475,7 @@ const _HomePage = {
             align-items: center;
             gap: 4px;
             color: var(--text-muted);
-            font-size: 0.66rem;
+            font-size: 0.75rem;
         }
         .hubble-metric-help {
             position: relative;
@@ -4490,7 +4489,7 @@ const _HomePage = {
             border-radius: 50%;
             color: var(--text-muted);
             background: transparent;
-            font: 700 0.58rem var(--font-sans);
+            font: 700 0.75rem var(--font-sans);
             cursor: help;
         }
         .hubble-metric-help::after {
@@ -4506,7 +4505,7 @@ const _HomePage = {
             color: var(--text-primary);
             background: var(--bg-elevated, var(--bg-card));
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-            font-size: 0.68rem;
+            font-size: 0.75rem;
             font-weight: 500;
             line-height: 1.35;
             text-align: left;
@@ -4545,12 +4544,12 @@ const _HomePage = {
             background: rgba(255, 255, 255, 0.035);
         }
         .hubble-system-status.active {
-            border-color: rgba(0, 212, 255, 0.28);
-            background: rgba(0, 212, 255, 0.06);
+            border-color: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 28%, transparent);
+            background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 6%, transparent);
         }
         .hubble-system-status.attention {
-            border-color: rgba(239, 68, 68, 0.30);
-            background: rgba(239, 68, 68, 0.06);
+            border-color: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 30%, transparent);
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 6%, transparent);
         }
         .hubble-system-title {
             color: var(--text-primary);
@@ -4559,7 +4558,7 @@ const _HomePage = {
         }
         .hubble-system-meta {
             color: var(--text-secondary);
-            font-size: 0.74rem;
+            font-size: 0.75rem;
             line-height: 1.35;
             white-space: nowrap;
             overflow: hidden;
@@ -4605,7 +4604,7 @@ const _HomePage = {
         }
         .hubble-chip-label {
             color: var(--text-muted);
-            font-size: 0.70rem;
+            font-size: 0.75rem;
         }
         .hubble-chip-value {
             color: var(--text-primary);
@@ -4626,15 +4625,15 @@ const _HomePage = {
             height: 108px;
             border-radius: 50%;
             padding: 3px;
-            background: radial-gradient(circle, rgba(62, 201, 255, 0.35), rgba(62, 201, 255, 0.05) 70%);
-            box-shadow: 0 0 14px rgba(62, 201, 255, 0.35);
+            background: radial-gradient(circle, color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 35%, transparent), color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 5%, transparent) 70%);
+            box-shadow: 0 0 14px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 35%, transparent);
         }
         .hubble-dialog-avatar.pulse {
             animation: hubble-dialog-breathe 4s ease-in-out infinite;
         }
         @keyframes hubble-dialog-breathe {
-            0%, 100% { box-shadow: 0 0 10px rgba(62, 201, 255, 0.25); transform: scale(1); }
-            50% { box-shadow: 0 0 26px rgba(62, 201, 255, 0.6); transform: scale(1.025); }
+            0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 25%, transparent); transform: scale(1); }
+            50% { box-shadow: 0 0 26px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 60%, transparent); transform: scale(1.025); }
         }
         .hubble-dialog-persona {
             display: block;
@@ -4648,8 +4647,8 @@ const _HomePage = {
             position: relative;
             flex: 1 1 auto;
             min-width: 0;
-            background: rgba(62, 201, 255, 0.05);
-            border: 1px solid rgba(62, 201, 255, 0.22);
+            background: color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 5%, transparent);
+            border: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent);
             border-radius: var(--radius-md);
             padding: var(--space-md) var(--space-lg, 20px);
         }
@@ -4662,8 +4661,8 @@ const _HomePage = {
             height: 16px;
             margin-top: -8px;
             background: #0b1d26;
-            border-left: 1px solid rgba(62, 201, 255, 0.22);
-            border-bottom: 1px solid rgba(62, 201, 255, 0.22);
+            border-left: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent);
+            border-bottom: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent);
             transform: rotate(45deg);
         }
         @media (max-width: 560px) {
@@ -4713,7 +4712,7 @@ const _HomePage = {
             color: var(--text-primary);
         }
         .hubble-action.active {
-            background: rgba(0, 212, 255, 0.08);
+            background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 8%, transparent);
             border-color: var(--accent);
             color: var(--text-primary);
         }
@@ -4775,7 +4774,7 @@ const _HomePage = {
         }
         .hubble-create-helper-btn {
             padding: 4px 10px;
-            background: rgba(234, 179, 8, 0.1);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 10%, transparent);
             border: 1px solid var(--warning);
             color: var(--warning);
             border-radius: var(--radius-sm);
@@ -4785,7 +4784,7 @@ const _HomePage = {
             transition: all var(--transition-fast);
         }
         .hubble-create-helper-btn:hover:not(:disabled) {
-            background: rgba(234, 179, 8, 0.2);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 20%, transparent);
             color: var(--text-primary);
         }
         .hubble-create-helper-btn:disabled {
@@ -4800,14 +4799,14 @@ const _HomePage = {
             text-align: center;
         }
         .hubble-helper-status.success {
-            background: rgba(34, 197, 94, 0.1);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 10%, transparent);
             color: var(--success);
-            border: 1px solid rgba(34, 197, 94, 0.2);
+            border: 1px solid color-mix(in srgb, var(--success, rgb(34, 197, 94)) 20%, transparent);
         }
         .hubble-helper-status.error {
-            background: rgba(239, 68, 68, 0.1);
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 10%, transparent);
             color: var(--danger);
-            border: 1px solid rgba(239, 68, 68, 0.2);
+            border: 1px solid color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 20%, transparent);
         }
         
         .hubble-details {
@@ -4969,23 +4968,23 @@ const _HomePage = {
         }
 
         /* Route Theme Colors */
-        .route-solar { stroke: #fbbf24; color: #fbbf24; }
-        .route-battery { stroke: #22c55e; color: #22c55e; }
-        .route-grid { stroke: #a855f7; color: #a855f7; }
-        .route-export { stroke: #06b6d4; color: #06b6d4; }
-        .route-house { stroke: #22d3ee; color: #22d3ee; }
-        .route-car { stroke: #38bdf8; color: #38bdf8; }
+        .route-solar { stroke: var(--solar, #fbbf24); color: var(--solar, #fbbf24); }
+        .route-battery { stroke: var(--success, #22c55e); color: var(--success, #22c55e); }
+        .route-grid { stroke: var(--chart-series-ai, #a855f7); color: var(--chart-series-ai, #a855f7); }
+        .route-export { stroke: var(--accent, #06b6d4); color: var(--accent, #06b6d4); }
+        .route-house { stroke: var(--accent, #22d3ee); color: var(--accent, #22d3ee); }
+        .route-car { stroke: var(--accent, #38bdf8); color: var(--accent, #38bdf8); }
 
         /* Particles */
         .flow-particle {
             filter: url(#flowSoftGlow);
         }
-        .particle-solar { fill: #fde047; }
-        .particle-battery { fill: #4ade80; }
-        .particle-grid { fill: #c084fc; }
-        .particle-export { fill: #22d3ee; }
-        .particle-house { fill: #67e8f9; }
-        .particle-car { fill: #7dd3fc; }
+        .particle-solar { fill: var(--solar, #fde047); }
+        .particle-battery { fill: var(--success, #4ade80); }
+        .particle-grid { fill: var(--chart-series-ai, #c084fc); }
+        .particle-export { fill: var(--accent, #22d3ee); }
+        .particle-house { fill: var(--accent, #67e8f9); }
+        .particle-car { fill: var(--accent, #7dd3fc); }
 
         /* Text Blocks */
         .val-main {
@@ -4997,7 +4996,7 @@ const _HomePage = {
         }
         .label-sub {
             font-family: var(--font-family);
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 600;
             fill: #94a3b8;
             letter-spacing: 0.08em;
@@ -5007,22 +5006,22 @@ const _HomePage = {
             font-size: 12px;
             font-weight: 500;
         }
-        .status-sub.producing { fill: #fbbf24; }
-        .status-sub.charging { fill: #22c55e; }
-        .status-sub.discharging { fill: #38bdf8; }
-        .status-sub.export { fill: #06b6d4; }
-        .status-sub.import { fill: #a855f7; }
+        .status-sub.producing { fill: var(--solar, #fbbf24); }
+        .status-sub.charging { fill: var(--success, #22c55e); }
+        .status-sub.discharging { fill: var(--accent, #38bdf8); }
+        .status-sub.export { fill: var(--accent, #06b6d4); }
+        .status-sub.import { fill: var(--chart-series-ai, #a855f7); }
         .status-sub.idle { fill: #94a3b8; }
         .status-sub.neutral { fill: #94a3b8; }
 
         /* Extra Consumer info under home load */
         .val-extra {
             font-family: var(--font-family);
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 500;
         }
-        .val-extra.heatpump { fill: #fb7185; }
-        .val-extra.heatingrod { fill: #f97316; }
+        .val-extra.heatpump { fill: var(--danger, #fb7185); }
+        .val-extra.heatingrod { fill: var(--house, #f97316); }
 
         /* Text Alignment Left Overrides */
         .text-block-left text {
@@ -5030,12 +5029,12 @@ const _HomePage = {
         }
         
         /* Subtle glow filters on text values */
-        .val-main.solar { filter: drop-shadow(0 0 1px rgba(251,191,36,0.3)); }
-        .val-main.home { filter: drop-shadow(0 0 1px rgba(34,211,238,0.3)); }
-        .val-main.battery { filter: drop-shadow(0 0 1px rgba(34,197,94,0.3)); }
-        .val-main.car { filter: drop-shadow(0 0 1px rgba(56,189,248,0.3)); }
-        .val-main.grid.import { filter: drop-shadow(0 0 1px rgba(168,85,247,0.3)); }
-        .val-main.grid.export { filter: drop-shadow(0 0 1px rgba(6,182,212,0.3)); }
+        .val-main.solar { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 30%, transparent)); }
+        .val-main.home { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--accent, rgb(34, 211, 238)) 30%, transparent)); }
+        .val-main.battery { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--success, rgb(34, 197, 94)) 30%, transparent)); }
+        .val-main.car { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--accent, rgb(56, 189, 248)) 30%, transparent)); }
+        .val-main.grid.import { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--chart-series-ai, rgb(168, 85, 247)) 30%, transparent)); }
+        .val-main.grid.export { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--accent, rgb(6, 182, 212)) 30%, transparent)); }
 
         /* ===== Panel Groups ===== */
         .panel-groups-grid {
@@ -5066,7 +5065,7 @@ const _HomePage = {
             transition: border-color 0.2s ease;
         }
         .panel-group-card:hover {
-            border-color: #fbbf24;
+            border-color: var(--solar, #fbbf24);
         }
         .panel-group-header {
             display: flex;
@@ -5080,17 +5079,17 @@ const _HomePage = {
             color: var(--text-primary);
         }
         .panel-group-max {
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             font-family: var(--font-mono);
             color: var(--text-muted);
-            background: rgba(251,191,36,0.1);
+            background: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 10%, transparent);
             padding: 2px 8px;
             border-radius: 10px;
         }
         .panel-group-power {
             font-size: 1.8rem;
             font-weight: 700;
-            color: #fbbf24;
+            color: var(--solar, #fbbf24);
             font-family: var(--font-mono);
             line-height: 1.1;
         }
@@ -5119,7 +5118,7 @@ const _HomePage = {
             padding: 2px 6px;
             border-radius: 4px;
             font-family: var(--font-mono);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 600;
             border: 1px solid rgba(255, 255, 255, 0.03);
             backdrop-filter: blur(4px);
@@ -5127,13 +5126,13 @@ const _HomePage = {
         }
 
         .pg-badge.actual {
-            color: #22c55e;
-            background: rgba(34, 197, 94, 0.08);
+            color: var(--success, #22c55e);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 8%, transparent);
         }
 
         .pg-badge.forecast {
-            color: #fbbf24;
-            background: rgba(251, 191, 36, 0.08);
+            color: var(--solar, #fbbf24);
+            background: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 8%, transparent);
         }
 
         .pg-badge.progress {
@@ -5143,7 +5142,7 @@ const _HomePage = {
         .pg-meta-line {
             margin-top: 8px;
             color: var(--text-muted);
-            font-size: 0.68rem;
+            font-size: 0.75rem;
             line-height: 1.35;
             font-family: var(--font-mono);
             white-space: normal;
@@ -5163,20 +5162,20 @@ const _HomePage = {
             margin: 0 0 var(--space-sm);
             border-radius: 10px;
             border: 1px solid var(--border-default, rgba(255,255,255,0.08));
-            background: rgba(62, 201, 255, 0.04);
+            background: color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 4%, transparent);
             font-size: 0.8rem;
             line-height: 1.35;
         }
         .hubble-trust-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; background: var(--status-idle, #94a3b8); }
-        .hubble-trust-dot.ok { background: var(--status-ok, #22c55e); box-shadow: 0 0 8px rgba(34,197,94,.6); }
+        .hubble-trust-dot.ok { background: var(--status-ok, #22c55e); box-shadow: 0 0 8px color-mix(in srgb, var(--success, rgb(34, 197, 94)) 60%, transparent); }
         .hubble-trust-dot.normal { background: var(--status-normal, #f59e0b); }
         .hubble-trust-dot.warn { background: var(--status-warn, #ef4444); }
         .hubble-trust-dot.idle { background: var(--status-idle, #94a3b8); }
-        .hubble-trust-dot.active, .hubble-trust-dot.demo { background: var(--status-active, #3ec9ff); box-shadow: 0 0 8px rgba(62,201,255,.7); }
+        .hubble-trust-dot.active, .hubble-trust-dot.demo { background: var(--status-active, #3ec9ff); box-shadow: 0 0 8px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 70%, transparent); }
         .hubble-trust-title { font-weight: 600; color: var(--text-primary); }
-        .hubble-trust-value { font-family: var(--font-mono); color: #fbbf24; font-weight: 700; }
+        .hubble-trust-value { font-family: var(--font-mono); color: var(--solar, #fbbf24); font-weight: 700; }
         .hubble-trust-meter { position: relative; width: 96px; height: 8px; border-radius: 4px; background: rgba(148,163,184,0.15); overflow: hidden; flex: 0 0 96px; }
-        .hubble-trust-meter-band { position: absolute; top: 0; bottom: 0; background: rgba(251,191,36,0.35); border-radius: 4px; }
+        .hubble-trust-meter-band { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 35%, transparent); border-radius: 4px; }
         .hubble-trust-meter-center { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(255,255,255,0.35); }
         .hubble-trust-meter-marker { position: absolute; top: -1px; width: 4px; height: 10px; margin-left: -2px; border-radius: 2px; background: var(--status-ok, #22c55e); }
         .hubble-trust-meter-marker.normal { background: var(--status-normal, #f59e0b); }
@@ -5262,7 +5261,7 @@ const _HomePage = {
         }
 
         .metric-badge-label {
-            font-size: 0.65rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.04em;
@@ -5363,7 +5362,7 @@ const _HomePage = {
 
         .weather-trace-hour {
             color: var(--text-muted);
-            font-size: 0.62rem;
+            font-size: 0.75rem;
         }
 
         .weather-trace-icon {
@@ -5389,7 +5388,7 @@ const _HomePage = {
         .weather-trace-indicators {
             display: flex;
             gap: 2px;
-            font-size: 0.55rem;
+            font-size: 0.75rem;
             line-height: 1;
         }
 
@@ -5435,21 +5434,21 @@ const _HomePage = {
         }
 
         .weather-trace-match-badge.match-good {
-            color: #22c55e;
-            background: rgba(34, 197, 94, 0.15);
-            box-shadow: 0 0 6px rgba(34, 197, 94, 0.05);
+            color: var(--success, #22c55e);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 15%, transparent);
+            box-shadow: 0 0 6px color-mix(in srgb, var(--success, rgb(34, 197, 94)) 5%, transparent);
         }
 
         .weather-trace-match-badge.match-mixed {
-            color: #eab308;
-            background: rgba(234, 179, 8, 0.15);
-            box-shadow: 0 0 6px rgba(234, 179, 8, 0.05);
+            color: var(--solar, #eab308);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 15%, transparent);
+            box-shadow: 0 0 6px color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 5%, transparent);
         }
 
         .weather-trace-match-badge.match-bad {
-            color: #f87171;
-            background: rgba(248, 113, 113, 0.15);
-            box-shadow: 0 0 6px rgba(248, 113, 113, 0.05);
+            color: var(--danger, #f87171);
+            background: color-mix(in srgb, var(--danger, rgb(248, 113, 113)) 15%, transparent);
+            box-shadow: 0 0 6px color-mix(in srgb, var(--danger, rgb(248, 113, 113)) 5%, transparent);
         }
 
         .weather-trace-match-badge.match-missing {
@@ -5481,7 +5480,7 @@ const _HomePage = {
 
         .panel-live-card:hover {
             background: rgba(255, 255, 255, 0.035);
-            border-color: rgba(251, 191, 36, 0.25);
+            border-color: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 25%, transparent);
             transform: translateY(-1px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
@@ -5490,11 +5489,11 @@ const _HomePage = {
             font-size: 1.1rem;
             margin-bottom: 4px;
             color: var(--solar);
-            filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.3));
+            filter: drop-shadow(0 0 4px color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 30%, transparent));
         }
 
         .panel-live-name {
-            font-size: 0.65rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -5567,11 +5566,11 @@ const _HomePage = {
         }
 
         .battery-chart-stats strong.charge {
-            color: #22c55e;
+            color: var(--success, #22c55e);
         }
 
         .battery-chart-stats strong.discharge {
-            color: #f97316;
+            color: var(--house, #f97316);
         }
 
         .battery-chart-stats .battery-mode {
@@ -5580,18 +5579,18 @@ const _HomePage = {
             border: 1px solid var(--border-default);
             color: var(--text-secondary);
             font-family: var(--font-sans);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 700;
         }
 
         .battery-chart-stats .battery-mode.charging {
-            border-color: rgba(34, 197, 94, 0.28);
-            color: #22c55e;
+            border-color: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 28%, transparent);
+            color: var(--success, #22c55e);
         }
 
         .battery-chart-stats .battery-mode.discharging {
-            border-color: rgba(249, 115, 22, 0.28);
-            color: #f97316;
+            border-color: color-mix(in srgb, var(--house, rgb(249, 115, 22)) 28%, transparent);
+            color: var(--house, #f97316);
         }
 
         @media (max-width: 1180px) {
@@ -5648,7 +5647,7 @@ const _HomePage = {
         }
 
         .info-label {
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.06em;
@@ -5669,7 +5668,7 @@ const _HomePage = {
         }
 
         .flow-inverter-box {
-            fill: rgba(34, 211, 238, 0.1);
+            fill: color-mix(in srgb, var(--accent, rgb(34, 211, 238)) 10%, transparent);
             stroke: var(--accent);
             stroke-width: 1.5px;
             backdrop-filter: blur(4px);
@@ -5677,7 +5676,7 @@ const _HomePage = {
 
         .inverter-text {
             font-family: var(--font-family);
-            font-size: 10px;
+            font-size: 12px;
             font-weight: 700;
             fill: var(--accent);
             text-anchor: middle;
@@ -5709,16 +5708,16 @@ const _HomePage = {
             box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
         }
         .weather-badge.temp-badge {
-            border-color: rgba(251, 191, 36, 0.25);
+            border-color: color-mix(in srgb, var(--solar, rgb(251, 191, 36)) 25%, transparent);
             color: var(--solar);
         }
         .weather-badge.clouds-badge {
-            border-color: rgba(6, 182, 212, 0.25);
+            border-color: color-mix(in srgb, var(--accent, rgb(6, 182, 212)) 25%, transparent);
             color: var(--battery);
         }
         .weather-badge.source-badge {
             background: rgba(255, 255, 255, 0.05);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
             font-weight: 600;
@@ -5730,25 +5729,25 @@ const _HomePage = {
             max-width: 180px;
         }
         .flow-status-chip.sfml {
-            border-color: rgba(56, 189, 248, 0.24);
-            color: #38bdf8;
+            border-color: color-mix(in srgb, var(--accent, rgb(56, 189, 248)) 24%, transparent);
+            color: var(--accent, #38bdf8);
         }
         .flow-status-chip.stats {
-            border-color: rgba(168, 85, 247, 0.24);
-            color: #a855f7;
+            border-color: color-mix(in srgb, var(--chart-series-ai, rgb(168, 85, 247)) 24%, transparent);
+            color: var(--chart-series-ai, #a855f7);
         }
         .flow-status-chip.active {
-            border-color: rgba(34, 197, 94, 0.32);
-            background: rgba(34, 197, 94, 0.11);
-            color: #22c55e;
+            border-color: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 32%, transparent);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 11%, transparent);
+            color: var(--success, #22c55e);
         }
         .flow-status-chip.inactive {
             border-color: rgba(148, 163, 184, 0.18);
             color: var(--text-muted);
         }
         .flow-status-chip.unavailable {
-            border-color: rgba(239, 68, 68, 0.24);
-            color: #ef4444;
+            border-color: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 24%, transparent);
+            color: var(--danger, #ef4444);
             opacity: 0.82;
         }
         .badge-chip-value {
@@ -5759,13 +5758,13 @@ const _HomePage = {
             color: var(--text-primary);
         }
         .flow-status-chip.active .badge-chip-value {
-            color: #22c55e;
+            color: var(--success, #22c55e);
         }
         .flow-status-chip.inactive .badge-chip-value {
             color: var(--text-muted);
         }
         .flow-status-chip.unavailable .badge-chip-value {
-            color: #ef4444;
+            color: var(--danger, #ef4444);
         }
         .time-badge {
             display: inline-flex;

@@ -1032,17 +1032,17 @@ window.TomorrowPage = {
 
         function formatEnergy(value) {
             if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
-            return `${Number(value).toFixed(1)} kWh`;
+            return `${window.SFMLI18n.formatNumber(value, 1)} kWh`;
         }
 
         function formatPercent(value) {
             if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
-            return `${Number(value).toFixed(1)} %`;
+            return `${window.SFMLI18n.formatNumber(value, 1)} %`;
         }
 
         function formatQuality(value) {
             if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
-            return `${Number(value).toFixed(1)} %`;
+            return `${window.SFMLI18n.formatNumber(value, 1)} %`;
         }
 
         function formatMoney(value) {
@@ -1055,20 +1055,20 @@ window.TomorrowPage = {
 
         function formatPrice(value) {
             if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
-            return `${Number(value).toFixed(1)} ct`;
+            return `${window.SFMLI18n.formatNumber(value, 1)} ct`;
         }
 
         function formatPower(value) {
             if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
             const watts = Number(value);
-            return watts >= 1000 ? `${(watts / 1000).toFixed(1)} kW` : `${Math.round(watts)} W`;
+            return watts >= 1000 ? `${window.SFMLI18n.formatNumber(watts / 1000, 1)} kW` : `${window.SFMLI18n.formatNumber(watts, 0)} W`;
         }
 
         function formatKpi(kpi) {
             if (kpi.value === null || kpi.value === undefined || !Number.isFinite(Number(kpi.value))) return "—";
             return kpi.id === "autonomous_days"
-                ? String(Math.round(Number(kpi.value)))
-                : Number(kpi.value).toFixed(1);
+                ? window.SFMLI18n.formatNumber(kpi.value, 0)
+                : window.SFMLI18n.formatNumber(kpi.value, 1);
         }
 
         function kpiLabel(kpi) {

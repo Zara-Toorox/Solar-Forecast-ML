@@ -406,6 +406,14 @@
           "forecast_learning": "Forecast is still learning, values are cautious"
         }
       },
+      "radiation_sensor_calibrated": {
+        "name": "Radiation sensor calibrated",
+        "state": {
+          "yes": "Yes",
+          "no": "No",
+          "not_available": "Not available"
+        }
+      },
       "ai_rmse": {
         "name": "AI RMSE",
         "state": {
@@ -462,7 +470,7 @@
         }
       },
       "cloudiness_volatility": {
-        "name": "Weather Stability",
+        "name": "Forecast cloud stability",
         "state": {
           "very_stable": "Very Stable",
           "stable": "Stable",

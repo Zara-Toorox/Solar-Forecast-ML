@@ -406,6 +406,14 @@
           "forecast_learning": "Прогноз ещё учится, значения осторожные"
         }
       },
+      "radiation_sensor_calibrated": {
+        "name": "Датчик излучения откалиброван",
+        "state": {
+          "yes": "Да",
+          "no": "Нет",
+          "not_available": "Недоступно"
+        }
+      },
       "ai_rmse": {
         "name": "ИИ RMSE",
         "state": {
@@ -462,7 +470,7 @@
         }
       },
       "cloudiness_volatility": {
-        "name": "Стабильность погоды",
+        "name": "Стабильность прогнозируемой облачности",
         "state": {
           "very_stable": "Очень стабильно",
           "stable": "Стабильно",

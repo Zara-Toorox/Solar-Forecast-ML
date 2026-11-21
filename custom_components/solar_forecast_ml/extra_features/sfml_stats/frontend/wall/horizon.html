@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#1b2431">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SFML Stats">
+    <link rel="manifest" href="/api/sfml_stats/wall/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/api/sfml_stats/static/modern/assets/brand-logo-stats.png?v=content">
+    <title>SFML Stats</title>
+    <link rel="stylesheet" href="/api/sfml_stats/static/wall/horizon.css?v=content">
+</head>
+<body>
+<main id="board" class="hz-day hz-sky-partly" aria-live="off">
+    <div class="hz-sky" id="hzSky"></div>
+    <svg class="hz-weather" id="hzWeather" viewBox="0 0 1600 676" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <div class="hz-ground"></div>
+    <svg class="hz-scene" id="hzScene" viewBox="0 0 1600 1000" aria-hidden="true"></svg>
+
+    <header>
+        <img class="hz-logo" src="/api/sfml_stats/static/modern/assets/brand-logo-stats.png?v=content" alt="SFML Stats">
+        <div class="hz-brand">
+            <div class="hz-brand-name">SFML STATS</div>
+            <div class="hz-brand-sub">Solar Forecast ML</div>
+        </div>
+        <div class="hz-weather-now" id="hzWeatherNow" hidden>
+            <svg class="hz-weather-icon" id="hzWeatherIcon" viewBox="0 0 48 48" aria-hidden="true"></svg>
+            <div><div class="hz-temp" id="hzTemp"></div><div class="hz-sky-text" id="hzSkyText"></div></div>
+        </div>
+        <div class="hz-date"><div class="hz-weekday" id="hzWeekday"></div><div class="hz-datelong" id="hzDate"></div></div>
+        <time class="hz-clock" id="hzClock">--:--</time>
+    </header>
+
+    <section class="hz-pv">
+        <div class="hz-label" id="hzPvLabel"></div>
+        <div class="hz-pv-value"><span id="hzPvValue">–</span><small>kW</small></div>
+    </section>
+
+    <section class="hz-yield">
+        <div class="hz-label" id="hzYieldLabel"></div>
+        <div class="hz-yield-value" id="hzYieldValue"></div>
+        <div class="hz-progress"><i id="hzProgressFill"></i><b id="hzProgressKnob"></b></div>
+        <div class="hz-of" id="hzOf"></div>
+    </section>
+
+    <div class="hz-chart-note"><div class="hz-chart-title" id="hzChartTitle"></div><div class="hz-chart-sub" id="hzChartSub"></div></div>
+
+    <section class="hz-col" style="left:187px" id="hzHome">
+        <div class="hz-col-title" id="hzHomeTitle"></div>
+        <div class="hz-col-value" id="hzHomeValue"></div>
+        <dl class="hz-rows" id="hzHomeRows"></dl>
+    </section>
+    <section class="hz-col" style="left:462px" id="hzBattery">
+        <div class="hz-col-title"><span id="hzBatteryTitle"></span> <span class="hz-soc" id="hzSoc"></span></div>
+        <div class="hz-col-value" id="hzBatteryValue"></div>
+        <dl class="hz-rows" id="hzBatteryRows"></dl>
+    </section>
+    <section class="hz-col" style="left:738px" id="hzGrid">
+        <div class="hz-col-title" id="hzGridTitle"></div>
+        <div class="hz-col-value" id="hzGridValue"></div>
+        <dl class="hz-rows" id="hzGridRows"></dl>
+    </section>
+
+    <section class="hz-facts" id="hzPrices" hidden>
+        <div id="hzPriceNow" hidden><div class="hz-col-title" id="hzPriceNowLabel"></div><div class="hz-col-value" id="hzPriceNowValue"></div></div>
+        <div id="hzCheapest" hidden><div class="hz-col-title hz-gap" id="hzCheapestLabel"></div><div class="hz-fact-amber" id="hzCheapestValue"></div></div>
+    </section>
+    <section class="hz-facts" id="hzUsage" hidden>
+        <div id="hzConsumption" hidden><div class="hz-col-title" id="hzConsumptionLabel"></div><div class="hz-col-value" id="hzConsumptionValue"></div></div>
+        <div id="hzCharged" hidden><div class="hz-col-title hz-gap" id="hzChargedLabel"></div><div class="hz-fact-amber" id="hzChargedValue"></div></div>
+    </section>
+
+    <section class="hz-days">
+        <div class="hz-col-title" id="hzDaysTitle"></div>
+        <div class="hz-days-grid" id="hzDays"></div>
+    </section>
+
+    <footer>
+        <span class="hz-live stale" id="hzLive"><i></i><span id="hzLiveText"></span></span>
+        <button class="hz-fs" id="fsHint" type="button" hidden></button>
+    </footer>
+</main>
+<script src="/api/sfml_stats/static/wall/horizon.js?v=content"></script>
+</body>
+</html>

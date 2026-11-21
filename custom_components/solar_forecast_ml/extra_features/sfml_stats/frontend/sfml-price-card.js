@@ -992,7 +992,7 @@ class SfmlPriceCard extends HTMLElement {
     if (!today) return "";
     const kwh = this._finite(today.charged_kwh) ?? 0;
     const avg = this._finite(today.avg_price_ct);
-    const saved = this._finite(today.savings_eur) ?? 0;
+    const saved = this._finite(today.savings_eur);
     const euro = new Intl.NumberFormat(this._locale, { style: "currency", currency: "EUR" });
     return `
       <div class="kpis-title">${this._t("today")}</div>
@@ -1007,7 +1007,7 @@ class SfmlPriceCard extends HTMLElement {
         </div>
         <div class="fact">
           <div class="fact-label"><ha-icon icon="mdi:piggy-bank-outline"></ha-icon>${this._t("savings")}</div>
-          <div class="fact-value ${saved > 0 ? "save" : ""}">${euro.format(saved)}</div>
+          <div class="fact-value ${saved > 0 ? "save" : ""}">${saved == null ? "\u2013" : euro.format(saved)}</div>
         </div>
       </div>`;
   }

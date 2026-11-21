@@ -2,6 +2,19 @@
    SFML Stats Dashboard - API Client with Caching
    ============================================================ */
 
+// Palette colour from the active theme (modern.css custom properties).
+// Returns "" when the property is missing so callers keep their own fallback.
+window.sfmlThemeColor = window.sfmlThemeColor || function (name, alpha) {
+    try {
+        const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        if (alpha == null || !/^#[0-9a-f]{6}$/i.test(value)) return alpha == null ? value : "";
+        const n = parseInt(value.slice(1), 16);
+        return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+    } catch (error) {
+        return "";
+    }
+};
+
 const SFML_API_BRIDGE_PROTOCOL = "sfml-api-bridge-v1";
 const SFML_API_BRIDGE_PATH = "/sfml-stats-api-bridge";
 const SFML_EXTERNAL_AUTH_CALLBACK = "externalAuthSetToken";

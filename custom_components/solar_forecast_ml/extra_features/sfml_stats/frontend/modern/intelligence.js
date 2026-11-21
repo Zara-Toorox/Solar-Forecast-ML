@@ -611,7 +611,7 @@ const ModernQualityPage = {
             const accuracy = dashboard.value?.health?.accuracy;
             const value = Number(accuracy);
             if (!Number.isFinite(value)) return copy.unavailable;
-            return copy.quality30.replace("{percent}", value.toFixed(0));
+            return copy.quality30.replace("{percent}", window.SFMLI18n.formatNumber(value, 0));
         });
         const initial = allTabs.includes(props.initialSection) && (props.initialSection === "overview" || window.sfmlDevState?.active === true)
             ? props.initialSection
@@ -777,9 +777,9 @@ const ModernQualityPage = {
             replayChartInstance ||= echarts.init(replayChart.value);
             const compact = replayChart.value.clientWidth < 520;
             const definitions = [
-                [copy.actual, "actual", "#2f8f5b"], ["Final", "final", "#168f87"],
-                ["Physics", "physics", "#c47a20"], ["AI", "ai", "#3d73b9"],
-                [copy.reforecast, "reforecast", "#c65353"],
+                [copy.actual, "actual", (window.sfmlThemeColor?.("--success") || "#2f8f5b")], ["Final", "final", (window.sfmlThemeColor?.("--accent") || "#168f87")],
+                ["Physics", "physics", (window.sfmlThemeColor?.("--house") || "#c47a20")], ["AI", "ai", (window.sfmlThemeColor?.("--grid") || "#3d73b9")],
+                [copy.reforecast, "reforecast", (window.sfmlThemeColor?.("--danger") || "#c65353")],
             ];
             replayChartInstance.setOption({
                 animation: !reducedMotion,
@@ -856,6 +856,8 @@ const ModernQualityPage = {
             }
             publicChartInstance ||= echarts.init(host);
             const rows = publicSeries.value;
+            const forecastColor = window.sfmlThemeColor?.("--grid") || "#8cb9dc";
+            const actualColor = window.sfmlThemeColor?.("--solar") || "#ffca7a";
             publicChartInstance.setOption({
                 tooltip: { trigger: "axis" },
                 legend: {},
@@ -863,8 +865,8 @@ const ModernQualityPage = {
                 xAxis: { type: "category", data: rows.map((row) => String(row.date || "").slice(5)) },
                 yAxis: { type: "value", name: "kWh", min: 0 },
                 series: [
-                    { name: copy.forecast, type: "line", data: rows.map((row) => row.overall?.predicted_total_kwh ?? null), connectNulls: false, showSymbol: false, animation: !reducedMotion },
-                    { name: copy.actual, type: "line", data: rows.map((row) => row.overall?.actual_total_kwh ?? null), connectNulls: false, showSymbol: false, animation: !reducedMotion },
+                    { name: copy.forecast, type: "line", data: rows.map((row) => row.overall?.predicted_total_kwh ?? null), connectNulls: false, showSymbol: false, animation: !reducedMotion, lineStyle: { width: 2, type: "dashed", color: forecastColor }, itemStyle: { color: forecastColor } },
+                    { name: copy.actual, type: "line", data: rows.map((row) => row.overall?.actual_total_kwh ?? null), connectNulls: false, showSymbol: false, animation: !reducedMotion, lineStyle: { width: 2.5, color: actualColor }, itemStyle: { color: actualColor } },
                 ],
             }, true);
             publicChartInstance.resize();

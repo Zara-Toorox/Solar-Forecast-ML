@@ -2,7 +2,7 @@
 // (C) 2026 Zara-Toorox
 
 const GPMPage = ((Vue) => {
-const { ref, computed, onMounted, onUnmounted, nextTick } = Vue;
+const { ref, computed, watch, onMounted, onUnmounted, nextTick } = Vue;
 
 const _GPMPage = {
     props: ["liveData", "config"],
@@ -81,14 +81,14 @@ const _GPMPage = {
                 <p style="color: var(--text-muted); font-size: 0.85rem;">
                     {{ feesLine }}
                 </p>
-                <p v-if="status.effective_fees.source === 'stats_legacy'" style="font-size: 0.85rem; color: var(--warning, #f59e0b);">
-                    {{ $t('gpm.feesLegacyHint') }}
-                </p>
                 <p v-if="correctionLine" style="font-size: 0.85rem; color: var(--text-muted);">
                     {{ correctionLine }}
                 </p>
-                <a class="button secondary" :href="status.links.configure" @click="openHaLink($event, status.links.configure)" style="display: inline-block; margin-top: var(--space-sm);">
+                <a class="button secondary" href="#settings/price" @click="openHaLink($event, '#settings/price')" style="display: inline-block; margin-top: var(--space-sm);">
                     {{ $t('gpm.configure') }}
+                </a>
+                <a class="button secondary" href="/config/integrations/integration/grid_price_monitor" @click="openHaLink($event, '/config/integrations/integration/grid_price_monitor')" style="display: inline-block; margin-top: var(--space-sm); margin-left: var(--space-sm);">
+                    {{ $t('gpm.configureHa') }}
                 </a>
             </div>
 
@@ -142,9 +142,13 @@ const _GPMPage = {
                 </div>
                 <p v-if="bill.is_demo" style="font-size: 0.85rem; margin-bottom: var(--space-sm);">
                     {{ $t('gpm.billDemoBanner') }}
-                    · <a :href="bill.links.configure || status.links.configure" @click="openHaLink($event, bill.links.configure || status.links.configure)">{{ $t('gpm.configure') }}</a>
+                    · <a href="#settings/price" @click="openHaLink($event, '#settings/price')">{{ $t('gpm.configure') }}</a>
+                    · <a href="/config/integrations/integration/grid_price_monitor" @click="openHaLink($event, '/config/integrations/integration/grid_price_monitor')">{{ $t('gpm.configureHa') }}</a>
                 </p>
                 <div ref="billEl" style="height: 280px;"></div>
+                <p v-if="billMissingPriceHint" class="gpm-price-hint" style="font-size: 0.8rem; color: var(--text-muted); margin-top: var(--space-sm);">
+                    {{ billMissingPriceHint.lead }}<a class="gpm-price-hint-link" href="#gpm/gpm-csv-import" @click.prevent="openGpmCsvImport">{{ $t('gpm.missingGpmPricesCsv') }}</a>{{ $t('gpm.missingGpmPricesEnd') }}
+                </p>
                 <p v-if="bill.projection" style="font-size: 0.9rem; margin-top: var(--space-sm);">
                     {{ $t('gpm.billExpected') }}
                     {{ formatEuro(bill.projection.expected_eur) }}
@@ -166,6 +170,9 @@ const _GPMPage = {
                 </div>
                 <p v-if="!yearlyRows.length" style="font-size: 0.85rem; color: var(--text-muted);">{{ $t('gpm.yearly.empty') }}</p>
                 <div v-show="yearlyRows.length" ref="yearlyEl" style="height: 300px;"></div>
+                <p v-if="yearlyMissingPriceHint" class="gpm-price-hint" style="font-size: 0.8rem; color: var(--text-muted); margin-top: var(--space-sm);">
+                    {{ yearlyMissingPriceHint.lead }}<a class="gpm-price-hint-link" href="#gpm/gpm-csv-import" @click.prevent="openGpmCsvImport">{{ $t('gpm.missingGpmPricesCsv') }}</a>{{ $t('gpm.missingGpmPricesEnd') }}
+                </p>
                 <div class="gpm-yearly-table-wrap" v-if="yearlyRows.length">
                     <table class="gpm-yearly-table">
                         <thead>
@@ -360,9 +367,7 @@ const _GPMPage = {
                     {{ $t('gpm.cacheAge') }}: {{ cacheAgeLabel }} ·
                     {{ $t('gpm.revision') }}: {{ status.diagnostics.price_revision }} ·
                     {{ $t('gpm.lastCorrection') }}: {{ diagnosticsCorrectionKind }} ·
-                    {{ $t('gpm.providerVersion') }}: {{ status.diagnostics.provider_version }} ·
-                    <template v-if="status.effective_fees.source === 'stats_legacy'">{{ $t('gpm.feesSourceStats') }}</template>
-                    <template v-else>{{ $t('gpm.feesSourceGpm') }}</template>
+                    {{ $t('gpm.providerVersion') }}: {{ status.diagnostics.provider_version }}
                 </p>
             </details>
 
@@ -375,7 +380,7 @@ const _GPMPage = {
                     <strong>{{ $t('gpm.csvImport') }}</strong>
                     <p style="color: var(--text-muted);">{{ $t('gpm.needsLicense') }}</p>
                 </div>
-                <div class="chart-card" v-if="showCsvImport">
+                <div class="chart-card" id="gpm-csv-import" v-if="showCsvImport">
                     <strong>{{ $t('gpm.csvImport') }}</strong>
                     <p style="color: var(--text-muted); font-size: 0.85rem;">{{ $t('gpm.csvHelp') }}</p>
                     <div style="display:flex; gap: var(--space-sm); flex-wrap: wrap; margin: var(--space-sm) 0;">
@@ -520,8 +525,8 @@ const _GPMPage = {
                         <p v-if="preview" style="font-size: 0.85rem; color: var(--text-muted);">
                             {{ $t('gpm.meanPrice') }} {{ formatPrice(preview.mean_price) }} ·
                             {{ $t('gpm.targetPrice') }} {{ formatPrice(preview.target_price) }} ·
-                            {{ $t('gpm.coverage') }} {{ Number(preview.coverage_percent).toFixed(1) }}% ·
-                            {{ $t('gpm.energyDeviation') }} {{ Number(preview.energy_deviation_percent).toFixed(1) }}%
+                            {{ $t('gpm.coverage') }} {{ $n(preview.coverage_percent, 1) }}% ·
+                            {{ $t('gpm.energyDeviation') }} {{ $n(preview.energy_deviation_percent, 1) }}%
                             <span v-if="preview.energy_warning"> · {{ $t('gpm.warningEnergy') }}</span>
                             <span v-if="preview.fallback_reason"> · {{ preview.fallback_reason }}</span>
                         </p>
@@ -530,8 +535,15 @@ const _GPMPage = {
             </div>
         </div>
     `,
-    setup() {
+    setup(_props, context) {
         const t = window.SFMLI18n ? window.SFMLI18n.t : (key) => key;
+        const emitNavigate = (page, detail) => {
+            if (context && typeof context.emit === "function") {
+                context.emit("navigate", page, detail);
+                return;
+            }
+            window.location.hash = detail ? `${page}/${detail}` : page;
+        };
         const chartEl = ref(null);
         const scheduleEl = ref(null);
         const billEl = ref(null);
@@ -544,6 +556,12 @@ const _GPMPage = {
             if (!event || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
                 return;
             }
+            const target = String(path || "");
+            if (target === "#settings/price" || target === "settings/price") {
+                event.preventDefault();
+                emitNavigate("settings", "price");
+                return;
+            }
             if (window.SFMLApi && typeof window.SFMLApi.navigateHa === "function" && window.SFMLApi.navigateHa(path)) {
                 event.preventDefault();
             }
@@ -551,7 +569,7 @@ const _GPMPage = {
         const emptyStatus = () => ({
             success: true,
             state: "not_installed",
-            is_demo: true,
+            is_demo: false,
             provider_version: 1,
             license: { status: "not_provided", source: null, id_masked: null, expires_at: null },
             tariff: {
@@ -602,7 +620,7 @@ const _GPMPage = {
             last_correction: null,
             capabilities: { tariff_models: false, csv_import: false, corrections: false },
             links: {
-                configure: "/config/integrations/integration/grid_price_monitor",
+                configure: "#settings/price",
                 smart_charging: "#smart_charging",
             },
             updated_at: null,
@@ -618,9 +636,9 @@ const _GPMPage = {
             previous_year: [],
             projection: null,
             projection_reason: null,
-            is_demo: true,
+            is_demo: false,
             license_required: true,
-            links: { configure: "/config/integrations/integration/grid_price_monitor" },
+            links: { configure: "#settings/price" },
         });
         const bill = ref(emptyBill());
         const billYear = ref(new Date().getFullYear());
@@ -642,15 +660,21 @@ const _GPMPage = {
         const yearlyBusy = ref(false);
         const yearlyMessage = ref("");
         const yearlyMessageError = ref(false);
-        const YEARLY_PARTIAL_DECAL = {
+        const BILL_INCOMPLETE_DECAL = {
             symbol: "rect",
             dashArrayX: [1, 0],
             dashArrayY: [2, 5],
             rotation: Math.PI / 4,
         };
+        const YEARLY_PARTIAL_DECAL = BILL_INCOMPLETE_DECAL;
         const YEARLY_SERIES_COLORS = {
-            totalEur: "#0284c7",
-            effectiveCt: "#fbbf24",
+            totalEur: (window.sfmlThemeColor?.("--grid") || "#0284c7"),
+            effectiveCt: (window.sfmlThemeColor?.("--solar") || "#fbbf24"),
+        };
+        const BILL_BAR_STYLE = {
+            solid: (window.sfmlThemeColor?.("--accent") || "#38bdf8"),
+            light: (window.sfmlThemeColor?.("--accent", 0.6) || "#7dd3fc"),
+            decal: BILL_INCOMPLETE_DECAL,
         };
 
         const statusLabel = computed(() => {
@@ -688,6 +712,25 @@ const _GPMPage = {
         const showCsvImport = computed(() => (
             !status.value.is_demo && Boolean(status.value.capabilities.csv_import)
         ));
+        const billMissingPriceHint = computed(() => {
+            const missing = mergeMissingPriceDays(bill.value.months || []);
+            if (!missing.length) return null;
+            const lead = t("gpm.missingGpmPricesLead", {
+                count: String(missing.length),
+                ranges: formatMissingDayRanges(missing),
+            });
+            return lead ? { lead } : null;
+        });
+        const yearlyMissingPriceHint = computed(() => {
+            const missing = mergeMissingPriceDays(yearlyRows.value || []);
+            if (!missing.length) return null;
+            const lead = t("gpm.missingGpmPricesLead", {
+                count: String(missing.length),
+                ranges: formatMissingDayRanges(missing),
+            });
+            return lead ? { lead } : null;
+        });
+        const csvImportScrollPending = ref(false);
         const thresholdModeLabel = computed(() => {
             const mode = status.value.thresholds && status.value.thresholds.mode;
             const map = { cheapest_hours: "gpm.modeCheapestHours", below_average: "gpm.modeBelowAverage", below_average_pct: "gpm.modeBelowAverage", absolute: "gpm.modeAbsolute", max_price: "gpm.modeAbsolute", price: "gpm.modeAbsolute" };
@@ -775,9 +818,30 @@ const _GPMPage = {
             return "fixed";
         }
 
-        function fixedPriceFromLabel(label) {
-            const match = String(label || "").match(/(\d+(?:[.,]\d+)?)\s*ct/i);
-            return match ? Number(match[1].replace(",", ".")) : null;
+        function finiteComponent(value) {
+            return value == null || value === "" ? null : (Number.isFinite(+value) ? +value : null);
+        }
+
+        function compositionShares(components) {
+            if (!components || typeof components !== "object") return [];
+            const specs = [
+                ["spot", "spot_ct", (window.sfmlThemeColor?.("--accent") || "#38bdf8")],
+                ["grid", "grid_fee", (window.sfmlThemeColor?.("--grid") || "#818cf8")],
+                ["taxes", "taxes_fees", (window.sfmlThemeColor?.("--chart-series-ai") || "#c084fc")],
+                ["markup", "provider_markup", (window.sfmlThemeColor?.("--chart-series-conservative") || "#f472b6")],
+            ];
+            const parts = [];
+            specs.forEach(([key, field, color]) => {
+                if (!Object.prototype.hasOwnProperty.call(components, field)) return;
+                const value = finiteComponent(components[field]);
+                if (value == null) return;
+                parts.push({ key, value, color });
+            });
+            const positive = parts.reduce((acc, part) => acc + (part.value > 0 ? part.value : 0), 0);
+            return parts.map((part) => ({
+                ...part,
+                pct: positive > 0 && part.value > 0 ? (part.value / positive) * 100 : 0,
+            }));
         }
 
         function touWindowFromLabel(label) {
@@ -811,7 +875,7 @@ const _GPMPage = {
                 return parts.filter(Boolean).join(" · ");
             }
             if (mode === "fixed") {
-                const price = fixedPriceFromLabel(tariff.label);
+                const price = finiteComponent(status.value.prices && status.value.prices.current_total);
                 const detail = price == null ? "" : ` · ${formatCtPerKwh(price)}`;
                 return `${modeLabel("fixed")}${detail}`;
             }
@@ -834,14 +898,12 @@ const _GPMPage = {
 
         const feesLine = computed(() => {
             const fees = status.value.effective_fees || {};
-            const feed = Number(fees.feed_in_tariff_ct);
-            const feedText = !Number.isFinite(feed) || feed === 0
-                ? t("gpm.feedInNone")
-                : formatCtPerKwh(feed);
-            const base = fees.base_fee_eur_month;
+            const feed = finiteComponent(fees.feed_in_tariff_ct);
+            const feedText = feed == null ? "\u2013" : formatCtPerKwh(feed);
+            const base = finiteComponent(fees.base_fee_eur_month);
             const amount = base == null
                 ? "—"
-                : Number(base).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                : base.toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             const baseText = base == null ? "—" : t("gpm.baseFeePerMonth", { amount });
             return `${t("gpm.feedIn")}: ${feedText} · ${t("gpm.baseFee")}: ${baseText}`;
         });
@@ -882,26 +944,23 @@ const _GPMPage = {
         });
         const compositionParts = computed(() => {
             const components = status.value.price_components;
-            const total = Number(status.value.prices.current_total);
-            if (!components || !status.value.composition_ok || Number.isNaN(total)) return [];
-            const grid = Number(components.grid_fee || 0);
-            const taxes = Number(components.taxes_fees || 0);
-            const markup = Number(components.provider_markup || 0);
-            const spotGross = total - grid - taxes - markup;
-            const parts = [
-                { key: "spot", label: t("gpm.compositionSpotGross"), value: spotGross, color: "#38bdf8" },
-                { key: "grid", label: t("gpm.compositionGrid"), value: grid, color: "#818cf8" },
-                { key: "taxes", label: t("gpm.compositionTaxes"), value: taxes, color: "#c084fc" },
-                { key: "markup", label: t("gpm.compositionMarkup"), value: markup, color: "#f472b6" },
-            ];
-            const sum = parts.reduce((acc, part) => acc + part.value, 0) || 1;
-            return parts.map((part) => ({ ...part, pct: (part.value / sum) * 100 }));
+            if (!components || !status.value.composition_ok) return [];
+            const labels = {
+                spot: t("gpm.compositionSpotGross"),
+                grid: t("gpm.compositionGrid"),
+                taxes: t("gpm.compositionTaxes"),
+                markup: t("gpm.compositionMarkup"),
+            };
+            return compositionShares(components).map((part) => ({
+                ...part,
+                label: labels[part.key],
+            }));
         });
         const cacheAgeLabel = computed(() => {
             const age = status.value.diagnostics.cache_age_seconds;
             if (age == null) return "—";
             if (age < 90) return `${age} s`;
-            return `${Math.round(age / 60)} min`;
+            return `${window.SFMLI18n.formatNumber(age / 60, 0)} min`;
         });
         const billYears = computed(() => {
             const key = billMode.value === "billing" ? "billing" : "calendar";
@@ -922,13 +981,148 @@ const _GPMPage = {
         });
 
         function formatPrice(value) {
-            return value == null ? "—" : Number(value).toFixed(1) + " ct";
+            const number = finiteComponent(value);
+            return number == null ? "—" : window.SFMLI18n.formatNumber(number, 1) + " ct";
         }
         function formatFee(value) {
-            return value == null ? "—" : Number(value).toFixed(2) + " €";
+            const number = finiteComponent(value);
+            return number == null ? "—" : window.SFMLI18n.formatNumber(number, 2) + " €";
         }
         function formatEuro(value) {
-            return value == null ? "—" : Number(value).toFixed(2) + " €";
+            const number = finiteComponent(value);
+            return number == null ? "—" : window.SFMLI18n.formatNumber(number, 2) + " €";
+        }
+        function gpmResolveLocale() {
+            const lang = window.SFMLI18n ? window.SFMLI18n.current : "de";
+            return ({ de: "de-DE", en: "en-US", pl: "pl-PL" })[lang] || "de-DE";
+        }
+        function formatLocaleNumber(value, minDigits, maxDigits) {
+            const number = finiteComponent(value);
+            if (number == null) return "\u2013";
+            return new Intl.NumberFormat(gpmResolveLocale(), {
+                minimumFractionDigits: minDigits,
+                maximumFractionDigits: maxDigits,
+                useGrouping: true,
+            }).format(number);
+        }
+        function formatChartEuro(value) {
+            return `${formatLocaleNumber(value, 2, 2)} €`;
+        }
+        function shownMoney(record, field) {
+            const source = record && typeof record === "object" ? record : null;
+            if (!source) return { amount: null, incomplete: false };
+            const main = finiteComponent(source[field]);
+            if (main != null) return { amount: main, incomplete: false };
+            const part = finiteComponent(source[field + "_priced_part"]);
+            if (part != null && source.complete === false) return { amount: part, incomplete: true };
+            return { amount: null, incomplete: false };
+        }
+        function chartMoneyBarPoint(record, field, style) {
+            const shown = shownMoney(record, field);
+            if (shown.amount == null) return null;
+            const complete = Boolean(record && record.complete);
+            const itemStyle = complete && !shown.incomplete
+                ? { color: style.solid }
+                : { color: style.light, decal: style.decal };
+            return {
+                value: shown.amount,
+                complete,
+                incomplete: shown.incomplete,
+                itemStyle,
+            };
+        }
+        function compressMissingDayRanges(days) {
+            if (!Array.isArray(days) || !days.length) return [];
+            const sorted = days.slice().sort();
+            const ranges = [];
+            let start = sorted[0];
+            let end = sorted[0];
+            const nextDay = (iso) => {
+                const parts = iso.split("-").map(Number);
+                const nextUtc = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12));
+                nextUtc.setUTCDate(nextUtc.getUTCDate() + 1);
+                return nextUtc.toISOString().slice(0, 10);
+            };
+            for (let index = 1; index < sorted.length; index += 1) {
+                const day = sorted[index];
+                if (day === nextDay(end)) end = day;
+                else {
+                    ranges.push([start, end]);
+                    start = day;
+                    end = day;
+                }
+            }
+            ranges.push([start, end]);
+            return ranges;
+        }
+        function formatMissingDayRanges(days) {
+            const locale = chartLocale();
+            return compressMissingDayRanges(days)
+                .map(([start, end]) => {
+                    const left = new Intl.DateTimeFormat(locale, {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                    }).format(new Date(`${start}T12:00:00`));
+                    if (start === end) return left;
+                    const right = new Intl.DateTimeFormat(locale, {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                    }).format(new Date(`${end}T12:00:00`));
+                    return `${left}\u2013${right}`;
+                })
+                .join(", ");
+        }
+        function recordMissingPriceDays(record) {
+            return record && Array.isArray(record.days_without_price) ? record.days_without_price : [];
+        }
+        function missingPriceHintLead(record) {
+            const missing = recordMissingPriceDays(record);
+            if (!missing.length) return "";
+            return t("gpm.missingGpmPricesLead", {
+                count: String(missing.length),
+                ranges: formatMissingDayRanges(missing),
+            });
+        }
+        function missingPriceHintHtml(record) {
+            const lead = missingPriceHintLead(record);
+            if (!lead) return "";
+            const label = t("gpm.missingGpmPricesCsv");
+            return `${lead}<a href="#gpm/gpm-csv-import" class="gpm-price-hint-link">${label}</a>${t("gpm.missingGpmPricesEnd")}`;
+        }
+        function chartMoneyGapLines(record) {
+            const lines = [];
+            const unpriced = finiteComponent(record && record.unpriced_import_kwh);
+            if (unpriced != null && unpriced > 0) {
+                lines.push(t("gpm.chartUnpricedImport", { kwh: formatLocaleNumber(unpriced, 1, 1) }));
+            }
+            const days = finiteComponent(record && record.days_without_fee);
+            if (days != null && days > 0) {
+                lines.push(t("gpm.chartDaysWithoutFee", { days: window.SFMLI18n.formatNumber(days, 0) }));
+            }
+            const dayMean = finiteComponent(record && record.days_day_mean);
+            if (dayMean != null && dayMean > 0) {
+                lines.push(t("gpm.chartDayMeanDays", { days: window.SFMLI18n.formatNumber(dayMean, 0) }));
+            }
+            return lines;
+        }
+        function chartMoneyGapTooltipLines(record) {
+            const lines = chartMoneyGapLines(record);
+            const html = missingPriceHintHtml(record);
+            if (html) lines.push(html);
+            return lines;
+        }
+        function mergeMissingPriceDays(records) {
+            const pool = new Set();
+            (records || []).forEach((record) => {
+                recordMissingPriceDays(record).forEach((day) => pool.add(day));
+            });
+            return Array.from(pool).sort();
+        }
+        function openGpmCsvImport() {
+            window.location.hash = "gpm/gpm-csv-import";
+            scrollCsvImportIfRequested();
         }
         function hourLabel(value) {
             return value == null ? "—" : String(value).padStart(2, "0") + ":00";
@@ -965,7 +1159,7 @@ const _GPMPage = {
             monthKey: monthOptions[0],
             billedKwh: null,
             billedEur: null,
-            baseFeeEur: 0,
+            baseFeeEur: "",
             method: "additive",
             weighting: "consumption",
             force: false,
@@ -1096,7 +1290,7 @@ const _GPMPage = {
                 month: Number(month),
                 billed_kwh: Number(form.value.billedKwh),
                 billed_eur: Number(form.value.billedEur),
-                base_fee_eur: Number(form.value.baseFeeEur || 0),
+                base_fee_eur: finiteComponent(form.value.baseFeeEur),
                 method: form.value.method,
                 weighting: form.value.weighting,
                 force: Boolean(form.value.force),
@@ -1184,7 +1378,7 @@ const _GPMPage = {
         function renderChart() {
             if (!chartEl.value || !window.echarts) return;
             if (!chart) chart = window.echarts.init(chartEl.value);
-            const cheapColor = "#22c55e";
+            const cheapColor = (window.sfmlThemeColor?.("--success") || "#22c55e");
             const today = (status.value.prices.today || []).map((row) => ({
                 value: row.total_price,
                 itemStyle: row.is_cheap ? { color: cheapColor } : undefined,
@@ -1234,24 +1428,19 @@ const _GPMPage = {
                 prevByMonth[key.slice(5, 7)] = row;
             });
             const labels = months.map((row) => String(row.month || "").slice(5, 7));
-            const currentData = months.map((row) => ({
-                value: row.total_eur,
-                complete: Boolean(row.complete),
-                kwh: row.kwh,
-                avg: row.avg_price_ct,
-                coverage: row.coverage_percent,
-                itemStyle: row.complete
-                    ? { color: "#38bdf8" }
-                    : {
-                        color: "#7dd3fc",
-                        decal: {
-                            symbol: "rect",
-                            dashArrayX: [1, 0],
-                            dashArrayY: [2, 5],
-                            rotation: Math.PI / 4,
-                        },
-                    },
-            }));
+            const currentData = months.map((row) => {
+                const point = chartMoneyBarPoint(row, "total_eur", BILL_BAR_STYLE);
+                if (!point) return null;
+                return {
+                    value: point.value,
+                    complete: point.complete,
+                    incomplete: point.incomplete,
+                    kwh: row.kwh,
+                    avg: row.avg_price_ct,
+                    coverage: row.coverage_percent,
+                    itemStyle: point.itemStyle,
+                };
+            });
             const ghostData = months.map((row) => {
                 const prior = prevByMonth[String(row.month || "").slice(5, 7)];
                 return prior ? prior.total_eur : null;
@@ -1259,19 +1448,24 @@ const _GPMPage = {
             billChart.setOption({
                 tooltip: {
                     trigger: "axis",
+                    enterable: true,
+                    confine: true,
                     formatter: (items) => {
                         const point = (items || [])[0];
                         if (!point || !months[point.dataIndex]) return "";
                         const row = months[point.dataIndex];
                         const incomplete = row.complete ? "" : ` · ${t("gpm.billIncomplete")}`;
+                        const billShown = shownMoney(row, "total_eur");
+                        const avg = finiteComponent(row.avg_price_ct);
                         const fallback = billMonthFallbackLine(row);
                         const lines = [
                             row.month,
-                            `${formatEuro(row.total_eur)}${incomplete}`,
-                            `${t("gpm.billKwh")}: ${Number(row.kwh || 0).toFixed(1)}`,
-                            `${t("gpm.billAvgPrice")}: ${row.avg_price_ct == null ? "—" : Number(row.avg_price_ct).toFixed(1)}`,
-                            `${t("gpm.billCoverage")}: ${Number(row.coverage_percent || 0).toFixed(0)}%`,
+                            `${formatChartEuro(billShown.amount)}${incomplete}`,
+                            `${t("gpm.billKwh")}: ${formatLocaleNumber(row.kwh, 1, 1)}`,
+                            `${t("gpm.billAvgPrice")}: ${avg == null ? "—" : window.SFMLI18n.formatNumber(avg, 1)}`,
+                            `${t("gpm.billCoverage")}: ${formatLocaleNumber(row.coverage_percent, 0, 0)}%`,
                         ];
+                        chartMoneyGapTooltipLines(row).forEach((line) => lines.push(line));
                         if (fallback) lines.push(fallback);
                         return lines.join("<br/>");
                     },
@@ -1319,7 +1513,7 @@ const _GPMPage = {
         function yearlyNumber(value, digits) {
             if (value == null || value === "") return "—";
             const number = Number(value);
-            return Number.isFinite(number) ? number.toFixed(digits) : "—";
+            return Number.isFinite(number) ? window.SFMLI18n.formatNumber(number, digits) : "—";
         }
 
         function yearlyMonth(iso) {
@@ -1448,10 +1642,13 @@ const _GPMPage = {
             return t("gpm.yearly.saveFailed");
         }
 
-        function yearlyBarPoint(value, partial) {
-            if (value == null || value === "") return null;
-            const point = { value, itemStyle: { color: YEARLY_SERIES_COLORS.totalEur } };
-            if (partial) point.itemStyle.decal = YEARLY_PARTIAL_DECAL;
+        function yearlyBarPoint(row) {
+            const shown = shownMoney(row, "total_eur");
+            if (shown.amount == null) return null;
+            const point = { value: shown.amount, itemStyle: { color: YEARLY_SERIES_COLORS.totalEur } };
+            if ((row && row.partial) || !row.complete || shown.incomplete) {
+                point.itemStyle.decal = YEARLY_PARTIAL_DECAL;
+            }
             return point;
         }
 
@@ -1466,22 +1663,28 @@ const _GPMPage = {
             }
             if (!yearlyChart) yearlyChart = window.echarts.init(yearlyEl.value);
             const labels = rows.map(yearlyAxisLabel);
-            const eurBars = rows.map((row) => yearlyBarPoint(row.total_eur, Boolean(row.partial)));
+            const eurBars = rows.map((row) => yearlyBarPoint(row));
             const ctLine = rows.map((row) => (row.ct_kwh == null ? null : row.ct_kwh));
             yearlyChart.setOption({
                 tooltip: {
                     trigger: "axis",
+                    enterable: true,
+                    confine: true,
                     formatter: (items) => {
                         const point = (items || [])[0];
                         if (!point || !rows[point.dataIndex]) return "";
                         const row = rows[point.dataIndex];
                         const partial = row.partial ? ` · ${t("gpm.yearly.partial")}` : "";
-                        return [
-                            `${yearlyAxisLabel(row)}${partial}`,
-                            `${t("gpm.yearly.totalEur")}: ${yearlyNumber(row.total_eur, 2)} €`,
+                        const incomplete = row.complete ? "" : ` · ${t("gpm.billIncomplete")}`;
+                        const yearlyShown = shownMoney(row, "total_eur");
+                        const lines = [
+                            `${yearlyAxisLabel(row)}${partial}${incomplete}`,
+                            `${t("gpm.yearly.totalEur")}: ${formatChartEuro(yearlyShown.amount)}`,
                             `${t("gpm.yearly.effectiveCt")}: ${yearlyNumber(row.ct_kwh, 2)}`,
-                            `${t("gpm.yearly.gridKwh")}: ${yearlyNumber(row.grid_kwh, 1)} kWh`,
-                        ].join("<br/>");
+                            `${t("gpm.yearly.gridKwh")}: ${formatLocaleNumber(row.grid_kwh, 1, 1)} kWh`,
+                        ];
+                        chartMoneyGapTooltipLines(row).forEach((line) => lines.push(line));
+                        return lines.join("<br/>");
                     },
                 },
                 legend: {
@@ -1688,6 +1891,8 @@ const _GPMPage = {
             if (extras) {
                 await Promise.allSettled([loadBill(), loadYearly()]);
             }
+            await nextTick();
+            tryScrollCsvImport();
         }
 
         function onMonthSpanChange() {
@@ -1701,9 +1906,35 @@ const _GPMPage = {
             yearlyChart?.resize();
         }
 
+        function tryScrollCsvImport() {
+            if (!csvImportScrollPending.value || !showCsvImport.value) return;
+            nextTick(() => {
+                const node = document.getElementById("gpm-csv-import");
+                if (!node) return;
+                csvImportScrollPending.value = false;
+                node.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+        }
+
+        function scrollCsvImportIfRequested() {
+            const [, detail = ""] = window.location.hash.slice(1).split("/");
+            if (detail !== "gpm-csv-import") {
+                csvImportScrollPending.value = false;
+                return;
+            }
+            csvImportScrollPending.value = true;
+            tryScrollCsvImport();
+        }
+
+        watch(showCsvImport, () => {
+            tryScrollCsvImport();
+        });
+
         onMounted(() => {
             loadStatus();
             window.addEventListener("resize", handleResize);
+            scrollCsvImportIfRequested();
+            window.addEventListener("hashchange", scrollCsvImportIfRequested);
         });
         onUnmounted(() => {
             window.removeEventListener("resize", handleResize);
@@ -1743,6 +1974,9 @@ const _GPMPage = {
             billMode,
             billYears,
             billMethodLabel,
+            billMissingPriceHint,
+            yearlyMissingPriceHint,
+            openGpmCsvImport,
             loadBill,
             monthSpan,
             monthSpanOptions,
@@ -1841,6 +2075,10 @@ const _GPMPage = {
         .gpm-yearly-invoices {
             margin-top: var(--space-md);
         }
+        .gpm-price-hint-link {
+            color: var(--accent, #38bdf8);
+            text-decoration: underline;
+        }
         .gpm-yearly-invoices-title {
             display: block;
             margin-bottom: var(--space-sm);
@@ -1916,30 +2154,30 @@ const _GPMPage = {
         .gpm-hubble-row { display: flex; align-items: center; gap: var(--space-lg, 20px); margin: var(--space-sm) 0 var(--space-lg); }
         .gpm-hubble-avatar {
             flex: 0 0 108px; width: 108px; height: 108px; border-radius: 50%; padding: 3px;
-            background: radial-gradient(circle, rgba(62, 201, 255, 0.35), rgba(62, 201, 255, 0.05) 70%);
-            box-shadow: 0 0 14px rgba(62, 201, 255, 0.35);
+            background: radial-gradient(circle, color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 35%, transparent), color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 5%, transparent) 70%);
+            box-shadow: 0 0 14px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 35%, transparent);
             animation: gpm-hubble-breathe 4s ease-in-out infinite;
         }
         @keyframes gpm-hubble-breathe {
-            0%, 100% { box-shadow: 0 0 10px rgba(62, 201, 255, 0.25); transform: scale(1); }
-            50% { box-shadow: 0 0 26px rgba(62, 201, 255, 0.6); transform: scale(1.025); }
+            0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 25%, transparent); transform: scale(1); }
+            50% { box-shadow: 0 0 26px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 60%, transparent); transform: scale(1.025); }
         }
         .gpm-hubble-persona { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: #05121a; }
         .gpm-hubble-bubble {
             position: relative; flex: 1 1 auto; min-width: 0;
-            background: rgba(62, 201, 255, 0.05); border: 1px solid rgba(62, 201, 255, 0.22);
+            background: color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 5%, transparent); border: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent);
             border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg, 20px);
         }
         .gpm-hubble-bubble::before {
             content: ""; position: absolute; left: -9px; top: 50%; width: 16px; height: 16px; margin-top: -8px;
-            background: #0b1d26; border-left: 1px solid rgba(62, 201, 255, 0.22); border-bottom: 1px solid rgba(62, 201, 255, 0.22);
+            background: #0b1d26; border-left: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent);
             transform: rotate(45deg);
         }
         .gpm-hubble-headline { font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
         .gpm-hubble-text { color: var(--text-muted); font-size: 0.92rem; line-height: 1.45; }
         .gpm-hubble-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; background: var(--status-idle, #94a3b8); }
-        .gpm-hubble-dot.cheap, .gpm-hubble-dot.ok { background: var(--status-ok, #22c55e); box-shadow: 0 0 8px rgba(34,197,94,.6); }
-        .gpm-hubble-dot.force, .gpm-hubble-dot.demo, .gpm-hubble-dot.active { background: var(--status-active, #3ec9ff); box-shadow: 0 0 8px rgba(62,201,255,.7); }
+        .gpm-hubble-dot.cheap, .gpm-hubble-dot.ok { background: var(--status-ok, #22c55e); box-shadow: 0 0 8px color-mix(in srgb, var(--success, rgb(34, 197, 94)) 60%, transparent); }
+        .gpm-hubble-dot.force, .gpm-hubble-dot.demo, .gpm-hubble-dot.active { background: var(--status-active, #3ec9ff); box-shadow: 0 0 8px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 70%, transparent); }
         .gpm-hubble-dot.normal { background: var(--status-normal, #f59e0b); }
         .gpm-hubble-dot.warn { background: var(--status-warn, #ef4444); }
         @media (max-width: 560px) {

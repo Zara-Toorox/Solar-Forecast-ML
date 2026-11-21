@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#05070a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SFML Stats">
+    <link rel="manifest" href="/api/sfml_stats/wall/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/api/sfml_stats/static/modern/assets/brand-logo-stats.png?v=content">
+    <title>SFML Stats</title>
+    <link rel="stylesheet" href="/api/sfml_stats/static/wall/mission.css?v=content">
+</head>
+<body>
+<main id="board" aria-live="off">
+    <svg class="mc-sky" id="mcSky" viewBox="0 0 1600 1000" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <header class="mc-head">
+        <div class="mc-brand">
+            <img class="mc-logo" src="/api/sfml_stats/static/modern/assets/brand-logo-stats.png?v=content" alt="SFML Stats">
+            <div>
+                <div class="mc-brand-name">SFML STATS</div>
+                <div class="mc-brand-sub">SOLAR FORECAST ML</div>
+            </div>
+        </div>
+        <div class="mc-mission">
+            <div class="mc-label" id="mcMissionLabel"></div>
+            <div class="mc-mission-time"><span class="mc-sign" id="mcSign">T+</span><span id="mcMission">--:--</span></div>
+            <div class="mc-label" id="mcMissionSub"></div>
+        </div>
+        <div class="mc-now">
+            <div class="mc-weather" id="mcWeather" hidden>
+                <div class="mc-weather-top"><svg class="mc-weather-icon" id="mcWeatherIcon" viewBox="0 0 48 48" aria-hidden="true"></svg><span class="mc-temp"><span id="mcTemp"></span><small>°C</small></span></div>
+                <div class="mc-label" id="mcSkyText"></div>
+            </div>
+            <div class="mc-clock"><time id="mcClock">--:--</time><div class="mc-label" id="mcDate"></div></div>
+        </div>
+    </header>
+
+    <section class="mc-hero">
+        <div class="mc-dial">
+            <svg id="mcDial" viewBox="0 0 420 420" aria-hidden="true"></svg>
+            <div class="mc-dial-text">
+                <div class="mc-dial-tag" id="mcSolarTag"></div>
+                <div class="mc-dial-value"><span id="mcSolar">–</span><small>kW</small></div>
+                <div class="mc-dial-state" id="mcSolarState"><i></i><span></span></div>
+            </div>
+        </div>
+        <div class="mc-tree" id="mcTree">
+            <svg class="mc-tree-lines" id="mcTreeLines" aria-hidden="true"></svg>
+            <div class="mc-node" id="mcHome">
+                <div class="mc-node-top"><span class="mc-node-title" id="mcHomeTitle"></span><span class="mc-node-value" id="mcHomeValue"></span></div>
+                <div class="mc-cells" id="mcHomeCells"></div>
+            </div>
+            <div class="mc-node" id="mcBattery">
+                <div class="mc-node-top"><span class="mc-node-title"><span id="mcBatteryTitle"></span><span class="mc-soc" id="mcSoc"></span><span class="mc-soc-bar" aria-hidden="true"><i id="mcSocFill"></i><b id="mcSocKnob"></b></span></span><span class="mc-node-value" id="mcBatteryValue"></span></div>
+                <div class="mc-cells" id="mcBatteryCells"></div>
+            </div>
+            <div class="mc-node" id="mcGrid">
+                <div class="mc-node-top"><span class="mc-node-title" id="mcGridTitle"></span><span class="mc-node-value" id="mcGridValue"></span></div>
+                <div class="mc-cells" id="mcGridCells"></div>
+            </div>
+        </div>
+        <div class="mc-side">
+            <div class="mc-yield">
+                <svg id="mcRing" viewBox="0 0 200 200" aria-hidden="true"></svg>
+                <div>
+                    <div class="mc-legend-row"><i></i><span id="mcYieldLabel"></span></div>
+                    <div class="mc-legend-row mc-legend-forecast"><i class="dots"></i><span id="mcForecastLabel"></span></div>
+                    <div class="mc-legend-value" id="mcForecast"></div>
+                </div>
+            </div>
+            <div class="mc-facts" id="mcPrices" hidden>
+                <div class="mc-fact" id="mcPriceNow" hidden><div class="mc-fact-row"><span class="mc-label" id="mcPriceNowLabel"></span><span class="mc-fact-value" id="mcPriceNowValue"></span></div></div>
+                <div class="mc-fact" id="mcCheapest" hidden><div class="mc-label" id="mcCheapestLabel"></div><div class="mc-fact-big" id="mcCheapestValue"></div></div>
+            </div>
+            <div class="mc-facts" id="mcUsage" hidden>
+                <div class="mc-fact" id="mcConsumption" hidden><div class="mc-fact-row"><span class="mc-label" id="mcConsumptionLabel"></span><span class="mc-fact-value" id="mcConsumptionValue"></span></div></div>
+                <div class="mc-fact" id="mcCharged" hidden><div class="mc-label" id="mcChargedLabel"></div><div class="mc-fact-big" id="mcChargedValue"></div></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="mc-lower">
+        <div class="mc-chart-panel">
+            <div class="mc-section-head">
+                <div class="mc-section-title"><span>01</span><b id="mcChartTitle"></b></div>
+                <div class="mc-chart-legend"><span><i></i><b id="mcLegendActual"></b></span><span><i class="dash"></i><b id="mcLegendForecast"></b></span></div>
+            </div>
+            <svg id="mcChart" role="img"></svg>
+        </div>
+        <div class="mc-days-panel">
+            <div class="mc-section-title"><span>02</span><b id="mcDaysTitle"></b></div>
+            <div class="mc-days" id="mcDays"></div>
+        </div>
+    </section>
+
+    <footer class="mc-foot">
+        <div class="mc-telemetry">
+            <span class="mc-live stale" id="mcLive"><i></i><span id="mcLiveText"></span></span>
+            <span class="mc-telemetry" id="mcTelemetry"></span>
+        </div>
+        <button class="mc-fs" id="fsHint" type="button" hidden></button>
+    </footer>
+</main>
+<script src="/api/sfml_stats/static/wall/mission.js?v=content"></script>
+</body>
+</html>

@@ -52,11 +52,11 @@ const HybridForecastPage = ((Vue) => {
             line-height: 1.45;
         }
         .page-hybrid-forecast .hf-state-normal {
-            background: rgba(46, 160, 67, 0.12);
+            background: color-mix(in srgb, var(--success, rgb(46, 160, 67)) 12%, transparent);
             color: var(--text-primary);
         }
         .page-hybrid-forecast .hf-state-on {
-            background: rgba(0, 210, 255, 0.08);
+            background: color-mix(in srgb, var(--accent, rgb(0, 210, 255)) 8%, transparent);
             color: var(--text-primary);
         }
         .page-hybrid-forecast .hf-facts,
@@ -131,13 +131,13 @@ const HybridForecastPage = ((Vue) => {
             border-radius: var(--radius-md);
         }
         .page-hybrid-forecast .hf-notice-error {
-            background: rgba(255, 80, 80, 0.12);
+            background: color-mix(in srgb, var(--danger, rgb(255, 80, 80)) 12%, transparent);
         }
         .page-hybrid-forecast .hf-notice-ok {
-            background: rgba(46, 160, 67, 0.12);
+            background: color-mix(in srgb, var(--success, rgb(46, 160, 67)) 12%, transparent);
         }
         .page-hybrid-forecast .hf-notice-info {
-            background: rgba(0, 210, 255, 0.08);
+            background: color-mix(in srgb, var(--accent, rgb(0, 210, 255)) 8%, transparent);
         }
     `;
     document.head.appendChild(style);
@@ -223,13 +223,13 @@ const HybridForecastPage = ((Vue) => {
             function formatKwh(value) {
                 const number = numericOrNull(value);
                 if (number == null) return t("hybrid_forecast.noNumber");
-                return number.toFixed(2) + " " + t("hybrid_forecast.kwh");
+                return window.SFMLI18n.formatNumber(number, 2) + " " + t("hybrid_forecast.kwh");
             }
 
             function formatDifference(value) {
                 if (value == null) return t("hybrid_forecast.noNumber");
                 const prefix = value > 0 ? "+" : "";
-                return prefix + value.toFixed(2) + " " + t("hybrid_forecast.kwh");
+                return prefix + window.SFMLI18n.formatNumber(value, 2) + " " + t("hybrid_forecast.kwh");
             }
 
             function formatStamp(value) {
@@ -335,11 +335,11 @@ const HybridForecastPage = ((Vue) => {
                 const parts = [];
                 const hour = numericOrNull(check.analyzed_hour);
                 if (hour != null) parts.push(t("mdc.factHour", { hour: String(hour) }));
-                if (actual != null) parts.push(t("mdc.factActual", { actual: actual.toFixed(2) }));
-                if (predicted != null) parts.push(t("mdc.factPredicted", { predicted: predicted.toFixed(2) }));
+                if (actual != null) parts.push(t("mdc.factActual", { actual: window.SFMLI18n.formatNumber(actual, 2) }));
+                if (predicted != null) parts.push(t("mdc.factPredicted", { predicted: window.SFMLI18n.formatNumber(predicted, 2) }));
                 const deviation = numericOrNull(check.deviation_percent);
                 if (deviation != null) {
-                    const signed = (deviation > 0 ? "+" : "") + deviation.toFixed(0);
+                    const signed = (deviation > 0 ? "+" : "") + window.SFMLI18n.formatNumber(deviation, 0);
                     parts.push(t("mdc.factDeviation", { deviation: signed }));
                 }
                 return parts.join(", ");

@@ -14,6 +14,8 @@ import asyncio
 import logging
 import random
 import sqlite3
+import sys
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, AsyncIterator
@@ -28,6 +30,8 @@ if TYPE_CHECKING:
 from ..utils.time_utils import naive_ha_local
 
 _LOGGER = logging.getLogger(__name__)
+
+_SLOW_WRITE_TRANSACTION_SECONDS = 2.0
 
 STATS_SCHEMA_VERSION = 1
 
@@ -52,19 +56,31 @@ _STATS_TABLES: dict[str, str] = {
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
     "stats_hourly_billing": """CREATE TABLE IF NOT EXISTS stats_hourly_billing (
         hour_key TEXT PRIMARY KEY, date TEXT NOT NULL, hour INTEGER NOT NULL,
-        grid_import_kwh REAL DEFAULT 0, grid_import_cost_ct REAL DEFAULT 0,
-        grid_export_kwh REAL DEFAULT 0, feed_in_revenue_ct REAL DEFAULT 0,
-        feed_in_tariff_ct REAL DEFAULT 0, price_ct_kwh REAL DEFAULT 0,
+        grid_import_kwh REAL DEFAULT 0, grid_import_cost_ct REAL,
+        grid_export_kwh REAL DEFAULT 0, feed_in_revenue_ct REAL,
+        feed_in_tariff_ct REAL, price_ct_kwh REAL,
         grid_to_house_kwh REAL DEFAULT 0, grid_to_battery_kwh REAL DEFAULT 0,
         grid_to_house_cost_ct REAL, grid_to_battery_cost_ct REAL,
         solar_yield_kwh REAL DEFAULT 0, solar_to_house_kwh REAL DEFAULT 0,
         solar_to_battery_kwh REAL DEFAULT 0, battery_to_house_kwh REAL DEFAULT 0,
         home_consumption_kwh REAL DEFAULT 0, consumer_heatpump_kwh REAL DEFAULT 0,
-        consumer_heatpump_cost_ct REAL DEFAULT 0, consumer_heatingrod_kwh REAL DEFAULT 0,
-        consumer_heatingrod_cost_ct REAL DEFAULT 0, consumer_wallbox_kwh REAL DEFAULT 0,
-        consumer_wallbox_cost_ct REAL DEFAULT 0, battery_soc_min REAL,
+        consumer_heatpump_cost_ct REAL, consumer_heatingrod_kwh REAL DEFAULT 0,
+        consumer_heatingrod_cost_ct REAL, consumer_wallbox_kwh REAL DEFAULT 0,
+        consumer_wallbox_cost_ct REAL, battery_soc_min REAL,
         battery_soc_avg REAL, battery_soc_max REAL, battery_soc_end REAL,
         data_source TEXT DEFAULT 'aggregator')""",
+    "stats_hourly_billing_legacy_shadow": """CREATE TABLE IF NOT EXISTS stats_hourly_billing_legacy_shadow (
+        hour_key TEXT PRIMARY KEY,
+        price_ct_kwh REAL,
+        grid_import_cost_ct REAL,
+        feed_in_revenue_ct REAL,
+        feed_in_tariff_ct REAL,
+        grid_to_house_cost_ct REAL,
+        grid_to_battery_cost_ct REAL,
+        consumer_heatpump_cost_ct REAL,
+        consumer_heatingrod_cost_ct REAL,
+        consumer_wallbox_cost_ct REAL,
+        written_at TEXT NOT NULL)""",
     "stats_power_sources": """CREATE TABLE IF NOT EXISTS stats_power_sources (
         timestamp TEXT PRIMARY KEY, date TEXT NOT NULL, hour INTEGER NOT NULL,
         solar_power_w REAL, inverter_ac_output_w REAL, battery_power_dc_w REAL,
@@ -116,7 +132,7 @@ _STATS_TABLES: dict[str, str] = {
 _REQUIRED_COLUMNS: dict[str, dict[str, str]] = {
     "stats_daily_energy": {"grid_to_battery_kwh": "REAL DEFAULT 0", "smartmeter_import_kwh": "REAL DEFAULT 0", "smartmeter_export_kwh": "REAL DEFAULT 0", "consumer_heatpump_kwh": "REAL DEFAULT 0", "consumer_heatingrod_kwh": "REAL DEFAULT 0", "consumer_wallbox_kwh": "REAL DEFAULT 0", "inverter_ac_output_kwh": "REAL", "battery_charge_dc_kwh": "REAL", "battery_discharge_dc_kwh": "REAL", "grid_import_extra_kwh": "REAL DEFAULT 0", "peak_solar_w": "REAL DEFAULT 0", "peak_solar_time": "TEXT"},
     "stats_power_sources": {"battery_soc": "REAL", "inverter_ac_output_w": "REAL", "battery_power_dc_w": "REAL"},
-    "stats_hourly_billing": {"feed_in_revenue_ct": "REAL DEFAULT 0", "feed_in_tariff_ct": "REAL DEFAULT 0", "consumer_heatpump_kwh": "REAL DEFAULT 0", "consumer_heatpump_cost_ct": "REAL DEFAULT 0", "consumer_heatingrod_kwh": "REAL DEFAULT 0", "consumer_heatingrod_cost_ct": "REAL DEFAULT 0", "consumer_wallbox_kwh": "REAL DEFAULT 0", "consumer_wallbox_cost_ct": "REAL DEFAULT 0"},
+    "stats_hourly_billing": {"feed_in_revenue_ct": "REAL", "feed_in_tariff_ct": "REAL", "consumer_heatpump_kwh": "REAL DEFAULT 0", "consumer_heatpump_cost_ct": "REAL", "consumer_heatingrod_kwh": "REAL DEFAULT 0", "consumer_heatingrod_cost_ct": "REAL", "consumer_wallbox_kwh": "REAL DEFAULT 0", "consumer_wallbox_cost_ct": "REAL"},
     "stats_consumer_atlas_config": {"start_kwh": "REAL NOT NULL DEFAULT 0"},
     "stats_energy_efficiency_daily": {"mixed_dc_sample_kwh": "REAL NOT NULL DEFAULT 0", "mixed_ac_sample_kwh": "REAL NOT NULL DEFAULT 0", "mixed_efficiency_percent": "REAL", "mixed_sample_seconds": "REAL NOT NULL DEFAULT 0", "system_sample_seconds": "REAL NOT NULL DEFAULT 0"},
 }
@@ -511,15 +527,71 @@ class DatabaseConnectionManager:
                     await self._rollback_after_failed_write()
                     raise
 
+    @staticmethod
+    def _caller_name() -> str:
+        """``module.function`` of the code that opened the transaction."""
+        frame = sys._getframe(1)
+        while frame is not None and (
+            frame.f_globals.get("__name__") == "contextlib"
+            or frame.f_code.co_name in ("write_transaction", "_write_transaction")
+        ):
+            frame = frame.f_back
+        if frame is None:
+            return "unknown"
+        module = str(frame.f_globals.get("__name__", "")).rsplit(".", 1)[-1]
+        return f"{module}.{frame.f_code.co_name}"
+
+    @staticmethod
+    async def _await_to_end(awaitable) -> tuple[asyncio.Future, bool]:
+        """Wait until ``awaitable`` finished, even when the caller is cancelled meanwhile.
+
+        Returns the finished future and whether the caller was cancelled.
+        """
+        task = asyncio.ensure_future(awaitable)
+        cancelled = False
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                # Remember every cancellation of the caller, also one that arrives
+                # just as the task finishes; only a cancelled task itself is not ours.
+                if not task.cancelled():
+                    cancelled = True
+            except BaseException:
+                pass
+        return task, cancelled
+
+    async def _rollback_to_end(self) -> None:
+        """Roll back completely; a cancellation is passed on afterwards."""
+        _task, cancelled = await self._await_to_end(self._rollback_after_failed_write())
+        if cancelled:
+            raise asyncio.CancelledError
+
+    async def _begin_immediate(self) -> None:
+        """Open the write transaction; never leave it open when the caller is cancelled."""
+        task, cancelled = await self._await_to_end(
+            self._connection.execute("BEGIN IMMEDIATE")
+        )
+        if cancelled:
+            # BEGIN may still succeed after waiting for a foreign lock.
+            if not task.cancelled() and task.exception() is None:
+                await self._rollback_to_end()
+            raise asyncio.CancelledError
+        task.result()
+
     @asynccontextmanager
-    async def write_transaction(self) -> AsyncIterator[aiosqlite.Connection]:
+    async def write_transaction(
+        self, name: str | None = None
+    ) -> AsyncIterator[aiosqlite.Connection]:
         """Run a multi-statement write under the shared writer lock."""
+        if name is None:
+            name = self._caller_name()
         async with self._write_lock:
             for attempt in range(3):
                 if not await self._ensure_connected():
                     raise RuntimeError("Database not available")
                 try:
-                    await self._connection.execute("BEGIN IMMEDIATE")
+                    await self._begin_immediate()
                     break
                 except aiosqlite.OperationalError as err:
                     await self._rollback_after_failed_write()
@@ -540,12 +612,18 @@ class DatabaseConnectionManager:
             else:
                 raise RuntimeError("Database write transaction could not be opened")
 
+            held_since = time.monotonic()
             try:
                 yield self._connection
                 await self._connection.commit()
-            except Exception:
-                await self._rollback_after_failed_write()
+            except BaseException:
+                # CancelledError is not an Exception. Roll back to the end, then re-raise.
+                await self._rollback_to_end()
                 raise
+            finally:
+                held = time.monotonic() - held_since
+                if held >= _SLOW_WRITE_TRANSACTION_SECONDS:
+                    _LOGGER.warning("Stats DB write transaction held %.1fs (%s)", held, name)
 
     @staticmethod
     async def _table_columns(conn: aiosqlite.Connection, table: str) -> dict[str, str]:

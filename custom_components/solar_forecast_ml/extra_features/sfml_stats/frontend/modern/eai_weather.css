@@ -69,7 +69,7 @@
 .eai-weather-kicker,
 .eai-weather-eyebrow {
     color: var(--weather-accent);
-    font-size: .72rem;
+    font-size: .75rem;
     font-weight: 800;
     letter-spacing: .08em;
     text-transform: uppercase;
@@ -99,7 +99,7 @@
     border-radius: 999px;
     background: color-mix(in srgb, var(--weather-accent) 15%, var(--bg-card));
     color: var(--weather-accent);
-    font-size: .74rem;
+    font-size: .75rem;
     font-weight: 750;
     text-align: center;
 }
@@ -115,8 +115,8 @@
     gap: 14px 24px;
     align-items: center;
     padding: 15px 18px;
-    border-color: color-mix(in srgb, #a88de0 50%, var(--border-default));
-    background: color-mix(in srgb, #a88de0 9%, var(--bg-card));
+    border-color: color-mix(in srgb, var(--premium) 50%, var(--border-default));
+    background: color-mix(in srgb, var(--premium) 9%, var(--bg-card));
 }
 
 .eai-weather-demo div {
@@ -126,7 +126,7 @@
 
 .eai-weather-demo > strong {
     max-width: 32ch;
-    color: #a88de0;
+    color: var(--premium);
     text-align: right;
 }
 
@@ -225,7 +225,7 @@
     border-radius: 999px;
     background: var(--surface-inset);
     color: var(--text-secondary);
-    font-size: .74rem;
+    font-size: .75rem;
     cursor: pointer;
 }
 
@@ -345,7 +345,7 @@
     display: flex;
     gap: 10px 18px;
     flex-wrap: wrap;
-    font-size: .74rem;
+    font-size: .75rem;
 }
 
 .eai-weather-legend span::before {
@@ -400,7 +400,7 @@
 
 .eai-weather-hour time,
 .eai-weather-hour small {
-    font-size: .72rem;
+    font-size: .75rem;
 }
 
 .eai-weather-hour strong {
@@ -569,7 +569,7 @@
 
 .eai-weather-history small {
     color: var(--text-muted);
-    font-size: .68rem;
+    font-size: .75rem;
 }
 
 .eai-weather-source-matrix {
@@ -591,7 +591,7 @@
 .eai-weather-source-matrix span,
 .eai-weather-source-matrix small {
     color: var(--text-secondary);
-    font-size: .74rem;
+    font-size: .75rem;
 }
 
 .eai-weather-source-matrix strong {
@@ -625,7 +625,7 @@
     position: relative;
     height: 9px;
     border-radius: 99px;
-    background: linear-gradient(90deg, #66b8fa, var(--weather-accent), #ef9466);
+    background: linear-gradient(90deg, #66b8fa, var(--weather-accent), var(--copper));
 }
 
 .eai-weather-months i b {
@@ -654,7 +654,7 @@
 
 .eai-weather-rain-summary span {
     color: var(--text-secondary);
-    font-size: .72rem;
+    font-size: .75rem;
 }
 
 .eai-weather-rain-bars {
@@ -686,7 +686,7 @@
 
 .eai-weather-rain-bars strong,
 .eai-weather-rain-bars small {
-    font-size: .66rem;
+    font-size: .75rem;
     white-space: nowrap;
 }
 
@@ -731,9 +731,9 @@
 }
 
 [data-theme="light"] .eai-weather-page {
-    --weather-accent: #315fd0;
+    --weather-accent: var(--tone-steel-deep);
     --weather-actual: #087e70;
-    --weather-forecast: #315fd0;
+    --weather-forecast: var(--tone-steel-deep);
 }
 
 @container (max-width: 980px) {

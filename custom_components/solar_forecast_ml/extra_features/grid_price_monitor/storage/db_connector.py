@@ -128,11 +128,14 @@ class GPMDatabaseConnector:
         self,
         sql: str,
         parameters_list: list[tuple],
+        *,
+        auto_commit: bool = True,
     ) -> int:
         """Execute SQL with multiple parameter sets with retry on lock @zara"""
         async def _do():
             await self._db.executemany(sql, parameters_list)
-            await self._db.commit()
+            if auto_commit:
+                await self._db.commit()
 
         await self._retry_on_locked(_do)
         return len(parameters_list)
@@ -275,6 +278,16 @@ class GPMDatabaseConnector:
                 source_hash TEXT
             );
 
+            -- Feed-in tariff and monthly base fee (append-only, never deleted)
+            CREATE TABLE IF NOT EXISTS GPM_fee_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                valid_from_utc TEXT NOT NULL,
+                valid_from TEXT NOT NULL,
+                feed_in_tariff_ct REAL,
+                base_fee_eur_month REAL,
+                origin TEXT NOT NULL
+            );
+
             -- Configuration backup (single row)
             CREATE TABLE IF NOT EXISTS GPM_config_backup (
                 id INTEGER PRIMARY KEY DEFAULT 1,
@@ -334,6 +347,11 @@ class GPMDatabaseConnector:
                 "INTEGER NOT NULL DEFAULT 0",
             )
             await self._add_column_if_missing(
+                "GPM_price_cache_meta",
+                "history_backfill_last_run",
+                "TEXT",
+            )
+            await self._add_column_if_missing(
                 "GPM_current_price", "tariff_mode", "TEXT"
             )
             await self._add_column_if_missing(
@@ -367,6 +385,14 @@ class GPMDatabaseConnector:
                     rows_affected INTEGER NOT NULL DEFAULT 0,
                     source_hash TEXT
                 );
+                CREATE TABLE IF NOT EXISTS GPM_fee_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    valid_from_utc TEXT NOT NULL,
+                    valid_from TEXT NOT NULL,
+                    feed_in_tariff_ct REAL,
+                    base_fee_eur_month REAL,
+                    origin TEXT NOT NULL
+                );
                 """
             )
             await self._db.commit()
@@ -392,7 +418,11 @@ class GPMDatabaseConnector:
                 "hour",
                 "price_source",
             ),
-            "GPM_price_cache_meta": ("tariff_mode", "price_revision"),
+            "GPM_price_cache_meta": (
+                "tariff_mode",
+                "price_revision",
+                "history_backfill_last_run",
+            ),
             "GPM_current_price": (
                 "tariff_mode",
                 "price_revision",

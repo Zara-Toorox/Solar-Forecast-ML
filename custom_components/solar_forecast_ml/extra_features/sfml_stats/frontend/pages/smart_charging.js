@@ -13,6 +13,108 @@ const SmartChargingPage = ((Vue) => {
         }
     }
 
+    function scFinite(value) {
+        return value == null || value === "" ? null : (Number.isFinite(+value) ? +value : null);
+    }
+
+    function shownMoney(record, field) {
+        const source = record && typeof record === "object" ? record : null;
+        if (!source) return { amount: null, incomplete: false };
+        const main = scFinite(source[field]);
+        if (main != null) return { amount: main, incomplete: false };
+        const part = scFinite(source[field + "_priced_part"]);
+        if (part != null && source.complete === false) return { amount: part, incomplete: true };
+        return { amount: null, incomplete: false };
+    }
+
+    function scLocale() {
+        const lang = window.SFMLI18n ? window.SFMLI18n.current : "de";
+        return ({ de: "de-DE", en: "en-GB", pl: "pl-PL" })[lang] || "de-DE";
+    }
+
+    function compressDayRanges(days) {
+        if (!Array.isArray(days) || !days.length) return [];
+        const sorted = days.slice().sort();
+        const ranges = [];
+        let start = sorted[0];
+        let end = sorted[0];
+        const nextDay = (iso) => {
+            const parts = iso.split("-").map(Number);
+            const nextUtc = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12));
+            nextUtc.setUTCDate(nextUtc.getUTCDate() + 1);
+            return nextUtc.toISOString().slice(0, 10);
+        };
+        for (let index = 1; index < sorted.length; index += 1) {
+            const day = sorted[index];
+            if (day === nextDay(end)) {
+                end = day;
+            } else {
+                ranges.push([start, end]);
+                start = day;
+                end = day;
+            }
+        }
+        ranges.push([start, end]);
+        return ranges;
+    }
+
+    function formatLocalDay(iso, locale) {
+        const parts = String(iso).split("-").map(Number);
+        if (parts.length !== 3) return String(iso);
+        const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12));
+        return new Intl.DateTimeFormat(locale, {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+        }).format(date);
+    }
+
+    function formatDayRangesText(days) {
+        const ranges = compressDayRanges(days);
+        const locale = scLocale();
+        return ranges
+            .map(([start, end]) => {
+                const left = formatLocalDay(start, locale);
+                if (start === end) return left;
+                return `${left}\u2013${formatLocalDay(end, locale)}`;
+            })
+            .join(", ");
+    }
+
+    function daysWithoutPriceList(record) {
+        const list = record && record.days_without_price;
+        if (!Array.isArray(list)) return [];
+        return list.filter((day) => typeof day === "string" && day.length >= 10);
+    }
+
+    function fmtPrice(val) {
+        const number = scFinite(val);
+        if (number == null) return "\u2013";
+        return new Intl.NumberFormat(scLocale(), {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(number);
+    }
+
+    function fmtEur(val) {
+        const number = scFinite(val);
+        if (number == null) return "\u2013";
+        const formatted = new Intl.NumberFormat(scLocale(), {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        }).format(number);
+        return `${formatted} €`;
+    }
+
+    function kpiMoney(record, field) {
+        const shown = shownMoney(record, field);
+        return shown.amount == null ? "\u2013" : fmtEur(shown.amount);
+    }
+
+    function kpiIncomplete(record, field) {
+        return shownMoney(record, field).incomplete;
+    }
+
     function statusChipVisibility(live, mode) {
         const flags = {
             chargingSince: false,
@@ -472,8 +574,8 @@ const SmartChargingPage = ((Vue) => {
 
                     <div class="eb-item">
                         <div class="eb-icon">💰</div>
-                        <div class="eb-value" style="color: #a855f7;">
-                            {{ (dashboardData.advisor && !dashboardData.advisor.has_battery) ? localText('noBattery') : (fmtPrice(currentKpis.avg_price_ct) + ' ct') }}
+                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">
+                            {{ (dashboardData.advisor && !dashboardData.advisor.has_battery) ? localText('noBattery') : (fmtPrice(shownMoney(currentKpis, 'avg_price_ct').amount) + ' ct') }}
                         </div>
                         <div class="eb-label">{{ $t('smart_charging.avgChargePrice') }}</div>
                         <div class="eb-sub">{{ $t('smart_charging.avgPricePerKwh') }}</div>
@@ -481,11 +583,13 @@ const SmartChargingPage = ((Vue) => {
 
                     <div class="eb-item">
                         <div class="eb-icon">💚</div>
-                        <div class="eb-value" style="color: #22c55e;">
-                            {{ (dashboardData.advisor && !dashboardData.advisor.has_battery) ? localText('noBattery') : fmtEur(currentKpis.savings_eur) }}
+                        <div class="eb-value" style="color: var(--success, #22c55e);">
+                            {{ (dashboardData.advisor && !dashboardData.advisor.has_battery) ? localText('noBattery') : kpiMoney(currentKpis, 'savings_eur') }}
+                            <span v-if="kpiIncomplete(currentKpis, 'savings_eur')" class="sc-incomplete"> {{ $t('gpm.billIncomplete') }}</span>
                         </div>
                         <div class="eb-label">{{ $t('smart_charging.smartSavings') }}</div>
                         <div class="eb-sub">{{ $t('smart_charging.savedPerPeriod') }}</div>
+                        <p v-if="kpiPriceHint(currentKpis)" class="sc-price-hint">{{ kpiPriceHint(currentKpis) }}<a class="sc-price-hint-link" href="#gpm/gpm-csv-import" @click.prevent="openGpmCsvImport">{{ $t('gpm.missingGpmPricesCsv') }}</a>{{ $t('gpm.missingGpmPricesEnd') }}</p>
                     </div>
                 </div>
 
@@ -497,10 +601,10 @@ const SmartChargingPage = ((Vue) => {
                         <div class="eb-item" v-for="period in gridChargePeriods" :key="period.id">
                             <div class="eb-label">{{ period.label }}</div>
                             <div class="eb-value" style="color: var(--solar);">{{ fmtKwh(period.kwh) }}</div>
-                            <div class="eb-sub" v-if="period.avg_ct_kwh != null || !period.unpriced_kwh">{{ fmtEur(period.cost_eur) }}</div>
+                            <div class="eb-sub" v-if="period.avg_ct_kwh != null || !period.unpriced_kwh">{{ kpiMoney(period, 'cost_eur') }}<span v-if="kpiIncomplete(period, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</span></div>
                             <div class="eb-sub" v-if="period.avg_ct_kwh != null">{{ $t('smart_charging.gridChargeAvg', { price: fmtPrice(period.avg_ct_kwh) }) }}</div>
-                            <div class="eb-sub" v-if="period.unpriced_kwh > 0">{{ $t('smart_charging.gridChargeUnpriced', { kwh: Number(period.unpriced_kwh).toFixed(1) }) }}</div>
-                            <div class="eb-sub" v-if="period.under_limit_share != null">{{ $t('smart_charging.gridChargeUnderLimit', { pct: (period.under_limit_share * 100).toFixed(0) }) }}</div>
+                            <div class="eb-sub" v-if="period.unpriced_kwh > 0">{{ $t('smart_charging.gridChargeUnpriced', { kwh: $n(period.unpriced_kwh, 1) }) }}</div>
+                            <div class="eb-sub" v-if="period.under_limit_share != null">{{ $t('smart_charging.gridChargeUnderLimit', { pct: $n(period.under_limit_share * 100, 0) }) }}</div>
                         </div>
                     </div>
                 </div>
@@ -552,14 +656,14 @@ const SmartChargingPage = ((Vue) => {
                                             </thead>
                                             <tbody>
                                                 <tr v-for="step in dashboardData.advisor.sizing.steps" :key="step.step_kwh">
-                                                    <td class="sizing-step">+{{ step.step_kwh.toFixed(1) }} kWh</td>
+                                                    <td class="sizing-step">+{{ $n(step.step_kwh, 1) }} kWh</td>
                                                     <td>{{ fmtEurRange(step.pv_eur_min, step.pv_eur_max) }}</td>
                                                     <td>
                                                         {{ dashboardData.advisor.sizing.time_variable_tariff ? fmtEur(step.shift_eur) : '–' }}
                                                         <small v-if="dashboardData.advisor.sizing.time_variable_tariff" class="sizing-best">{{ localText('bestCase').replace('{eur}', fmtEur(step.shift_best_eur)) }}</small>
                                                     </td>
                                                     <td class="sizing-year">{{ fmtEur(step.annual_eur) }}</td>
-                                                    <td>{{ step.payback_years != null ? localText('years').replace('{years}', step.payback_years.toFixed(0)) : '–' }}</td>
+                                                    <td>{{ step.payback_years != null ? localText('years').replace('{years}', $n(step.payback_years, 0)) : '–' }}</td>
                                                 </tr>
                                             </tbody>
                                         </table>
@@ -620,19 +724,19 @@ const SmartChargingPage = ((Vue) => {
                                 
                                 <div class="advisor-metric-row">
                                     <span class="metric-label">{{ localText('avgDailyYield') }}</span>
-                                    <span class="metric-value">{{ dashboardData.advisor.avg_solar_yield_kwh.toFixed(2) }} kWh</span>
+                                    <span class="metric-value">{{ $n(dashboardData.advisor.avg_solar_yield_kwh, 2) }} kWh</span>
                                 </div>
                                 <div class="metric-help-text">{{ localText('avgDailyYieldSub') }}</div>
                                 
                                 <div class="advisor-metric-row">
                                     <span class="metric-label">{{ localText('houseConsumption') }}</span>
-                                    <span class="metric-value">{{ dashboardData.advisor.avg_house_consumption_kwh.toFixed(2) }} kWh</span>
+                                    <span class="metric-value">{{ $n(dashboardData.advisor.avg_house_consumption_kwh, 2) }} kWh</span>
                                 </div>
                                 <div class="metric-help-text">{{ localText('houseConsumptionSub') }}</div>
                                 
                                 <div class="advisor-metric-row">
                                     <span class="metric-label">{{ localText('autarkyRate') }}</span>
-                                    <span class="metric-value" style="color: #22c55e;">{{ dashboardData.advisor.avg_autarky_percent.toFixed(1) }}%</span>
+                                    <span class="metric-value" style="color: var(--success, #22c55e);">{{ $n(dashboardData.advisor.avg_autarky_percent, 1) }}%</span>
                                 </div>
                                 <div class="metric-help-text">{{ localText('autarkyRateSub') }}</div>
                             </div>
@@ -650,7 +754,7 @@ const SmartChargingPage = ((Vue) => {
                             <div class="advisor-subcard-content">
                                 <div class="advisor-metric-row">
                                     <span class="metric-label">{{ localText('totalCharged') }}</span>
-                                    <span class="metric-value" style="color: #a855f7;">
+                                    <span class="metric-value" style="color: var(--chart-series-ai, #a855f7);">
                                         {{ dashboardData.advisor.has_battery ? formatKwh(dashboardData.advisor.battery_charge_solar_kwh + dashboardData.advisor.battery_charge_grid_kwh) : localText('noBattery') }}
                                     </span>
                                 </div>
@@ -660,21 +764,21 @@ const SmartChargingPage = ((Vue) => {
                                 
                                 <div class="advisor-metric-row">
                                     <span class="metric-label">{{ localText('batteryCycles') }}</span>
-                                    <span class="metric-value">{{ dashboardData.advisor.has_battery ? dashboardData.advisor.battery_cycles.toFixed(1) : localText('noBattery') }}</span>
+                                    <span class="metric-value">{{ dashboardData.advisor.has_battery ? $n(dashboardData.advisor.battery_cycles, 1) : localText('noBattery') }}</span>
                                 </div>
                                 <div class="metric-help-text" v-if="dashboardData.advisor.has_battery">
-                                    {{ localText('batteryCyclesSub').replace('{cycles}', (dashboardData.advisor.battery_cycles / dashboardData.advisor.total_days).toFixed(2)) }}
+                                    {{ localText('batteryCyclesSub').replace('{cycles}', $n(dashboardData.advisor.battery_cycles / dashboardData.advisor.total_days, 2)) }}
                                 </div>
                                 
                                 <!-- Simple Cycle Progress Bar -->
                                 <div style="margin-top: var(--space-md);" v-if="dashboardData.advisor.has_battery">
-                                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: var(--text-secondary); margin-bottom: 4px;">
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">
                                         <span>PV: {{ getPvChargePercent() }}%</span>
                                         <span>Netz: {{ getGridChargePercent() }}%</span>
                                     </div>
                                     <div style="height: 6px; width: 100%; background: rgba(255,255,255,0.05); border-radius: 3px; display: flex; overflow: hidden;">
                                         <div :style="{ width: getPvChargePercent() + '%', background: 'var(--solar)' }"></div>
-                                        <div :style="{ width: getGridChargePercent() + '%', background: '#a855f7' }"></div>
+                                        <div :style="{ width: getGridChargePercent() + '%', background: 'var(--chart-series-ai, #a855f7)' }"></div>
                                     </div>
                                 </div>
                             </div>
@@ -739,8 +843,8 @@ const SmartChargingPage = ((Vue) => {
             ]);
 
             const currentKpis = computed(() => {
-                if (!dashboardData.kpis) return { charged_kwh: 0, avg_price_ct: 0, savings_eur: 0 };
-                return dashboardData.kpis[selectedPeriod.value] || { charged_kwh: 0, avg_price_ct: 0, savings_eur: 0 };
+                if (!dashboardData.kpis) return { charged_kwh: null, savings_eur: null };
+                return dashboardData.kpis[selectedPeriod.value] || { charged_kwh: null, savings_eur: null };
             });
             const gridChargePeriods = computed(() => {
                 const card = dashboardData.grid_charge;
@@ -1063,23 +1167,30 @@ const SmartChargingPage = ((Vue) => {
 
             // Formatting
             function formatPrice(val) {
-                return val != null ? val.toFixed(2) : '--';
+                return val != null ? window.SFMLI18n.formatNumber(val, 2) : '--';
             }
 
             function formatKwh(val) {
-                return val != null ? val.toFixed(1) + ' kWh' : '--';
+                return val != null ? window.SFMLI18n.formatNumber(val, 1) + ' kWh' : '--';
             }
 
             function fmtKwh(val) {
-                return val != null ? val.toFixed(1) + ' kWh' : '0.0 kWh';
+                return window.SFMLI18n.formatNumber(val != null ? val : 0, 1) + ' kWh';
             }
 
-            function fmtPrice(val) {
-                return val != null ? val.toFixed(2) : '0.00';
+            function kpiPriceHint(record) {
+                const days = daysWithoutPriceList(record);
+                if (!days.length || !kpiIncomplete(record, "savings_eur")) return "";
+                const ranges = formatDayRangesText(days);
+                const lead = t("gpm.missingGpmPricesLead", {
+                    count: String(days.length),
+                    ranges,
+                });
+                return lead && lead !== "gpm.missingGpmPricesLead" ? lead : `Für ${days.length} Tage fehlen GPM-Preise (z. B. ${ranges}). GPM lädt sie automatisch nach, sofern die Preisquelle sie liefert; sonst `;
             }
 
-            function fmtEur(val) {
-                return val != null ? val.toFixed(2) + ' €' : '0.00 €';
+            function openGpmCsvImport() {
+                window.location.hash = "gpm/gpm-csv-import";
             }
 
             // Chart rendering
@@ -1115,7 +1226,7 @@ const SmartChargingPage = ((Vue) => {
                 const cheapLegend = t('smart_charging.chartLegendCheapHours');
 
                 const firstFutureIndex = data.findIndex(h => h.is_future);
-                const cheapFill = 'rgba(34, 197, 94, 0.14)';
+                const cheapFill = (window.sfmlThemeColor?.("--success", 0.14) || 'rgba(34, 197, 94, 0.14)');
                 const chartAreas = [];
                 if (firstFutureIndex >= 0) {
                     chartAreas.push([
@@ -1125,9 +1236,9 @@ const SmartChargingPage = ((Vue) => {
                                 show: true,
                                 formatter: t('smart_charging.chartForecastZone'),
                                 color: getThemeColor('--text-muted', '#8b949e'),
-                                fontSize: 9,
+                                fontSize: 12,
                             },
-                            itemStyle: { color: 'rgba(0, 210, 255, 0.035)' },
+                            itemStyle: { color: (window.sfmlThemeColor?.("--accent", 0.035) || 'rgba(0, 210, 255, 0.035)') },
                         },
                         { xAxis: timeKeys[data.length - 1] },
                     ]);
@@ -1155,7 +1266,7 @@ const SmartChargingPage = ((Vue) => {
                         trigger: 'axis',
                         backgroundColor: getThemeColor('--bg-card', 'rgba(10,14,20,0.95)'),
                         borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
-                        textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-mono)', fontSize: 11 },
+                        textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-mono)', fontSize: 12 },
                         formatter: function(params) {
                             const dataIndex = params[0].dataIndex;
                             let html = '<b>' + (times[dataIndex] || params[0].axisValue) + '</b>';
@@ -1163,15 +1274,15 @@ const SmartChargingPage = ((Vue) => {
                                 if (p.value != null) {
                                     let valStr;
                                     if (p.seriesName === priceLegend) {
-                                        valStr = p.value.toFixed(2) + ' ct/kWh';
+                                        valStr = window.SFMLI18n.formatNumber(p.value, 2) + ' ct/kWh';
                                     } else {
-                                        valStr = p.value.toFixed(3) + ' kWh';
+                                        valStr = window.SFMLI18n.formatNumber(p.value, 3) + ' kWh';
                                     }
                                     html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + valStr + '</b></span>';
                                     if (p.seriesName === priceLegend && data[p.dataIndex]?.is_future) {
                                         html += '<br/><span style="color: var(--text-muted);">' + t('smart_charging.chartTooltipForecastPrice') + '</span>';
                                         if (data[p.dataIndex]?.is_cheap) {
-                                            html += '<br/><span style="color: #22c55e;">' + t('smart_charging.chartCheapHour') + '</span>';
+                                            html += '<br/><span style="color: var(--success, #22c55e);">' + t('smart_charging.chartCheapHour') + '</span>';
                                         }
                                     }
                                 }
@@ -1181,13 +1292,13 @@ const SmartChargingPage = ((Vue) => {
                     },
                     legend: {
                         data: [
-                            { name: priceLegend, icon: 'line', itemStyle: { color: '#00d2ff' } },
-                            { name: chargingLegend, icon: 'bar', itemStyle: { color: '#22c55e' } },
-                            { name: solarLegend, icon: 'bar', itemStyle: { color: '#f59e0b' } },
-                            { name: cheapLegend, icon: 'roundRect', itemStyle: { color: '#22c55e' } },
+                            { name: priceLegend, icon: 'line', itemStyle: { color: (window.sfmlThemeColor?.("--accent") || "#00d2ff") } },
+                            { name: chargingLegend, icon: 'bar', itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#22c55e") } },
+                            { name: solarLegend, icon: 'bar', itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#f59e0b") } },
+                            { name: cheapLegend, icon: 'roundRect', itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#22c55e") } },
                         ],
                         bottom: 0,
-                        textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                        textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                     },
                     grid: { left: 45, right: 45, top: 25, bottom: 45 },
                     xAxis: {
@@ -1196,7 +1307,7 @@ const SmartChargingPage = ((Vue) => {
                         axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } },
                         axisLabel: {
                             color: getThemeColor('--text-secondary', '#8b949e'),
-                            fontSize: 9,
+                            fontSize: 12,
                             rotate: 30,
                             formatter: function(value, index) { return times[index] || value; },
                         },
@@ -1205,15 +1316,15 @@ const SmartChargingPage = ((Vue) => {
                         {
                             type: 'value',
                             name: 'kWh',
-                            nameTextStyle: { color: '#8b949e', fontSize: 9 },
-                            axisLabel: { color: '#8b949e', fontSize: 9 },
+                            nameTextStyle: { color: '#8b949e', fontSize: 12 },
+                            axisLabel: { color: '#8b949e', fontSize: 12 },
                             splitLine: { lineStyle: { color: 'rgba(255,255,255,0.03)' } },
                         },
                         {
                             type: 'value',
                             name: 'ct/kWh',
-                            nameTextStyle: { color: '#8b949e', fontSize: 9 },
-                            axisLabel: { color: '#8b949e', fontSize: 9 },
+                            nameTextStyle: { color: '#8b949e', fontSize: 12 },
+                            axisLabel: { color: '#8b949e', fontSize: 12 },
                             splitLine: { show: false },
                         }
                     ],
@@ -1225,20 +1336,20 @@ const SmartChargingPage = ((Vue) => {
                             data: prices,
                             smooth: true,
                             showSymbol: false,
-                            lineStyle: { width: 3, color: '#00d2ff' },
-                            itemStyle: { color: '#00d2ff' },
+                            lineStyle: { width: 3, color: (window.sfmlThemeColor?.("--accent") || "#00d2ff") },
+                            itemStyle: { color: (window.sfmlThemeColor?.("--accent") || "#00d2ff") },
                             markArea: chartAreas.length > 0 ? {
                                 silent: true,
                                 data: chartAreas,
                             } : undefined,
                             markLine: firstFutureIndex >= 0 ? {
                                 symbol: ['none', 'none'],
-                                lineStyle: { color: 'rgba(0, 210, 255, 0.45)', type: 'dashed' },
+                                lineStyle: { color: (window.sfmlThemeColor?.("--accent", 0.45) || 'rgba(0, 210, 255, 0.45)'), type: 'dashed' },
                                 label: {
                                     show: true,
                                     formatter: t('smart_charging.chartNowBoundary'),
                                     color: getThemeColor('--text-muted', '#8b949e'),
-                                    fontSize: 9,
+                                    fontSize: 12,
                                 },
                                 data: [{ xAxis: timeKeys[firstFutureIndex] }],
                             } : undefined,
@@ -1250,8 +1361,8 @@ const SmartChargingPage = ((Vue) => {
                             stack: 'energy',
                             itemStyle: {
                                 color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                    { offset: 0, color: '#10b981' },
-                                    { offset: 1, color: '#059669' }
+                                    { offset: 0, color: (window.sfmlThemeColor?.("--success") || "#10b981") },
+                                    { offset: 1, color: (window.sfmlThemeColor?.("--success") || "#059669") }
                                 ]),
                                 borderRadius: [3, 3, 0, 0]
                             }
@@ -1263,8 +1374,8 @@ const SmartChargingPage = ((Vue) => {
                             stack: 'energy',
                             itemStyle: {
                                 color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-                                    { offset: 0, color: '#f59e0b' },
-                                    { offset: 1, color: '#d97706' }
+                                    { offset: 0, color: (window.sfmlThemeColor?.("--solar") || "#f59e0b") },
+                                    { offset: 1, color: (window.sfmlThemeColor?.("--house") || "#d97706") }
                                 ]),
                                 borderRadius: [3, 3, 0, 0]
                             }
@@ -1465,9 +1576,15 @@ const SmartChargingPage = ((Vue) => {
             }
 
             function fmtEurRange(min, max) {
-                if (min == null && max == null) return '–';
-                if (min == null || Math.abs((max ?? 0) - min) < 0.005) return fmtEur(max ?? min);
-                return min.toFixed(2) + '–' + fmtEur(max);
+                const leftMissing = min == null || min === "" || !Number.isFinite(Number(min));
+                const rightMissing = max == null || max === "" || !Number.isFinite(Number(max));
+                if (leftMissing && rightMissing) return "\u2013";
+                if (leftMissing) return fmtEur(max);
+                if (rightMissing) return fmtEur(min);
+                const left = Number(min);
+                const right = Number(max);
+                if (Math.abs(right - left) < 0.005) return fmtEur(right);
+                return window.SFMLI18n.formatNumber(left, 2) + "\u2013" + fmtEur(right);
             }
 
             function sizingWindowText() {
@@ -1486,7 +1603,7 @@ const SmartChargingPage = ((Vue) => {
                 const base = sizing.wear_ct_per_kwh > 0 ? 'assumptions' : 'assumptionsNoWear';
                 let text = localText(base)
                     .replace('{eta}', eta)
-                    .replace('{wear}', Number(sizing.wear_ct_per_kwh).toFixed(1))
+                    .replace('{wear}', window.SFMLI18n.formatNumber(sizing.wear_ct_per_kwh, 1))
                     .replace('{measured}', measured);
                 if (!sizing.time_variable_tariff) text += localText('assumptionsFixed');
                 return text;
@@ -1499,11 +1616,11 @@ const SmartChargingPage = ((Vue) => {
                 const sizing = advisor.sizing;
                 const first = sizing?.steps?.[0];
                 if (!first) return localText('verdictInsufficient');
-                const life = Number(sizing.settings?.lifetime_years || 0).toFixed(0);
+                const life = window.SFMLI18n.formatNumber(sizing.settings?.lifetime_years || 0, 0);
                 const fill = (key) => localText(key)
-                    .replace('{step}', first.step_kwh.toFixed(1))
+                    .replace('{step}', window.SFMLI18n.formatNumber(first.step_kwh, 1))
                     .replace('{eur}', fmtEur(first.annual_eur))
-                    .replace('{years}', first.payback_years != null ? first.payback_years.toFixed(0) : '–')
+                    .replace('{years}', first.payback_years != null ? window.SFMLI18n.formatNumber(first.payback_years, 0) : '–')
                     .replace('{life}', life);
                 switch (first.verdict) {
                     case 'cost_missing': return fill('verdictCost');
@@ -1559,6 +1676,9 @@ const SmartChargingPage = ((Vue) => {
                         dashboardData.advisor = data.advisor;
                         applySizingSettings(data.advisor?.sizing);
                         dashboardData.gpm = data.gpm || {};
+                        if (data.is_demo) {
+                            gpmMeta.is_demo = true;
+                        }
                         dashboardData.chart_plan = data.chart_plan || null;
                         dashboardData.grid_charge = data.grid_charge || null;
                         if (data.gpm) {
@@ -1695,7 +1815,13 @@ const SmartChargingPage = ((Vue) => {
                 }
                 if (data.limits) settingsLimits.value = data.limits;
                 if (data.plant) Object.assign(plantData, data.plant);
-                if (data.gpm) Object.assign(gpmMeta, data.gpm);
+                if (data.gpm) {
+                    const dashboardDemo = gpmMeta.is_demo;
+                    Object.assign(gpmMeta, data.gpm);
+                    if (dashboardDemo) {
+                        gpmMeta.is_demo = true;
+                    }
+                }
             }
 
             function applyCheapHours(hours, tomorrowAvailable) {
@@ -1804,6 +1930,11 @@ const SmartChargingPage = ((Vue) => {
                 fmtKwh,
                 fmtPrice,
                 fmtEur,
+                shownMoney,
+                kpiMoney,
+                kpiIncomplete,
+                kpiPriceHint,
+                openGpmCsvImport,
                 localText,
                 getSizingRecommendation,
                 sizingWindowText,
@@ -1875,8 +2006,8 @@ const SmartChargingPage = ((Vue) => {
             font-weight: 700;
             letter-spacing: 0.04em;
             text-transform: uppercase;
-            color: #92400e;
-            background: #fde68a;
+            color: var(--house, #92400e);
+            background: var(--solar, #fde68a);
             border-radius: 999px;
             padding: 4px 10px;
         }
@@ -1896,23 +2027,23 @@ const SmartChargingPage = ((Vue) => {
         .sc-hubble-row { display: flex; align-items: center; gap: var(--space-lg, 20px); }
         .sc-hubble-avatar {
             flex: 0 0 108px; width: 108px; height: 108px; border-radius: 50%; padding: 3px;
-            background: radial-gradient(circle, rgba(62, 201, 255, 0.35), rgba(62, 201, 255, 0.05) 70%);
-            box-shadow: 0 0 14px rgba(62, 201, 255, 0.35);
+            background: radial-gradient(circle, color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 35%, transparent), color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 5%, transparent) 70%);
+            box-shadow: 0 0 14px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 35%, transparent);
             animation: sc-hubble-breathe 4s ease-in-out infinite;
         }
         @keyframes sc-hubble-breathe {
-            0%, 100% { box-shadow: 0 0 10px rgba(62, 201, 255, 0.25); transform: scale(1); }
-            50% { box-shadow: 0 0 26px rgba(62, 201, 255, 0.6); transform: scale(1.025); }
+            0%, 100% { box-shadow: 0 0 10px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 25%, transparent); transform: scale(1); }
+            50% { box-shadow: 0 0 26px color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 60%, transparent); transform: scale(1.025); }
         }
         .sc-hubble-persona { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: #05121a; }
         .sc-hubble-bubble {
             position: relative; flex: 1 1 auto; min-width: 0;
-            background: rgba(62, 201, 255, 0.05); border: 1px solid rgba(62, 201, 255, 0.22);
+            background: color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 5%, transparent); border: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent);
             border-radius: var(--radius-md); padding: var(--space-md) var(--space-lg, 20px);
         }
         .sc-hubble-bubble::before {
             content: ""; position: absolute; left: -9px; top: 50%; width: 16px; height: 16px; margin-top: -8px;
-            background: #0b1d26; border-left: 1px solid rgba(62, 201, 255, 0.22); border-bottom: 1px solid rgba(62, 201, 255, 0.22);
+            background: #0b1d26; border-left: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--accent, rgb(62, 201, 255)) 22%, transparent);
             transform: rotate(45deg);
         }
         .sc-status-card .sc-hubble-bubble .sc-status-line { font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -1961,7 +2092,7 @@ const SmartChargingPage = ((Vue) => {
         }
         .sc-setup-ok {
             margin: 0 0 var(--space-lg);
-            color: #15803d;
+            color: var(--success, #15803d);
             font-size: 0.9rem;
         }
         .sc-setup-item {
@@ -1974,8 +2105,8 @@ const SmartChargingPage = ((Vue) => {
         .sc-setup-item:last-child {
             margin-bottom: 0;
         }
-        .sc-setup-red { border-left-color: #dc2626; }
-        .sc-setup-yellow { border-left-color: #d97706; }
+        .sc-setup-red { border-left-color: var(--danger, #dc2626); }
+        .sc-setup-yellow { border-left-color: var(--house, #d97706); }
         .sc-setup-gray { border-left-color: #9ca3af; color: var(--text-secondary); }
         .sc-settings-card select {
             width: 100%;
@@ -2071,8 +2202,8 @@ const SmartChargingPage = ((Vue) => {
         .sc-plan-card {
             margin-bottom: var(--space-lg);
             padding: var(--space-md);
-            background: rgba(0, 210, 255, 0.03);
-            border: 1px solid rgba(0, 210, 255, 0.16);
+            background: color-mix(in srgb, var(--accent, rgb(0, 210, 255)) 3%, transparent);
+            border: 1px solid color-mix(in srgb, var(--accent, rgb(0, 210, 255)) 16%, transparent);
             border-radius: var(--radius-md);
         }
 
@@ -2089,7 +2220,7 @@ const SmartChargingPage = ((Vue) => {
         .sc-plan-decision {
             padding: 3px 8px;
             border-radius: 12px;
-            font-size: 0.65rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
@@ -2116,7 +2247,7 @@ const SmartChargingPage = ((Vue) => {
 
         .sc-plan-value span, .sc-plan-note {
             color: var(--text-muted);
-            font-size: 0.68rem;
+            font-size: 0.75rem;
         }
 
         .sc-plan-value strong {
@@ -2169,7 +2300,7 @@ const SmartChargingPage = ((Vue) => {
         }
 
         .sc-gauge-label {
-            font-size: 0.65rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.08em;
@@ -2181,7 +2312,7 @@ const SmartChargingPage = ((Vue) => {
             flex-wrap: wrap;
             justify-content: center;
             gap: var(--space-sm);
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             margin-top: var(--space-sm);
             color: var(--text-secondary);
         }
@@ -2199,9 +2330,9 @@ const SmartChargingPage = ((Vue) => {
             display: inline-block;
         }
 
-        .legend-dot.red { background-color: #ef4444; }
-        .legend-dot.blue { background-color: #00d2ff; }
-        .legend-dot.green { background-color: #10b981; }
+        .legend-dot.red { background-color: var(--danger, #ef4444); }
+        .legend-dot.blue { background-color: var(--accent, #00d2ff); }
+        .legend-dot.green { background-color: var(--success, #10b981); }
 
         .sc-details-section {
             display: flex;
@@ -2229,7 +2360,7 @@ const SmartChargingPage = ((Vue) => {
         }
 
         .sc-reason-title {
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.05em;
@@ -2259,7 +2390,7 @@ const SmartChargingPage = ((Vue) => {
         }
 
         .meta-label {
-            font-size: 0.65rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             margin-bottom: 2px;
         }
@@ -2275,28 +2406,28 @@ const SmartChargingPage = ((Vue) => {
             display: inline-block;
             padding: 3px 10px;
             border-radius: 12px;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
 
         .badge-active {
-            background: rgba(16, 185, 129, 0.12);
-            color: #10b981;
-            border: 1px solid rgba(16, 185, 129, 0.25);
+            background: color-mix(in srgb, var(--success, rgb(16, 185, 129)) 12%, transparent);
+            color: var(--success, #10b981);
+            border: 1px solid color-mix(in srgb, var(--success, rgb(16, 185, 129)) 25%, transparent);
         }
 
         .badge-standby {
-            background: rgba(234, 179, 8, 0.12);
-            color: #eab308;
-            border: 1px solid rgba(234, 179, 8, 0.25);
+            background: color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 12%, transparent);
+            color: var(--solar, #eab308);
+            border: 1px solid color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 25%, transparent);
         }
 
         .badge-disabled {
-            background: rgba(239, 68, 68, 0.12);
-            color: #ef4444;
-            border: 1px solid rgba(239, 68, 68, 0.25);
+            background: color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 12%, transparent);
+            color: var(--danger, #ef4444);
+            border: 1px solid color-mix(in srgb, var(--danger, rgb(239, 68, 68)) 25%, transparent);
         }
 
         .sc-advisor-grid {
@@ -2341,7 +2472,7 @@ const SmartChargingPage = ((Vue) => {
         }
         
         .subcard-desc {
-            font-size: 0.65rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             margin-top: 1px;
         }
@@ -2372,7 +2503,7 @@ const SmartChargingPage = ((Vue) => {
         }
         
         .metric-help-text {
-            font-size: 0.62rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             margin-top: -6px;
             margin-bottom: var(--space-xs);
@@ -2445,7 +2576,7 @@ const SmartChargingPage = ((Vue) => {
         }
         .sizing-best {
             display: block;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             font-weight: 400;
             color: var(--text-muted);
             margin-top: 2px;
@@ -2481,26 +2612,26 @@ const SmartChargingPage = ((Vue) => {
         .advisor-recommendation-box {
             margin-top: var(--space-md);
             padding: var(--space-md);
-            background: rgba(0, 210, 255, 0.03);
+            background: color-mix(in srgb, var(--accent, rgb(0, 210, 255)) 3%, transparent);
             border-radius: var(--radius-sm);
-            border: 1px solid rgba(0, 210, 255, 0.1);
+            border: 1px solid color-mix(in srgb, var(--accent, rgb(0, 210, 255)) 10%, transparent);
         }
         
         .recommendation-badge {
             display: inline-block;
-            font-size: 0.55rem;
+            font-size: 0.75rem;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            background: rgba(0, 210, 255, 0.12);
-            color: #00d2ff;
+            background: color-mix(in srgb, var(--accent, rgb(0, 210, 255)) 12%, transparent);
+            color: var(--accent, #00d2ff);
             padding: 2px 6px;
             border-radius: 4px;
             margin-bottom: var(--space-xs);
         }
         
         .recommendation-text {
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             color: var(--text-secondary);
             line-height: 1.35;
             margin: 0;

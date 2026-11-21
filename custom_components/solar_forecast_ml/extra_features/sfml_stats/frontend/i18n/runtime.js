@@ -151,8 +151,31 @@
         document.documentElement.setAttribute("lang", current);
     } catch (e) {}
 
+    var NUMBER_LOCALES = { de: "de-DE", en: "en-GB", pl: "pl-PL" };
+    var numberFormats = {};
+
+    function formatNumber(value, minDigits, maxDigits) {
+        if (value === null || value === undefined || value === "") return "–";
+        var num = Number(value);
+        if (!isFinite(num)) return "–";
+        var min = minDigits == null ? 0 : minDigits;
+        var max = maxDigits == null ? min : Math.max(min, maxDigits);
+        var key = min + ":" + max;
+        if (!numberFormats[key]) {
+            numberFormats[key] = new Intl.NumberFormat(NUMBER_LOCALES[current] || "en-GB", {
+                minimumFractionDigits: min,
+                maximumFractionDigits: max,
+                useGrouping: true,
+            });
+        }
+        var text = numberFormats[key].format(num);
+        return text === "-0" || /^-0[.,]0+$/.test(text) ? text.slice(1) : text;
+    }
+
     window.SFMLI18n = {
         current: current,
+        formatNumber: formatNumber,
+        numberLocale: NUMBER_LOCALES[current] || "en-GB",
         supported: SUPPORTED.slice(),
         t: t,
         setLocale: setLocale,

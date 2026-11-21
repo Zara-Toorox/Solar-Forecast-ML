@@ -108,9 +108,14 @@ class DataValidator:
                 )
 
         grid_available = False
-        from ..core.price_mode import MODE_NONE, effective_price_mode, gpm_provider_present
+        from ..core.price_mode import (
+            MODE_NONE,
+            gpm_provider_present,
+            price_history_row_count,
+            resolve_price_mode,
+        )
 
-        price_mode = effective_price_mode(self._hass, entry_config)
+        price_mode = resolve_price_mode(self._hass, entry_config)
         tracking = entry_config.get(CONF_COST_TRACKING_ENABLED, True) is not False
         if solar_db_exists:
             try:
@@ -118,11 +123,8 @@ class DataValidator:
                 import aiosqlite
                 async with aiosqlite.connect(str(solar_db_path)) as db:
                     await db.execute("PRAGMA busy_timeout = 30000")
-                    async with db.execute(
-                        "SELECT COUNT(*) FROM GPM_price_history LIMIT 1"
-                    ) as cursor:
-                        row = await cursor.fetchone()
-                        grid_available = row is not None and row[0] > 0
+                    row = await price_history_row_count(db)
+                    grid_available = row is not None and row[0] > 0
             except (Exception) as err:
                 _LOGGER.debug("Grid price data check failed: %s", err)
                 grid_available = False

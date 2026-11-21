@@ -192,7 +192,7 @@ const ModernEMSPage = {
             <header class="ems-status-bar">
                 <div>
                     <span class="ems-eyebrow">Energiemanagement</span>
-                    <h2 id="ems-title">Was jetzt tun <span class="ems-beta">BETA v2!</span></h2>
+                    <h2 id="ems-title">Was jetzt tun</h2>
                     <div v-if="statusLines.length" class="ems-status-lines">
                         <p v-for="(line, index) in statusLines" :key="index">{{ line }}</p>
                     </div>
@@ -247,7 +247,7 @@ const ModernEMSPage = {
                     <div v-if="intelligence.allocation?.length" class="ems-allocation">
                         <div class="ems-section-head compact"><div><span class="ems-eyebrow">Allokation</span><h4>Wohin die PV fließt</h4></div></div>
                         <div class="ems-allocation-bar" role="img" :aria-label="allocationStory">
-                            <span v-for="row in intelligence.allocation" :key="row.id" :class="['ems-allocation-slice', row.tone]" :style="{ flexGrow: Math.max(row.percent || 0, 0.4) }">{{ row.percent ? Math.round(row.percent) + '%' : '' }}</span>
+                            <span v-for="row in intelligence.allocation" :key="row.id" :class="['ems-allocation-slice', row.tone]" :style="{ flexGrow: Math.max(row.percent || 0, 0.4) }">{{ row.percent ? $n(row.percent, 0) + '%' : '' }}</span>
                         </div>
                         <div class="ems-allocation-legend">
                             <article v-for="row in intelligence.allocation" :key="row.id + '-legend'" :class="row.tone">
@@ -275,7 +275,7 @@ const ModernEMSPage = {
                         </article>
                         <article v-if="intelligence.comfort">
                             <span>Komfort{{ intelligence.comfort.sample_reason === "no_license" || (!intelligence.comfort.sample_reason && intelligence.comfort.is_demo) ? " · Demo" : intelligence.comfort.sample_reason === "feature_off" || intelligence.comfort.sample_reason === "learning" ? " · Beispieldaten" : "" }}</span>
-                            <strong>{{ intelligence.comfort.indoor_c != null ? intelligence.comfort.indoor_c.toFixed(1) + " °C" : "Gebäude" }}</strong>
+                            <strong>{{ intelligence.comfort.indoor_c != null ? $n(intelligence.comfort.indoor_c, 1) + " °C" : "Gebäude" }}</strong>
                             <small>{{ intelligence.comfort.detail }}</small>
                         </article>
                     </div>
@@ -338,7 +338,7 @@ const ModernEMSPage = {
                     <div class="ems-coverage" aria-labelledby="ems-coverage-title">
                         <div class="ems-section-head compact"><div><span class="ems-eyebrow">Aufschlüsselung</span><h4 id="ems-coverage-title">Woher kommt der Strom</h4></div><span v-if="definedPercent(selectedSummary.coverage_surplus_kwh)">Überschuss nach Direktdeckung {{ energy(selectedSummary.coverage_surplus_kwh) }}</span></div>
                         <div v-if="coverageRows.length" class="ems-coverage-bar" role="img" :aria-label="coverageStory">
-                            <span v-for="row in coverageRows" :key="row.id" :class="['ems-coverage-slice', row.tone]" :style="{ flexGrow: Math.max(row.percent || 0, 0.4) }" :title="row.origin">{{ row.percent ? Math.round(row.percent) + '%' : '' }}</span>
+                            <span v-for="row in coverageRows" :key="row.id" :class="['ems-coverage-slice', row.tone]" :style="{ flexGrow: Math.max(row.percent || 0, 0.4) }" :title="row.origin">{{ row.percent ? $n(row.percent, 0) + '%' : '' }}</span>
                         </div>
                         <div class="ems-coverage-legend">
                             <article v-for="row in coverageRows" :key="row.id + '-legend'" :class="row.tone">
@@ -546,9 +546,9 @@ const ModernEMSPage = {
             : `PV ${energy(selectedSummary.value.pv_kwh)} · Bedarf ${energy(selectedSummary.value.demand_kwh)} · PV direkt ins Haus ${energy(selectedSummary.value.covered_kwh)}${data.value?.components?.battery ? ` · Akku → Haus ${energy(selectedSummary.value.battery_to_house_kwh)}` : ""}.`);
 
         const definedPercent = (value) => value !== null && value !== undefined && Number.isFinite(Number(value));
-        const energy = (value) => definedPercent(value) ? `${Number(value).toFixed(1)} kWh` : "–";
-        const percent = (value) => definedPercent(value) ? `${Math.round(Number(value))} %` : "–";
-        const price = (value) => definedPercent(value) ? `${Number(value).toFixed(2)} ct/kWh` : "–";
+        const energy = (value) => definedPercent(value) ? `${window.SFMLI18n.formatNumber(Number(value), 1)} kWh` : "–";
+        const percent = (value) => definedPercent(value) ? `${window.SFMLI18n.formatNumber(Number(value), 0)} %` : "–";
+        const price = (value) => definedPercent(value) ? `${window.SFMLI18n.formatNumber(Number(value), 2)} ct/kWh` : "–";
         const currency = (value) => definedPercent(value) ? new Intl.NumberFormat(undefined, { style: "currency", currency: "EUR" }).format(Number(value)) : "–";
         const state = (value) => value === true ? "EIN" : value === false ? "AUS" : "–";
         const decision = (actor) => actor.desired === true ? "EIN" : actor.desired === false ? "AUS" : "HALTEN";
@@ -603,55 +603,55 @@ const ModernEMSPage = {
             }
             const hours = selectedDay.value.hours;
             const labels = hours.map((point) => `${String(point.hour).padStart(2, "0")}:00`);
-            const valueFormatter = (value) => value == null ? "fehlend" : `${Number(value).toFixed(2)} kWh`;
+            const valueFormatter = (value) => value == null ? "fehlend" : `${window.SFMLI18n.formatNumber(Number(value), 2)} kWh`;
             const energySeries = [
                 { name: "PV direkt ins Haus", type: "line", data: hours.map((point) => point.covered_kwh),
-                    lineStyle: { width: 0 }, areaStyle: { color: "rgba(80, 210, 156, .28)" }, itemStyle: { color: "#50d29c" }, symbol: "none", z: 1,
+                    lineStyle: { width: 0 }, areaStyle: { color: (window.sfmlThemeColor?.("--success", .28) || "rgba(80, 210, 156, .28)") }, itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#50d29c") }, symbol: "none", z: 1,
                     tooltip: { valueFormatter } },
                 ...(data.value?.components?.battery && hours.some((point) => point.battery_to_house_actual_kwh != null) ? [
                     { name: "Akku → Haus (IST)", type: "line", data: hours.map((point) => point.battery_to_house_actual_kwh),
-                        connectNulls: false, symbol: "none", lineStyle: { width: 3, color: "#b879ff" }, itemStyle: { color: "#b879ff" }, z: 3, tooltip: { valueFormatter } },
+                        connectNulls: false, symbol: "none", lineStyle: { width: 3, color: (window.sfmlThemeColor?.("--chart-series-ai") || "#b879ff") }, itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#b879ff") }, z: 3, tooltip: { valueFormatter } },
                 ] : []),
                 ...(data.value?.components?.battery && hours.some((point) => point.battery_to_house_forecast_kwh != null) ? [
                     { name: "Akku → Haus (Prognose)", type: "line", data: hours.map((point) => point.battery_to_house_forecast_kwh),
-                        connectNulls: false, symbol: "none", lineStyle: { width: 2, type: "dashed", color: "#b879ff" }, itemStyle: { color: "#b879ff" }, z: 2, tooltip: { valueFormatter } },
+                        connectNulls: false, symbol: "none", lineStyle: { width: 2, type: "dashed", color: (window.sfmlThemeColor?.("--chart-series-ai") || "#b879ff") }, itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#b879ff") }, z: 2, tooltip: { valueFormatter } },
                 ] : []),
                 { name: "PV-Ertrag", type: "line", data: hours.map((point) => point.pv_kwh),
-                    smooth: .25, symbol: "none", lineStyle: { width: 3, color: "#ffbf2f" }, areaStyle: { color: "rgba(255,191,47,.12)" }, itemStyle: { color: "#ffbf2f" }, z: 3,
+                    smooth: .25, symbol: "none", lineStyle: { width: 3, color: (window.sfmlThemeColor?.("--solar") || "#ffbf2f") }, areaStyle: { color: (window.sfmlThemeColor?.("--solar", .12) || "rgba(255,191,47,.12)") }, itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#ffbf2f") }, z: 3,
                     tooltip: { valueFormatter } },
                 { name: "Bedarf", type: "line", data: hours.map((point) => point.demand_kwh),
-                    smooth: .2, symbol: "circle", symbolSize: 5, lineStyle: { width: 3, color: "#60c5ff" }, itemStyle: { color: "#60c5ff" }, z: 4,
+                    smooth: .2, symbol: "circle", symbolSize: 5, lineStyle: { width: 3, color: (window.sfmlThemeColor?.("--grid") || "#60c5ff") }, itemStyle: { color: (window.sfmlThemeColor?.("--grid") || "#60c5ff") }, z: 4,
                     tooltip: { valueFormatter } },
             ];
             const gridSeries = [
                 { name: "Erwarteter Netzbezug", type: "line", data: hours.map((point) => point.expected_grid_import_kwh),
-                    connectNulls: false, symbol: "circle", symbolSize: 5, lineStyle: { width: 3, color: "#ff7f8f" }, areaStyle: { color: "rgba(255,127,143,.12)" }, itemStyle: { color: "#ff7f8f" }, z: 3,
+                    connectNulls: false, symbol: "circle", symbolSize: 5, lineStyle: { width: 3, color: (window.sfmlThemeColor?.("--danger") || "#ff7f8f") }, areaStyle: { color: (window.sfmlThemeColor?.("--danger", .12) || "rgba(255,127,143,.12)") }, itemStyle: { color: (window.sfmlThemeColor?.("--danger") || "#ff7f8f") }, z: 3,
                     tooltip: { valueFormatter } },
                 { name: "PV-Potenzial nach Direktdeckung", type: "line", data: hours.map((point) => point.pv_potential_after_direct_kwh),
-                    connectNulls: false, symbol: "none", lineStyle: { width: 3, type: "dashed", color: "#61e2af" }, areaStyle: { color: "rgba(97,226,175,.1)" }, itemStyle: { color: "#61e2af" }, z: 2,
+                    connectNulls: false, symbol: "none", lineStyle: { width: 3, type: "dashed", color: (window.sfmlThemeColor?.("--success") || "#61e2af") }, areaStyle: { color: (window.sfmlThemeColor?.("--success", .1) || "rgba(97,226,175,.1)") }, itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#61e2af") }, z: 2,
                     tooltip: { valueFormatter } },
                 ...(hours.some((point) => point.price_ct_kwh != null) ? [{
                     name: "Strompreis", type: "line", yAxisIndex: 1, data: hours.map((point) => point.price_ct_kwh),
-                    symbol: "none", lineStyle: { width: 2, type: "dotted", color: "#ffc95b" }, itemStyle: { color: "#ffc95b" }, z: 5,
-                    tooltip: { valueFormatter: (value) => value == null ? "fehlend" : `${Number(value).toFixed(2)} ct/kWh` },
+                    symbol: "none", lineStyle: { width: 2, type: "dotted", color: (window.sfmlThemeColor?.("--solar") || "#ffc95b") }, itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#ffc95b") }, z: 5,
+                    tooltip: { valueFormatter: (value) => value == null ? "fehlend" : `${window.SFMLI18n.formatNumber(Number(value), 2)} ct/kWh` },
                 }] : []),
             ];
             const allocationSeries = [
                 { name: "PV → Haus", type: "bar", stack: "alloc", data: hours.map((point) => point.household_pv_kwh),
-                    itemStyle: { color: "#ffbf2f" }, z: 1, tooltip: { valueFormatter } },
+                    itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#ffbf2f") }, z: 1, tooltip: { valueFormatter } },
                 ...(data.value?.components?.heat_pump ? [{
                     name: "PV → Wärmepumpe", type: "bar", stack: "alloc", data: hours.map((point) => point.heat_pump_pv_kwh),
-                    itemStyle: { color: "#ff7f8f" }, z: 1, tooltip: { valueFormatter },
+                    itemStyle: { color: (window.sfmlThemeColor?.("--danger") || "#ff7f8f") }, z: 1, tooltip: { valueFormatter },
                 }] : []),
                 ...(data.value?.components?.battery ? [{
                     name: "PV → Akku", type: "bar", stack: "alloc", data: hours.map((point) => point.battery_pv_reserved_kwh),
-                    itemStyle: { color: "#b879ff" }, z: 1, tooltip: { valueFormatter },
+                    itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#b879ff") }, z: 1, tooltip: { valueFormatter },
                 }] : []),
                 { name: "PV-Rest", type: "bar", stack: "alloc", data: hours.map((point) => point.residual_pv_kwh),
-                    itemStyle: { color: "#61e2af" }, z: 1, tooltip: { valueFormatter } },
+                    itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#61e2af") }, z: 1, tooltip: { valueFormatter } },
                 ...(hours.some((point) => point.historical_grid_import_kwh != null) ? [{
                     name: "Typischer Netzbezug (90 Tage)", type: "line", data: hours.map((point) => point.historical_grid_import_kwh),
-                    connectNulls: false, symbol: "none", lineStyle: { width: 2, type: "dashed", color: "#ff7f8f" }, itemStyle: { color: "#ff7f8f" }, z: 4, tooltip: { valueFormatter },
+                    connectNulls: false, symbol: "none", lineStyle: { width: 2, type: "dashed", color: (window.sfmlThemeColor?.("--danger") || "#ff7f8f") }, itemStyle: { color: (window.sfmlThemeColor?.("--danger") || "#ff7f8f") }, z: 4, tooltip: { valueFormatter },
                 }] : []),
             ];
             const series = chartView.value === "grid" ? gridSeries : chartView.value === "allocation" ? allocationSeries : energySeries;

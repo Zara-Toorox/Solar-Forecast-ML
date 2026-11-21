@@ -780,11 +780,11 @@ class SFMLStatsOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             return self._save({**self._config_entry.data})
 
-        from .core.price_mode import effective_price_mode, gpm_snapshot
+        from .core.price_mode import resolve_price_mode, gpm_snapshot
 
         merged = {**self._config_entry.data, **self._config_entry.options}
         snapshot = gpm_snapshot(self.hass) or {}
-        mode = effective_price_mode(self.hass, merged)
+        mode = resolve_price_mode(self.hass, merged)
         current_price = snapshot.get("tariff_label") or "—"
         coordinator = None
         for entry_data in self.hass.data.get(DOMAIN, {}).values():

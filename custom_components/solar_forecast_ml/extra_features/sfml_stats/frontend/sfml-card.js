@@ -593,13 +593,16 @@ class SfmlCard extends HTMLElement {
 
   async updateData() {
     if (!this._hass || !this.container) return;
+    // Skip while the previous refresh is still running; last data stays visible.
+    if (this._updateInFlight) return;
+    this._updateInFlight = true;
 
     const now = Date.now();
     const needHourly = !this._hourlyAt || now - this._hourlyAt > SFML_HOURLY_REFRESH_MS;
 
     try {
       const [summary, energyFlow, solar] = await Promise.all([
-        this._hass.callApi("GET", "sfml_stats/summary"),
+        this._hass.callApi("GET", "sfml_stats/summary?scope=card"),
         this._hass.callApi("GET", "sfml_stats/energy_flow"),
         needHourly
           ? this._hass.callApi("GET", "sfml_stats/solar?days=1&hourly=true").catch(() => null)
@@ -618,6 +621,8 @@ class SfmlCard extends HTMLElement {
     } catch (err) {
       console.error("SFML Card fetch error:", err);
       if (!this._rendered) this._showState(this._t("error"));
+    } finally {
+      this._updateInFlight = false;
     }
   }
 

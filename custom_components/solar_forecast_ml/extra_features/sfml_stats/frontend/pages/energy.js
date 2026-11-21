@@ -13,6 +13,155 @@ function getThemeColor(varName, fallback) {
     }
 }
 
+function finiteOrNull(value) {
+    return value == null || value === "" ? null : (Number.isFinite(+value) ? +value : null);
+}
+
+function priceBounds(rows) {
+    const values = [];
+    const list = Array.isArray(rows) ? rows : [];
+    for (let index = 0; index < list.length; index += 1) {
+        const row = list[index];
+        const price = finiteOrNull(row && row.total_price);
+        if (price != null) values.push(price);
+    }
+    return values;
+}
+
+function shownMoney(record, field) {
+    const source = record && typeof record === "object" ? record : null;
+    if (!source) return { amount: null, incomplete: false };
+    const main = finiteOrNull(source[field]);
+    if (main != null) return { amount: main, incomplete: false };
+    const part = finiteOrNull(source[field + "_priced_part"]);
+    if (part != null && source.complete === false) return { amount: part, incomplete: true };
+    return { amount: null, incomplete: false };
+}
+
+const AMORTIZATION_INCOMPLETE_DECAL = {
+    symbol: "rect",
+    dashArrayX: [1, 0],
+    dashArrayY: [2, 5],
+    rotation: Math.PI / 4,
+};
+
+function amortizationLinePoint(row, palette) {
+    const shown = shownMoney(row, "cumulative_eur");
+    if (shown.amount == null) return null;
+    if (!shown.incomplete) return shown.amount;
+    return {
+        value: shown.amount,
+        itemStyle: {
+            color: palette.faded,
+            borderColor: palette.solid,
+            borderWidth: 2,
+            decal: AMORTIZATION_INCOMPLETE_DECAL,
+        },
+        symbolSize: 6,
+    };
+}
+
+function energyChartLocale() {
+    const lang = window.SFMLI18n ? window.SFMLI18n.current : "de";
+    return ({ de: "de-DE", en: "en-US", pl: "pl-PL" })[lang] || "de-DE";
+}
+
+function chartMoneyGapLines(record) {
+    const translate = window.SFMLI18n ? window.SFMLI18n.t.bind(window.SFMLI18n) : (key) => key;
+    const lines = [];
+    const unpriced = finiteOrNull(record && record.unpriced_import_kwh);
+    if (unpriced != null && unpriced > 0) {
+        const kwh = new Intl.NumberFormat(energyChartLocale(), {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+            useGrouping: true,
+        }).format(unpriced);
+        lines.push(translate("gpm.chartUnpricedImport", { kwh }));
+    }
+    const days = finiteOrNull(record && record.days_without_fee);
+    if (days != null && days > 0) {
+        lines.push(translate("gpm.chartDaysWithoutFee", { days: window.SFMLI18n.formatNumber(days, 0) }));
+    }
+    const dayMean = finiteOrNull(record && record.days_day_mean);
+    if (dayMean != null && dayMean > 0) {
+        lines.push(translate("gpm.chartDayMeanDays", { days: window.SFMLI18n.formatNumber(dayMean, 0) }));
+    }
+    return lines;
+}
+
+function missingPriceHintHtml(record) {
+    const translate = window.SFMLI18n ? window.SFMLI18n.t.bind(window.SFMLI18n) : (key) => key;
+    const missingDays = record && Array.isArray(record.days_without_price) ? record.days_without_price : [];
+    if (!missingDays.length) return "";
+    const ranges = formatDayRangesForHint(missingDays);
+    const lead = translate("gpm.missingGpmPricesLead", {
+        count: String(missingDays.length),
+        ranges,
+    });
+    const label = translate("gpm.missingGpmPricesCsv");
+    return `${lead}<a href="#gpm/gpm-csv-import" class="energy-price-hint-link">${label}</a>${translate("gpm.missingGpmPricesEnd")}`;
+}
+
+function chartMoneyGapTooltipLines(record) {
+    const lines = chartMoneyGapLines(record);
+    const html = missingPriceHintHtml(record);
+    if (html) lines.push(html);
+    return lines;
+}
+
+function hintChartLocale() {
+    const lang = window.SFMLI18n ? window.SFMLI18n.current : "de";
+    return ({ de: "de-DE", en: "en-GB", pl: "pl-PL" })[lang] || "de-DE";
+}
+
+function compressHintDayRanges(days) {
+    if (!Array.isArray(days) || !days.length) return [];
+    const sorted = days.slice().sort();
+    const ranges = [];
+    let start = sorted[0];
+    let end = sorted[0];
+    const nextDay = (iso) => {
+        const parts = iso.split("-").map(Number);
+        const nextUtc = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12));
+        nextUtc.setUTCDate(nextUtc.getUTCDate() + 1);
+        return nextUtc.toISOString().slice(0, 10);
+    };
+    for (let index = 1; index < sorted.length; index += 1) {
+        const day = sorted[index];
+        if (day === nextDay(end)) {
+            end = day;
+        } else {
+            ranges.push([start, end]);
+            start = day;
+            end = day;
+        }
+    }
+    ranges.push([start, end]);
+    return ranges;
+}
+
+function formatHintLocalDay(iso, locale) {
+    const parts = String(iso).split("-").map(Number);
+    if (parts.length !== 3) return String(iso);
+    const date = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12));
+    return new Intl.DateTimeFormat(locale, {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    }).format(date);
+}
+
+function formatDayRangesForHint(days) {
+    const locale = hintChartLocale();
+    return compressHintDayRanges(days)
+        .map(([start, end]) => {
+            const left = formatHintLocalDay(start, locale);
+            if (start === end) return left;
+            return `${left}\u2013${formatHintLocalDay(end, locale)}`;
+        })
+        .join(", ");
+}
+
 const _EnergyPage = {
     props: ['liveData', 'config'],
     template: `
@@ -38,12 +187,12 @@ const _EnergyPage = {
                 </div>
                 <!-- Period Progress Bar -->
                 <div style="margin-bottom: var(--space-lg);">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-bottom: 4px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px;">
                         <span>{{ $t('energy.dayOf', { current: billing.period.days_elapsed, total: billing.period.days_total }) }}</span>
-                        <span>{{ $t('energy.periodProgress', { pct: billing.period.progress_percent != null ? billing.period.progress_percent.toFixed(0) : 0 }) }}</span>
+                        <span>{{ $t('energy.periodProgress', { pct: billing.period.progress_percent != null ? $n(billing.period.progress_percent, 0) : 0 }) }}</span>
                     </div>
                     <div style="height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden;">
-                        <div :style="{width: billing.period.progress_percent + '%', height: '100%', background: 'linear-gradient(90deg, #22c55e, #06b6d4)', borderRadius: '3px', transition: 'width 0.6s'}"></div>
+                        <div :style="{width: billing.period.progress_percent + '%', height: '100%', background: 'linear-gradient(90deg, var(--success, #22c55e), var(--accent, #06b6d4))', borderRadius: '3px', transition: 'width 0.6s'}"></div>
                     </div>
                 </div>
 
@@ -64,13 +213,13 @@ const _EnergyPage = {
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">🔋🏠</div>
-                        <div class="eb-value" style="color: #22c55e;">{{ fmt(billing.household.from_battery_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--success, #22c55e);">{{ fmt(billing.household.from_battery_kwh) }}</div>
                         <div class="eb-label">{{ $t('energy.ofWhichBattery') }}</div>
                         <div class="eb-sub">{{ $t('energy.fromStorage') }}</div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡🏠</div>
-                        <div class="eb-value" style="color: #a855f7;">{{ fmt(billing.household.from_grid_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ fmt(billing.household.from_grid_kwh) }}</div>
                         <div class="eb-label">{{ $t('energy.ofWhichGrid') }}</div>
                         <div class="eb-sub">{{ $t('energy.paid') }}</div>
                     </div>
@@ -81,7 +230,7 @@ const _EnergyPage = {
                 <div class="eb-grid">
                     <div class="eb-item">
                         <div class="eb-icon">🔋</div>
-                        <div class="eb-value" style="color: #22c55e;">{{ fmt(billing.battery.total_charge_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--success, #22c55e);">{{ fmt(billing.battery.total_charge_kwh) }}</div>
                         <div class="eb-label">{{ $t('energy.kwhTotal') }}</div>
                         <div class="eb-sub">{{ $t('energy.chargedInPeriod') }}</div>
                     </div>
@@ -93,7 +242,7 @@ const _EnergyPage = {
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡🔋</div>
-                        <div class="eb-value" style="color: #a855f7;">{{ fmt(billing.battery.from_grid_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ fmt(billing.battery.from_grid_kwh) }}</div>
                         <div class="eb-label">{{ $t('energy.ofWhichGrid') }}</div>
                         <div class="eb-sub">{{ $t('energy.paid') }}</div>
                     </div>
@@ -110,13 +259,13 @@ const _EnergyPage = {
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡</div>
-                        <div class="eb-value" style="color: #a855f7;">{{ fmt(billing.grid.total_import_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ fmt(billing.grid.total_import_kwh) }}</div>
                         <div class="eb-label">{{ $t('energy.kwhGridImport') }}</div>
                         <div class="eb-sub">{{ $t('energy.houseAndBattery') }}</div>
                     </div>
                     <div class="eb-item" v-if="billing.grid.export_kwh > 0">
                         <div class="eb-icon">⚡↗️</div>
-                        <div class="eb-value" style="color: #06b6d4;">{{ fmt(billing.grid.export_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--accent, #06b6d4);">{{ fmt(billing.grid.export_kwh) }}</div>
                         <div class="eb-label">{{ $t('energy.kwhFeedIn') }}</div>
                         <div class="eb-sub">{{ $t('energy.toGrid') }}</div>
                     </div>
@@ -135,7 +284,7 @@ const _EnergyPage = {
                                     style="transition: stroke-dashoffset 1s ease;"/>
                             </svg>
                             <div class="autarkie-text">
-                                <div class="autarkie-value" :style="{color: autarkieColor}">{{ billing.autarkie_percent != null ? billing.autarkie_percent.toFixed(0) : 0 }}%</div>
+                                <div class="autarkie-value" :style="{color: autarkieColor}">{{ billing.autarkie_percent != null ? $n(billing.autarkie_percent, 0) : 0 }}%</div>
                                 <div class="autarkie-label">{{ $t('energy.autarky') }}</div>
                             </div>
                         </div>
@@ -143,31 +292,26 @@ const _EnergyPage = {
 
                     <div class="eb-item">
                         <div class="eb-icon">💰</div>
-                        <div class="eb-value" style="color: #ef4444;">{{ formatEuro(billing.finance.grid_cost_eur) }}</div>
+                        <div class="eb-value" style="color: var(--danger, #ef4444);">{{ formatEuro(moneyAmount(billing.finance, 'grid_cost_eur')) }}</div>
                         <div class="eb-label">{{ $t('energy.electricityCosts') }}</div>
                         <div class="eb-sub">
-                            Ø {{ billing.finance.avg_price_ct != null ? billing.finance.avg_price_ct.toFixed(1) : '—' }} ct/kWh
-                            <template v-if="billing.finance.base_fee_eur"> · +{{ formatEuro(billing.finance.base_fee_eur) }} €</template>
+                            Ø {{ billing.finance.avg_price_ct != null ? $n(billing.finance.avg_price_ct, 1) : '—' }} ct/kWh
+                            <template v-if="moneyAmount(billing.finance, 'base_fee_eur') != null"> · +{{ formatEuro(moneyAmount(billing.finance, 'base_fee_eur')) }} €</template>
+                            <template v-if="moneyIncomplete(billing.finance, 'grid_cost_eur') || moneyIncomplete(billing.finance, 'base_fee_eur')"> · {{ $t('gpm.billIncomplete') }}</template>
                         </div>
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">💚</div>
-                        <div class="eb-value" style="color: #22c55e;">{{ formatEuro(billing.finance.total_savings_eur ?? billing.finance.savings_eur) }}</div>
+                        <div class="eb-value" style="color: var(--success, #22c55e);">{{ formatEuro(moneyAmount(billing.finance, 'total_savings_eur')) }}</div>
                         <div class="eb-label">{{ $t('energy.saved') }}</div>
-                        <div class="eb-sub">{{ $t('energy.savedSubtitle', { kwh: savedKwh }) }}</div>
-                    </div>
-                    <div class="eb-item" v-if="projectedSavings">
-                        <div class="eb-icon">📈</div>
-                        <div class="eb-value" style="color: #06b6d4;">{{ projectedSavings }}</div>
-                        <div class="eb-label">{{ $t('energy.projection') }}</div>
-                        <div class="eb-sub">{{ $t('energy.yearlySavings') }}</div>
+                        <div class="eb-sub">{{ $t('energy.savedSubtitle', { kwh: savedKwh }) }}<template v-if="moneyIncomplete(billing.finance, 'total_savings_eur')"> · {{ $t('gpm.billIncomplete') }}</template></div>
                     </div>
                 </div>
                 <div v-if="billing.grid && billing.grid.import_split" style="margin-top: var(--space-md); font-size: 0.8rem;">
                     <div class="eb-sub" style="margin-bottom: 4px;">{{ $t('energy.importSplitTitle') }}</div>
-                    <div>{{ $t('energy.importOfHouse') }}<template v-if="billing.grid.import_split.house_derived"> ({{ $t('energy.derived') }})</template>: {{ fmt(billing.grid.import_split.house.kwh) }} kWh · {{ formatEuro(billing.grid.import_split.house.cost_eur) }} €</div>
-                    <div>{{ $t('energy.importOfBattery') }}: {{ fmt(billing.grid.import_split.battery.kwh) }} kWh · {{ formatEuro(billing.grid.import_split.battery.cost_eur) }} €</div>
-                    <div v-if="billing.grid.import_split.show_unassigned">{{ $t('energy.importUnassigned') }}: {{ fmt(billing.grid.import_split.unassigned_kwh) }} kWh · {{ formatEuro(billing.grid.import_split.unassigned_eur) }} €</div>
+                    <div>{{ $t('energy.importOfHouse') }}<template v-if="billing.grid.import_split.house_derived"> ({{ $t('energy.derived') }})</template>: {{ fmt(billing.grid.import_split.house.kwh) }} kWh · {{ formatEuro(moneyAmount(billing.grid.import_split.house, 'cost_eur')) }} €<template v-if="moneyIncomplete(billing.grid.import_split.house, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</template></div>
+                    <div>{{ $t('energy.importOfBattery') }}: {{ fmt(billing.grid.import_split.battery.kwh) }} kWh · {{ formatEuro(moneyAmount(billing.grid.import_split.battery, 'cost_eur')) }} €<template v-if="moneyIncomplete(billing.grid.import_split.battery, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</template></div>
+                    <div v-if="billing.grid.import_split.show_unassigned">{{ $t('energy.importUnassigned') }}: {{ fmt(billing.grid.import_split.unassigned_kwh) }} kWh · {{ formatEuro(moneyAmount(billing.grid.import_split, 'unassigned_eur')) }} €<template v-if="moneyIncomplete(billing.grid.import_split, 'unassigned_eur')"> {{ $t('gpm.billIncomplete') }}</template></div>
                     <div v-if="billing.grid.import_split.house.unpriced_kwh > 0">{{ $t('energy.importOfHouse') }} — {{ $t('energy.noPriceKwh', { kwh: fmt(billing.grid.import_split.house.unpriced_kwh) }) }}</div>
                     <div v-if="billing.grid.import_split.battery.unpriced_kwh > 0">{{ $t('energy.importOfBattery') }} — {{ $t('energy.noPriceKwh', { kwh: fmt(billing.grid.import_split.battery.unpriced_kwh) }) }}</div>
                 </div>
@@ -201,7 +345,7 @@ const _EnergyPage = {
                 </div>
 
                 <!-- Recorder Info -->
-                <div v-if="billing.data_source" style="font-size: 0.65rem; color: var(--text-muted); text-align: center; margin-top: var(--space-md);">
+                <div v-if="billing.data_source" style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: var(--space-md);">
                     📊 {{ $t('energy.source') }}: {{ billing.data_source }} · {{ $t('energy.daysWithData', { days: billing.period.days_with_data }) }}
                 </div>
             </div>
@@ -296,31 +440,35 @@ const _EnergyPage = {
                     <div class="amortization-summary">
                         <div class="amortization-ring" :style="amortizationRingStyle">
                             <div class="amortization-ring-inner">
-                                <strong>{{ amortizationProgress }}%</strong>
+                                <strong>{{ amortizationProgressText }}</strong>
                                 <span>{{ $t('energy.amortization.progress') }}</span>
                             </div>
                         </div>
                         <div class="amortization-details">
                             <div class="origin-chip-row" v-if="amortization.summary">
-                                <span class="origin-chip" :title="$t('energy.amortization.reachedHint')">{{ $t('energy.amortization.reachedLine', { benefit: formatEuro(amortization.summary.accumulated_benefit_eur), investment: formatEuro(amortization.summary.net_investment_eur), pct: amortizationProgress }) }}</span>
+                                <span class="origin-chip" :title="$t('energy.amortization.reachedHint')">{{ $t('energy.amortization.reachedLine', { benefit: formatEuro(moneyAmount(amortization.summary, 'accumulated_benefit_eur')), investment: formatEuro(moneyAmount(amortization.summary, 'net_investment_eur')), pct: amortizationChipPct }) }}<template v-if="moneyIncomplete(amortization.summary, 'accumulated_benefit_eur') || moneyIncomplete(amortization.summary, 'net_investment_eur')">&nbsp;{{ $t('gpm.billIncomplete') }}</template></span>
                                 <span class="origin-chip" :title="$t('energy.amortization.degradationHint')">{{ $t('energy.amortization.degradationAssumption', { pct: amortizationDegradation }) }}</span>
                             </div>
                             <div class="amortization-kpis">
                                 <div class="amortization-kpi">
                                     <span>{{ $t('energy.amortization.investment') }}</span>
-                                    <strong>{{ formatEuro(amortization.summary?.net_investment_eur) }} €</strong>
+                                    <strong>{{ formatEuro(moneyAmount(amortization.summary, 'net_investment_eur')) }}&nbsp;€</strong>
+                                    <small v-if="moneyIncomplete(amortization.summary, 'net_investment_eur')">{{ $t('gpm.billIncomplete') }}</small>
                                 </div>
                                 <div class="amortization-kpi">
                                     <span>{{ $t('energy.amortization.paidBack') }}</span>
-                                    <strong>{{ formatEuro(amortization.summary?.accumulated_benefit_eur) }} €</strong>
+                                    <strong>{{ formatEuro(moneyAmount(amortization.summary, 'accumulated_benefit_eur')) }}&nbsp;€</strong>
+                                    <small v-if="moneyIncomplete(amortization.summary, 'accumulated_benefit_eur')">{{ $t('gpm.billIncomplete') }}</small>
                                 </div>
                                 <div class="amortization-kpi">
                                     <span>{{ $t('energy.amortization.remaining') }}</span>
-                                    <strong>{{ formatEuro(amortization.summary?.remaining_eur) }} €</strong>
+                                    <strong>{{ formatEuro(moneyAmount(amortization.summary, 'remaining_eur')) }}&nbsp;€</strong>
+                                    <small v-if="moneyIncomplete(amortization.summary, 'remaining_eur')">{{ $t('gpm.billIncomplete') }}</small>
                                 </div>
                                 <div class="amortization-kpi accent">
                                     <span>{{ $t('energy.amortization.breakEven') }}</span>
                                     <strong>{{ amortizationBreakEven }}</strong>
+                                    <small v-if="amortizationEstimateNote">{{ amortizationEstimateNote }}</small>
                                 </div>
                             </div>
                         </div>
@@ -335,6 +483,7 @@ const _EnergyPage = {
                     <div class="amortization-scenario" v-for="scenario in amortization.scenarios" :key="scenario.id">
                         <span>{{ $t('energy.amortization.scenarios.' + scenario.id) }}</span>
                         <strong>{{ formatScenarioBreakEven(scenario) }}</strong>
+                        <small v-if="amortizationEstimateNote">{{ amortizationEstimateNote }}</small>
                     </div>
                 </div>
 
@@ -396,41 +545,42 @@ const _EnergyPage = {
                     <tbody>
                         <tr v-for="(m, idx) in monthlyData" :key="idx"
                             :class="{ 'zebra-odd': idx % 2 === 1 }"
-                            :style="{ background: m.isCurrent ? 'rgba(0,212,255,0.06)' : '' }">
+                            :style="{ background: m.isCurrent ? 'color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 6%, transparent)' : '' }">
                             <td class="month-cell" style="font-weight: 600;">
                                 <div class="month-cell-content">
                                     <span>
                                         {{ m.label }}
-                                        <span v-if="m.isCurrent" style="color:var(--accent); font-size:0.7rem;"> ({{ $t('energy.current') }})</span>
+                                        <span v-if="m.isCurrent" style="color:var(--accent); font-size:0.75rem;"> ({{ $t('energy.current') }})</span>
                                     </span>
                                     <button v-if="m.canEditPrice" class="price-edit-btn price-edit-btn-mobile" @click="openPriceModal(m)">Preis ändern</button>
                                 </div>
                             </td>
-                            <td style="text-align:right; font-family:var(--font-mono);">{{ m.consumption }} kWh</td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ m.solar }} kWh</td>
+                            <td style="text-align:right; font-family:var(--font-mono);">{{ $n(m.consumption, 0) }} kWh</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ $n(m.solar, 0) }} kWh</td>
                             <td style="text-align:right;">
-                                <span class="accuracy-badge" :style="{ background: m.autarkie >= 70 ? 'rgba(34,197,94,0.2)' : m.autarkie >= 40 ? 'rgba(234,179,8,0.2)' : 'rgba(168,85,247,0.2)', color: m.autarkie >= 70 ? '#22c55e' : m.autarkie >= 40 ? '#eab308' : '#a855f7' }">
-                                    {{ m.autarkie }}%
+                                <span class="accuracy-badge" :style="{ background: m.autarkie >= 70 ? 'color-mix(in srgb, var(--success, rgb(34, 197, 94)) 20%, transparent)' : m.autarkie >= 40 ? 'color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 20%, transparent)' : 'color-mix(in srgb, var(--chart-series-ai, rgb(168, 85, 247)) 20%, transparent)', color: m.autarkie >= 70 ? 'var(--success, #22c55e)' : m.autarkie >= 40 ? 'var(--solar, #eab308)' : 'var(--chart-series-ai, #a855f7)' }">
+                                    {{ $n(m.autarkie, 0) }}%
                                 </span>
                             </td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#a855f7;">{{ m.gridImport }} kWh</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:var(--chart-series-ai, #a855f7);">{{ $n(m.gridImport, 0) }} kWh</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--text-secondary); font-size:0.8rem;">
-                                <template v-if="m.avgPrice != null">{{ m.avgPrice }} ct</template>
+                                <template v-if="m.avgPrice != null">{{ $n(m.avgPrice, 1) }} ct</template>
                                 <span v-else>—</span>
-                                <span v-if="m.unpricedImport > 0" style="display:block; color:var(--text-secondary); font-size:0.65rem;">{{ $t('energy.unpriced') }}</span>
-                                <span v-if="m.isDynamic" style="color:#22c55e; font-size:0.6rem;" :title="$t('energy.dynamicTariff')">●</span>
-                                <span v-else-if="m.isEstimated" style="color:#eab308; font-size:0.6rem;" :title="$t('energy.estimatedAvg')">○</span>
-                                <span v-else style="color:#60a5fa; font-size:0.6rem;" :title="$t('energy.configuredTariff')">●</span>
+                                <span v-if="m.unpricedImport > 0" style="display:block; color:var(--text-secondary); font-size:0.75rem;">{{ $t('energy.unpriced') }}</span>
+                                <span v-if="m.isDynamic" style="color:var(--success, #22c55e); font-size:0.75rem;" :title="$t('energy.dynamicTariff')">●</span>
+                                <span v-else-if="m.avgPrice != null" style="color:var(--grid, #60a5fa); font-size:0.75rem;" :title="$t('energy.configuredTariff')">●</span>
                             </td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">
+                            <td style="text-align:right; font-family:var(--font-mono); color:var(--danger, #ef4444);">
                                 {{ formatEuro(m.cost) }} €
-                                <div v-if="m.importSplit" style="font-weight: 500; font-size: 0.65rem; color: var(--text-secondary);">
-                                    <div>{{ $t('energy.importOfHouse') }}<template v-if="m.importSplit.house_derived"> ({{ $t('energy.derived') }})</template> {{ fmt(m.importSplit.house.kwh) }} kWh · {{ formatEuro(m.importSplit.house.cost_eur) }} €</div>
-                                    <div>{{ $t('energy.importOfBattery') }} {{ fmt(m.importSplit.battery.kwh) }} kWh · {{ formatEuro(m.importSplit.battery.cost_eur) }} €</div>
-                                    <div v-if="m.importSplit.show_unassigned">{{ $t('energy.importUnassigned') }} {{ fmt(m.importSplit.unassigned_kwh) }} kWh · {{ formatEuro(m.importSplit.unassigned_eur) }} €</div>
+                                <span v-if="m.costIncomplete"> {{ $t('gpm.billIncomplete') }}</span>
+                                <div v-if="m.costIncomplete && m.daysWithoutPrice.length" class="energy-price-hint" style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">{{ $t('gpm.missingGpmPricesLead', { count: String(m.daysWithoutPrice.length), ranges: formatDayRangesForHint(m.daysWithoutPrice) }) }}<a href="#gpm/gpm-csv-import">{{ $t('gpm.missingGpmPricesCsv') }}</a>{{ $t('gpm.missingGpmPricesEnd') }}</div>
+                                <div v-if="m.importSplit" style="font-weight: 500; font-size: 0.75rem; color: var(--text-secondary);">
+                                    <div>{{ $t('energy.importOfHouse') }}<template v-if="m.importSplit.house_derived"> ({{ $t('energy.derived') }})</template> {{ fmt(m.importSplit.house.kwh) }} kWh · {{ formatEuro(moneyAmount(m.importSplit.house, 'cost_eur')) }} €<template v-if="moneyIncomplete(m.importSplit.house, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</template></div>
+                                    <div>{{ $t('energy.importOfBattery') }} {{ fmt(m.importSplit.battery.kwh) }} kWh · {{ formatEuro(moneyAmount(m.importSplit.battery, 'cost_eur')) }} €<template v-if="moneyIncomplete(m.importSplit.battery, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</template></div>
+                                    <div v-if="m.importSplit.show_unassigned">{{ $t('energy.importUnassigned') }} {{ fmt(m.importSplit.unassigned_kwh) }} kWh · {{ formatEuro(moneyAmount(m.importSplit, 'unassigned_eur')) }} €<template v-if="moneyIncomplete(m.importSplit, 'unassigned_eur')"> {{ $t('gpm.billIncomplete') }}</template></div>
                                 </div>
                             </td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ formatEuro(m.saved) }} €</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:var(--success, #22c55e);">{{ formatEuro(m.saved) }} €<template v-if="m.savedIncomplete"> {{ $t('gpm.billIncomplete') }}</template></td>
                             <td style="text-align:right;">
                                 <button v-if="m.canEditPrice" class="price-edit-btn price-edit-btn-desktop" @click="openPriceModal(m)">Preis ändern</button>
                             </td>
@@ -439,17 +589,17 @@ const _EnergyPage = {
                     <tfoot>
                         <tr style="border-top: 2px solid var(--border-default); font-weight: 700;">
                             <td>{{ $t('energy.totalRow') }}</td>
-                            <td style="text-align:right; font-family:var(--font-mono);">{{ monthlyTotals.consumption }} kWh</td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ monthlyTotals.solar }} kWh</td>
+                            <td style="text-align:right; font-family:var(--font-mono);">{{ $n(monthlyTotals.consumption, 0) }} kWh</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ $n(monthlyTotals.solar, 0) }} kWh</td>
                             <td style="text-align:right;">
-                                <span class="accuracy-badge" :style="{ background: 'rgba(0,212,255,0.15)', color: 'var(--accent)' }">
-                                    {{ monthlyTotals.autarkie }}%
+                                <span class="accuracy-badge" :style="{ background: 'color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 15%, transparent)', color: 'var(--accent)' }">
+                                    {{ $n(monthlyTotals.autarkie, 0) }}%
                                 </span>
                             </td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#a855f7;">{{ monthlyTotals.gridImport }} kWh</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:var(--chart-series-ai, #a855f7);">{{ $n(monthlyTotals.gridImport, 0) }} kWh</td>
                             <td></td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#ef4444;">{{ formatEuro(monthlyTotals.cost) }} €</td>
-                            <td style="text-align:right; font-family:var(--font-mono); color:#22c55e;">{{ formatEuro(monthlyTotals.saved) }} €</td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:var(--danger, #ef4444);">{{ formatEuro(monthlyTotals.cost) }} €<template v-if="monthlyTotals.costIncomplete"> {{ $t('gpm.billIncomplete') }}</template></td>
+                            <td style="text-align:right; font-family:var(--font-mono); color:var(--success, #22c55e);">{{ formatEuro(monthlyTotals.saved) }} €<template v-if="monthlyTotals.savedIncomplete"> {{ $t('gpm.billIncomplete') }}</template></td>
                             <td></td>
                         </tr>
                     </tfoot>
@@ -462,8 +612,8 @@ const _EnergyPage = {
                 <div class="chart-header">
                     <span class="chart-title">{{ $t('energy.priceTitle') }}</span>
                     <div v-if="priceRanges" style="display:flex; gap:var(--space-lg); align-items:center;">
-                        <span style="font-family:var(--font-mono); font-size:0.8rem; color:#f472b6;">{{ $t('common.today') }}: {{ priceRanges.todayMin }}-{{ priceRanges.todayMax }} ct</span>
-                        <span style="font-family:var(--font-mono); font-size:0.8rem; color:#22d3ee;">{{ $t('common.tomorrow') }}: {{ priceRanges.tomorrowMin }}-{{ priceRanges.tomorrowMax }} ct</span>
+                        <span style="font-family:var(--font-mono); font-size:0.8rem; color:var(--chart-series-conservative, #f472b6);">{{ $t('common.today') }}: {{ priceRanges.todayMin }}-{{ priceRanges.todayMax }} ct</span>
+                        <span style="font-family:var(--font-mono); font-size:0.8rem; color:var(--accent, #22d3ee);">{{ $t('common.tomorrow') }}: {{ priceRanges.tomorrowMin }}-{{ priceRanges.tomorrowMax }} ct</span>
                     </div>
                 </div>
                 <div class="price-chart-target" style="height: 320px; width: 100%;"></div>
@@ -486,69 +636,23 @@ const _EnergyPage = {
                     <div class="consumer-row clickable" v-if="billing.consumers.heatpump.total_kwh > 0" @click="openConsumerModal('heatpump')">
                         <span class="consumer-icon">♨️</span>
                         <span class="consumer-name">{{ $t('flow.consumer.heatpump') }}</span>
-                        <span class="consumer-kwh">{{ billing.consumers.heatpump.total_kwh.toFixed(1) }} kWh</span>
-                        <span class="consumer-cost">{{ formatEuro(billing.consumers.heatpump.cost_eur) }} €</span>
+                        <span class="consumer-kwh">{{ $n(billing.consumers.heatpump.total_kwh, 1) }} kWh</span>
+                        <span class="consumer-cost">{{ formatEuro(moneyAmount(billing.consumers.heatpump, 'cost_eur')) }} €<template v-if="moneyIncomplete(billing.consumers.heatpump, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</template></span>
                         <span class="consumer-arrow">›</span>
                     </div>
                     <div class="consumer-row clickable" v-if="billing.consumers.heatingrod.total_kwh > 0" @click="openConsumerModal('heatingrod')">
                         <span class="consumer-icon">🔥</span>
                         <span class="consumer-name">{{ $t('flow.consumer.heatingrod') }}</span>
-                        <span class="consumer-kwh">{{ billing.consumers.heatingrod.total_kwh.toFixed(1) }} kWh</span>
-                        <span class="consumer-cost">{{ formatEuro(billing.consumers.heatingrod.cost_eur) }} €</span>
+                        <span class="consumer-kwh">{{ $n(billing.consumers.heatingrod.total_kwh, 1) }} kWh</span>
+                        <span class="consumer-cost">{{ formatEuro(moneyAmount(billing.consumers.heatingrod, 'cost_eur')) }} €<template v-if="moneyIncomplete(billing.consumers.heatingrod, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</template></span>
                         <span class="consumer-arrow">›</span>
                     </div>
                     <div class="consumer-row clickable" v-if="billing.consumers.wallbox.total_kwh > 0" @click="openConsumerModal('wallbox')">
                         <span class="consumer-icon">🚗</span>
                         <span class="consumer-name">{{ $t('energy.wallbox') }}</span>
-                        <span class="consumer-kwh">{{ billing.consumers.wallbox.total_kwh.toFixed(1) }} kWh</span>
-                        <span class="consumer-cost">{{ formatEuro(billing.consumers.wallbox.cost_eur) }} €</span>
+                        <span class="consumer-kwh">{{ $n(billing.consumers.wallbox.total_kwh, 1) }} kWh</span>
+                        <span class="consumer-cost">{{ formatEuro(moneyAmount(billing.consumers.wallbox, 'cost_eur')) }} €<template v-if="moneyIncomplete(billing.consumers.wallbox, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</template></span>
                         <span class="consumer-arrow">›</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========== MONTHLY PRICE MODAL ========== -->
-            <div class="modal-overlay" v-if="priceModal" @click.self="closePriceModal">
-                <div class="modal-content price-modal">
-                    <button class="modal-close" @click="closePriceModal">✕</button>
-                    <h3 style="margin:0 0 var(--space-md);">Strompreis für {{ priceModal.label }}</h3>
-                    <p class="price-current">Aktuell verwendet: <strong>{{ formatCt(priceModal.currentPrice) }} ct/kWh</strong></p>
-                    <label class="price-input-label" for="monthly-price-input">Neuer Preis</label>
-                    <div class="price-input-row">
-                        <input
-                            id="monthly-price-input"
-                            type="number"
-                            min="0.01"
-                            max="200"
-                            step="0.01"
-                            v-model="priceInput"
-                            @input="previewPriceChange"
-                        >
-                        <span>ct/kWh</span>
-                    </div>
-                    <div v-if="priceError" class="price-error">{{ priceError }}</div>
-                    <div v-if="pricePreview" class="price-preview-grid">
-                        <div class="price-preview-item">
-                            <span>Bisherige Kosten</span>
-                            <strong>{{ formatEuro(pricePreview.before?.cost_eur) }} €</strong>
-                        </div>
-                        <div class="price-preview-item">
-                            <span>Neue Kosten</span>
-                            <strong>{{ formatEuro(pricePreview.after?.cost_eur) }} €</strong>
-                        </div>
-                        <div class="price-preview-item">
-                            <span>Stromkosten</span>
-                            <strong>{{ formatEuro(pricePreview.after?.energy_cost_eur) }} €</strong>
-                        </div>
-                        <div class="price-preview-item">
-                            <span>Anteilige Grundgebühr</span>
-                            <strong>{{ formatEuro(pricePreview.after?.base_fee_eur) }} €</strong>
-                        </div>
-                    </div>
-                    <div class="price-modal-actions">
-                        <button class="price-primary-btn" @click="savePriceChange" :disabled="priceSaving || !pricePreview">Speichern</button>
-                        <button class="price-secondary-btn" @click="resetMonthPrice" :disabled="priceSaving || !priceModal.canReset">Monatspreis zurücksetzen</button>
-                        <button class="price-cancel-btn" @click="closePriceModal" :disabled="priceSaving">Abbrechen</button>
                     </div>
                 </div>
             </div>
@@ -572,17 +676,17 @@ const _EnergyPage = {
                             </div>
                             <div class="cd-badge" v-if="consumerDetail.heatpump.live.dhw_charging != null">
                                 <span class="cd-label">{{ $t('energy.heatpump.dhwCharging') }}</span>
-                                <span class="cd-value" :style="{color: consumerDetail.heatpump.live.dhw_charging ? '#22c55e' : '#6e7681'}">{{ consumerDetail.heatpump.live.dhw_charging ? $t('energy.activeUpper') : $t('energy.off') }}</span>
+                                <span class="cd-value" :style="{color: consumerDetail.heatpump.live.dhw_charging ? 'var(--success, #22c55e)' : '#6e7681'}">{{ consumerDetail.heatpump.live.dhw_charging ? $t('energy.activeUpper') : $t('energy.off') }}</span>
                             </div>
                             <div class="cd-badge" v-if="consumerDetail.heatpump.live.pv_active != null">
                                 <span class="cd-label">{{ $t('energy.heatpump.pvMode') }}</span>
-                                <span class="cd-value" :style="{color: consumerDetail.heatpump.live.pv_active ? '#fbbf24' : '#6e7681'}">{{ consumerDetail.heatpump.live.pv_active ? '☀ ' + $t('energy.activeUpper') : $t('energy.off') }}</span>
+                                <span class="cd-value" :style="{color: consumerDetail.heatpump.live.pv_active ? 'var(--solar, #fbbf24)' : '#6e7681'}">{{ consumerDetail.heatpump.live.pv_active ? '☀ ' + $t('energy.activeUpper') : $t('energy.off') }}</span>
                             </div>
                         </div>
                         <div class="cd-stats" v-if="consumerDetail.heatpump.live">
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.storage_temp != null">
                                 <span class="cd-stat-icon">🌡️</span>
-                                <span class="cd-stat-value" :style="{color: consumerDetail.heatpump.live.storage_temp > 55 ? '#ef4444' : consumerDetail.heatpump.live.storage_temp > 40 ? '#fbbf24' : '#22d3ee'}">{{ consumerDetail.heatpump.live.storage_temp }}°C</span>
+                                <span class="cd-stat-value" :style="{color: consumerDetail.heatpump.live.storage_temp > 55 ? 'var(--danger, #ef4444)' : consumerDetail.heatpump.live.storage_temp > 40 ? 'var(--solar, #fbbf24)' : 'var(--accent, #22d3ee)'}">{{ consumerDetail.heatpump.live.storage_temp }}°C</span>
                                 <span class="cd-stat-label">{{ $t('energy.heatpump.storage') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.electric_power != null">
@@ -597,7 +701,7 @@ const _EnergyPage = {
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.jaz != null">
                                 <span class="cd-stat-icon">📊</span>
-                                <span class="cd-stat-value" :style="{color: consumerDetail.heatpump.live.jaz >= 3.5 ? '#22c55e' : consumerDetail.heatpump.live.jaz >= 2.5 ? '#fbbf24' : '#ef4444'}">{{ consumerDetail.heatpump.live.jaz }}</span>
+                                <span class="cd-stat-value" :style="{color: consumerDetail.heatpump.live.jaz >= 3.5 ? 'var(--success, #22c55e)' : consumerDetail.heatpump.live.jaz >= 2.5 ? 'var(--solar, #fbbf24)' : 'var(--danger, #ef4444)'}">{{ consumerDetail.heatpump.live.jaz }}</span>
                                 <span class="cd-stat-label">JAZ</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.daily_kwh != null">
@@ -607,27 +711,27 @@ const _EnergyPage = {
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.pv_energy_today != null">
                                 <span class="cd-stat-icon">☀️</span>
-                                <span class="cd-stat-value" style="color:#fbbf24;">{{ consumerDetail.heatpump.live.pv_energy_today }} kWh</span>
+                                <span class="cd-stat-value" style="color:var(--solar, #fbbf24);">{{ consumerDetail.heatpump.live.pv_energy_today }} kWh</span>
                                 <span class="cd-stat-label">{{ $t('energy.heatpump.pvToHpToday') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.grid_energy_today != null">
                                 <span class="cd-stat-icon">⚡</span>
-                                <span class="cd-stat-value" style="color:#a855f7;">{{ consumerDetail.heatpump.live.grid_energy_today }} kWh</span>
+                                <span class="cd-stat-value" style="color:var(--chart-series-ai, #a855f7);">{{ consumerDetail.heatpump.live.grid_energy_today }} kWh</span>
                                 <span class="cd-stat-label">{{ $t('energy.heatpump.gridToHpToday') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.unassigned_energy_today != null">
                                 <span class="cd-stat-icon">🔌</span>
-                                <span class="cd-stat-value" style="color:#38bdf8;">{{ consumerDetail.heatpump.live.unassigned_energy_today }} kWh</span>
+                                <span class="cd-stat-value" style="color:var(--accent, #38bdf8);">{{ consumerDetail.heatpump.live.unassigned_energy_today }} kWh</span>
                                 <span class="cd-stat-label">{{ $t('energy.heatpump.unassignedToday') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.pv_share_percent != null">
                                 <span class="cd-stat-icon">🌿</span>
-                                <span class="cd-stat-value" style="color:#22c55e;">{{ consumerDetail.heatpump.live.pv_share_percent }}%</span>
+                                <span class="cd-stat-value" style="color:var(--success, #22c55e);">{{ consumerDetail.heatpump.live.pv_share_percent }}%</span>
                                 <span class="cd-stat-label">{{ $t('energy.heatpump.pvShare') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.grid_share_percent != null">
                                 <span class="cd-stat-icon">⚡</span>
-                                <span class="cd-stat-value" style="color:#a855f7;">{{ consumerDetail.heatpump.live.grid_share_percent }}%</span>
+                                <span class="cd-stat-value" style="color:var(--chart-series-ai, #a855f7);">{{ consumerDetail.heatpump.live.grid_share_percent }}%</span>
                                 <span class="cd-stat-label">{{ $t('energy.heatpump.gridShare') }}</span>
                             </div>
                             <div class="cd-stat" v-if="consumerDetail.heatpump.live.compressor_starts != null">
@@ -768,13 +872,8 @@ const _EnergyPage = {
             entity_id: '',
             start_kwh: '',
             category: 'entertainment',
-            color: '#06b6d4',
+            color: (window.sfmlThemeColor?.("--accent") || "#06b6d4"),
         });
-        const priceModal = ref(null);
-        const priceInput = ref('');
-        const pricePreview = ref(null);
-        const priceError = ref(null);
-        const priceSaving = ref(false);
         const consumerModal = ref(null);
         const consumerDetail = ref(null);
         const timeContext = reactive({
@@ -788,8 +887,6 @@ const _EnergyPage = {
         let sourcesChart = null;
         let amortizationChart = null;
         let consumerAtlasChart = null;
-        let pricePreviewTimer = null;
-
         // Localized via months.shortJan/shortFeb/... at use-site.
         const MONTH_SHORT_KEYS = [
             'months.shortJan', 'months.shortFeb', 'months.shortMar', 'months.shortApr',
@@ -799,26 +896,48 @@ const _EnergyPage = {
         const MONTH_NAMES = MONTH_SHORT_KEYS.map(k => t(k));
 
         function num(v, fallback = 0) { return v ?? fallback; }
-        function fmt(v) { return v != null ? v.toFixed(1) : '0.0'; }
+        function fmt(v) { return window.SFMLI18n.formatNumber(v != null ? v : 0, 1); }
+        function finiteMoney(value) {
+            return finiteOrNull(value);
+        }
+        function monthCost(row) {
+            return finiteMoney(row && row.cost_eur);
+        }
+        function monthSaved(row) {
+            return finiteMoney(row && row.total_savings_eur);
+        }
+        function sumMoney(values) {
+            let total = 0;
+            for (let index = 0; index < values.length; index += 1) {
+                const number = finiteMoney(values[index]);
+                if (number == null) return null;
+                total += number;
+            }
+            return total;
+        }
         function formatEuro(v) {
-            const n = Number(v ?? 0);
+            if (v == null || v === "") return "\u2013";
+            const n = Number(v);
+            if (!Number.isFinite(n)) return "\u2013";
             const lang = window.SFMLI18n ? window.SFMLI18n.current : 'de';
             const locale = lang === 'en' || lang === 'pl' ? lang : 'de';
             return new Intl.NumberFormat(locale, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
                 useGrouping: true,
-            }).format(Number.isFinite(n) ? n : 0);
+            }).format(n);
         }
-        function formatCt(v) {
-            const n = Number(v ?? 0);
-            return Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : '0,00';
+        function moneyAmount(record, field) {
+            return shownMoney(record, field).amount;
+        }
+        function moneyIncomplete(record, field) {
+            return shownMoney(record, field).incomplete;
         }
         function formatPower(v) {
             const n = Number(v ?? 0);
             if (!Number.isFinite(n) || n <= 0) return '0 W';
-            if (n >= 1000) return (n / 1000).toFixed(1) + ' kW';
-            return n.toFixed(0) + ' W';
+            if (n >= 1000) return window.SFMLI18n.formatNumber(n / 1000, 1) + ' kW';
+            return window.SFMLI18n.formatNumber(n, 0) + ' W';
         }
         function syncTimeContext(payload) {
             const ctx = payload?.time_context;
@@ -844,15 +963,6 @@ const _EnergyPage = {
                 timeZone: timeContext.timezone || undefined,
             }).format(date);
         }
-        function priceEndpoint(monthRow, suffix = '') {
-            return `/api/sfml_stats/energy/monthly_price/${monthRow.year}/${monthRow.monthNumber}${suffix}`;
-        }
-        function validatePriceInput(value) {
-            const price = Number(String(value).replace(',', '.'));
-            if (!Number.isFinite(price)) return null;
-            if (price <= 0 || price > 200) return null;
-            return price;
-        }
         async function postJson(url, body) {
             const response = await fetch(url, {
                 method: 'POST',
@@ -876,53 +986,51 @@ const _EnergyPage = {
 
         const monthlyTotals = computed(() => {
             const d = monthlyData.value;
-            if (!d.length) return { consumption: '0', solar: '0', autarkie: '0', gridImport: '0', cost: 0, saved: 0 };
+            const finance = billing.value && billing.value.finance ? billing.value.finance : null;
+            const costShown = shownMoney(finance, "grid_cost_eur");
+            const savedShown = shownMoney(finance, "total_savings_eur");
+            const money = {
+                cost: costShown.amount,
+                saved: savedShown.amount,
+                costIncomplete: costShown.incomplete,
+                savedIncomplete: savedShown.incomplete,
+            };
+            if (!d.length) return { consumption: '0', solar: '0', autarkie: '0', gridImport: '0', ...money };
             const consumption = d.reduce((s, m) => s + parseFloat(m.consumption), 0);
             const solar = d.reduce((s, m) => s + parseFloat(m.solar), 0);
             const gridImport = d.reduce((s, m) => s + parseFloat(m.gridImport), 0);
             const selfCons = d.reduce((s, m) => s + (m.selfCons || 0), 0);
-            const cost = d.reduce((s, m) => s + parseFloat(m.cost), 0);
-            const saved = d.reduce((s, m) => s + parseFloat(m.saved), 0);
             const autarkie = consumption > 0 ? Math.min(100, (selfCons / consumption) * 100) : 0;
             return {
                 consumption: consumption.toFixed(0),
                 solar: solar.toFixed(0),
                 autarkie: autarkie.toFixed(0),
                 gridImport: gridImport.toFixed(0),
-                cost,
-                saved,
+                ...money,
             };
         });
 
         const autarkieColor = computed(() => {
             const p = billing.value?.autarkie_percent ?? 0;
-            if (p >= 70) return '#22c55e';
-            if (p >= 40) return '#eab308';
-            return '#a855f7';
+            if (p >= 70) return (window.sfmlThemeColor?.("--success") || "#22c55e");
+            if (p >= 40) return (window.sfmlThemeColor?.("--solar") || "#eab308");
+            return (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7");
         });
 
         const avgDaily = computed(() => {
             const b = billing.value;
             if (!b) return '0.0';
             const days = b.period?.days_elapsed || 1;
-            return (num(b.solar?.total_kwh) / days).toFixed(1);
+            return window.SFMLI18n.formatNumber(num(b.solar?.total_kwh) / days, 1);
         });
 
         const savedKwh = computed(() => {
             const b = billing.value;
             if (!b) return '0';
             if (b.household?.self_supplied_kwh != null) {
-                return b.household.self_supplied_kwh.toFixed(0);
+                return window.SFMLI18n.formatNumber(b.household.self_supplied_kwh, 0);
             }
-            return (num(b.solar?.to_house_kwh) + num(b.household?.from_battery_kwh)).toFixed(0);
-        });
-
-        const projectedSavings = computed(() => {
-            const b = billing.value;
-            const savings = b?.finance?.total_savings_eur ?? b?.finance?.savings_eur;
-            if (!b || savings == null || !b.period?.days_elapsed) return null;
-            const factor = b.period.days_total / b.period.days_elapsed;
-            return formatEuro(savings * factor);
+            return window.SFMLI18n.formatNumber(num(b.solar?.to_house_kwh) + num(b.household?.from_battery_kwh), 0);
         });
 
         const balanceUnknownKwh = computed(() => {
@@ -986,14 +1094,18 @@ const _EnergyPage = {
         const priceRanges = computed(() => {
             const ph = priceData.value?.price_hours;
             if (!ph || !ph.length) return null;
-            const today = ph.filter(h => !h.is_tomorrow).map(h => h.total_price);
-            const tomorrow = ph.filter(h => h.is_tomorrow).map(h => h.total_price);
-            if (!today.length) return null;
+            const finitePrices = (rows) => priceBounds(rows);
+            const todayHours = ph.filter(h => !h.is_tomorrow);
+            if (!todayHours.length) return null;
+            const today = finitePrices(todayHours);
+            const tomorrow = finitePrices(ph.filter(h => h.is_tomorrow));
+            const lowest = (values) => values.length ? window.SFMLI18n.formatNumber(Math.min(...values), 2) : '--';
+            const highest = (values) => values.length ? window.SFMLI18n.formatNumber(Math.max(...values), 2) : '--';
             return {
-                todayMin: Math.min(...today).toFixed(2),
-                todayMax: Math.max(...today).toFixed(2),
-                tomorrowMin: tomorrow.length ? Math.min(...tomorrow).toFixed(2) : '--',
-                tomorrowMax: tomorrow.length ? Math.max(...tomorrow).toFixed(2) : '--',
+                todayMin: lowest(today),
+                todayMax: highest(today),
+                tomorrowMin: lowest(tomorrow),
+                tomorrowMax: highest(tomorrow),
             };
         });
 
@@ -1009,16 +1121,50 @@ const _EnergyPage = {
             consumerAtlas.value?.summary?.top_consumer?.name || t('energy.consumerAtlas.none')
         ));
 
-        const amortizationProgress = computed(() => {
-            const value = Number(amortization.value?.summary?.progress_percent ?? 0);
-            return Number.isFinite(value) ? Math.max(0, Math.min(100, value)).toFixed(0) : '0';
+        const amortizationIsEstimate = computed(() => (
+            amortization.value?.summary?.estimate_basis === 'known_values'
+        ));
+
+        // Numeric ring value (0-100) or null; the estimate is floored so it never overstates.
+        const amortizationProgressValue = computed(() => {
+            const summary = amortization.value?.summary;
+            const estimate = amortizationIsEstimate.value;
+            const raw = estimate ? summary?.progress_percent_priced_part : summary?.progress_percent;
+            if (raw === null || raw === undefined || raw === '') return null;
+            const value = Number(raw);
+            if (!Number.isFinite(value)) return null;
+            const clamped = Math.max(0, Math.min(100, value));
+            return estimate ? Math.floor(clamped) : Number(clamped.toFixed(0));
+        });
+
+        const amortizationProgress = computed(() => (
+            amortizationProgressValue.value === null ? '\u2013' : String(amortizationProgressValue.value)
+        ));
+
+        const amortizationProgressText = computed(() => {
+            if (amortizationProgressValue.value === null) return '\u2013';
+            return (amortizationIsEstimate.value ? '\u2248 ' : '') + amortizationProgressValue.value + ' %';
+        });
+
+        const amortizationChipPct = computed(() => (
+            amortizationIsEstimate.value && amortizationProgressValue.value !== null
+                ? '\u2248 ' + amortizationProgressValue.value
+                : amortizationProgress.value
+        ));
+
+        const amortizationEstimateNote = computed(() => {
+            const summary = amortization.value?.summary;
+            const notes = [];
+            if (summary?.estimate_basis === 'known_values') notes.push(t('energy.amortization.estimate'));
+            if (summary?.basis_quality === 'partial') {
+                notes.push(t('energy.amortization.basisPartial', { n: summary.basis_months }));
+            }
+            return notes.join(' \u00b7 ');
         });
 
         const amortizationDegradation = computed(() => {
             const value = Number(amortization.value?.settings?.degradation_percent ?? 0.5);
-            const text = (Number.isFinite(value) ? value : 0.5).toFixed(1);
-            const lang = window.SFMLI18n ? window.SFMLI18n.current : 'de';
-            return lang === 'en' ? text : text.replace('.', ',');
+            return window.SFMLI18n.formatNumber(Number.isFinite(value) ? value : 0.5, 1);
         });
 
         function originChips(provenance) {
@@ -1050,7 +1196,7 @@ const _EnergyPage = {
         const billingOriginChips = computed(() => originChips(billing.value?.provenance));
 
         const amortizationRingStyle = computed(() => ({
-            background: `conic-gradient(#22c55e ${amortizationProgress.value}%, rgba(255,255,255,0.08) 0)`,
+            background: `conic-gradient(var(--success, #22c55e) ${amortizationProgressValue.value ?? 0}%, rgba(255,255,255,0.08) 0)`,
         }));
 
         function formatBreakEvenPoint(monthKey, yearOnly) {
@@ -1075,6 +1221,7 @@ const _EnergyPage = {
             const summary = amortization.value?.summary;
             if (!amortization.value?.configured) return t('energy.amortization.open');
             if (summary?.status === 'reached') return t('energy.amortization.reached');
+            if (summary?.status === 'estimated_reached') return t('energy.amortization.estimatedReached');
             return formatBreakEvenPoint(summary?.break_even_month, summary?.break_even_year)
                 || t('energy.amortization.unavailable');
         });
@@ -1100,7 +1247,11 @@ const _EnergyPage = {
         }
 
         function formatScenarioBreakEven(scenario) {
-            if (scenario.months_to_break_even === 0) return t('energy.amortization.reached');
+            if (scenario.months_to_break_even === 0) {
+                return scenario.estimate
+                    ? t('energy.amortization.estimatedReached')
+                    : t('energy.amortization.reached');
+            }
             return formatBreakEvenPoint(scenario.break_even_month, scenario.break_even_year)
                 || t('energy.amortization.unavailable');
         }
@@ -1139,7 +1290,7 @@ const _EnergyPage = {
             consumerAtlasForm.entity_id = '';
             consumerAtlasForm.start_kwh = '';
             consumerAtlasForm.category = 'entertainment';
-            consumerAtlasForm.color = '#06b6d4';
+            consumerAtlasForm.color = (window.sfmlThemeColor?.("--accent") || "#06b6d4");
         }
 
         async function reloadConsumerAtlas() {
@@ -1251,19 +1402,17 @@ const _EnergyPage = {
                         const gridExport = m.grid_export_kwh ?? 0;
                         const autarkie = m.autarkie_percent ?? 0;
 
-                        const hasMonthPrice = m.avg_price_ct != null && m.avg_price_ct !== "";
-                        const priceUsed = hasMonthPrice ? Number(m.avg_price_ct) : null;
-                        const cost = m.cost_eur ?? (priceUsed == null ? 0 : gridImport * priceUsed / 100);
+                        const avgNumber = finiteMoney(m.avg_price_ct);
                         const selfCons = m.self_consumption_kwh ?? (
                             (m.solar_to_house_kwh ?? 0)
                             + Math.max(0, (m.battery_to_house_kwh ?? 0) - (m.grid_to_battery_kwh ?? 0))
                         );
-                        const saved = m.total_savings_eur ?? m.savings_eur ?? (priceUsed == null ? 0 : selfCons * priceUsed / 100);
                         const isDynamic = m.price_mode
                             ? m.price_mode === 'gpm_dynamic'
                             : m.cost_source === 'dynamic' || m.cost_source === 'hybrid';
-                        const isEstimated = !isDynamic && (m.cost_source === 'estimated' || priceUsed == null);
                         const priceMode = m.price_mode || (isDynamic ? 'dynamic' : null);
+                        const costShown = shownMoney(m, "cost_eur");
+                        const savedShown = shownMoney(m, "total_savings_eur");
 
                         return {
                             monthKey: m.month,
@@ -1275,18 +1424,16 @@ const _EnergyPage = {
                             autarkie: autarkie.toFixed(0),
                             gridImport: gridImport.toFixed(0),
                             selfCons,
-                            cost,
-                            avgPrice: priceUsed == null ? null : priceUsed.toFixed(1),
-                            avgPriceValue: priceUsed,
-                            unpricedImport: Number(m.unpriced_import_kwh || 0),
-                            energyCost: Number(m.energy_cost_eur ?? 0),
-                            baseFee: Number(m.base_fee_eur ?? 0),
-                            saved: Number(saved ?? 0),
+                            cost: costShown.amount,
+                            costIncomplete: costShown.incomplete,
+                            daysWithoutPrice: Array.isArray(m.days_without_price) ? m.days_without_price : [],
+                            avgPrice: avgNumber == null ? null : avgNumber.toFixed(1),
+                            unpricedImport: finiteMoney(m.unpriced_import_kwh),
+                            saved: savedShown.amount,
+                            savedIncomplete: savedShown.incomplete,
                             priceMode,
                             canEditPrice: m.price_mode === 'legacy_fixed',
-                            canReset: m.tariff_source === 'manual',
                             isDynamic,
-                            isEstimated,
                             isCurrent: m.month === nowKey,
                             importSplit: m.import_split || null,
                         };
@@ -1327,8 +1474,9 @@ const _EnergyPage = {
             const todayMap = {};
             const tomorrowMap = {};
             allHours.forEach(h => {
-                if (h.is_tomorrow) tomorrowMap[h.hour] = h.total_price;
-                else todayMap[h.hour] = h.total_price;
+                const price = finiteOrNull(h.total_price);
+                if (h.is_tomorrow) tomorrowMap[h.hour] = price;
+                else todayMap[h.hour] = price;
             });
 
             const todayData = labels.map((_, i) => todayMap[i] != null ? todayMap[i] : null);
@@ -1347,7 +1495,7 @@ const _EnergyPage = {
                         let html = '<b>' + params[0].axisValue + '</b>';
                         params.forEach(function(p) {
                             if (p.value != null) {
-                                html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + p.value.toFixed(2) + ' ct</b></span>';
+                                html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + window.SFMLI18n.formatNumber(p.value, 2) + ' ct</b></span>';
                             }
                         });
                         return html;
@@ -1355,11 +1503,11 @@ const _EnergyPage = {
                 },
                 legend: {
                     data: [
-                        { name: t('common.today'), icon: 'circle', itemStyle: { color: '#f472b6' } },
-                        { name: t('common.tomorrow'), icon: 'circle', itemStyle: { color: '#22d3ee' } },
+                        { name: t('common.today'), icon: 'circle', itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-conservative") || "#f472b6") } },
+                        { name: t('common.tomorrow'), icon: 'circle', itemStyle: { color: (window.sfmlThemeColor?.("--accent") || "#22d3ee") } },
                     ],
                     bottom: 0,
-                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                 },
                 grid: { left: 55, right: 20, top: 15, bottom: 40 },
                 xAxis: {
@@ -1367,13 +1515,13 @@ const _EnergyPage = {
                     data: labels,
                     boundaryGap: false,
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.15)') } },
-                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, interval: 3 },
+                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 12, interval: 3 },
                     axisTick: { show: false },
                 },
                 yAxis: {
                     type: 'value',
                     splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.06)') } },
-                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, formatter: '{value} ct' },
+                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 12, formatter: '{value} ct' },
                 },
                 series: [
                     {
@@ -1382,8 +1530,8 @@ const _EnergyPage = {
                         smooth: 0.3,
                         symbol: 'circle',
                         symbolSize: function(value, params) { return params.dataIndex === nowHour ? 10 : 5; },
-                        lineStyle: { color: '#f472b6', width: 2.5 },
-                        itemStyle: { color: '#f472b6', borderColor: getThemeColor('--bg-app', '#0a0e14'), borderWidth: 1 },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--chart-series-conservative") || "#f472b6"), width: 2.5 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-conservative") || "#f472b6"), borderColor: getThemeColor('--bg-app', '#0a0e14'), borderWidth: 1 },
                         data: todayData,
                     },
                     {
@@ -1392,8 +1540,8 @@ const _EnergyPage = {
                         smooth: 0.3,
                         symbol: 'circle',
                         symbolSize: 5,
-                        lineStyle: { color: '#22d3ee', width: 2.5 },
-                        itemStyle: { color: '#22d3ee', borderColor: getThemeColor('--bg-app', '#0a0e14'), borderWidth: 1 },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--accent") || "#22d3ee"), width: 2.5 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--accent") || "#22d3ee"), borderColor: getThemeColor('--bg-app', '#0a0e14'), borderWidth: 1 },
                         data: tomorrowData,
                     },
                 ],
@@ -1418,15 +1566,15 @@ const _EnergyPage = {
 
             sourcesChart.setOption({
                 backgroundColor: 'transparent',
-                tooltip: { trigger: 'axis', backgroundColor: getThemeColor('--bg-card', 'rgba(10,14,20,0.95)'), borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 11 } },
-                legend: { bottom: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 10 } },
+                tooltip: { trigger: 'axis', backgroundColor: getThemeColor('--bg-card', 'rgba(10,14,20,0.95)'), borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'), textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 } },
+                legend: { bottom: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 } },
                 grid: { left: 50, right: 20, top: 10, bottom: 45 },
-                xAxis: { type: 'category', data: times, axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, interval: Math.floor(times.length / 12) }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } } },
+                xAxis: { type: 'category', data: times, axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 12, interval: Math.floor(times.length / 12) }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.1)') } } },
                 yAxis: { type: 'value', name: 'W', nameTextStyle: { color: getThemeColor('--text-secondary', '#6e7681') }, splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.05)') } }, axisLabel: { color: getThemeColor('--text-muted', '#6e7681') } },
                 series: [
-                    { name: t('flow.stat.solarToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(251,191,36,0.3)' }, lineStyle: { color: '#fbbf24', width: 1.5 }, itemStyle: { color: '#fbbf24' }, symbol: 'none', smooth: true, data: data.map(d => d.solar_to_house ?? 0) },
-                    { name: t('flow.stat.batteryToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(34,197,94,0.2)' }, lineStyle: { color: '#22c55e', width: 1.5 }, itemStyle: { color: '#22c55e' }, symbol: 'none', smooth: true, data: data.map(d => d.battery_to_house ?? 0) },
-                    { name: t('flow.stat.gridToHouse'), type: 'line', stack: 'pos', areaStyle: { color: 'rgba(139,92,246,0.2)' }, lineStyle: { color: '#a855f7', width: 1.5 }, itemStyle: { color: '#a855f7' }, symbol: 'none', smooth: true, data: data.map(d => d.grid_to_house ?? 0) },
+                    { name: t('flow.stat.solarToHouse'), type: 'line', stack: 'pos', areaStyle: { color: (window.sfmlThemeColor?.("--solar", 0.3) || 'rgba(251,191,36,0.3)') }, lineStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24"), width: 1.5 }, itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24") }, symbol: 'none', smooth: true, data: data.map(d => d.solar_to_house ?? 0) },
+                    { name: t('flow.stat.batteryToHouse'), type: 'line', stack: 'pos', areaStyle: { color: (window.sfmlThemeColor?.("--success", 0.2) || 'rgba(34,197,94,0.2)') }, lineStyle: { color: (window.sfmlThemeColor?.("--success") || "#22c55e"), width: 1.5 }, itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#22c55e") }, symbol: 'none', smooth: true, data: data.map(d => d.battery_to_house ?? 0) },
+                    { name: t('flow.stat.gridToHouse'), type: 'line', stack: 'pos', areaStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai", 0.2) || 'rgba(139,92,246,0.2)') }, lineStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7"), width: 1.5 }, itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7") }, symbol: 'none', smooth: true, data: data.map(d => d.grid_to_house ?? 0) },
                     { name: t('flow.node.houseConsumption'), type: 'line', lineStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), width: 2, type: 'dashed' }, itemStyle: { color: getThemeColor('--text-primary', '#f0f6fc') }, symbol: 'none', smooth: true, data: data.map(d => d.home_consumption ?? 0) },
                 ],
                 animationDuration: 1000,
@@ -1445,7 +1593,7 @@ const _EnergyPage = {
                 .map(consumer => ({
                     name: consumer.name,
                     value: Math.max(consumer.period_kwh || 0, 0.01),
-                    itemStyle: { color: consumer.color || '#06b6d4' },
+                    itemStyle: { color: consumer.color || (window.sfmlThemeColor?.("--accent") || "#06b6d4") },
                     consumer,
                 }));
             const unknown = Number(data.summary?.unknown_kwh || 0);
@@ -1475,7 +1623,7 @@ const _EnergyPage = {
                 backgroundColor: 'transparent',
                 tooltip: {
                     backgroundColor: 'rgba(10,14,20,0.98)',
-                    borderColor: 'rgba(6,182,212,0.45)',
+                    borderColor: (window.sfmlThemeColor?.("--accent", 0.45) || 'rgba(6,182,212,0.45)'),
                     borderWidth: 1,
                     textStyle: { color: '#f0f6fc', fontSize: 12 },
                     extraCssText: 'box-shadow: 0 12px 32px rgba(0,0,0,0.45); border-radius: 8px; backdrop-filter: blur(8px);',
@@ -1500,7 +1648,7 @@ const _EnergyPage = {
                         fontWeight: 700,
                         formatter: function(info) {
                             const kwh = Number(info.data.consumer?.period_kwh || info.value || 0);
-                            return `${info.name}\n${kwh.toFixed(1)} kWh`;
+                            return `${info.name}\n${window.SFMLI18n.formatNumber(kwh, 1)} kWh`;
                         },
                     },
                     upperLabel: { show: false },
@@ -1547,45 +1695,63 @@ const _EnergyPage = {
             const historyLabels = history.map(row => row.month);
             const projectionLabels = projection.map(row => row.month);
             const labels = historyLabels.concat(projectionLabels);
-            const historyValues = history.map(row => row.cumulative_eur);
+            const historyPalette = { solid: (window.sfmlThemeColor?.("--success") || "#22c55e"), faded: (window.sfmlThemeColor?.("--success", 0.55) || "#86efac") };
+            const forecastPalette = { solid: (window.sfmlThemeColor?.("--accent") || "#06b6d4"), faded: (window.sfmlThemeColor?.("--accent", 0.55) || "#67e8f9") };
+            const historyValues = history.map((row) => amortizationLinePoint(row, historyPalette));
+            const lastHistory = history.length
+                ? amortizationLinePoint(history[history.length - 1], historyPalette)
+                : null;
             const projectionValues = history.length
-                ? Array(history.length - 1).fill(null).concat([history[history.length - 1].cumulative_eur], projection.map(row => row.cumulative_eur))
-                : projection.map(row => row.cumulative_eur);
+                ? Array(history.length - 1).fill(null).concat([lastHistory], projection.map((row) => amortizationLinePoint(row, forecastPalette)))
+                : projection.map((row) => amortizationLinePoint(row, forecastPalette));
 
             amortizationChart.setOption({
                 backgroundColor: 'transparent',
                 tooltip: {
                     trigger: 'axis',
+                    enterable: true,
+                    confine: true,
                     backgroundColor: getThemeColor('--bg-card', 'rgba(10,14,20,0.95)'),
                     borderColor: getThemeColor('--border-default', 'rgba(255,255,255,0.1)'),
                     textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontSize: 12 },
                     formatter: function(params) {
                         let html = '<b>' + params[0].axisValue + '</b>';
+                        const index = params[0].dataIndex;
+                        const row = points[index];
                         params.forEach(function(p) {
-                            if (p.value != null) {
-                                html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + formatEuro(p.value) + ' €</b></span>';
+                            const amount = typeof p.data === "object" && p.data != null && p.data.value != null
+                                ? p.data.value
+                                : p.value;
+                            if (amount != null) {
+                                html += '<br/><span style="color:' + p.color + '">● ' + p.seriesName + ': <b>' + formatEuro(amount) + ' €</b></span>';
                             }
                         });
+                        if (row && row.complete === false) {
+                            html += '<br/>' + t("gpm.billIncomplete");
+                            chartMoneyGapTooltipLines(row).forEach(function(line) {
+                                html += "<br/>" + line;
+                            });
+                        }
                         return html;
                     },
                 },
                 legend: {
                     bottom: 0,
-                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 11 },
+                    textStyle: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12 },
                 },
                 grid: { left: 58, right: 20, top: 16, bottom: 45 },
                 xAxis: {
                     type: 'category',
                     data: labels,
                     boundaryGap: false,
-                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, interval: Math.max(0, Math.floor(labels.length / 8)) },
+                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 12, interval: Math.max(0, Math.floor(labels.length / 8)) },
                     axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.15)') } },
                     axisTick: { show: false },
                 },
                 yAxis: {
                     type: 'value',
                     splitLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255,255,255,0.06)') } },
-                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 10, formatter: value => formatEuro(value) + ' €' },
+                    axisLabel: { color: getThemeColor('--text-muted', '#6e7681'), fontSize: 12, formatter: value => formatEuro(value) + ' €' },
                 },
                 series: [
                     {
@@ -1594,9 +1760,9 @@ const _EnergyPage = {
                         smooth: 0.25,
                         symbol: 'circle',
                         symbolSize: 5,
-                        lineStyle: { color: '#22c55e', width: 2.5 },
-                        itemStyle: { color: '#22c55e' },
-                        areaStyle: { color: 'rgba(34,197,94,0.12)' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--success") || "#22c55e"), width: 2.5 },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#22c55e") },
+                        areaStyle: { color: (window.sfmlThemeColor?.("--success", 0.12) || 'rgba(34,197,94,0.12)') },
                         markLine: { silent: true, symbol: 'none', lineStyle: { color: 'rgba(255,255,255,0.25)', type: 'dashed' }, data: [{ yAxis: 0 }] },
                         data: historyValues,
                     },
@@ -1605,8 +1771,8 @@ const _EnergyPage = {
                         type: 'line',
                         smooth: 0.25,
                         symbol: 'none',
-                        lineStyle: { color: '#06b6d4', width: 2, type: 'dashed' },
-                        itemStyle: { color: '#06b6d4' },
+                        lineStyle: { color: (window.sfmlThemeColor?.("--accent") || "#06b6d4"), width: 2, type: 'dashed' },
+                        itemStyle: { color: (window.sfmlThemeColor?.("--accent") || "#06b6d4") },
                         data: projectionValues,
                     },
                 ],
@@ -1615,77 +1781,9 @@ const _EnergyPage = {
             return true;
         }
 
-        async function openPriceModal(monthRow) {
+        async function openPriceModal() {
             if (typeof window !== "undefined") {
                 window.location.hash = "gpm";
-            }
-        }
-
-        function closePriceModal() {
-            if (pricePreviewTimer) {
-                clearTimeout(pricePreviewTimer);
-                pricePreviewTimer = null;
-            }
-            priceModal.value = null;
-            priceInput.value = '';
-            pricePreview.value = null;
-            priceError.value = null;
-            priceSaving.value = false;
-        }
-
-        function previewPriceChange() {
-            if (!priceModal.value) return;
-            if (pricePreviewTimer) clearTimeout(pricePreviewTimer);
-            const price = validatePriceInput(priceInput.value);
-            if (price == null) {
-                pricePreview.value = null;
-                priceError.value = 'Bitte geben Sie einen Preis zwischen 0 und 200 ct/kWh ein.';
-                return;
-            }
-            priceError.value = null;
-            pricePreviewTimer = setTimeout(async () => {
-                try {
-                    pricePreview.value = await postJson(
-                        priceEndpoint(priceModal.value, '/preview'),
-                        { price_ct: price },
-                    );
-                } catch (err) {
-                    pricePreview.value = null;
-                    priceError.value = err?.message || 'Die Vorschau konnte nicht berechnet werden.';
-                }
-            }, 250);
-        }
-
-        async function savePriceChange() {
-            if (!priceModal.value) return;
-            const price = validatePriceInput(priceInput.value);
-            if (price == null) {
-                priceError.value = 'Bitte geben Sie einen Preis zwischen 0 und 200 ct/kWh ein.';
-                return;
-            }
-            priceSaving.value = true;
-            priceError.value = null;
-            try {
-                await postJson(priceEndpoint(priceModal.value), { price_ct: price });
-                closePriceModal();
-                await loadData();
-            } catch (err) {
-                priceError.value = err?.message || 'Der Preis konnte nicht gespeichert werden.';
-                priceSaving.value = false;
-            }
-        }
-
-        async function resetMonthPrice() {
-            if (!priceModal.value || !priceModal.value.canReset) return;
-            priceSaving.value = true;
-            priceError.value = null;
-            try {
-                await deleteJson(priceEndpoint(priceModal.value));
-                closePriceModal();
-                await loadData();
-            } catch (err) {
-                priceError.value = err?.message || 'Der Monatspreis konnte nicht zurückgesetzt werden.';
-                priceSaving.value = false;
             }
         }
 
@@ -1730,17 +1828,15 @@ const _EnergyPage = {
         return {
             billing, billingError, priceData, priceRanges, monthlyData, monthlyTotals, fmt,
             amortization, amortizationError, amortizationEdit, amortizationSaving, amortizationForm,
-            amortizationProgress, amortizationDegradation, amortizationRingStyle, amortizationBreakEven,
+            amortizationProgress, amortizationProgressText, amortizationChipPct, amortizationEstimateNote, amortizationDegradation, amortizationRingStyle, amortizationBreakEven,
             billingOriginChips,
             toggleAmortizationEdit, saveAmortizationSettings, formatScenarioBreakEven,
             consumerAtlas, consumerAtlasError, consumerAtlasNotice, consumerAtlasSaving,
             consumerAtlasForm,
             consumerAtlasConsumers, consumerAtlasTopName, saveConsumerAtlasEntry,
             deleteConsumerAtlasEntry, formatPower,
-            priceModal, priceInput, pricePreview, priceError, priceSaving,
-            formatEuro, formatCt, openPriceModal, closePriceModal,
-            previewPriceChange, savePriceChange, resetMonthPrice,
-            autarkieColor, avgDaily, savedKwh, projectedSavings,
+            formatEuro, formatDayRangesForHint, moneyAmount, moneyIncomplete, openPriceModal,
+            autarkieColor, avgDaily, savedKwh,
             breakdownPct, hasConsumers,
             consumerModal, consumerDetail, openConsumerModal,
         };
@@ -1788,7 +1884,7 @@ const _EnergyPage = {
         .eb-icon { font-size: 1.2rem; margin-bottom: 4px; }
         .eb-value { font-size: 1.4rem; font-weight: 700; font-family: var(--font-mono); }
         .eb-label { font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; }
-        .eb-sub { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; }
+        .eb-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
 
         /* Autarkie Donut */
         .autarkie-donut-wrap {
@@ -1812,7 +1908,7 @@ const _EnergyPage = {
         }
 
         .autarkie-label {
-            font-size: 0.6rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.08em;
@@ -1831,16 +1927,16 @@ const _EnergyPage = {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             font-weight: 600;
             font-family: var(--font-mono);
             color: #fff;
             transition: width 0.6s ease;
         }
 
-        .breakdown-seg.solar { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
-        .breakdown-seg.battery { background: linear-gradient(90deg, #22c55e, #16a34a); }
-        .breakdown-seg.grid { background: linear-gradient(90deg, #a855f7, #7c3aed); }
+        .breakdown-seg.solar { background: linear-gradient(90deg, var(--solar, #fbbf24), var(--solar, #f59e0b)); }
+        .breakdown-seg.battery { background: linear-gradient(90deg, var(--success, #22c55e), var(--success, #16a34a)); }
+        .breakdown-seg.grid { background: linear-gradient(90deg, var(--chart-series-ai, #a855f7), var(--chart-series-ai, #7c3aed)); }
         .breakdown-seg.unknown { background: linear-gradient(90deg, #94a3b8, #64748b); }
 
         .breakdown-legend {
@@ -1848,7 +1944,7 @@ const _EnergyPage = {
             gap: var(--space-md);
             justify-content: center;
             margin-top: var(--space-sm);
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
         }
 
@@ -1860,23 +1956,23 @@ const _EnergyPage = {
             margin-right: 4px;
         }
 
-        .breakdown-dot.solar { background: #fbbf24; }
-        .breakdown-dot.battery { background: #22c55e; }
-        .breakdown-dot.grid { background: #a855f7; }
+        .breakdown-dot.solar { background: var(--solar, #fbbf24); }
+        .breakdown-dot.battery { background: var(--success, #22c55e); }
+        .breakdown-dot.grid { background: var(--chart-series-ai, #a855f7); }
         .breakdown-dot.unknown { background: #94a3b8; }
 
         .breakdown-warning {
             margin-top: 6px;
-            font-size: 0.68rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
             text-align: center;
         }
 
         /* Smart Charging Badge */
         .smart-badge {
-            background: rgba(34,197,94,0.15);
-            border: 1px solid rgba(34,197,94,0.3);
-            color: #22c55e;
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 15%, transparent);
+            border: 1px solid color-mix(in srgb, var(--success, rgb(34, 197, 94)) 30%, transparent);
+            color: var(--success, #22c55e);
             padding: 2px 10px;
             border-radius: 12px;
             font-size: 0.75rem;
@@ -1907,7 +2003,7 @@ const _EnergyPage = {
         .consumer-icon { font-size: 1.2rem; }
         .consumer-name { font-size: 0.85rem; }
         .consumer-kwh { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; color: var(--text-secondary); }
-        .consumer-cost { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; color: #ef4444; }
+        .consumer-cost { font-family: var(--font-mono); font-size: 0.85rem; text-align: right; color: var(--danger, #ef4444); }
 
         .consumer-atlas-header {
             align-items: flex-start;
@@ -1915,13 +2011,13 @@ const _EnergyPage = {
         }
         .consumer-atlas-subtitle {
             color: var(--text-muted);
-            font-size: 0.74rem;
+            font-size: 0.75rem;
             margin-top: 3px;
         }
         .consumer-atlas-period {
             color: var(--text-muted);
             font-family: var(--font-mono);
-            font-size: 0.74rem;
+            font-size: 0.75rem;
             white-space: nowrap;
         }
         .consumer-atlas-actions {
@@ -1933,10 +2029,10 @@ const _EnergyPage = {
         }
         .consumer-atlas-notice {
             align-items: center;
-            background: rgba(34,197,94,0.1);
-            border: 1px solid rgba(34,197,94,0.25);
+            background: color-mix(in srgb, var(--success, rgb(34, 197, 94)) 10%, transparent);
+            border: 1px solid color-mix(in srgb, var(--success, rgb(34, 197, 94)) 25%, transparent);
             border-radius: var(--radius-sm);
-            color: #22c55e;
+            color: var(--success, #22c55e);
             display: flex;
             font-size: 0.78rem;
             gap: 8px;
@@ -1959,7 +2055,7 @@ const _EnergyPage = {
         .consumer-atlas-kpi span {
             color: var(--text-muted);
             display: block;
-            font-size: 0.68rem;
+            font-size: 0.75rem;
             margin-bottom: 3px;
         }
         .consumer-atlas-kpi strong {
@@ -1969,7 +2065,7 @@ const _EnergyPage = {
             font-size: 1rem;
             overflow-wrap: anywhere;
         }
-        .consumer-atlas-kpi.accent strong { color: #06b6d4; }
+        .consumer-atlas-kpi.accent strong { color: var(--accent, #06b6d4); }
         .consumer-atlas-layout {
             display: grid;
             gap: var(--space-lg);
@@ -2021,10 +2117,10 @@ const _EnergyPage = {
         .consumer-atlas-live {
             color: var(--text-secondary);
             font-family: var(--font-mono);
-            font-size: 0.74rem;
+            font-size: 0.75rem;
             white-space: nowrap;
         }
-        .consumer-atlas-live { color: #22c55e; }
+        .consumer-atlas-live { color: var(--success, #22c55e); }
         .consumer-atlas-delete {
             background: transparent;
             border: 0;
@@ -2034,7 +2130,7 @@ const _EnergyPage = {
             line-height: 1;
             padding: 2px;
         }
-        .consumer-atlas-delete:hover { color: #ef4444; }
+        .consumer-atlas-delete:hover { color: var(--danger, #ef4444); }
         .consumer-atlas-empty {
             border: 1px dashed var(--border-default);
             border-radius: var(--radius-sm);
@@ -2069,18 +2165,18 @@ const _EnergyPage = {
         }
 
         .price-edit-btn {
-            background: rgba(0,212,255,0.12);
-            border: 1px solid rgba(0,212,255,0.35);
+            background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 35%, transparent);
             border-radius: var(--radius-sm);
             color: var(--accent);
             cursor: pointer;
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 600;
             padding: 5px 9px;
             white-space: nowrap;
         }
         .price-edit-btn:hover {
-            background: rgba(0,212,255,0.2);
+            background: color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 20%, transparent);
             border-color: var(--accent);
         }
         .price-edit-btn-mobile { display: none; }
@@ -2110,7 +2206,7 @@ const _EnergyPage = {
             float: right; background: none; border: none; color: var(--text-secondary);
             font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1;
         }
-        .modal-close:hover { color: #ef4444; }
+        .modal-close:hover { color: var(--danger, #ef4444); }
 
         .price-modal { max-width: 520px; }
         .price-current {
@@ -2153,7 +2249,7 @@ const _EnergyPage = {
             white-space: nowrap;
         }
         .price-error {
-            color: #ef4444;
+            color: var(--danger, #ef4444);
             font-size: 0.78rem;
             margin-top: 8px;
         }
@@ -2174,7 +2270,7 @@ const _EnergyPage = {
         }
         .price-preview-item span {
             color: var(--text-secondary);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
         }
         .price-preview-item strong {
             color: var(--text-primary);
@@ -2216,7 +2312,7 @@ const _EnergyPage = {
             padding: 6px 12px; border-radius: var(--radius-sm);
             background: var(--bg-card); border: 1px solid var(--border-default);
         }
-        .cd-label { font-size: 0.65rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .cd-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
         .cd-value { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; color: var(--accent); }
 
         .cd-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--space-md); }
@@ -2233,11 +2329,11 @@ const _EnergyPage = {
         }
         .cd-stat-icon { font-size: 1.3rem; }
         .cd-stat-value { font-family: var(--font-mono); font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
-        .cd-stat-label { font-size: 0.7rem; color: var(--text-secondary); text-align: center; }
+        .cd-stat-label { font-size: 0.75rem; color: var(--text-secondary); text-align: center; }
 
         .amortization-subtitle {
             color: var(--text-muted);
-            font-size: 0.74rem;
+            font-size: 0.75rem;
             margin-top: 3px;
         }
         .amortization-layout {
@@ -2248,9 +2344,10 @@ const _EnergyPage = {
         }
         .amortization-summary {
             display: grid;
-            grid-template-columns: 138px 1fr;
+            grid-template-columns: 132px minmax(0, 1fr);
             gap: var(--space-md);
             align-items: center;
+            align-content: center;
         }
         .amortization-ring {
             align-items: center;
@@ -2272,24 +2369,26 @@ const _EnergyPage = {
             width: 104px;
         }
         .amortization-ring-inner strong {
-            color: #22c55e;
+            color: var(--success, #22c55e);
             font-family: var(--font-mono);
             font-size: 1.45rem;
         }
         .amortization-ring-inner span {
             color: var(--text-muted);
-            font-size: 0.64rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
         }
         .amortization-details {
-            display: flex;
-            flex-direction: column;
-            gap: var(--space-sm);
+            display: contents;
+        }
+        .amortization-details .origin-chip-row {
+            margin-bottom: 0;
             min-width: 0;
         }
         .amortization-kpis {
             display: grid;
             gap: var(--space-sm);
+            grid-column: 1 / -1;
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
         .amortization-kpi {
@@ -2302,7 +2401,7 @@ const _EnergyPage = {
         .amortization-kpi span {
             color: var(--text-muted);
             display: block;
-            font-size: 0.68rem;
+            font-size: 0.75rem;
             margin-bottom: 3px;
         }
         .amortization-kpi strong {
@@ -2310,9 +2409,15 @@ const _EnergyPage = {
             display: block;
             font-family: var(--font-mono);
             font-size: 1rem;
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
         }
-        .amortization-kpi.accent strong { color: #06b6d4; }
+        .amortization-kpi small {
+            color: var(--text-muted);
+            display: block;
+            font-size: 0.75rem;
+            margin-top: 2px;
+        }
+        .amortization-kpi.accent strong { color: var(--accent, #06b6d4); }
         .amortization-chart-wrap {
             min-height: 260px;
             min-width: 0;
@@ -2339,7 +2444,7 @@ const _EnergyPage = {
         }
         .amortization-scenario span {
             color: var(--text-secondary);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
         }
         .amortization-scenario strong {
             color: var(--text-primary);
@@ -2367,7 +2472,7 @@ const _EnergyPage = {
         }
         .amortization-form label span {
             color: var(--text-secondary);
-            font-size: 0.72rem;
+            font-size: 0.75rem;
         }
         .amortization-form input {
             background: var(--bg-card);
@@ -2405,7 +2510,7 @@ const _EnergyPage = {
             border-radius: var(--radius-sm);
             background: rgba(255, 255, 255, 0.03);
             color: var(--text-muted);
-            font-size: 0.68rem;
+            font-size: 0.75rem;
         }
 
         @media (max-width: 768px) {
@@ -2421,7 +2526,6 @@ const _EnergyPage = {
             .price-preview-grid { grid-template-columns: 1fr; }
             .amortization-layout { grid-template-columns: 1fr; }
             .amortization-summary { grid-template-columns: 1fr; justify-items: center; }
-            .amortization-details { width: 100%; }
             .amortization-kpis, .amortization-scenarios, .amortization-form { grid-template-columns: 1fr; width: 100%; }
             .price-modal-actions { justify-content: stretch; }
             .price-modal-actions button { flex: 1 1 100%; }

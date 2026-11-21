@@ -135,7 +135,7 @@
     color: #06131c !important;
     border-radius: 999px;
     background: var(--orbit-solar);
-    font-size: 0.68rem !important;
+    font-size: .75rem !important;
     font-weight: 800;
     letter-spacing: 0.12em;
 }
@@ -210,7 +210,7 @@
 
 .orbit-kicker {
     color: var(--orbit-accent);
-    font-size: 0.68rem;
+    font-size: .75rem;
     font-weight: 800;
     letter-spacing: 0.18em;
 }
@@ -477,7 +477,7 @@
 
 .orbit-anchor small {
     color: var(--orbit-muted);
-    font-size: 0.66rem;
+    font-size: .75rem;
     font-weight: 800;
     letter-spacing: 0.14em;
     text-transform: uppercase;
@@ -491,7 +491,7 @@
     max-width: 145px;
     overflow: hidden;
     color: var(--orbit-muted);
-    font-size: 0.7rem;
+    font-size: .75rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -522,7 +522,7 @@
 }
 
 .orbit-core-label {
-    font-size: 0.68rem;
+    font-size: .75rem;
     font-weight: 900;
     letter-spacing: 0.16em;
     text-transform: uppercase;
@@ -535,7 +535,7 @@
 }
 
 .orbit-core > span:last-child {
-    font-size: 0.7rem;
+    font-size: .75rem;
     font-weight: 700;
 }
 
@@ -549,7 +549,7 @@
     justify-content: center;
     gap: 14px;
     color: var(--orbit-muted);
-    font-size: 0.65rem;
+    font-size: .75rem;
 }
 
 .orbit-mobile-flows {
@@ -558,7 +558,7 @@
 
 .orbit-stage-caption strong {
     color: var(--text-secondary);
-    font-size: 0.73rem;
+    font-size: .75rem;
     font-weight: 500;
     text-align: center;
 }
@@ -605,7 +605,7 @@
 .orbit-decision-heading > span {
     overflow: hidden;
     color: var(--orbit-muted);
-    font-size: 0.65rem;
+    font-size: .75rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -630,7 +630,7 @@
 .orbit-weather-main > div > span {
     overflow: hidden;
     color: var(--orbit-muted);
-    font-size: 0.72rem;
+    font-size: .75rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -714,12 +714,12 @@
 }
 
 .orbit-weather-warning strong {
-    font-size: 0.72rem;
+    font-size: .75rem;
 }
 
 .orbit-weather-warning small {
     color: var(--orbit-muted);
-    font-size: 0.6rem;
+    font-size: .75rem;
 }
 
 .orbit-solar-overview-main {
@@ -744,7 +744,7 @@
 .orbit-solar-yield > span,
 .orbit-solar-progress-text {
     color: var(--orbit-muted);
-    font-size: 0.72rem;
+    font-size: .75rem;
     line-height: 1.35;
 }
 
@@ -763,7 +763,7 @@
 }
 
 .orbit-forecast-quality > small {
-    font-size: 0.56rem;
+    font-size: .75rem;
     letter-spacing: 0.08em;
 }
 
@@ -787,7 +787,7 @@
 .orbit-horizon small,
 .orbit-device small {
     color: var(--orbit-muted);
-    font-size: 0.61rem;
+    font-size: .75rem;
     font-weight: 800;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -975,7 +975,7 @@
     justify-content: flex-end;
     gap: 10px;
     color: var(--orbit-muted);
-    font-size: 0.6rem;
+    font-size: .75rem;
 }
 
 .orbit-chart-legend span::before {
@@ -1041,14 +1041,14 @@
 .orbit-quality-strip strong {
     overflow: hidden;
     color: var(--orbit-text);
-    font-size: 0.72rem;
+    font-size: .75rem;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .orbit-quality-strip > i {
     color: var(--orbit-accent);
-    font-size: 0.72rem;
+    font-size: .75rem;
     font-style: normal;
 }
 
@@ -1134,7 +1134,7 @@
 .orbit-device > div span {
     overflow: hidden;
     color: var(--orbit-muted);
-    font-size: 0.7rem;
+    font-size: .75rem;
     line-height: 1.3;
 }
 
@@ -1156,7 +1156,7 @@
 .premium-attribution {
     padding-top: 16px;
     color: var(--text-muted);
-    font-size: 0.61rem;
+    font-size: .75rem;
     letter-spacing: 0.04em;
     text-align: center;
 }
@@ -1542,7 +1542,7 @@
         position: static;
         justify-content: flex-start;
         margin: -5px 0 8px 28px;
-        font-size: 0.68rem;
+        font-size: .75rem;
     }
 
     .orbit-device-showcase {
@@ -1608,8 +1608,8 @@
     opacity: 0.9;
     filter:
         saturate(1.15)
-        drop-shadow(0 0 12px color-mix(in srgb, #22d3ee 42%, transparent))
-        drop-shadow(0 0 28px color-mix(in srgb, #22d3ee 22%, transparent));
+        drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 42%, transparent))
+        drop-shadow(0 0 28px color-mix(in srgb, var(--accent) 22%, transparent));
     animation:
         orbit-hubble-float 7s ease-in-out infinite,
         orbit-hubble-breath 4.5s ease-in-out infinite;
@@ -1618,14 +1618,14 @@
 @keyframes orbit-hubble-breath {
     0%, 100% {
         filter: saturate(1.15)
-            drop-shadow(0 0 10px color-mix(in srgb, #22d3ee 34%, transparent))
-            drop-shadow(0 0 22px color-mix(in srgb, #22d3ee 16%, transparent));
+            drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 34%, transparent))
+            drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 16%, transparent));
         opacity: 0.86;
     }
     50% {
         filter: saturate(1.25)
-            drop-shadow(0 0 16px color-mix(in srgb, #22d3ee 58%, transparent))
-            drop-shadow(0 0 36px color-mix(in srgb, #22d3ee 30%, transparent));
+            drop-shadow(0 0 16px color-mix(in srgb, var(--accent) 58%, transparent))
+            drop-shadow(0 0 36px color-mix(in srgb, var(--accent) 30%, transparent));
         opacity: 0.96;
     }
 }

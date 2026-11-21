@@ -136,6 +136,22 @@ const PremiumDashboardPage = ((Vue) => {
                 suspected_battery_curtailment: "Vermutete Akku-Abregelung",
                 mppt_throttled: "MPPT",
                 inverter_clipped: "Clipping",
+                full_battery_zero_export: "Akku voll, Nullexport",
+                zero_export_limited: "Nullexport-Begrenzung",
+                full_battery_export_limit: "Akku voll, Einspeiselimit",
+                transition_curtailment: "Übergang Abregelung",
+                unplausible_daily_yield_spike: "Unplausibler Ertragssprung",
+                reconstructed_gap_interpolation: "Datenlücke ergänzt",
+                emergency_outage_backfill_blocked: "Anlagenausfall",
+                plant_outage: "Anlagenausfall",
+                snow_covered_panels: "Schnee auf den Modulen",
+                unexpected_snow: "Unerwarteter Schnee",
+                unexpected_rain: "Unerwarteter Regen",
+                unexpected_clouds: "Unerwartete Bewölkung",
+                unexpected_sun: "Unerwartete Sonne",
+                manual_pause: "Lernpause",
+                weather_alert: "Wetteralarm",
+                excluded: "Ausgeschlossen",
             },
             warnings: {
                 high_precipitation_probability: "Hohe Regenwahrscheinlichkeit",
@@ -261,6 +277,22 @@ const PremiumDashboardPage = ((Vue) => {
                 suspected_battery_curtailment: "Suspected battery curtailment",
                 mppt_throttled: "MPPT",
                 inverter_clipped: "Clipping",
+                full_battery_zero_export: "Battery full, zero export",
+                zero_export_limited: "Zero export limit",
+                full_battery_export_limit: "Battery full, export limit",
+                transition_curtailment: "Curtailment transition",
+                unplausible_daily_yield_spike: "Implausible yield spike",
+                reconstructed_gap_interpolation: "Data gap filled",
+                emergency_outage_backfill_blocked: "Plant outage",
+                plant_outage: "Plant outage",
+                snow_covered_panels: "Snow on panels",
+                unexpected_snow: "Unexpected snow",
+                unexpected_rain: "Unexpected rain",
+                unexpected_clouds: "Unexpected clouds",
+                unexpected_sun: "Unexpected sun",
+                manual_pause: "Learning paused",
+                weather_alert: "Weather alert",
+                excluded: "Excluded",
             },
             warnings: {
                 high_precipitation_probability: "High chance of rain",
@@ -386,6 +418,22 @@ const PremiumDashboardPage = ((Vue) => {
                 suspected_battery_curtailment: "Podejrzenie ograniczenia przez akumulator",
                 mppt_throttled: "MPPT",
                 inverter_clipped: "Clipping",
+                full_battery_zero_export: "Pełny akumulator, zerowy eksport",
+                zero_export_limited: "Limit zerowego eksportu",
+                full_battery_export_limit: "Pełny akumulator, limit eksportu",
+                transition_curtailment: "Przejście ograniczenia mocy",
+                unplausible_daily_yield_spike: "Nieprawdopodobny skok uzysku",
+                reconstructed_gap_interpolation: "Uzupełniona luka danych",
+                emergency_outage_backfill_blocked: "Awaria instalacji",
+                plant_outage: "Awaria instalacji",
+                snow_covered_panels: "Śnieg na panelach",
+                unexpected_snow: "Nieoczekiwany śnieg",
+                unexpected_rain: "Nieoczekiwany deszcz",
+                unexpected_clouds: "Nieoczekiwane zachmurzenie",
+                unexpected_sun: "Nieoczekiwane słońce",
+                manual_pause: "Pauza nauki",
+                weather_alert: "Alert pogodowy",
+                excluded: "Wykluczone",
             },
             warnings: {
                 high_precipitation_probability: "Wysokie prawdopodobieństwo opadów",
@@ -1020,7 +1068,12 @@ const PremiumDashboardPage = ((Vue) => {
                     ).toFixed(1),
                 };
             });
-            const reasonLabel = (reason) => copy.reasons[reason] || reason || "—";
+            const reasonLabel = (reason) => {
+                if (!reason) return "—";
+                if (copy.reasons[reason]) return copy.reasons[reason];
+                if (String(reason).startsWith("plant_outage_")) return copy.reasons.plant_outage;
+                return reason;
+            };
 
             const warningLabel = (warning) => warning?.title
                 || copy.warnings[warning?.code]

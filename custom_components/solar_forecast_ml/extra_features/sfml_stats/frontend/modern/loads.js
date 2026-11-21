@@ -830,7 +830,7 @@
                                         <li v-for="(cond, index) in item.conditions" :key="index">{{ conditionText(cond) }}</li>
                                     </ul>
                                     <p v-if="item.kind === 'switchable' && item.active && !item.is_on && item.next_window" class="loads-plan">{{ t('nextStart', { start: timeText(item.next_window.start), end: timeText(item.next_window.end) }) }}{{ item.next_window.needs_surplus ? t('nextNeedsSurplus') : '' }}</p>
-                                    <p v-else-if="item.kind === 'switchable' && item.active && !item.is_on && hasSurplusRule(item)" class="loads-meta">{{ t('nextSurplus', { w: Math.round(item.min_surplus_w) }) }}</p>
+                                    <p v-else-if="item.kind === 'switchable' && item.active && !item.is_on && hasSurplusRule(item)" class="loads-meta">{{ t('nextSurplus', { w: $n(item.min_surplus_w, 0) }) }}</p>
                                     <p v-else-if="item.kind === 'program' && item.plan && ['planned', 'started'].includes(item.state)" class="loads-plan">{{ item.plan.late ? t('planLate') : t('planAt', { start: timeText(item.plan.start), end: timeText(item.plan.end) }) }}</p>
                                     <p v-else-if="item.kind === 'timed' && item.state === 'started' && item.plan" class="loads-plan">{{ t('timedOn', { end: timeText(item.plan.end) }) }}</p>
                                     <p v-else-if="item.kind === 'timed' && item.state === 'armed' && item.next_window" class="loads-plan">{{ t('nextStart', { start: timeText(item.next_window.start), end: timeText(item.next_window.end) }) }}{{ item.next_window.needs_surplus ? t('nextNeedsSurplus') : '' }}</p>
@@ -931,11 +931,11 @@
             });
             const surplusText = Vue.computed(() => {
                 const value = status.value?.inputs?.surplus_w;
-                return value === null || value === undefined ? "–" : `${Math.round(value)} W`;
+                return value === null || value === undefined ? "–" : `${window.SFMLI18n.formatNumber(value, 0)} W`;
             });
             const batteryText = Vue.computed(() => {
                 const value = status.value?.inputs?.battery_soc;
-                return value === null || value === undefined ? "–" : `${Math.round(value)} %`;
+                return value === null || value === undefined ? "–" : `${window.SFMLI18n.formatNumber(value, 0)} %`;
             });
 
             const typeMismatch = Vue.computed(() => draft.kind !== "program" && /^(button|script)\./.test(String(draft.entity_id || "").trim().toLowerCase()));
@@ -1166,7 +1166,7 @@
             const detailText = (row) => {
                 const parts = [];
                 if (row.surplus_w !== undefined) parts.push(`${row.surplus_w} W`);
-                if (row.price_ct_kwh !== undefined) parts.push(`${row.price_ct_kwh} ct`);
+                if (row.price_ct_kwh != null && Number.isFinite(Number(row.price_ct_kwh))) parts.push(`${row.price_ct_kwh} ct`);
                 if (row.soc_percent !== undefined) parts.push(`${row.soc_percent} %`);
                 return parts.join(" · ") || "–";
             };
@@ -1180,7 +1180,7 @@
                 const date = new Date(iso);
                 return Number.isNaN(date.getTime()) ? "–" : date.toLocaleTimeString(language(), { hour: "2-digit", minute: "2-digit" });
             };
-            const watts = (value) => (value == null ? null : Math.abs(value) >= 1000 ? `${(value / 1000).toLocaleString(language(), { maximumFractionDigits: 2 })} kW` : `${Math.round(value)} W`);
+            const watts = (value) => (value == null ? null : Math.abs(value) >= 1000 ? `${(value / 1000).toLocaleString(language(), { maximumFractionDigits: 2 })} kW` : `${window.SFMLI18n.formatNumber(value, 0)} W`);
             function hubbleFor(view) {
                 const body = status.value || {};
                 const inputs = body.inputs || {};
