@@ -99,7 +99,8 @@
       "power_sensor_required": "Selectionnez un capteur de puissance pour chaque groupe de panneaux.",
       "power_sensor_not_found": "Capteur de puissance introuvable dans Home Assistant. Verifiez l'ID d'entite.",
       "power_sensor_not_numeric": "La valeur du capteur de puissance n'est pas numerique. Verifiez l'etat du capteur.",
-      "power_sensor_not_power_unit": "Le capteur de puissance doit indiquer en W ou kW."
+      "power_sensor_not_power_unit": "Le capteur de puissance doit indiquer en W ou kW.",
+      "consumption_sensor_not_energy": "Veuillez choisir pour la consommation quotidienne un compteur d'énergie en kWh/Wh, pas un capteur de puissance en W."
     },
     "abort": {
       "already_configured": "Integration deja configuree",

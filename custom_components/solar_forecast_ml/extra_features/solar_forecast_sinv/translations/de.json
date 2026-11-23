@@ -571,7 +571,8 @@
             "mtec_unreachable": "Die M-TEC-Steuerung ist unter dieser Adresse nicht erreichbar.",
             "mtec_modbus_inactive": "Die Modbus-Schnittstelle antwortet nicht (zum Beispiel illegale Adresse). Modbus an der M-TEC-Steuerung aktivieren.",
             "mtec_modbus_error": "Die M-TEC-Steuerung hat die Abfrage abgelehnt.",
-            "mtec_duplicate": "Diese M-TEC-Steuerung ist bereits eingerichtet."
+            "mtec_duplicate": "Diese M-TEC-Steuerung ist bereits eingerichtet.",
+            "wrong_device": "Die Adresse gehört zu einem anderen Gerät als dieser Eintrag. Für ein anderes Gerät einen neuen Eintrag anlegen."
         },
         "abort": {
             "already_configured": "Dieses Konto ist bereits konfiguriert!",
@@ -582,7 +583,9 @@
             "emsesp_already_configured": "Dieses Gateway ist bereits eingerichtet.",
             "stiebel_already_configured": "Dieses ISG ist bereits eingerichtet.",
             "mtec_already_configured": "Diese M-TEC-Steuerung ist bereits eingerichtet.",
-            "reauth_successful": "Der Zugriffstoken wurde aktualisiert."
+            "reauth_successful": "Der Zugriffstoken wurde aktualisiert.",
+            "reconfigure_successful": "Die Verbindungsdaten wurden aktualisiert.",
+            "reconfigure_use_options": "Für diesen Eintrag gibt es keine Verbindungsdaten zum Neukonfigurieren. Einstellungen werden über „Konfigurieren“ geändert."
         }
     },
     "options": {

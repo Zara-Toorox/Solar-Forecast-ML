@@ -99,7 +99,8 @@
       "power_sensor_required": "Выберите датчик мощности для каждой группы панелей.",
       "power_sensor_not_found": "Датчик мощности не найден в Home Assistant. Проверьте ID сущности.",
       "power_sensor_not_numeric": "Значение датчика мощности не числовое. Проверьте состояние датчика.",
-      "power_sensor_not_power_unit": "Датчик мощности должен передавать значения в W или kW."
+      "power_sensor_not_power_unit": "Датчик мощности должен передавать значения в W или kW.",
+      "consumption_sensor_not_energy": "Для суточного потребления выберите счётчик энергии в kWh/Wh, а не датчик мощности в W."
     },
     "abort": {
       "already_configured": "Интеграция уже настроена",

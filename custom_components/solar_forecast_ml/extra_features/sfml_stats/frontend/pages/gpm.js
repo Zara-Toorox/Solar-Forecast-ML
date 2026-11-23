@@ -1056,7 +1056,7 @@ const _GPMPage = {
             return ranges;
         }
         function formatMissingDayRanges(days) {
-            const locale = chartLocale();
+            const locale = localeTag();
             return compressMissingDayRanges(days)
                 .map(([start, end]) => {
                     const left = new Intl.DateTimeFormat(locale, {

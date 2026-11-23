@@ -85,7 +85,7 @@ const _WeatherPage = {
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{2600}</div>
                         <div class="weather-stat-value">{{ fmt(current.solar_radiation_wm2, 0) }}<span class="weather-stat-unit">W/m²</span></div>
-                        <div class="weather-stat-label">{{ $t('weather.radiation') }}</div>
+                        <div class="weather-stat-label">{{ $t('weather.radiation') }}<span v-if="radiationSourceText" class="weather-stat-unit"> · {{ radiationSourceText }}</span></div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F327}</div>
@@ -412,6 +412,7 @@ const _WeatherPage = {
             visibility_km: null, cloud_cover: null, precipitation_mm: null,
             precipitation_unit: null, precipitation_semantics: null,
             condition: null, dewpoint: null, solar_radiation_wm2: null,
+            solar_radiation_source: null,
             solar_potential: null, timestamp: null,
         });
         const forecast = ref([]);
@@ -572,6 +573,14 @@ const _WeatherPage = {
                 .map(Number);
             return values.length ? Math.round(Math.max(...values)) : 0;
         };
+        const radiationSourceLabel = (source) => {
+            if (source === 'calibrated') return t('weather.radiationCalibrated');
+            if (source === 'measured') return t('weather.radiationMeasured');
+            return '';
+        };
+        const radiationSourceText = computed(() => (
+            current.solar_radiation_wm2 == null ? '' : radiationSourceLabel(current.solar_radiation_source)
+        ));
         const radiationKpis = computed(() => {
             const observed = radiation.actual.length ? radiation.actual : radiation.forecast;
             if (!observed.length && !radiation.forecast.length) return null;
@@ -669,7 +678,33 @@ const _WeatherPage = {
             if (!radiationChart) radiationChart = echarts.init(radiationChartEl.value);
 
             const hours = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
-            const actualMap = new Map(radiation.actual.map(r => [r.hour, r.ghi]));
+            const actualMap = new Map(radiation.actual.map(r => [r.hour, r]));
+            const solarColor = window.sfmlThemeColor?.("--solar") || "#fbbf24";
+            // Calibrated hours: filled dot; measured hours: hollow dot. Missing hours stay gaps.
+            const actualPoint = (hour) => {
+                const row = actualMap.get(hour);
+                if (!row || row.ghi == null) return null;
+                const measured = row.source === 'measured';
+                return {
+                    value: row.ghi,
+                    source: row.source,
+                    itemStyle: measured
+                        ? { color: getThemeColor('--bg-card', '#0f1c29'), borderColor: solarColor, borderWidth: 2 }
+                        : { color: solarColor, borderColor: solarColor, borderWidth: 2 },
+                };
+            };
+            const tooltipFormatter = (params) => {
+                const items = Array.isArray(params) ? params : [params];
+                const lines = items
+                    .filter(p => (p.data && typeof p.data === 'object' && !Array.isArray(p.data) ? p.data.value : p.value) != null)
+                    .map(p => {
+                        const isObj = p.data && typeof p.data === 'object' && !Array.isArray(p.data);
+                        const value = isObj ? p.data.value : p.value;
+                        const origin = isObj ? radiationSourceLabel(p.data.source) : '';
+                        return `${p.marker}${p.seriesName}${origin ? ` (${origin})` : ''}: ${window.SFMLI18n.formatNumber(value, 0)} W/m²`;
+                    });
+                return [items[0]?.axisValueLabel || '', ...lines].join('<br/>');
+            };
             const fcMap = new Map(radiation.forecast.map(r => [r.hour, r]));
             const csMap = new Map(radiation.clear_sky.map(r => [r.hour, r.ghi]));
 
@@ -682,6 +717,7 @@ const _WeatherPage = {
                     borderColor: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.1)'),
                     textStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), fontFamily: 'var(--font-family)', fontSize: 12 },
                     extraCssText: 'backdrop-filter: blur(8px);',
+                    formatter: tooltipFormatter,
                 },
                 legend: { data: [t('weather.ghiActual'), t('weather.ghiForecast'), 'DNI', 'DHI', t('weather.clearSky')], top: 0, textStyle: { color: getThemeColor('--text-secondary', '#8b949e') } },
                 xAxis: { type: 'category', data: hours, axisLabel: { color: getThemeColor('--text-secondary', '#8b949e'), fontSize: 12, interval: 2 }, axisLine: { lineStyle: { color: getThemeColor('--border-default', 'rgba(255, 255, 255, 0.15)') } } },
@@ -703,8 +739,8 @@ const _WeatherPage = {
                     },
                     {
                         name: t('weather.ghiActual'), type: 'line',
-                        data: hours.map((_, h) => actualMap.get(h) ?? null),
-                        smooth: true, symbol: 'circle', symbolSize: 5,
+                        data: hours.map((_, h) => actualPoint(h)),
+                        smooth: true, symbol: 'circle', symbolSize: 7, connectNulls: false,
                         lineStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24"), width: 2 },
                         itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24") },
                         areaStyle: { color: (window.sfmlThemeColor?.("--solar", 0.15) || 'rgba(251,191,36,0.15)') },
@@ -878,7 +914,7 @@ const _WeatherPage = {
             historyTab, historyTabs, historyLoading, lastUpdated,
             forecastChartEl, radiationChartEl, historyChartEl,
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,
-            dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis,
+            dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis, radiationSourceText,
             fmt, formatTime,
             historyAvailabilityText, historyPartialDayText, rainHistoryValue, rainHistoryUnit,
             currentPrecipitationUnit,

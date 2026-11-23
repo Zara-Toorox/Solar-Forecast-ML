@@ -99,7 +99,8 @@
       "power_sensor_required": "Select a power sensor for every panel group.",
       "power_sensor_not_found": "Power sensor not found in Home Assistant. Check the entity ID.",
       "power_sensor_not_numeric": "Power sensor value is not numeric. Check sensor state.",
-      "power_sensor_not_power_unit": "Power sensor must report in W or kW."
+      "power_sensor_not_power_unit": "Power sensor must report in W or kW.",
+      "consumption_sensor_not_energy": "Please select an energy meter in kWh/Wh for the daily consumption, not a power sensor in W."
     },
     "abort": {
       "already_configured": "Integration already configured",

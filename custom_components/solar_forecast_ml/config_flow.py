@@ -120,7 +120,7 @@ def _get_base_schema(defaults: dict | None, is_reconfigure: bool = False) -> vol
     return vol.Schema(
         {
             optional_entity_key(CONF_TOTAL_CONSUMPTION_TODAY): selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["sensor"])
+                selector.EntitySelectorConfig(domain=["sensor"], device_class=["energy"])
             ),
             vol.Optional(
                 CONF_SOLAR_CAPACITY,
@@ -171,6 +171,27 @@ def _get_base_schema(defaults: dict | None, is_reconfigure: bool = False) -> vol
             ),
         }
     )
+
+
+_CONSUMPTION_ENERGY_UNITS = frozenset({"kWh", "Wh", "MWh"})
+
+
+def _consumption_sensor_error(hass: Any, entity_id: Any) -> str | None:
+    """Error code when the consumption sensor is a power or non-energy entity. @zara
+
+    Same rule as core_consumption_sensor.consumption_sensor_problem (the flow
+    cannot import from the runtime package). A missing state is accepted.
+    """
+    if not isinstance(entity_id, str) or not entity_id.strip():
+        return None
+    state = hass.states.get(entity_id.strip())
+    if state is None:
+        return None
+    if _attr_value(state.attributes.get("device_class")).lower() == "power":
+        return "consumption_sensor_not_energy"
+    if _attr_value(state.attributes.get("unit_of_measurement")).strip() not in _CONSUMPTION_ENERGY_UNITS:
+        return "consumption_sensor_not_energy"
+    return None
 
 
 def _parse_panel_groups(panel_groups_str: str) -> list[dict]:
@@ -496,6 +517,12 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except (ValueError, TypeError):
                 errors[CONF_SOLAR_CAPACITY] = "invalid_input"
 
+            consumption_error = _consumption_sensor_error(
+                self.hass, user_input.get(CONF_TOTAL_CONSUMPTION_TODAY)
+            )
+            if consumption_error:
+                errors[CONF_TOTAL_CONSUMPTION_TODAY] = consumption_error
+
             if errors:
                 return self.async_show_form(
                     step_id="user",
@@ -694,6 +721,12 @@ class SolarForecastMLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         errors[CONF_SOLAR_CAPACITY] = "invalid_capacity"
             except (ValueError, TypeError):
                 errors[CONF_SOLAR_CAPACITY] = "invalid_input"
+
+            consumption_error = _consumption_sensor_error(
+                self.hass, user_input.get(CONF_TOTAL_CONSUMPTION_TODAY)
+            )
+            if consumption_error:
+                errors[CONF_TOTAL_CONSUMPTION_TODAY] = consumption_error
 
             if errors:
                 return self.async_show_form(

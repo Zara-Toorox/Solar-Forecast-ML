@@ -216,6 +216,28 @@ _MQTT_POLLER_SPEED_MAX: float = 10
 _MQTT_POLLER_SPEED_DEF: float = 1
 
 
+# Entry connection -> setup step that asks for its host, port and unit id
+_RECONFIGURE_STEPS: dict[str, str] = {
+    fronius.CONNECTION_LOCAL: "fronius",
+    zendure.CONNECTION_LOCAL: "zendure",
+    opendtu.CONNECTION_LOCAL: "opendtu",
+    ahoy.CONNECTION_LOCAL: "ahoy",
+    hoymiles_dtu.CONNECTION_LOCAL: "hoymiles_dtu",
+    kostal.CONNECTION_LOCAL: "kostal",
+    solax.CONNECTION_LOCAL: "solax",
+    sungrow.CONNECTION_LOCAL: "sungrow",
+    huawei.CONNECTION_LOCAL: "huawei",
+    solakon.CONNECTION_LOCAL: "solakon",
+    solplanet.CONNECTION_MODBUS: "solplanet",
+    solplanet_dongle.CONNECTION_DONGLE: "solplanet_dongle",
+    sigenergy.CONNECTION_MODBUS: "sigenergy",
+    deye.CONNECTION_SOLARMAN: "deye",
+    deye.CONNECTION_MODBUS: "deye",
+    stiebel_isg.CONNECTION: "stiebel",
+    mtec.CONNECTION: "mtec",
+}
+
+
 class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     """Config flow for Solar Forecast S-INV. @zara"""
 
@@ -223,6 +245,8 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     # Home Assistant will call your migrate method if the version changes
     VERSION = CONFIG_VERSION
     MINOR_VERSION = CONFIG_MINOR_VERSION
+
+    _reconfigure_entry_id: str | None = None
 
     def __init__(self) -> None:
         """Init the FlowHandler. @thomas"""
@@ -510,7 +534,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.FlowResult:
         """Ask for the ISG and read one input register. Read only. @zara"""
         errors: dict[str, str] = {}
-        current = user_input or {}
+        current = self._form_values(user_input)
         if user_input is not None:
             try:
                 host = normalize_stiebel_host(str(user_input.get(CONF_HOST, "")))
@@ -526,8 +550,14 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 except StiebelError as err:
                     errors[CONF_HOST] = stiebel_setup_code(err)
                 else:
-                    if self._stiebel_taken(host, port, unit_id):
+                    entry = self._reconfigure_entry()
+                    if self._stiebel_taken(host, port, unit_id, skip=entry):
                         return self.async_abort(reason="stiebel_already_configured")
+                    if entry is not None:
+                        return self._async_reconfigure_done(
+                            entry,
+                            {CONF_HOST: host, CONF_PORT: port, CONF_UNIT_ID: unit_id},
+                        )
                     return self.async_create_entry(
                         title=stiebel_isg.NAME,
                         data={
@@ -562,7 +592,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.FlowResult:
         """Ask for the M-TEC controller and read one holding register. Read only. @zara"""
         errors: dict[str, str] = {}
-        current = user_input or {}
+        current = self._form_values(user_input)
         if user_input is not None:
             try:
                 host = normalize_stiebel_host(str(user_input.get(CONF_HOST, "")))
@@ -578,8 +608,14 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 except MtecError as err:
                     errors[CONF_HOST] = mtec_setup_code(err)
                 else:
-                    if self._mtec_taken(host, port, unit_id):
+                    entry = self._reconfigure_entry()
+                    if self._mtec_taken(host, port, unit_id, skip=entry):
                         return self.async_abort(reason="mtec_already_configured")
+                    if entry is not None:
+                        return self._async_reconfigure_done(
+                            entry,
+                            {CONF_HOST: host, CONF_PORT: port, CONF_UNIT_ID: unit_id},
+                        )
                     return self.async_create_entry(
                         title=mtec.NAME,
                         data={
@@ -609,21 +645,29 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    def _mtec_taken(self, host: str, port: int, unit_id: int) -> bool:
+    def _mtec_taken(
+        self, host: str, port: int, unit_id: int, *, skip: Any = None
+    ) -> bool:
         """Return True when this M-TEC target is already configured. @zara"""
         entries = []
         config_entries = getattr(self.hass, "config_entries", None)
         if config_entries is not None:
             entries = config_entries.async_entries(DOMAIN)
-        return mtec_same_target(entries, host, port, unit_id, skip=None)
+        return mtec_same_target(
+            entries, host, port, unit_id, skip=getattr(skip, "entry_id", None)
+        )
 
-    def _stiebel_taken(self, host: str, port: int, unit_id: int) -> bool:
+    def _stiebel_taken(
+        self, host: str, port: int, unit_id: int, *, skip: Any = None
+    ) -> bool:
         """Return True when this ISG target is already configured. @zara"""
         entries = []
         config_entries = getattr(self.hass, "config_entries", None)
         if config_entries is not None:
             entries = config_entries.async_entries(DOMAIN)
-        return stiebel_same_target(entries, host, port, unit_id, skip=None)
+        return stiebel_same_target(
+            entries, host, port, unit_id, skip=getattr(skip, "entry_id", None)
+        )
 
     def _async_show_inverter_form(self) -> config_entries.FlowResult:
         """Show the inverter system list (step id ``user``). @zara"""
@@ -742,7 +786,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Step 3 for KOSTAL PLENTICORE: Modbus TCP address, port and unit id. @zara"""
-        values = user_input or {}
+        values = self._form_values(user_input)
 
         async def probe(_session, host: str) -> dict[str, Any]:
             return await async_probe_kostal(
@@ -773,7 +817,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Step 3 for SolaX hybrids: Modbus TCP of the monitoring module. @zara"""
-        values = user_input or {}
+        values = self._form_values(user_input)
 
         async def probe(_session, host: str) -> dict[str, Any]:
             return await async_probe_solax(
@@ -804,7 +848,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Step 3 for Sungrow hybrids: Modbus TCP of LAN port or WiNet-S. @zara"""
-        values = user_input or {}
+        values = self._form_values(user_input)
 
         async def probe(_session, host: str) -> dict[str, Any]:
             return await async_probe_sungrow(
@@ -835,7 +879,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Step 3 for Huawei SUN2000: Modbus TCP of SDongle or inverter AP. @zara"""
-        values = user_input or {}
+        values = self._form_values(user_input)
 
         async def probe(_session, host: str) -> dict[str, Any]:
             return await async_probe_huawei(
@@ -866,7 +910,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Step 3 for the Solakon ONE: its Modbus TCP address. @zara"""
-        values = user_input or {}
+        values = self._form_values(user_input)
 
         async def probe(_session, host: str) -> dict[str, Any]:
             return await async_probe_solakon(
@@ -897,7 +941,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Step for a Solplanet inverter: Modbus TCP input registers, read only. @zara"""
-        values = user_input or {}
+        values = self._form_values(user_input)
 
         async def probe(_session, host: str) -> dict[str, Any]:
             return await async_probe_solplanet(
@@ -928,7 +972,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Step for a Solplanet Ai-Dongle: local HTTP API, read only. @zara"""
-        values = user_input or {}
+        values = self._form_values(user_input)
 
         async def probe(session, host: str) -> dict[str, Any]:
             return await async_probe_solplanet_dongle(
@@ -956,7 +1000,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
         """Step for a Sigenergy hybrid: Modbus TCP, inverter and plant address, read only. @zara"""
-        values = user_input or {}
+        values = self._form_values(user_input)
 
         async def probe(_session, host: str) -> dict[str, Any]:
             return await async_probe_sigenergy(
@@ -988,7 +1032,7 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> config_entries.FlowResult:
         """Step for a Deye hybrid: Solarman V5 or Modbus TCP, read only. @zara"""
         solarman = self._connection == deye.CONNECTION_SOLARMAN
-        values = user_input or {}
+        values = self._form_values(user_input)
         default_port = (
             deye.DEFAULT_PORT_SOLARMAN if solarman else deye.DEFAULT_PORT_MODBUS
         )
@@ -1013,20 +1057,25 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except (ValueError, TypeError, struct.error):
                 errors[CONF_HOST] = "not_deye"
             else:
-                await self.async_set_unique_id(f"{VENDOR_DEYE}_{identity['serial']}")
-                self._abort_if_unique_id_configured(
-                    updates={CONF_HOST: host, **identity.get("data", {})}
-                )
-                return self.async_create_entry(
-                    title=identity["name"],
-                    data={
-                        CONF_VENDOR: VENDOR_DEYE,
-                        CONF_CONNECTION: self._connection,
-                        CONF_HOST: host,
-                        **identity.get("data", {}),
-                    },
-                    options={CONF_SCAN_INTERVAL: deye.DEFAULT_SCAN_SECONDS},
-                )
+                unique_id = f"{VENDOR_DEYE}_{identity['serial']}"
+                updates = {CONF_HOST: host, **identity.get("data", {})}
+                if (entry := self._reconfigure_entry()) is not None:
+                    if entry.unique_id == unique_id:
+                        return self._async_reconfigure_done(entry, updates)
+                    errors[CONF_HOST] = "wrong_device"
+                else:
+                    await self.async_set_unique_id(unique_id)
+                    self._abort_if_unique_id_configured(updates=updates)
+                    return self.async_create_entry(
+                        title=identity["name"],
+                        data={
+                            CONF_VENDOR: VENDOR_DEYE,
+                            CONF_CONNECTION: self._connection,
+                            CONF_HOST: host,
+                            **identity.get("data", {}),
+                        },
+                        options={CONF_SCAN_INTERVAL: deye.DEFAULT_SCAN_SECONDS},
+                    )
         fields: dict[Any, Any] = {
             vol.Required(CONF_HOST, default=values.get(CONF_HOST, "")): str,
             vol.Required(
@@ -1236,26 +1285,32 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     getattr(err, "error_key", None) or error_key or f"not_{vendor}"
                 )
             else:
-                await self.async_set_unique_id(f"{vendor}_{identity['serial']}")
-                self._abort_if_unique_id_configured(
-                    updates={CONF_HOST: host, **identity.get("data", {})}
-                )
-                return self.async_create_entry(
-                    title=identity["name"],
-                    data={
-                        CONF_VENDOR: vendor,
-                        CONF_CONNECTION: self._connection,
-                        CONF_HOST: host,
-                        **identity.get("data", {}),
-                    },
-                    options={CONF_SCAN_INTERVAL: module.DEFAULT_SCAN_SECONDS},
-                )
+                unique_id = f"{vendor}_{identity['serial']}"
+                updates = {CONF_HOST: host, **identity.get("data", {})}
+                if (entry := self._reconfigure_entry()) is not None:
+                    if entry.unique_id == unique_id:
+                        return self._async_reconfigure_done(entry, updates)
+                    errors[CONF_HOST] = "wrong_device"
+                else:
+                    await self.async_set_unique_id(unique_id)
+                    self._abort_if_unique_id_configured(updates=updates)
+                    return self.async_create_entry(
+                        title=identity["name"],
+                        data={
+                            CONF_VENDOR: vendor,
+                            CONF_CONNECTION: self._connection,
+                            CONF_HOST: host,
+                            **identity.get("data", {}),
+                        },
+                        options={CONF_SCAN_INTERVAL: module.DEFAULT_SCAN_SECONDS},
+                    )
         return self.async_show_form(
             step_id=step_id,
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_HOST, default=(user_input or {}).get(CONF_HOST, "")
+                        CONF_HOST,
+                        default=self._form_values(user_input).get(CONF_HOST, ""),
                     ): str,
                     **(extra_fields or {}),
                 }
@@ -1352,11 +1407,49 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.FlowResult:
-        """Add reconfigure step to allow to reconfigure a config entry. @thomas"""
+        """Open the setup step that belongs to the entry's vendor. @zara
 
-        if self._is_enphase_entry():
+        Anker cloud and Enphase keep their account flows. Local devices reopen
+        their own connection step with the stored values. Everything without
+        connection fields points to the options.
+        """
+        entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id"))
+        vendor = entry.data.get(CONF_VENDOR) if entry is not None else None
+        if entry is not None and vendor in (None, DEFAULT_VENDOR):
+            return await self.async_step_reauth_confirm()
+        if vendor == VENDOR_ENPHASE:
             return await self.async_step_enphase_reauth()
-        return await self.async_step_reauth_confirm()
+        step = (
+            _RECONFIGURE_STEPS.get(entry.data.get(CONF_CONNECTION)) if entry else None
+        )
+        if step is None or vendor not in LOCAL_VENDORS:
+            return self.async_abort(reason="reconfigure_use_options")
+        self._vendor = vendor
+        self._connection = entry.data[CONF_CONNECTION]
+        self._reconfigure_entry_id = entry.entry_id
+        return await getattr(self, f"async_step_{step}")(user_input)
+
+    def _reconfigure_entry(self) -> config_entries.ConfigEntry | None:
+        """Return the entry being reconfigured, None during a normal setup. @zara"""
+        entry_id = self._reconfigure_entry_id
+        if not entry_id:
+            return None
+        return self.hass.config_entries.async_get_entry(entry_id)
+
+    def _form_values(self, user_input: dict[str, Any] | None) -> dict[str, Any]:
+        """Form defaults: the entered values, else the stored ones on reconfigure. @zara"""
+        if user_input:
+            return user_input
+        entry = self._reconfigure_entry()
+        return dict(entry.data) if entry is not None else {}
+
+    def _async_reconfigure_done(
+        self, entry: config_entries.ConfigEntry, updates: dict[str, Any]
+    ) -> config_entries.FlowResult:
+        """Write new connection values into the existing entry and reload it. @zara"""
+        return self.async_update_reload_and_abort(
+            entry, data_updates=updates, reason="reconfigure_successful"
+        )
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None

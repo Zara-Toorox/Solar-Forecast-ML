@@ -396,17 +396,33 @@ function installModernChartDefaults() {
                 chartRefreshers.delete(refreshTheme);
                 return;
             }
-            originalSetOption(
-                normalizeChartOption(chart.getOption()),
-                { notMerge: false, lazyUpdate: true, silent: true }
-            );
+            // A chart still waiting for its data has no option yet; only resize it.
+            let current = null;
+            try {
+                current = chart.getOption();
+            } catch (_error) {
+                current = null;
+            }
+            if (current) {
+                originalSetOption(
+                    normalizeChartOption(current),
+                    { notMerge: false, lazyUpdate: true, silent: true }
+                );
+            }
             chart.resize();
         };
         chartRefreshers.add(refreshTheme);
         return chart;
     };
     window.addEventListener("sfml-modern-themechange", () => {
-        requestAnimationFrame(() => chartRefreshers.forEach((refresh) => refresh()));
+        requestAnimationFrame(() => chartRefreshers.forEach((refresh) => {
+            // One failing chart must not stop the others from being refreshed.
+            try {
+                refresh();
+            } catch (error) {
+                console.warn("[SFML] chart theme refresh failed", error);
+            }
+        }));
     });
     window.echarts.__sfmlModernDefaults = true;
 }

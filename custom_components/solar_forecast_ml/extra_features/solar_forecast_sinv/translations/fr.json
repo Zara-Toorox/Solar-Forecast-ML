@@ -571,7 +571,8 @@
             "mtec_unreachable": "Le régulateur M-TEC n'est pas joignable à cette adresse.",
             "mtec_modbus_inactive": "L'interface Modbus ne répond pas (par exemple une adresse illégale). Activez Modbus sur le régulateur M-TEC.",
             "mtec_modbus_error": "Le régulateur M-TEC a refusé la requête.",
-            "mtec_duplicate": "Ce régulateur M-TEC est déjà configuré."
+            "mtec_duplicate": "Ce régulateur M-TEC est déjà configuré.",
+            "wrong_device": "L'adresse appartient à un autre appareil que cette entrée. Ajoutez une nouvelle entrée pour un autre appareil."
         },
         "abort": {
             "already_configured": "Ce compte est déjà configuré",
@@ -582,7 +583,9 @@
             "emsesp_already_configured": "Cette passerelle est déjà configurée.",
             "stiebel_already_configured": "Cet ISG est déjà configuré.",
             "mtec_already_configured": "Ce régulateur M-TEC est déjà configuré.",
-            "reauth_successful": "Le jeton d'accès a été mis à jour."
+            "reauth_successful": "Le jeton d'accès a été mis à jour.",
+            "reconfigure_successful": "Les paramètres de connexion ont été mis à jour.",
+            "reconfigure_use_options": "Cette entrée n'a pas de paramètres de connexion à reconfigurer. Modifiez ses réglages via « Configurer »."
         }
     },
     "options": {

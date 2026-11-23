@@ -571,7 +571,8 @@
             "mtec_unreachable": "The M-TEC controller could not be reached at this address.",
             "mtec_modbus_inactive": "The Modbus interface did not answer (for example an illegal address). Enable Modbus on the M-TEC controller.",
             "mtec_modbus_error": "The M-TEC controller rejected the query.",
-            "mtec_duplicate": "This M-TEC controller is already set up."
+            "mtec_duplicate": "This M-TEC controller is already set up.",
+            "wrong_device": "The address belongs to a different device than this entry. Add a new entry for another device."
         },
         "abort": {
             "already_configured": "This account is already configured",
@@ -582,7 +583,9 @@
             "emsesp_already_configured": "This gateway is already set up.",
             "stiebel_already_configured": "This ISG is already set up.",
             "mtec_already_configured": "This M-TEC controller is already set up.",
-            "reauth_successful": "The access token was updated."
+            "reauth_successful": "The access token was updated.",
+            "reconfigure_successful": "The connection settings were updated.",
+            "reconfigure_use_options": "This entry has no connection settings to reconfigure. Change its settings through \"Configure\"."
         }
     },
     "options": {

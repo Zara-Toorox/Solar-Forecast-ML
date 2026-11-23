@@ -18,7 +18,9 @@ is integer + scale factor in both the float and the int+SF variant.
 Model 160 offsets from its id register: scale factors DCA 2, DCV 3, DCW 4, DCWH 5,
 module count 8, module n from 10 + 20 * (n - 1): id +0, label +1..+8, DCA +9,
 DCV +10, DCW +11, DCWH (acc32, Wh) +12/+13. On GEN24 with storage, modules 3 and 4
-are the battery port ("StCha 3" charging, "StDisCha 4" discharging), not PV.
+are the battery port ("StCha 3" charging, "StDisCha 4" discharging), not PV. Verto
+Plus with storage reports five modules ("MPPT 1..3", "StCha 4", "StDisCha 5"), so
+modules are read as far as the block holds them and recognised by label only.
 Up to firmware 1.30 the battery counters read 0 while the other direction is
 active; since 1.31 both count continuously.
 """
@@ -34,7 +36,8 @@ CHAIN_START = 40002
 CHAIN_END = 0xFFFF
 MPPT_MODEL = 160
 MAX_MODELS = 20
-MAX_MODULES = 4
+# upper bound only; the read block (max 125 registers) limits the count further
+MAX_MODULES = 8
 MODULE_STRIDE = 20
 # plausible scale factors; anything else is treated as not implemented
 SF_RANGE = range(-10, 11)

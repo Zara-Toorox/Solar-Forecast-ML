@@ -99,7 +99,8 @@
       "power_sensor_required": "Seleccione un sensor de potencia para cada grupo de paneles.",
       "power_sensor_not_found": "Sensor de potencia no encontrado en Home Assistant. Compruebe el ID de entidad.",
       "power_sensor_not_numeric": "El valor del sensor de potencia no es numerico. Compruebe el estado del sensor.",
-      "power_sensor_not_power_unit": "El sensor de potencia debe informar en W o kW."
+      "power_sensor_not_power_unit": "El sensor de potencia debe informar en W o kW.",
+      "consumption_sensor_not_energy": "Seleccione para el consumo diario un contador de energía en kWh/Wh, no un sensor de potencia en W."
     },
     "abort": {
       "already_configured": "Integracion ya configurada",

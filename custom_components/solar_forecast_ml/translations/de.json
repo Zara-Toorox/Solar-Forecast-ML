@@ -163,7 +163,8 @@
       "power_sensor_required": "Bitte für jede Panelgruppe einen Leistungssensor auswählen.",
       "power_sensor_not_found": "Leistungssensor nicht in Home Assistant gefunden. Bitte Entity-ID prüfen.",
       "power_sensor_not_numeric": "Leistungssensor-Wert ist nicht numerisch. Bitte Sensor-Status prüfen.",
-      "power_sensor_not_power_unit": "Leistungssensor muss die Einheit W oder kW verwenden."
+      "power_sensor_not_power_unit": "Leistungssensor muss die Einheit W oder kW verwenden.",
+      "consumption_sensor_not_energy": "Bitte für den Tagesverbrauch einen Energiezähler in kWh/Wh wählen, keinen Leistungssensor in W."
     },
     "abort": {
       "already_configured": "Integration bereits konfiguriert",

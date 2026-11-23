@@ -298,6 +298,7 @@ const _EnergyPage = {
                             Ø {{ billing.finance.avg_price_ct != null ? $n(billing.finance.avg_price_ct, 1) : '—' }} ct/kWh
                             <template v-if="moneyAmount(billing.finance, 'base_fee_eur') != null"> · +{{ formatEuro(moneyAmount(billing.finance, 'base_fee_eur')) }} €</template>
                             <template v-if="moneyIncomplete(billing.finance, 'grid_cost_eur') || moneyIncomplete(billing.finance, 'base_fee_eur')"> · {{ $t('gpm.billIncomplete') }}</template>
+                            <template v-if="billing.finance.days_day_mean > 0"> · {{ $t('gpm.chartDayMeanDays', { days: String(billing.finance.days_day_mean) }) }}</template>
                         </div>
                     </div>
                     <div class="eb-item">
@@ -573,6 +574,7 @@ const _EnergyPage = {
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--danger, #ef4444);">
                                 {{ formatEuro(m.cost) }} €
                                 <span v-if="m.costIncomplete"> {{ $t('gpm.billIncomplete') }}</span>
+                                <div v-if="m.daysDayMean > 0" class="energy-price-hint" style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">{{ $t('gpm.chartDayMeanDays', { days: String(m.daysDayMean) }) }}</div>
                                 <div v-if="m.costIncomplete && m.daysWithoutPrice.length" class="energy-price-hint" style="font-size: 0.75rem; font-weight: 400; color: var(--text-secondary);">{{ $t('gpm.missingGpmPricesLead', { count: String(m.daysWithoutPrice.length), ranges: formatDayRangesForHint(m.daysWithoutPrice) }) }}<a href="#gpm/gpm-csv-import">{{ $t('gpm.missingGpmPricesCsv') }}</a>{{ $t('gpm.missingGpmPricesEnd') }}</div>
                                 <div v-if="m.importSplit" style="font-weight: 500; font-size: 0.75rem; color: var(--text-secondary);">
                                     <div>{{ $t('energy.importOfHouse') }}<template v-if="m.importSplit.house_derived"> ({{ $t('energy.derived') }})</template> {{ fmt(m.importSplit.house.kwh) }} kWh · {{ formatEuro(moneyAmount(m.importSplit.house, 'cost_eur')) }} €<template v-if="moneyIncomplete(m.importSplit.house, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</template></div>
@@ -1427,6 +1429,7 @@ const _EnergyPage = {
                             cost: costShown.amount,
                             costIncomplete: costShown.incomplete,
                             daysWithoutPrice: Array.isArray(m.days_without_price) ? m.days_without_price : [],
+                            daysDayMean: Number(m.days_day_mean) > 0 ? Number(m.days_day_mean) : 0,
                             avgPrice: avgNumber == null ? null : avgNumber.toFixed(1),
                             unpricedImport: finiteMoney(m.unpriced_import_kwh),
                             saved: savedShown.amount,
@@ -1731,6 +1734,8 @@ const _EnergyPage = {
                             chartMoneyGapTooltipLines(row).forEach(function(line) {
                                 html += "<br/>" + line;
                             });
+                        } else if (row && finiteOrNull(row.days_day_mean) > 0) {
+                            html += "<br/>" + t("gpm.chartDayMeanDays", { days: window.SFMLI18n.formatNumber(row.days_day_mean, 0) });
                         }
                         return html;
                     },
