@@ -315,8 +315,15 @@ class _DcEnergy:
         if isinstance(data, dict):
             from homeassistant.util import dt as dt_util  # noqa: PLC0415
 
-            from .site import ensure_site_sources  # noqa: PLC0415
+            from .site import ensure_site_sources, has_inverter_instance  # noqa: PLC0415
 
+            # A late refresh must not write into a forgotten installation.
+            try:
+                has_instance = has_inverter_instance(self.hass)  # type: ignore[attr-defined]
+            except (AttributeError, KeyError, TypeError, ValueError):
+                has_instance = False
+            if not has_instance:
+                return data
             holder = await ensure_site_sources(self.hass)  # type: ignore[attr-defined]
             # A night substitute publishes power as available 0 W, so a state
             # change cannot tell a live zero from sleep. This mixin sits under

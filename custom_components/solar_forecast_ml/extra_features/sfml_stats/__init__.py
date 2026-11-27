@@ -1042,9 +1042,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][entry.entry_id]["cancel_forecast_morning_job"] = cancel_morning
 
     # Start database self-healing migration for historical forecast comparison correction
-    hass.async_create_task(
+    task_migration = hass.async_create_task(
         forecast_comparison_collector.async_migrate_historical_forecasts()
     )
+    hass.data[DOMAIN][entry.entry_id]["_task_forecast_migration"] = task_migration
 
     async def _hourly_catchup_job() -> None:
         """Fill missing hour_keys from the recorder after setup. @zara"""
@@ -1053,7 +1054,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as err:
             _LOGGER.error("Hourly billing catch-up failed: %s", err)
 
-    hass.async_create_task(_hourly_catchup_job())
+    task_catchup = hass.async_create_task(_hourly_catchup_job())
+    hass.data[DOMAIN][entry.entry_id]["_task_hourly_catchup"] = task_catchup
 
     async def _forecast_evening_job(now: datetime) -> None:
         """Collect evening actuals. @zara"""
@@ -1215,6 +1217,44 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+# Setup tasks of this integration that write to the shared database.
+_BACKGROUND_TASK_KEYS = (
+    "_task_aggregation",
+    "_task_forecast",
+    "_task_reprice",
+    "_task_forecast_migration",
+    "_task_hourly_catchup",
+)
+# Longer than the SQLite busy_timeout (30 s), so a cancelled BEGIN can still finish.
+_BACKGROUND_TASK_STOP_SECONDS = 40.0
+
+
+async def _async_stop_background_tasks(entry_data: dict[str, Any]) -> None:
+    """Cancel the database tasks and wait, bounded, until they have finished."""
+    pending = []
+    for task_key in _BACKGROUND_TASK_KEYS:
+        task = entry_data.get(task_key)
+        if task is not None and not task.done():
+            task.cancel()
+            pending.append(task)
+    if not pending:
+        return
+    done, still_running = await asyncio.wait(
+        pending, timeout=_BACKGROUND_TASK_STOP_SECONDS
+    )
+    for task in done:
+        if not task.cancelled() and task.exception() is not None:
+            _LOGGER.debug(
+                "Background task %s ended with: %s", task.get_name(), task.exception()
+            )
+    if still_running:
+        _LOGGER.warning(
+            "Background tasks still running after %.0fs, closing the database anyway: %s",
+            _BACKGROUND_TASK_STOP_SECONDS,
+            ", ".join(sorted(task.get_name() for task in still_running)),
+        )
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry. @zara"""
     _LOGGER.info("Unloading %s (Entry: %s)", NAME, entry.entry_id)
@@ -1286,11 +1326,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as err:
             _LOGGER.warning("Error stopping power sources collector: %s", err)
 
-    # Cancel background tasks
-    for task_key in ("_task_aggregation", "_task_forecast", "_task_reprice"):
-        task = entry_data.get(task_key)
-        if task and not task.done():
-            task.cancel()
+    # Cancel background tasks and let their transactions roll back before the DB closes
+    await _async_stop_background_tasks(entry_data)
 
     # Dismiss notifications
     try:

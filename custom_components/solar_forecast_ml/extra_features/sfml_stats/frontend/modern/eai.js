@@ -321,7 +321,10 @@ const ModernEAIPage = {
                     liveEnergyFlow.household_kw = wattsToKw(energyFlow?.home?.consumption);
                     liveEnergyFlow.solar_to_house_kw = wattsToKw(energyFlow?.flows?.solar_to_house);
                     liveEnergyFlow.battery_to_house_kw = wattsToKw(energyFlow?.flows?.battery_to_house);
-                    liveEnergyFlow.grid_to_house_kw = wattsToKw(energyFlow?.flows?.grid_to_house);
+                    const withheldFlows = energyFlow?.flows?.withheld;
+                    liveEnergyFlow.grid_to_house_kw = Array.isArray(withheldFlows) && withheldFlows.includes("grid_to_house")
+                        ? null
+                        : wattsToKw(energyFlow?.flows?.grid_to_house);
                     const currentPrice = finiteOrNull(prices?.total_price);
                     electricityPrice.value = null;
                     feedInTariff.value = feedInTariffFromStatus(gpmStatus);

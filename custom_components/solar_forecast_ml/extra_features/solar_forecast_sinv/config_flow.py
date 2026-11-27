@@ -13,6 +13,7 @@
 
 from __future__ import annotations  # noqa: TID251
 
+import contextlib
 import struct
 from pathlib import Path
 from typing import Any
@@ -57,8 +58,9 @@ from homeassistant.helpers.aiohttp_client import (
     async_create_clientsession,
     async_get_clientsession,
 )
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 
-from . import api_client, contract, external_meter
+from . import api_client, contract, external_meter, site
 from .const import (
     ACCEPT_TERMS,
     ALLOW_TESTMODE,
@@ -74,7 +76,12 @@ from .const import (
     CONF_SYSTEM,
     CONF_TEST_OPTIONS,
     CONF_TRIGGER_TIMEOUT,
+    AC_SOURCE_NON_SOLAR,
+    CONF_AC_SOURCE,
+    CONF_AC_SOURCE_STORAGE,
+    AC_SOURCE_STORAGE_NONE,
     CONF_VENDOR,
+    SIGNAL_SITE_CONFIG_UPDATED,
     CONF_WEBHOOK_ID,
     DEFAULT_VENDOR,
     DOMAIN,
@@ -92,6 +99,7 @@ from .const import (
     TERMS_LINK,
     TESTFOLDER,
     TESTMODE,
+    VENDOR_APSYSTEMS,
     VENDOR_CONNECTIONS,
     VENDOR_DEYE,
     VENDOR_EMSESP,
@@ -113,6 +121,7 @@ from .const import (
     VENDOR_ZENDURE,
 )
 from .ahoy_coordinator import async_probe as async_probe_ahoy
+from .apsystems_coordinator import async_probe as async_probe_apsystems
 from .deye_coordinator import async_probe as async_probe_deye
 from .emsesp_coordinator import EmsespError
 from .emsesp_coordinator import async_probe as async_probe_emsesp
@@ -153,6 +162,7 @@ from .stiebel_isg_coordinator import (
 from .sungrow_coordinator import async_probe as async_probe_sungrow
 from .vendors import (
     ahoy,
+    apsystems,
     deye,
     emsesp,
     enphase,
@@ -235,6 +245,7 @@ _RECONFIGURE_STEPS: dict[str, str] = {
     deye.CONNECTION_MODBUS: "deye",
     stiebel_isg.CONNECTION: "stiebel",
     mtec.CONNECTION: "mtec",
+    apsystems.CONNECTION_LOCAL: "apsystems",
 }
 
 
@@ -721,6 +732,8 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_enphase()
         if self._connection == sigenergy.CONNECTION_MODBUS:
             return await self.async_step_sigenergy()
+        if self._connection == apsystems.CONNECTION_LOCAL:
+            return await self.async_step_apsystems()
         return await self.async_step_credentials()
 
     async def async_step_fronius(
@@ -994,6 +1007,169 @@ class AnkerSolixFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                     default=values.get(CONF_PORT, solplanet_dongle.DEFAULT_PORT),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
             },
+        )
+
+    async def async_step_apsystems(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Step for an APsystems EZ1: local API in Local Mode, read only. @zara"""
+        values = self._form_values(user_input)
+        errors: dict[str, str] = {}
+        async def probe(session, host: str) -> dict[str, Any]:
+            return await async_probe_apsystems(
+                session,
+                host,
+                int(values.get(CONF_PORT, apsystems.DEFAULT_PORT)),
+            )
+
+        if user_input:
+            host = str(user_input.get(CONF_HOST, "")).strip()
+            try:
+                identity = await probe(async_get_clientsession(self.hass), host)
+            except (ClientError, TimeoutError, OSError, ImportError, EOFError):
+                errors[CONF_HOST] = "cannot_connect"
+            except (ValueError, TypeError) as err:
+                errors[CONF_HOST] = (
+                    getattr(err, "error_key", None) or "apsystems_local_mode"
+                )
+            else:
+                unique_id = f"{VENDOR_APSYSTEMS}_{identity['serial']}"
+                updates = {CONF_HOST: host, **identity.get("data", {})}
+                if (entry := self._reconfigure_entry()) is not None:
+                    if entry.unique_id != unique_id:
+                        errors[CONF_HOST] = "wrong_device"
+                    else:
+                        was_non_solar = (
+                            entry.data.get(CONF_AC_SOURCE) == AC_SOURCE_NON_SOLAR
+                        )
+                        is_non_solar = was_non_solar or bool(identity.get("non_solar"))
+                        if is_non_solar:
+                            updates[CONF_AC_SOURCE] = AC_SOURCE_NON_SOLAR
+                            if CONF_AC_SOURCE_STORAGE in entry.data:
+                                updates[CONF_AC_SOURCE_STORAGE] = entry.data[
+                                    CONF_AC_SOURCE_STORAGE
+                                ]
+                            if not was_non_solar:
+                                await site.async_retire_solar_source(
+                                    self.hass, entry, identity["serial"]
+                                )
+                            candidates = site.storage_candidates(
+                                self.hass, exclude_entry_id=entry.entry_id
+                            )
+                            if candidates:
+                                self._apsystems_pending = {
+                                    "reconfigure": True,
+                                    "entry": entry,
+                                    "updates": updates,
+                                    "candidates": candidates,
+                                    "default": entry.data.get(
+                                        CONF_AC_SOURCE_STORAGE,
+                                        AC_SOURCE_STORAGE_NONE,
+                                    ),
+                                }
+                                return await self.async_step_apsystems_storage()
+                        return self._async_reconfigure_done(entry, updates)
+                else:
+                    await self.async_set_unique_id(unique_id)
+                    existing = self.hass.config_entries.async_entry_for_domain_unique_id(
+                        DOMAIN, unique_id
+                    )
+                    if identity.get("non_solar") and (
+                        existing is None
+                        or existing.data.get(CONF_AC_SOURCE) != AC_SOURCE_NON_SOLAR
+                    ):
+                        await site.async_retire_solar_source(
+                            self.hass, existing, identity["serial"]
+                        )
+                    self._abort_if_unique_id_configured(updates=updates)
+                    entry_data = {
+                        CONF_VENDOR: VENDOR_APSYSTEMS,
+                        CONF_CONNECTION: self._connection,
+                        CONF_HOST: host,
+                        **identity.get("data", {}),
+                    }
+                    if identity.get("non_solar"):
+                        candidates = site.storage_candidates(self.hass)
+                        if candidates:
+                            self._apsystems_pending = {
+                                "reconfigure": False,
+                                "title": identity["name"],
+                                "data": entry_data,
+                                "candidates": candidates,
+                                "default": AC_SOURCE_STORAGE_NONE,
+                            }
+                            return await self.async_step_apsystems_storage()
+                    else:
+                        await site.async_prepare_solar_rebase(
+                            self.hass, identity["serial"]
+                        )
+                    return self.async_create_entry(
+                        title=identity["name"],
+                        data=entry_data,
+                        options={CONF_SCAN_INTERVAL: apsystems.DEFAULT_SCAN_SECONDS},
+                    )
+        return self.async_show_form(
+            step_id="apsystems",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_HOST,
+                        default=values.get(CONF_HOST, ""),
+                    ): str,
+                    vol.Required(
+                        CONF_PORT,
+                        default=values.get(CONF_PORT, apsystems.DEFAULT_PORT),
+                    ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_apsystems_storage(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.FlowResult:
+        """Select whether an EZ1 _b is fed by an existing S-INV storage device. @zara"""
+        pending = getattr(self, "_apsystems_pending", None) or {}
+        candidates: dict[str, str] = pending.get("candidates") or {}
+        if user_input is not None:
+            chosen = user_input[CONF_AC_SOURCE_STORAGE]
+            if pending.get("reconfigure"):
+                entry = pending["entry"]
+                updates = {**pending["updates"], CONF_AC_SOURCE_STORAGE: chosen}
+                return self._async_reconfigure_done(entry, updates)
+            entry_data = {**pending["data"], CONF_AC_SOURCE_STORAGE: chosen}
+            return self.async_create_entry(
+                title=pending["title"],
+                data=entry_data,
+                options={CONF_SCAN_INTERVAL: apsystems.DEFAULT_SCAN_SECONDS},
+            )
+        options = [
+            selector.SelectOptionDict(
+                value=AC_SOURCE_STORAGE_NONE,
+                label="None / independent storage",
+            ),
+            *[
+                selector.SelectOptionDict(value=serial, label=label)
+                for serial, label in candidates.items()
+            ],
+        ]
+        default = pending.get("default", AC_SOURCE_STORAGE_NONE)
+        if default not in candidates and default != AC_SOURCE_STORAGE_NONE:
+            default = AC_SOURCE_STORAGE_NONE
+        return self.async_show_form(
+            step_id="apsystems_storage",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_AC_SOURCE_STORAGE, default=default
+                    ): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=options,
+                            mode=selector.SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
         )
 
     async def async_step_sigenergy(
@@ -1954,8 +2130,18 @@ class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsF
         if data.get(CONF_CONNECTION) == maxxisun.CONNECTION_LOCAL:
             return await self._async_finish_options(dict(self.config_entry.options))
         if user_input is not None:
+            updated_input = dict(user_input)
+            if CONF_AC_SOURCE_STORAGE in updated_input:
+                chosen_storage = updated_input.pop(CONF_AC_SOURCE_STORAGE)
+                config_entries_mgr = getattr(self.hass, "config_entries", None)
+                updater = getattr(config_entries_mgr, "async_update_entry", None)
+                new_data = {**data, CONF_AC_SOURCE_STORAGE: chosen_storage}
+                if callable(updater):
+                    updater(self.config_entry, data=new_data)
+                with contextlib.suppress(AttributeError, TypeError):
+                    async_dispatcher_send(self.hass, SIGNAL_SITE_CONFIG_UPDATED)
             return await self._async_finish_options(
-                {**self.config_entry.options, **user_input}
+                {**self.config_entry.options, **updated_input}
             )
         module = {
             zendure.CONNECTION_LOCAL: zendure,
@@ -1973,6 +2159,7 @@ class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsF
             solplanet_dongle.CONNECTION_DONGLE: solplanet_dongle,
             enphase.CONNECTION_LOCAL: enphase,
             sigenergy.CONNECTION_MODBUS: sigenergy,
+            apsystems.CONNECTION_LOCAL: apsystems,
         }.get(self.config_entry.data.get(CONF_CONNECTION), fronius)
         current = self.config_entry.options.get(
             CONF_SCAN_INTERVAL, module.DEFAULT_SCAN_SECONDS
@@ -1990,6 +2177,40 @@ class LocalOptionsFlowHandler(ExternalMeterOptionsMixin, config_entries.OptionsF
                     default=self.config_entry.options.get(CONF_MODBUS, MODBUS_DEFAULT),
                 )
             ] = bool
+        if (
+            module is apsystems
+            and data.get(CONF_AC_SOURCE) == AC_SOURCE_NON_SOLAR
+        ):
+            candidates = site.storage_candidates(
+                self.hass, exclude_entry_id=self.config_entry.entry_id
+            )
+            current_storage = data.get(
+                CONF_AC_SOURCE_STORAGE, AC_SOURCE_STORAGE_NONE
+            )
+            if candidates or current_storage != AC_SOURCE_STORAGE_NONE:
+                options = [
+                    selector.SelectOptionDict(
+                        value=AC_SOURCE_STORAGE_NONE,
+                        label="None / independent storage",
+                    ),
+                    *[
+                        selector.SelectOptionDict(value=serial, label=label)
+                        for serial, label in candidates.items()
+                    ],
+                ]
+                default_storage = (
+                    current_storage
+                    if current_storage in candidates
+                    else AC_SOURCE_STORAGE_NONE
+                )
+                fields[
+                    vol.Required(CONF_AC_SOURCE_STORAGE, default=default_storage)
+                ] = selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=options,
+                        mode=selector.SelectSelectorMode.DROPDOWN,
+                    )
+                )
         return self.async_show_form(step_id="init", data_schema=vol.Schema(fields))
 
 

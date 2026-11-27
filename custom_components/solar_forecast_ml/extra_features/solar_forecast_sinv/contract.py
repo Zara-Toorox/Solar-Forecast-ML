@@ -42,6 +42,32 @@ ATTR_ROLE = "sinv_role"
 ATTR_DEVICE_INDEX = "sinv_device_index"
 ATTR_VENDOR = "sinv_vendor"
 ATTR_DERIVED = "sinv_derived"
+ATTR_AC_SOURCE = "sinv_ac_source"
+AC_SOURCE_DEVICE = "device"
+AC_SOURCE_DEVICE_NON_SOLAR = "device_non_solar"
+ROLE_FLOW_STATUS = "flow_status"
+FLOW_STATUS_VERSION = 1
+ATTR_FLOW_STATUS_VERSION = "sinv_flow_status_version"
+ATTR_FLOW_ALLOCATION_COMPLETE = "sinv_flow_allocation_complete"
+ATTR_HAS_NON_SOLAR_AC = "sinv_has_non_solar_ac"
+FLOW_STATUS_COMPLETE = "complete"
+FLOW_STATUS_INCOMPLETE = "incomplete"
+FLOW_STATUS_UNRESOLVED = "unresolved"
+FLOW_STATUS_OPTIONS = (
+    FLOW_STATUS_COMPLETE,
+    FLOW_STATUS_INCOMPLETE,
+    FLOW_STATUS_UNRESOLVED,
+)
+SOLAR_ROLE_BASES = frozenset(
+    {
+        "power_solar",
+        "power_solar_mppt",
+        "voltage_solar_mppt",
+        "current_solar_mppt",
+        "energy_solar_total",
+        "energy_solar_today",
+    }
+)
 
 MAX_CHANNELS = 16
 
@@ -449,6 +475,16 @@ ROLE_SPECS: tuple[RoleSpec, ...] = (
         note="device value wins; otherwise derived from installation power",
     ),
     RoleSpec(
+        "flow_status",
+        ("sensor",),
+        None,
+        "enum",
+        None,
+        "Flow allocation status",
+        "Flussaufteilungs-Status",
+        note="system-level flow allocation status; stays readable when devices are offline",
+    ),
+    RoleSpec(
         "energy_house_today",
         ("sensor",),
         "kWh",
@@ -596,6 +632,7 @@ _ROLE_RULES: dict[str, tuple[str, str]] = {
     "power_battery_to_house": (CLASS_INVERTER, AGG_SINGLE),
     "power_solar_to_house": (CLASS_INVERTER, AGG_SINGLE),
     "power_grid_to_house": (CLASS_INVERTER, AGG_SINGLE),
+    "flow_status": (CLASS_INVERTER, AGG_DERIVED),
 }
 SITE_ONLY_BASES = frozenset(
     {
@@ -611,6 +648,7 @@ SITE_ONLY_BASES = frozenset(
         "power_battery_to_house",
         "power_solar_to_house",
         "power_grid_to_house",
+        "flow_status",
     }
 )
 

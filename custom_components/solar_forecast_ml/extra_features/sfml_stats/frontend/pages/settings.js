@@ -14,6 +14,7 @@ function sfmlGpmFieldKind(field) {
         if (selector.select) return 'select';
         if (selector.boolean) return 'boolean';
         if (selector.date) return 'date';
+        if (selector.time) return 'time';
         if (selector.entity) return 'entity';
         if (selector.text) return 'text';
     }
@@ -147,6 +148,15 @@ function sfmlGpmSubmitData(fields, values) {
         data[name] = value == null ? '' : String(value);
     });
     return data;
+}
+
+function sfmlGpmInvalidErrors(fields, errors, message) {
+    const names = new Set((fields || []).map((field) => field && field.name));
+    const result = {};
+    const keys = errors && typeof errors === 'object' ? Object.keys(errors) : [];
+    keys.forEach((key) => { result[names.has(key) ? key : 'base'] = message; });
+    if (!keys.length) result.base = message;
+    return result;
 }
 
 let sfmlGpmStartEpoch = 0;
@@ -367,6 +377,9 @@ const SettingsPage = {
                                 </template>
                                 <template v-else-if="field.kind === 'date'">
                                     <input type="date" v-model="gpmForm.values[field.name]" />
+                                </template>
+                                <template v-else-if="field.kind === 'time'">
+                                    <input type="time" step="1" v-model="gpmForm.values[field.name]" />
                                 </template>
                                 <template v-else-if="field.kind === 'entity'">
                                     <input type="text" v-model="gpmForm.values[field.name]" :list="'gpm-entity-' + field.name" />
@@ -1428,6 +1441,12 @@ const SettingsPage = {
                     gpmUnavailable.value = true;
                     gpmForm.open = false;
                     gpmForm.flowId = '';
+                    return;
+                }
+                if (payload.type === 'invalid') {
+                    gpmForm.errors = sfmlGpmInvalidErrors(gpmForm.fields, payload.errors, t('settings.gpmConfig.invalidValue'));
+                    gpmNotice.value = t('settings.gpmConfig.invalidInput');
+                    gpmNoticeOk.value = false;
                     return;
                 }
                 if (payload.type === 'done') {

@@ -80,7 +80,7 @@ const _WeatherPage = {
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{1F441}</div>
                         <div class="weather-stat-value">{{ fmtVisibility }}<span class="weather-stat-unit">km</span></div>
-                        <div class="weather-stat-label">{{ $t('weather.visibility') }}</div>
+                        <div class="weather-stat-label">{{ $t('weather.visibility') }}<span v-if="visibilitySourceText" class="weather-stat-unit"> · {{ visibilitySourceText }}</span></div>
                     </div>
                     <div class="weather-stat">
                         <div class="weather-stat-icon">\u{2600}</div>
@@ -409,7 +409,8 @@ const _WeatherPage = {
         const current = reactive({
             temperature: null, feels_like: null, humidity: null,
             wind_speed: null, pressure: null, pressure_trend: null,
-            visibility_km: null, cloud_cover: null, precipitation_mm: null,
+            visibility_km: null, visibility_source: null,
+            cloud_cover: null, precipitation_mm: null,
             precipitation_unit: null, precipitation_semantics: null,
             condition: null, dewpoint: null, solar_radiation_wm2: null,
             solar_radiation_source: null,
@@ -580,6 +581,10 @@ const _WeatherPage = {
         };
         const radiationSourceText = computed(() => (
             current.solar_radiation_wm2 == null ? '' : radiationSourceLabel(current.solar_radiation_source)
+        ));
+        const visibilitySourceText = computed(() => (
+            current.visibility_km != null && current.visibility_source === 'forecast'
+                ? t('weather.sourceForecast') : ''
         ));
         const radiationKpis = computed(() => {
             const observed = radiation.actual.length ? radiation.actual : radiation.forecast;
@@ -914,7 +919,7 @@ const _WeatherPage = {
             historyTab, historyTabs, historyLoading, lastUpdated,
             forecastChartEl, radiationChartEl, historyChartEl,
             weatherIcon, conditionText, potentialText, pressureArrow, fmtVisibility,
-            dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis, radiationSourceText,
+            dayLengthText, dayLengthDeltaText, dayLengthDeltaClass, moonIcon, radiationKpis, radiationSourceText, visibilitySourceText,
             fmt, formatTime,
             historyAvailabilityText, historyPartialDayText, rainHistoryValue, rainHistoryUnit,
             currentPrecipitationUnit,

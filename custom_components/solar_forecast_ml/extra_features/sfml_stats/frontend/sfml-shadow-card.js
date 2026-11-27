@@ -12,19 +12,23 @@ const SHADOW_TEXT = {
     nowShaded: "{group} im Schatten",
     nowShadedMany: "{n} Panelgruppen im Schatten",
     nowFree: "Gerade kein Schatten",
+    nowUnknown: "Schatten noch unbekannt",
     window: "ca. {start}–{end} · bis −{loss} % Direktlicht",
     chipNow: "Jetzt Schatten",
     chipNext: "Nächster Schatten ab ca. {time}",
     chipFree: "Heute schattenfrei",
+    chipUnknown: "Verschattung noch unbekannt",
     lossToday: "Schattenverlust heute",
     today: "Heute je Panelgruppe",
     learned: "gelernt aus {days} Sonnentagen",
     free: "frei",
+    unknown: "unbekannt",
     tomorrow: "Morgen",
     month: "Schattenverlust diesen Monat",
     positions: "Gelernte Positionen",
-    positionsHint: "Gelernte Positionen sind Sonnenstände, an denen SFML an mindestens 4 klaren Tagen Schatten bestätigt hat.",
+    positionsHint: "Gelernte Positionen sind Sonnenstände, an denen der Ertrag an mindestens 4 klaren Tagen deutlich unter dem Niveau klarer, schattenfreier Stunden derselben Gruppe lag.",
     tomorrowFree: "frei",
+    tomorrowUnknown: "unbekannt",
     learning: "SFML lernt die Verschattung deiner Anlage noch. Sie erscheint hier nach einigen sonnigen Tagen.",
     error: "Schattendaten nicht erreichbar.",
     loading: "Lade Verschattung …",
@@ -35,19 +39,23 @@ const SHADOW_TEXT = {
     nowShaded: "{group} in shade",
     nowShadedMany: "{n} panel groups in shade",
     nowFree: "No shade right now",
+    nowUnknown: "Shade still unknown",
     window: "approx. {start}–{end} · up to −{loss} % direct light",
     chipNow: "Shade now",
     chipNext: "Next shade from approx. {time}",
     chipFree: "No shade today",
+    chipUnknown: "Shading still unknown",
     lossToday: "Shading loss today",
     today: "Today per panel group",
     learned: "learned from {days} sunny days",
     free: "clear",
+    unknown: "unknown",
     tomorrow: "Tomorrow",
     month: "Shading loss this month",
     positions: "Learned positions",
-    positionsHint: "Learned positions are sun positions where SFML confirmed shade on at least 4 clear days.",
+    positionsHint: "Learned positions are sun positions where the yield on at least 4 clear days was clearly below the level of clear, shade-free hours of the same group.",
     tomorrowFree: "clear",
+    tomorrowUnknown: "unknown",
     learning: "SFML is still learning how your system is shaded. It appears here after a few sunny days.",
     error: "Shading data unavailable.",
     loading: "Loading shading …",
@@ -58,19 +66,23 @@ const SHADOW_TEXT = {
     nowShaded: "{group} w cieniu",
     nowShadedMany: "{n} grupy paneli w cieniu",
     nowFree: "Teraz bez cienia",
+    nowUnknown: "Cień jeszcze nieznany",
     window: "ok. {start}–{end} · do −{loss} % światła bezpośredniego",
     chipNow: "Teraz cień",
     chipNext: "Następny cień od ok. {time}",
     chipFree: "Dziś bez cienia",
+    chipUnknown: "Zacienienie jeszcze nieznane",
     lossToday: "Strata z cienia dziś",
     today: "Dziś dla każdej grupy paneli",
     learned: "wyuczone z {days} słonecznych dni",
     free: "bez cienia",
+    unknown: "nieznane",
     tomorrow: "Jutro",
     month: "Strata z cienia w tym miesiącu",
     positions: "Wyuczone pozycje",
-    positionsHint: "Wyuczone pozycje to położenia słońca, w których SFML potwierdził cień w co najmniej 4 pogodne dni.",
+    positionsHint: "Wyuczone pozycje to położenia słońca, w których uzysk w co najmniej 4 pogodne dni był wyraźnie niższy niż poziom pogodnych, niezacienionych godzin tej samej grupy.",
     tomorrowFree: "bez cienia",
+    tomorrowUnknown: "nieznane",
     learning: "SFML wciąż uczy się zacienienia twojej instalacji. Pojawi się tutaj po kilku słonecznych dniach.",
     error: "Dane o zacienieniu niedostępne.",
     loading: "Wczytywanie zacienienia …",
@@ -241,6 +253,10 @@ class SfmlShadowCard extends HTMLElement {
         .chip.free {
           color: var(--success-color, #43a047);
           background: color-mix(in srgb, var(--success-color, #43a047) 14%, transparent);
+        }
+        .chip.unknown {
+          color: var(--s-muted);
+          background: color-mix(in srgb, var(--s-muted) 14%, transparent);
         }
         .chip[hidden] {
           display: none;
@@ -543,6 +559,9 @@ class SfmlShadowCard extends HTMLElement {
     // With several groups shaded at once, the detail line names the strongest one
     const active = actives.reduce((best, w) => (!best || w.loss_pct > best.loss_pct ? w : best), null);
     const next = windows.find((w) => nowMin != null && w.startMin > nowMin);
+    // A group without a clear reference may be shaded at any time, so the card never calls the day free
+    // and, without a current window, never the sky now, even when another group has a later window
+    const unknown = this._unknownGroups(data).length > 0;
 
     if (active) {
       this.chip.className = "chip";
@@ -552,6 +571,10 @@ class SfmlShadowCard extends HTMLElement {
       this.chip.className = "chip";
       this.chip.innerHTML = `<ha-icon icon="mdi:weather-sunny-off"></ha-icon><span></span>`;
       this.chip.querySelector("span").textContent = this._t("chipNext", { time: next.start });
+    } else if (unknown) {
+      this.chip.className = "chip unknown";
+      this.chip.innerHTML = `<ha-icon icon="mdi:help-circle-outline"></ha-icon><span></span>`;
+      this.chip.querySelector("span").textContent = this._t("chipUnknown");
     } else {
       this.chip.className = "chip free";
       this.chip.innerHTML = `<ha-icon icon="mdi:weather-sunny"></ha-icon><span></span>`;
@@ -562,7 +585,8 @@ class SfmlShadowCard extends HTMLElement {
     const focus = active || next;
     const headline = actives.length > 1
       ? this._t("nowShadedMany", { n: actives.length })
-      : active ? this._t("nowShaded", { group: this._groupLabel(active.group) }) : this._t("nowFree");
+      : active ? this._t("nowShaded", { group: this._groupLabel(active.group) })
+        : unknown ? this._t("nowUnknown") : this._t("nowFree");
     const detail = focus
       ? `${active && actives.length === 1 ? "" : `${this._escape(this._groupLabel(focus.group))} · `}${this._t("window", { start: focus.start, end: focus.end, loss: focus.loss_pct })}`
       : "";
@@ -580,6 +604,10 @@ class SfmlShadowCard extends HTMLElement {
       ${this._lanesHtml(data, today, nowMin)}
       ${this._factsHtml(data)}
     `;
+  }
+
+  _unknownGroups(data) {
+    return Array.isArray(data.unknown_groups) ? data.unknown_groups.map(String) : [];
   }
 
   _arcHtml(today, windows, nowMin) {
@@ -629,6 +657,7 @@ class SfmlShadowCard extends HTMLElement {
     if (rise == null || set == null || set <= rise) return "";
     const pct = (m) => Math.min(100, Math.max(0, ((m - rise) / (set - rise)) * 100));
     const days = Math.max(0, ...Object.values(data.learned_days || {}).map(Number));
+    const unknown = new Set(this._unknownGroups(data));
     const lanes = (data.groups || []).map((group) => {
       const windows = (today.windows || {})[group] || [];
       const blocks = windows.map((w) => {
@@ -638,7 +667,7 @@ class SfmlShadowCard extends HTMLElement {
       }).join("");
       const text = windows.length
         ? windows.map((w) => this._t("window", { start: w.start, end: w.end, loss: w.loss_pct })).join(" · ")
-        : this._t("free");
+        : this._t(unknown.has(String(group)) ? "unknown" : "free");
       const tick = nowMin != null && nowMin >= rise && nowMin <= set
         ? `<div class="now-tick" style="left:${pct(nowMin).toFixed(1)}%"></div>`
         : "";
@@ -662,7 +691,7 @@ class SfmlShadowCard extends HTMLElement {
     const positions = Object.values(data.positions || {}).reduce((sum, n) => sum + Number(n || 0), 0);
     return `
       <div class="facts">
-        <div class="fact"><small>${this._t("tomorrow")}</small><b>${first ? `ca. ${first.start}–${first.end}` : this._t("tomorrowFree")}</b></div>
+        <div class="fact"><small>${this._t("tomorrow")}</small><b>${first ? `ca. ${first.start}–${first.end}` : this._t(this._unknownGroups(data).length ? "tomorrowUnknown" : "tomorrowFree")}</b></div>
         <div class="fact"><small>${this._t("month")}</small><b>${data.loss_month_kwh != null ? `−${this._num(data.loss_month_kwh, 1)} kWh` : "–"}</b></div>
         <div class="fact"><small>${this._t("positions")}</small><b>${positions}</b></div>
       </div>

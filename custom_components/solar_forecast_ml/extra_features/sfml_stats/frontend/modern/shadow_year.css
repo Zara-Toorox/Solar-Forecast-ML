@@ -1,0 +1,298 @@
+.shadow-year-page {
+    --shadow-year-snow: var(--text-primary);
+    --shadow-year-free: color-mix(in srgb, var(--success) 45%, var(--bg-card));
+    --shadow-year-part: color-mix(in srgb, var(--danger) 48%, var(--bg-card));
+    --shadow-year-unclear: color-mix(in srgb, var(--warning) 40%, var(--bg-card));
+    --shadow-year-frost: color-mix(in srgb, var(--info) 75%, var(--bg-card));
+    --shadow-year-stripes: repeating-linear-gradient(135deg, transparent 0 2px, color-mix(in srgb, var(--bg-card) 70%, transparent) 2px 4px);
+    display: grid;
+    gap: 16px;
+    min-width: 0;
+}
+
+[data-theme="light"] .shadow-year-page {
+    --shadow-year-snow: var(--bg-card);
+}
+
+.shadow-year-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.shadow-year-error {
+    gap: 8px;
+}
+
+.shadow-year-retry {
+    min-height: 36px;
+    padding: 6px 14px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    background: var(--active-soft);
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+}
+
+.shadow-year-demo-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 13px 17px;
+    border: 1px solid color-mix(in srgb, var(--warning) 35%, var(--border-default));
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--warning) 9%, var(--bg-card));
+}
+
+.shadow-year-demo-banner > div { display: grid; gap: 2px; }
+.shadow-year-demo-banner span { color: var(--text-secondary); font-size: .75rem; }
+.shadow-year-demo-banner a { color: var(--warning); font-weight: 850; }
+
+.shadow-year-toolbar {
+    display: grid;
+    gap: 10px;
+}
+
+.shadow-year-toolbar-label {
+    color: var(--text-muted);
+    font-size: .75rem;
+    font-weight: 650;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.shadow-year-months {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.shadow-year-months button {
+    min-height: 32px;
+    padding: 4px 2px;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    background: var(--surface-data);
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: .8rem;
+    cursor: pointer;
+}
+
+.shadow-year-months button.active {
+    background: var(--active-soft);
+    color: var(--text-primary);
+    border-color: color-mix(in srgb, var(--active) 58%, transparent);
+}
+
+.shadow-year-months button:focus-visible,
+.shadow-year-cell:focus-visible,
+.shadow-year-retry:focus-visible {
+    outline: 2px solid var(--active);
+    outline-offset: 1px;
+}
+
+.shadow-year-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    color: var(--text-secondary);
+    font-size: .75rem;
+}
+
+.shadow-year-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.shadow-year-swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.shadow-year-tags,
+.shadow-year-detail {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: .75rem;
+    line-height: 1.45;
+}
+
+.shadow-year-card {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.shadow-year-card .chart-header {
+    flex-wrap: wrap;
+    margin-bottom: 0 !important;
+}
+
+.shadow-year-card .chart-subtitle {
+    color: var(--text-muted);
+    font-size: .75rem;
+}
+
+.shadow-year-sentence {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: .875rem;
+    line-height: 1.5;
+}
+
+.shadow-year-month-line {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: .8rem;
+    line-height: 1.45;
+}
+
+.shadow-year-scroll {
+    min-width: 0;
+}
+
+.shadow-year-grid {
+    display: grid;
+    gap: 2px;
+    margin-top: 4px;
+}
+
+.shadow-year-row {
+    display: grid;
+    grid-template-columns: 44px repeat(17, minmax(0, 1fr));
+    gap: 2px;
+    align-items: center;
+}
+
+.shadow-year-hour {
+    color: var(--text-muted);
+    font-size: .75rem;
+    line-height: 1;
+    text-align: center;
+}
+
+.shadow-year-month {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding-right: 2px;
+    color: var(--text-muted);
+    font-size: .75rem;
+    white-space: nowrap;
+}
+
+.shadow-year-month b {
+    color: var(--text-secondary);
+    font-weight: 650;
+}
+
+.shadow-year-month em {
+    padding: 0 3px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    background: var(--surface-data);
+    font-size: .75rem;
+    font-style: normal;
+    line-height: 1.3;
+}
+
+.shadow-year-month.selected b {
+    color: var(--active);
+}
+
+.shadow-year-cell {
+    position: relative;
+    min-width: 0;
+    min-height: 12px;
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.shadow-year-cell.in-month { box-shadow: 0 0 0 1px color-mix(in srgb, var(--active) 45%, transparent); }
+.shadow-year-cell.selected { z-index: 1; outline: 2px solid var(--active); outline-offset: 0; }
+
+.shadow-year-cell.night,
+.shadow-year-swatch.night { background: var(--surface-data); }
+.shadow-year-cell.night { cursor: default; }
+.shadow-year-swatch.night { box-shadow: inset 0 0 0 1px var(--border-subtle); }
+.shadow-year-cell.open,
+.shadow-year-swatch.open { background: transparent; box-shadow: inset 0 0 0 1px var(--border-strong); }
+.shadow-year-cell.free,
+.shadow-year-swatch.free { background: var(--shadow-year-free); }
+.shadow-year-cell.part,
+.shadow-year-swatch.part { background: var(--shadow-year-part); }
+.shadow-year-cell.obst,
+.shadow-year-swatch.obst { background: var(--danger); }
+.shadow-year-cell.unclear,
+.shadow-year-swatch.unclear { background: var(--shadow-year-unclear); }
+.shadow-year-cell.frost,
+.shadow-year-swatch.frost { background: var(--shadow-year-frost); }
+.shadow-year-cell.snow,
+.shadow-year-swatch.snow { background: var(--shadow-year-snow); box-shadow: inset 0 0 0 1px var(--border-strong); }
+
+.shadow-year-cell.derived,
+.shadow-year-swatch.derived { background-image: var(--shadow-year-stripes); }
+
+.shadow-year-cell.retro::after {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border: 1px dotted color-mix(in srgb, var(--bg-card) 80%, transparent);
+    border-radius: 2px;
+}
+
+.shadow-year-mark {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--info);
+    box-shadow: 0 0 0 1px var(--bg-card);
+}
+
+.shadow-year-mark.snow {
+    right: 7px;
+    background: var(--shadow-year-snow);
+}
+
+@media (max-width: 1180px) {
+    .shadow-year-page { gap: 14px; }
+}
+
+@media (max-width: 960px) {
+    .shadow-year-months { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+@media (max-width: 760px) {
+    .shadow-year-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px;
+    }
+
+    .shadow-year-grid { min-width: 624px; }
+    .shadow-year-row { grid-template-columns: 40px repeat(17, 32px); }
+    .shadow-year-cell { min-height: 32px; aspect-ratio: auto; }
+    .shadow-year-demo-banner { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+
+@media (max-width: 480px) {
+    .shadow-year-months { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .shadow-year-month { gap: 2px; }
+    .shadow-year-month em { padding: 0 2px; }
+    .shadow-year-row { grid-template-columns: 42px repeat(17, 32px); }
+}

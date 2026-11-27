@@ -38,6 +38,7 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.typing import ConfigType
 
 from . import (
@@ -79,6 +80,7 @@ from .config_flow import (
 from .const import (
     CONF_CONNECTION,
     CONF_VENDOR,
+    SIGNAL_SITE_CONFIG_UPDATED,
     DEFAULT_VENDOR,
     DOMAIN,
     EXAMPLESFOLDER,
@@ -92,6 +94,7 @@ from .const import (
     VENDOR_CONNECTIONS,
 )
 from .ahoy_coordinator import AhoyCoordinator
+from .apsystems_coordinator import ApsystemsCoordinator
 from .coordinator import AnkerSolixDataUpdateCoordinator, Command
 from .deye_coordinator import DeyeCoordinator
 from .emsesp_coordinator import EmsespCoordinator
@@ -141,6 +144,7 @@ LOCAL_COORDINATORS = {
     "ha_bridge": HpBridgeCoordinator,
     "local_modbus_stiebel": StiebelCoordinator,
     "local_modbus_mtec": MtecCoordinator,
+    "local_api_apsystems": ApsystemsCoordinator,
 }
 # Polled energy devices that may switch off at night; heat pumps and the push
 # webhook never sleep.
@@ -317,6 +321,7 @@ async def _async_setup_local_entry(hass: HomeAssistant, entry: ConfigEntry) -> b
     )
     async_remove_retired_role_entities(hass, entry.entry_id)
     await hass.config_entries.async_forward_entry_setups(entry, platforms)
+    async_dispatcher_send(hass, SIGNAL_SITE_CONFIG_UPDATED)
     return True
 
 
@@ -325,6 +330,11 @@ async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     coordinator = getattr(entry, "runtime_data", None)
     # Deye stores the PV inputs it has seen in the entry data. That write alone is no reason to reload.
     if isinstance(coordinator, DeyeCoordinator) and coordinator.config_unchanged(entry):
+        return
+    if isinstance(coordinator, ApsystemsCoordinator) and coordinator.config_unchanged(
+        entry
+    ):
+        async_dispatcher_send(hass, SIGNAL_SITE_CONFIG_UPDATED)
         return
     await hass.config_entries.async_reload(entry.entry_id)
 
@@ -443,7 +453,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if is_hp_device_vendor(entry.data.get(CONF_VENDOR))
             else LOCAL_PLATFORMS
         )
-        return await hass.config_entries.async_unload_platforms(entry, platforms)
+        unloaded = await hass.config_entries.async_unload_platforms(entry, platforms)
+        if unloaded:
+            async_dispatcher_send(hass, SIGNAL_SITE_CONFIG_UPDATED)
+        return unloaded
     if unloaded := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         hass.data[DOMAIN].pop(entry.entry_id)
     return unloaded
@@ -456,9 +469,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     active = hass.data.get(DOMAIN) or []
     if len(active) >= len(entries):
         ir.async_delete_issue(hass, DOMAIN, "duplicate_devices")
+    ir.async_delete_issue(hass, DOMAIN, f"apsystems_storage_unresolved_{entry.entry_id}")
     site.async_remove_unused_site_entry(hass, entry)
     hp_site.async_remove_unused_hp_entry(hass, entry)
     await sleep.async_remove_store(hass, entry)
+    async_dispatcher_send(hass, SIGNAL_SITE_CONFIG_UPDATED)
 
 
 async def async_remove_config_entry_device(

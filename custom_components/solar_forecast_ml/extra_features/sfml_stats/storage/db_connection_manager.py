@@ -17,6 +17,8 @@ import sqlite3
 import sys
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, AsyncIterator
 
@@ -32,6 +34,37 @@ from ..utils.time_utils import naive_ha_local
 _LOGGER = logging.getLogger(__name__)
 
 _SLOW_WRITE_TRANSACTION_SECONDS = 2.0
+# A write transaction still open after this time is reported once while it runs.
+_OPEN_WRITE_WARN_SECONDS = 60.0
+# Longer than busy_timeout (30 s): a transaction waiting for a foreign lock can still end.
+_CLOSE_WAIT_SECONDS = 40.0
+
+# Errors after which the connection object itself is unusable. Every other error
+# (missing table or column, syntax, constraint, lock) leaves the connection intact.
+_CONNECTION_ERRORS: tuple[tuple[type[Exception], tuple[str, ...]], ...] = (
+    (ValueError, ("no active connection", "connection closed")),
+    (sqlite3.ProgrammingError, ("closed database",)),
+    (sqlite3.OperationalError, ("unable to open database file", "disk i/o error")),
+)
+
+
+def _connection_id(conn: object) -> str:
+    return f"{id(conn):#x}"
+
+
+@dataclass
+class _OpenWrite:
+    """A running write transaction, kept to name the holder of a long lock."""
+
+    name: str
+    task: str
+    connection: str
+    since: str
+    after: float
+    handle: asyncio.TimerHandle | None = None
+
+    def describe(self) -> str:
+        return f"{self.name}, task {self.task}, connection {self.connection}, since {self.since}"
 
 STATS_SCHEMA_VERSION = 1
 
@@ -86,7 +119,8 @@ _STATS_TABLES: dict[str, str] = {
         solar_power_w REAL, inverter_ac_output_w REAL, battery_power_dc_w REAL,
         house_consumption_w REAL, solar_to_house_w REAL, solar_to_battery_w REAL,
         solar_to_grid_w REAL, battery_to_house_w REAL, grid_to_house_w REAL,
-        grid_to_battery_w REAL, battery_soc REAL)""",
+        grid_to_battery_w REAL, battery_soc REAL,
+        ac_origin TEXT, origin_schema_version INTEGER, flow_allocation_complete INTEGER)""",
     "stats_consumer_atlas_config": """CREATE TABLE IF NOT EXISTS stats_consumer_atlas_config (
         consumer_id TEXT PRIMARY KEY, name TEXT NOT NULL, entity_id TEXT NOT NULL,
         category TEXT NOT NULL DEFAULT 'other', icon TEXT NOT NULL DEFAULT 'plug',
@@ -191,7 +225,7 @@ _OWNED_TABLE_CONTRACT.update({
     "stats_schema_meta": {"key": ("TEXT", 1), "value": ("TEXT", 0), "updated_at": ("TEXT", 0)},
     "stats_daily_energy": {"date": ("TEXT", 1), "solar_yield_kwh": ("REAL", 0), "grid_import_kwh": ("REAL", 0), "grid_export_kwh": ("REAL", 0), "solar_to_house_kwh": ("REAL", 0), "solar_to_battery_kwh": ("REAL", 0), "battery_to_house_kwh": ("REAL", 0), "grid_to_house_kwh": ("REAL", 0), "grid_to_battery_kwh": ("REAL", 0), "home_consumption_kwh": ("REAL", 0), "smartmeter_import_kwh": ("REAL", 0), "smartmeter_export_kwh": ("REAL", 0), "consumer_heatpump_kwh": ("REAL", 0), "consumer_heatingrod_kwh": ("REAL", 0), "consumer_wallbox_kwh": ("REAL", 0), "consumer_hp_pv_kwh": ("REAL", 0), "inverter_ac_output_kwh": ("REAL", 0), "battery_charge_dc_kwh": ("REAL", 0), "battery_discharge_dc_kwh": ("REAL", 0), "grid_import_extra_kwh": ("REAL", 0), "price_ct_kwh": ("REAL", 0), "autarkie_percent": ("REAL", 0), "self_consumption_kwh": ("REAL", 0), "peak_solar_w": ("REAL", 0), "peak_solar_time": ("TEXT", 0), "updated_at": ("TEXT", 0)},
     "stats_hourly_billing": {"hour_key": ("TEXT", 1), "date": ("TEXT", 0), "hour": ("INTEGER", 0), "grid_import_kwh": ("REAL", 0), "grid_import_cost_ct": ("REAL", 0), "grid_export_kwh": ("REAL", 0), "feed_in_revenue_ct": ("REAL", 0), "feed_in_tariff_ct": ("REAL", 0), "price_ct_kwh": ("REAL", 0), "grid_to_house_kwh": ("REAL", 0), "grid_to_battery_kwh": ("REAL", 0), "solar_yield_kwh": ("REAL", 0), "solar_to_house_kwh": ("REAL", 0), "solar_to_battery_kwh": ("REAL", 0), "battery_to_house_kwh": ("REAL", 0), "home_consumption_kwh": ("REAL", 0), "consumer_heatpump_kwh": ("REAL", 0), "consumer_heatpump_cost_ct": ("REAL", 0), "consumer_heatingrod_kwh": ("REAL", 0), "consumer_heatingrod_cost_ct": ("REAL", 0), "consumer_wallbox_kwh": ("REAL", 0), "consumer_wallbox_cost_ct": ("REAL", 0), "battery_soc_min": ("REAL", 0), "battery_soc_avg": ("REAL", 0), "battery_soc_max": ("REAL", 0), "battery_soc_end": ("REAL", 0), "data_source": ("TEXT", 0)},
-    "stats_power_sources": {"timestamp": ("TEXT", 1), "date": ("TEXT", 0), "hour": ("INTEGER", 0), "solar_power_w": ("REAL", 0), "inverter_ac_output_w": ("REAL", 0), "battery_power_dc_w": ("REAL", 0), "house_consumption_w": ("REAL", 0), "solar_to_house_w": ("REAL", 0), "solar_to_battery_w": ("REAL", 0), "solar_to_grid_w": ("REAL", 0), "battery_to_house_w": ("REAL", 0), "grid_to_house_w": ("REAL", 0), "grid_to_battery_w": ("REAL", 0), "battery_soc": ("REAL", 0)},
+    "stats_power_sources": {"timestamp": ("TEXT", 1), "date": ("TEXT", 0), "hour": ("INTEGER", 0), "solar_power_w": ("REAL", 0), "inverter_ac_output_w": ("REAL", 0), "battery_power_dc_w": ("REAL", 0), "house_consumption_w": ("REAL", 0), "solar_to_house_w": ("REAL", 0), "solar_to_battery_w": ("REAL", 0), "solar_to_grid_w": ("REAL", 0), "battery_to_house_w": ("REAL", 0), "grid_to_house_w": ("REAL", 0), "grid_to_battery_w": ("REAL", 0), "battery_soc": ("REAL", 0), "ac_origin": ("TEXT", 0), "origin_schema_version": ("INTEGER", 0), "flow_allocation_complete": ("INTEGER", 0)},
     "stats_consumer_atlas_config": {"consumer_id": ("TEXT", 1), "name": ("TEXT", 0), "entity_id": ("TEXT", 0), "category": ("TEXT", 0), "icon": ("TEXT", 0), "color": ("TEXT", 0), "start_kwh": ("REAL", 0), "enabled": ("INTEGER", 0), "sort_order": ("INTEGER", 0), "created_at": ("TEXT", 0), "updated_at": ("TEXT", 0)},
     "stats_consumer_atlas_daily": {"date": ("TEXT", 1), "consumer_id": ("TEXT", 2), "kwh": ("REAL", 0), "peak_w": ("REAL", 0), "peak_time": ("TEXT", 0), "last_power_w": ("REAL", 0), "samples": ("INTEGER", 0), "updated_at": ("TEXT", 0)},
     "stats_energy_efficiency_daily": {"date": ("TEXT", 1), "solar_dc_input_kwh": ("REAL", 0), "inverter_ac_output_kwh": ("REAL", 0), "battery_charge_dc_kwh": ("REAL", 0), "battery_discharge_dc_kwh": ("REAL", 0), "pv_dc_sample_kwh": ("REAL", 0), "pv_ac_sample_kwh": ("REAL", 0), "battery_dc_sample_kwh": ("REAL", 0), "battery_ac_sample_kwh": ("REAL", 0), "mixed_dc_sample_kwh": ("REAL", 0), "mixed_ac_sample_kwh": ("REAL", 0), "system_input_sample_kwh": ("REAL", 0), "system_output_sample_kwh": ("REAL", 0), "inverter_efficiency_percent": ("REAL", 0), "battery_discharge_efficiency_percent": ("REAL", 0), "mixed_efficiency_percent": ("REAL", 0), "system_efficiency_percent": ("REAL", 0), "ac_measurement_seconds": ("REAL", 0), "battery_measurement_seconds": ("REAL", 0), "pv_sample_seconds": ("REAL", 0), "battery_sample_seconds": ("REAL", 0), "mixed_sample_seconds": ("REAL", 0), "system_sample_seconds": ("REAL", 0), "source": ("TEXT", 0), "updated_at": ("TEXT", 0)},
@@ -321,6 +355,7 @@ class DatabaseConnectionManager:
         self._is_connected = False
         self._connect_lock = asyncio.Lock()
         self._write_lock = asyncio.Lock()
+        self._open_write: _OpenWrite | None = None
 
     @classmethod
     async def get_instance(cls, hass: HomeAssistant) -> DatabaseConnectionManager:
@@ -409,13 +444,59 @@ class DatabaseConnectionManager:
         await conn.create_function("ha_localtime", 1, cls._ha_localtime_converter(hass))
 
     async def close(self) -> None:
-        """Close the active database connection."""
-        if self._connection is not None:
-            try:
-                await self._connection.close()
-            finally:
-                self._connection = None
-                self._is_connected = False
+        """Close the active connection once a running write transaction has ended."""
+        try:
+            await asyncio.wait_for(self._write_lock.acquire(), _CLOSE_WAIT_SECONDS)
+        except TimeoutError:
+            holder = self._open_write.describe() if self._open_write else "unknown"
+            _LOGGER.warning(
+                "Stats DB write transaction did not end within %gs (%s); closing the connection anyway",
+                _CLOSE_WAIT_SECONDS,
+                holder,
+            )
+            await self._discard_connection(self._connection, "closed with an open write transaction")
+            return
+        try:
+            await self._discard_connection(self._connection, "closed")
+        finally:
+            self._write_lock.release()
+
+    async def _discard_connection(
+        self, conn: aiosqlite.Connection | None, reason: str
+    ) -> None:
+        """The only way to retire a connection: roll back, then close it.
+
+        The caller holds ``_write_lock`` (``close`` after its bounded wait is the
+        one exception), so no write transaction of another task is open on it.
+        Nothing happens when ``conn`` is no longer the active connection.
+        """
+        if conn is None or self._connection is not conn:
+            return
+        self._connection = None
+        self._is_connected = False
+        _LOGGER.info("Stats DB connection %s closed: %s", _connection_id(conn), reason)
+        _task, cancelled = await self._await_to_end(self._close_connection(conn))
+        if cancelled:
+            raise asyncio.CancelledError
+
+    @classmethod
+    async def _close_connection(cls, conn: aiosqlite.Connection) -> None:
+        await cls._rollback_after_failed_write(conn)
+        try:
+            await conn.close()
+        except Exception as err:
+            _LOGGER.warning(
+                "Stats DB connection %s did not close cleanly: %s", _connection_id(conn), err
+            )
+
+    @staticmethod
+    def _is_connection_error(err: BaseException) -> bool:
+        """True only when the connection itself is unusable after ``err``."""
+        text = str(err).lower()
+        return any(
+            isinstance(err, error_type) and any(marker in text for marker in markers)
+            for error_type, markers in _CONNECTION_ERRORS
+        )
 
     async def execute(self, query: str, params: tuple | list | None = None):
         """Execute a query and return cursor. @zara"""
@@ -433,43 +514,79 @@ class DatabaseConnectionManager:
             raise RuntimeError("Database not connected")
         return self._connection
 
-    async def _ensure_connected(self) -> bool:
-        """Verify connection is alive, reconnect if needed. @zara"""
-        if self._connection is not None:
-            try:
-                await self._connection.execute("SELECT 1")
-                return True
-            except Exception:
-                _LOGGER.warning("Database connection lost, attempting reconnect")
-                self._connection = None
-                self._is_connected = False
+    async def _ensure_connected(self) -> aiosqlite.Connection | None:
+        """Live connection for a reader, or None when the database is unavailable. @zara
 
-        return await self.connect()
+        Readers do not wait for writers: ``_write_lock`` is taken only when the
+        connection really has to be replaced.
+        """
+        conn = self._connection
+        if conn is None:
+            return await self._reconnect_for_reader(None, "no connection")
+        try:
+            await conn.execute("SELECT 1")
+            return conn
+        except Exception as err:
+            if not self._is_connection_error(err):
+                raise
+            _LOGGER.warning("Database connection lost, attempting reconnect: %s", err)
+            return await self._reconnect_for_reader(conn, str(err))
+
+    async def _ensure_connected_locked(self) -> aiosqlite.Connection | None:
+        """``_ensure_connected`` for callers that already hold ``_write_lock``."""
+        conn = self._connection
+        if conn is not None:
+            try:
+                await conn.execute("SELECT 1")
+                return conn
+            except Exception as err:
+                if not self._is_connection_error(err):
+                    raise
+                _LOGGER.warning("Database connection lost, attempting reconnect: %s", err)
+                await self._discard_connection(conn, str(err))
+        if await self.connect():
+            return self._connection
+        return None
+
+    async def _reconnect_for_reader(
+        self, failed: aiosqlite.Connection | None, reason: str
+    ) -> aiosqlite.Connection | None:
+        """Replace ``failed`` after a running write transaction has ended."""
+        # asyncio.Lock is not reentrant; no caller of this method holds _write_lock.
+        async with self._write_lock:
+            current = self._connection
+            if current is not None and current is not failed:
+                # Another task has replaced the connection meanwhile.
+                return current
+            await self._discard_connection(current, reason)
+            if await self.connect():
+                return self._connection
+            return None
 
     async def execute_read(self, query: str, params: tuple | list | None = None) -> list[aiosqlite.Row]:
-        """Execute a read query with retry on lock and auto-reconnect. @zara"""
+        """Execute a read query; retries locks and replaces a broken connection once. @zara"""
         if params is None:
             params = []
 
         for attempt in range(3):
-            if not await self._ensure_connected():
+            conn = await self._ensure_connected()
+            if conn is None:
                 raise RuntimeError("Database not available")
             try:
-                async with self._connection.execute(query, params) as cursor:
+                async with conn.execute(query, params) as cursor:
                     return await cursor.fetchall()
-            except aiosqlite.OperationalError as err:
-                if "database is locked" in str(err) and attempt < 2:
-                    wait = (0.1 * (3 ** attempt)) + random.uniform(0, 0.05)
+            except Exception as err:
+                if self._is_locked_error(err) and attempt < 2:
+                    wait = self._retry_wait(attempt)
                     _LOGGER.warning(
                         "Stats DB locked on read (attempt %d/3), retrying in %.2fs",
                         attempt + 1, wait
                     )
                     await asyncio.sleep(wait)
                     continue
-                if attempt == 0:
+                if attempt == 0 and self._is_connection_error(err):
                     _LOGGER.warning("Read query failed (attempt 1), reconnecting: %s", err)
-                    self._connection = None
-                    self._is_connected = False
+                    await self._reconnect_for_reader(conn, str(err))
                     continue
                 raise
 
@@ -482,11 +599,12 @@ class DatabaseConnectionManager:
     def _retry_wait(attempt: int) -> float:
         return (0.1 * (3 ** attempt)) + random.uniform(0, 0.05)
 
-    async def _rollback_after_failed_write(self) -> None:
-        if self._connection is None:
+    @staticmethod
+    async def _rollback_after_failed_write(conn: aiosqlite.Connection | None) -> None:
+        if conn is None:
             return
         try:
-            await self._connection.rollback()
+            await conn.rollback()
         except Exception as rollback_err:
             _LOGGER.debug(
                 "Stats DB rollback after failed write did not complete: %s", rollback_err
@@ -496,18 +614,25 @@ class DatabaseConnectionManager:
         """Execute a serialized write query with retry, auto-commit and auto-reconnect. @zara"""
         if params is None:
             params = []
+        name = self._caller_name()
 
         async with self._write_lock:
             for attempt in range(3):
-                if not await self._ensure_connected():
+                conn = await self._ensure_connected_locked()
+                if conn is None:
                     raise RuntimeError("Database not available")
+                record: _OpenWrite | None = None
                 try:
-                    await self._connection.execute(query, params)
-                    await self._connection.commit()
+                    await conn.execute(query, params)
+                    record = self._track_open_write(conn, name)
+                    await conn.commit()
                     return
-                except aiosqlite.OperationalError as err:
+                except BaseException as err:
+                    # Also on CancelledError: the statement may have opened the transaction.
+                    await self._rollback_to_end(conn)
+                    if not isinstance(err, Exception):
+                        raise
                     if self._is_locked_error(err):
-                        await self._rollback_after_failed_write()
                         if attempt < 2:
                             wait = self._retry_wait(attempt)
                             _LOGGER.debug(
@@ -518,14 +643,13 @@ class DatabaseConnectionManager:
                             continue
                         _LOGGER.warning("Stats DB write failed after 3 lock attempts: %s", err)
                         raise
-                    if attempt == 0:
-                        await self._rollback_after_failed_write()
+                    if attempt == 0 and self._is_connection_error(err):
                         _LOGGER.warning("Write query failed (attempt 1), reconnecting: %s", err)
-                        self._connection = None
-                        self._is_connected = False
+                        await self._discard_connection(conn, str(err))
                         continue
-                    await self._rollback_after_failed_write()
                     raise
+                finally:
+                    self._untrack_open_write(record)
 
     @staticmethod
     def _caller_name() -> str:
@@ -533,7 +657,8 @@ class DatabaseConnectionManager:
         frame = sys._getframe(1)
         while frame is not None and (
             frame.f_globals.get("__name__") == "contextlib"
-            or frame.f_code.co_name in ("write_transaction", "_write_transaction")
+            or frame.f_code.co_name
+            in ("write_transaction", "_write_transaction", "execute_write", "_write_db")
         ):
             frame = frame.f_back
         if frame is None:
@@ -561,66 +686,107 @@ class DatabaseConnectionManager:
                 pass
         return task, cancelled
 
-    async def _rollback_to_end(self) -> None:
+    @classmethod
+    async def _rollback_to_end(cls, conn: aiosqlite.Connection | None) -> None:
         """Roll back completely; a cancellation is passed on afterwards."""
-        _task, cancelled = await self._await_to_end(self._rollback_after_failed_write())
+        _task, cancelled = await cls._await_to_end(cls._rollback_after_failed_write(conn))
         if cancelled:
             raise asyncio.CancelledError
 
-    async def _begin_immediate(self) -> None:
+    @classmethod
+    async def _begin_immediate(cls, conn: aiosqlite.Connection) -> None:
         """Open the write transaction; never leave it open when the caller is cancelled."""
-        task, cancelled = await self._await_to_end(
-            self._connection.execute("BEGIN IMMEDIATE")
-        )
+        task, cancelled = await cls._await_to_end(conn.execute("BEGIN IMMEDIATE"))
         if cancelled:
             # BEGIN may still succeed after waiting for a foreign lock.
             if not task.cancelled() and task.exception() is None:
-                await self._rollback_to_end()
+                await cls._rollback_to_end(conn)
             raise asyncio.CancelledError
         task.result()
+
+    async def _open_write_transaction(self) -> aiosqlite.Connection:
+        """BEGIN IMMEDIATE with lock retries; the caller holds ``_write_lock``."""
+        for attempt in range(3):
+            conn = await self._ensure_connected_locked()
+            if conn is None:
+                raise RuntimeError("Database not available")
+            try:
+                await self._begin_immediate(conn)
+                return conn
+            except Exception as err:
+                await self._rollback_after_failed_write(conn)
+                if self._is_locked_error(err) and attempt < 2:
+                    wait = self._retry_wait(attempt)
+                    _LOGGER.debug(
+                        "Stats DB locked when opening write transaction (attempt %d/3), retrying in %.2fs",
+                        attempt + 1, wait
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                if attempt == 0 and self._is_connection_error(err):
+                    _LOGGER.warning("Write transaction failed to open, reconnecting: %s", err)
+                    await self._discard_connection(conn, str(err))
+                    continue
+                raise
+        raise RuntimeError("Database write transaction could not be opened")
+
+    def _track_open_write(self, conn: aiosqlite.Connection, name: str) -> _OpenWrite:
+        """Remember the open transaction and report it once if it is still open later."""
+        task = asyncio.current_task()
+        record = _OpenWrite(
+            name=name,
+            task=task.get_name() if task is not None else "none",
+            connection=_connection_id(conn),
+            since=datetime.now().astimezone().isoformat(timespec="seconds"),
+            after=_OPEN_WRITE_WARN_SECONDS,
+        )
+        self._open_write = record
+        record.handle = asyncio.get_running_loop().call_later(
+            record.after, self._report_open_write, record
+        )
+        return record
+
+    def _untrack_open_write(self, record: _OpenWrite | None) -> None:
+        if record is None:
+            return
+        if record.handle is not None:
+            record.handle.cancel()
+        if self._open_write is record:
+            self._open_write = None
+
+    def _report_open_write(self, record: _OpenWrite) -> None:
+        if self._open_write is not record:
+            return
+        _LOGGER.warning(
+            "Stats DB write transaction still open after %gs (%s)",
+            record.after,
+            record.describe(),
+        )
 
     @asynccontextmanager
     async def write_transaction(
         self, name: str | None = None
     ) -> AsyncIterator[aiosqlite.Connection]:
-        """Run a multi-statement write under the shared writer lock."""
+        """Run a multi-statement write under the shared writer lock.
+
+        BEGIN, COMMIT and ROLLBACK run on the connection that opened the
+        transaction, and the block gets exactly that connection.
+        """
         if name is None:
             name = self._caller_name()
         async with self._write_lock:
-            for attempt in range(3):
-                if not await self._ensure_connected():
-                    raise RuntimeError("Database not available")
-                try:
-                    await self._begin_immediate()
-                    break
-                except aiosqlite.OperationalError as err:
-                    await self._rollback_after_failed_write()
-                    if self._is_locked_error(err) and attempt < 2:
-                        wait = self._retry_wait(attempt)
-                        _LOGGER.debug(
-                            "Stats DB locked when opening write transaction (attempt %d/3), retrying in %.2fs",
-                            attempt + 1, wait
-                        )
-                        await asyncio.sleep(wait)
-                        continue
-                    if attempt == 0 and not self._is_locked_error(err):
-                        _LOGGER.warning("Write transaction failed to open, reconnecting: %s", err)
-                        self._connection = None
-                        self._is_connected = False
-                        continue
-                    raise
-            else:
-                raise RuntimeError("Database write transaction could not be opened")
-
+            conn = await self._open_write_transaction()
             held_since = time.monotonic()
+            record = self._track_open_write(conn, name)
             try:
-                yield self._connection
-                await self._connection.commit()
+                yield conn
+                await conn.commit()
             except BaseException:
                 # CancelledError is not an Exception. Roll back to the end, then re-raise.
-                await self._rollback_to_end()
+                await self._rollback_to_end(conn)
                 raise
             finally:
+                self._untrack_open_write(record)
                 held = time.monotonic() - held_since
                 if held >= _SLOW_WRITE_TRANSACTION_SECONDS:
                     _LOGGER.warning("Stats DB write transaction held %.1fs (%s)", held, name)
@@ -772,6 +938,7 @@ class DatabaseConnectionManager:
     @asynccontextmanager
     async def get_connection_ctx(self) -> AsyncIterator[aiosqlite.Connection]:
         """Context manager for multi-statement operations. @zara"""
-        if not await self._ensure_connected():
+        conn = await self._ensure_connected()
+        if conn is None:
             raise RuntimeError("Database not available")
-        yield self._connection
+        yield conn

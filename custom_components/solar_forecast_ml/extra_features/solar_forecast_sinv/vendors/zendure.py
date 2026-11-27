@@ -210,8 +210,12 @@ def build_devices(report: Any) -> dict[str, ZendureDevice]:
             indexed_role("temperature_battery_pack", index),
             _deci_kelvin(_num(pack.get("maxTemp"))),
         )
+    ac_in = _num(props.get("gridInputPower"))
+    if ac_in is not None and ac_in < 0:
+        ac_in = None
+    if ac_in is not None:
+        device.vendor["grid_input_power"] = round(ac_in)
     for key, source in (
-        ("grid_input_power", "gridInputPower"),
         ("input_limit", "inputLimit"),
         ("output_limit", "outputLimit"),
         ("ac_mode", "acMode"),
@@ -221,7 +225,6 @@ def build_devices(report: Any) -> dict[str, ZendureDevice]:
         if value is not None:
             device.vendor[key] = round(value)
     ac_out = _num(props.get("outputHomePower"))
-    ac_in = _num(props.get("gridInputPower"))
     if ac_out is not None and ac_in is not None:
         _set(device, "power_ac_net", ac_out - ac_in, 0)
         device.derived.add("power_ac_net")

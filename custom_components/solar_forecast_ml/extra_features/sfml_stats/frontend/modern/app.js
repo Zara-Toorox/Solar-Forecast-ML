@@ -94,6 +94,7 @@ const COPY = {
             dashboard: ["Übersicht", "Energie und Prognose im Überblick"],
             tablet: ["Tablet-Modus", "Vollbild-Anzeigen für ein Wand-Tablet"],
             tomorrow: ["Energietag", "Abgeschlossene Tage und eigener Anteil"],
+            shadow_year: ["Anlage übers Jahr", "Schatten, Reif und Schnee je Modulgruppe"],
             home: ["Live & Prognose", "Ausführlicher Energiefluss und Prognosestatus"],
             solar: ["Solar & Prognose", "Ertrag, Modelle, Abweichungen und Schatten"],
             weather: ["Wetter", "Wetterlage, Prognose, Strahlung und Ertrag"],
@@ -139,6 +140,7 @@ const COPY = {
             dashboard: ["Overview", "Energy and forecast at a glance"],
             tablet: ["Tablet mode", "Full-screen displays for a wall tablet"],
             tomorrow: ["Energy day", "Completed days and your own share"],
+            shadow_year: ["System over the year", "Shade, frost and snow per panel group"],
             home: ["Live & Forecast", "Detailed energy flow and forecast status"],
             solar: ["Solar & Forecast", "Yield, models, deviations and shading"],
             weather: ["Weather", "Conditions, forecast, radiation and yield"],
@@ -184,6 +186,7 @@ const COPY = {
             dashboard: ["Przegląd", "Energia i prognoza w skrócie"],
             tablet: ["Tryb tabletu", "Widoki pełnoekranowe dla tabletu ściennego"],
             tomorrow: ["Dzień energii", "Zakończone dni i własny udział"],
+            shadow_year: ["Instalacja w ciągu roku", "Cień, szron i śnieg dla każdej grupy modułów"],
             home: ["Na żywo i prognoza", "Szczegółowy przepływ energii i stan prognozy"],
             solar: ["Energia słoneczna", "Produkcja, modele, odchylenia i cień"],
             weather: ["Pogoda", "Warunki, prognoza, promieniowanie i uzysk"],
@@ -655,6 +658,7 @@ const ModernApp = {
                     { id: "gpm", icon: "energy" },
                     { id: "statistics", icon: "quality", license: "locked" },
                     { id: "tomorrow", icon: "play", license: "demo" },
+                    { id: "shadow_year", icon: "calendar", license: "demo" },
                 ],
             },
             {
@@ -719,6 +723,7 @@ const ModernApp = {
             sinv: window.SinvPage,
             gpm: window.GPMPage,
             tomorrow: window.TomorrowPage,
+            shadow_year: window.ShadowYearPage,
             eai: window.ModernEAIPage,
             heating: window.HeatingPage,
             mobility: window.ModernMobilityPage,
@@ -945,8 +950,9 @@ const ModernApp = {
                 liveData.solar_to_house = flows.solar_to_house ?? 0;
                 liveData.solar_to_battery = flows.solar_to_battery ?? 0;
                 liveData.battery_to_house = flows.battery_to_house ?? 0;
-                liveData.grid_to_house = flows.grid_to_house ?? 0;
-                liveData.grid_export = flows.house_to_grid ?? 0;
+                const withheldFlows = Array.isArray(flows.withheld) ? flows.withheld : [];
+                liveData.grid_to_house = withheldFlows.includes("grid_to_house") ? null : flows.grid_to_house ?? 0;
+                liveData.grid_export = withheldFlows.includes("house_to_grid") ? flows.house_to_grid ?? null : flows.house_to_grid ?? 0;
                 lastUpdated.value = new Date();
                 connectionState.value = "live";
             } catch (error) {

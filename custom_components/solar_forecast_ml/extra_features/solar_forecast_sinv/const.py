@@ -54,6 +54,12 @@ VENDOR_EMSESP: Final[str] = "emsesp"
 VENDOR_HP_BRIDGE: Final[str] = "hp_bridge"
 VENDOR_STIEBEL: Final[str] = "stiebel_isg"
 VENDOR_MTEC: Final[str] = "mtec"
+VENDOR_APSYSTEMS: Final[str] = "apsystems"
+CONF_AC_SOURCE: Final[str] = "ac_source"
+AC_SOURCE_NON_SOLAR: Final[str] = "non_solar"
+CONF_AC_SOURCE_STORAGE: Final[str] = "ac_source_storage"
+AC_SOURCE_STORAGE_NONE: Final[str] = "__none__"
+SIGNAL_SITE_CONFIG_UPDATED: Final[str] = f"{DOMAIN}_site_config_updated"
 # vendors read over a local network API, one instance per config entry
 LOCAL_VENDORS: Final[tuple[str, ...]] = (
     VENDOR_FRONIUS,
@@ -73,6 +79,7 @@ LOCAL_VENDORS: Final[tuple[str, ...]] = (
     VENDOR_HP_BRIDGE,
     VENDOR_STIEBEL,
     VENDOR_MTEC,
+    VENDOR_APSYSTEMS,
 )
 VENDOR_CONNECTIONS: Final[dict[str, tuple[str, ...]]] = {
     "anker": ("cloud",),
@@ -93,6 +100,7 @@ VENDOR_CONNECTIONS: Final[dict[str, tuple[str, ...]]] = {
     VENDOR_HP_BRIDGE: ("ha_bridge",),
     VENDOR_STIEBEL: ("local_modbus_stiebel",),
     VENDOR_MTEC: ("local_modbus_mtec",),
+    VENDOR_APSYSTEMS: ("local_api_apsystems",),
 }
 # First setup step: one list entry per supported system (vendor, connection)
 CONF_SYSTEM: Final[str] = "system"
@@ -115,6 +123,7 @@ SUPPORTED_SYSTEMS: Final[dict[str, tuple[str, str]]] = {
     "solplanet_ai_dongle": (VENDOR_SOLPLANET, "local_dongle_solplanet"),
     "enphase_local_envoy": (VENDOR_ENPHASE, "local_envoy"),
     "sigenergy_modbus_tcp": (VENDOR_SIGENERGY, "local_modbus_sigenergy"),
+    "apsystems_local_api": (VENDOR_APSYSTEMS, "local_api_apsystems"),
 }
 # Heat-pump systems. While this dict is empty the config flow keeps the
 # inverter list as the first step. A registered system shows the WR/HP menu.

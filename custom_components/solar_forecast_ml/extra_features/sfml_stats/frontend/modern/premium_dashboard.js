@@ -65,6 +65,7 @@ const PremiumDashboardPage = ((Vue) => {
             noWarnings: "Keine aktiven Wetterwarnungen",
             retry: "Erneut laden",
             unavailable: "Dashboard-Daten sind vorübergehend nicht verfügbar.",
+            gridImportUnknown: "Netzbezug unbekannt",
             price: "Strompreis",
             autarky: "Autarkie heute",
             solarToday: "Solar heute",
@@ -206,6 +207,7 @@ const PremiumDashboardPage = ((Vue) => {
             noWarnings: "No active weather warnings",
             retry: "Retry",
             unavailable: "Dashboard data is temporarily unavailable.",
+            gridImportUnknown: "Grid import unknown",
             price: "Electricity price",
             autarky: "Autarky today",
             solarToday: "Solar today",
@@ -347,6 +349,7 @@ const PremiumDashboardPage = ((Vue) => {
             noWarnings: "Brak aktywnych ostrzeżeń",
             retry: "Ponów",
             unavailable: "Dane pulpitu są tymczasowo niedostępne.",
+            gridImportUnknown: "Pobór z sieci nieznany",
             price: "Cena energii",
             autarky: "Autarkia dzisiaj",
             solarToday: "Solar dzisiaj",
@@ -989,9 +992,14 @@ const PremiumDashboardPage = ((Vue) => {
                 if (positive(energy.grid_import_w)) return copy.import;
                 if (positive(energy.grid_export_w)) return copy.export;
                 if (numeric(energy.grid_import_w) === null && numeric(energy.grid_export_w) === null) return copy.unavailable;
+                // A withheld import leaves only the export; that 0 does not say how much is imported.
+                if (energy.grid_import_w === null) return copy.gridImportUnknown;
                 return copy.standby;
             });
-            const gridPower = computed(() => power(positive(energy.grid_import_w) ? energy.grid_import_w : energy.grid_export_w));
+            const gridPower = computed(() => {
+                if (energy.grid_import_w === null && !positive(energy.grid_export_w)) return power(null);
+                return power(positive(energy.grid_import_w) ? energy.grid_import_w : energy.grid_export_w);
+            });
             const warnings = computed(() => Array.isArray(weather.warnings) ? weather.warnings : []);
             const weatherTarget = computed(() => warnings.value.length ? "eai_weather" : "weather");
             const weatherSymbol = computed(() => {

@@ -501,11 +501,19 @@
             label.textContent = copy[row[0]];
             var value = document.createElement("div");
             value.className = "lc-cell-value" + (row[2] && (row[1] || 0) > 0 ? " hot" : "");
-            value.appendChild(powerNode(row[1] || 0));
+            value.appendChild(powerNode(row[1] === null ? null : row[1] || 0));
             cell.appendChild(label);
             cell.appendChild(value);
             host.appendChild(cell);
         });
+    }
+
+    // A withheld grid charge (null) hides the charging power; a larger discharge is still measured.
+    function batteryWatts(power) {
+        var charge = (power.solar_to_battery_w || 0) + (power.grid_to_battery_w || 0);
+        var discharge = power.battery_to_house_w || 0;
+        if (power.grid_to_battery_w === null && discharge <= charge) return null;
+        return Math.max(charge, discharge);
     }
 
     function renderFlow(power) {
@@ -518,9 +526,8 @@
         var soc = power.battery_soc_percent;
         byId("lcBattery").hidden = soc == null;
         if (soc != null) {
-            var charge = (power.solar_to_battery_w || 0) + (power.grid_to_battery_w || 0);
             var discharge = power.battery_to_house_w || 0;
-            setContent("lcBatteryValue", powerNode(Math.max(charge, discharge)));
+            setContent("lcBatteryValue", powerNode(batteryWatts(power)));
             byId("lcSoc").textContent = whole.format(soc) + " %";
             var bar = byId("lcSocBar");
             clear(bar);

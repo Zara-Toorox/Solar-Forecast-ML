@@ -254,10 +254,19 @@
             var label = document.createElement("dt");
             label.textContent = copy[row[0]];
             var value = document.createElement("dd");
-            value.textContent = powerText(row[1] || 0);
+            // null is a withheld flow; a flow that is merely idle or absent reads 0 W.
+            value.textContent = row[1] === null ? "–" : powerText(row[1] || 0);
             host.appendChild(label);
             host.appendChild(value);
         });
+    }
+
+    // A withheld grid charge (null) hides the charging power; a larger discharge is still measured.
+    function batteryWatts(power) {
+        var charge = (power.solar_to_battery_w || 0) + (power.grid_to_battery_w || 0);
+        var discharge = power.battery_to_house_w || 0;
+        if (power.grid_to_battery_w === null && discharge <= charge) return null;
+        return Math.max(charge, discharge);
     }
 
     function renderFlow(power) {
@@ -272,9 +281,8 @@
         var hasBattery = soc != null;
         byId("rowBattery").hidden = !hasBattery;
         if (hasBattery) {
-            var charge = (power.solar_to_battery_w || 0) + (power.grid_to_battery_w || 0);
             var discharge = power.battery_to_house_w || 0;
-            setPower("battery", Math.max(charge, discharge));
+            setPower("battery", batteryWatts(power));
             byId("batterySoc").textContent = "(" + whole.format(soc) + " %)";
             setBreakdown("batteryRows", [
                 ["batteryDischarge", discharge],
@@ -283,8 +291,10 @@
             ]);
         }
 
-        var exportW = power.solar_to_grid_w || 0;
-        var importW = (power.grid_to_house_w || 0) + (power.grid_to_battery_w || 0);
+        var exportW = power.solar_to_grid_w === null ? null : power.solar_to_grid_w || 0;
+        var importW = power.grid_to_house_w === null && power.grid_to_battery_w === null
+            ? null
+            : (power.grid_to_house_w || 0) + (power.grid_to_battery_w || 0);
         setPower("grid", exportW >= 50 ? exportW : importW);
         setBreakdown("gridRows", [
             ["gridImport", power.grid_to_house_w],

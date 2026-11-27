@@ -219,7 +219,7 @@ const _EnergyPage = {
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡🏠</div>
-                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ fmt(billing.household.from_grid_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ flowKwh(billing.household.from_grid_kwh, 'grid_to_house') }}</div>
                         <div class="eb-label">{{ $t('energy.ofWhichGrid') }}</div>
                         <div class="eb-sub">{{ $t('energy.paid') }}</div>
                     </div>
@@ -230,7 +230,7 @@ const _EnergyPage = {
                 <div class="eb-grid">
                     <div class="eb-item">
                         <div class="eb-icon">🔋</div>
-                        <div class="eb-value" style="color: var(--success, #22c55e);">{{ fmt(billing.battery.total_charge_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--success, #22c55e);">{{ flowKwh(billing.battery.total_charge_kwh, 'grid_to_battery') }}</div>
                         <div class="eb-label">{{ $t('energy.kwhTotal') }}</div>
                         <div class="eb-sub">{{ $t('energy.chargedInPeriod') }}</div>
                     </div>
@@ -242,7 +242,7 @@ const _EnergyPage = {
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡🔋</div>
-                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ fmt(billing.battery.from_grid_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ flowKwh(billing.battery.from_grid_kwh, 'grid_to_battery') }}</div>
                         <div class="eb-label">{{ $t('energy.ofWhichGrid') }}</div>
                         <div class="eb-sub">{{ $t('energy.paid') }}</div>
                     </div>
@@ -259,13 +259,13 @@ const _EnergyPage = {
                     </div>
                     <div class="eb-item">
                         <div class="eb-icon">⚡</div>
-                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ fmt(billing.grid.total_import_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--chart-series-ai, #a855f7);">{{ flowKwh(billing.grid.total_import_kwh, 'grid_import') }}</div>
                         <div class="eb-label">{{ $t('energy.kwhGridImport') }}</div>
                         <div class="eb-sub">{{ $t('energy.houseAndBattery') }}</div>
                     </div>
-                    <div class="eb-item" v-if="billing.grid.export_kwh > 0">
+                    <div class="eb-item" v-if="billing.grid.export_kwh > 0 || flowUnknown('grid_export')">
                         <div class="eb-icon">⚡↗️</div>
-                        <div class="eb-value" style="color: var(--accent, #06b6d4);">{{ fmt(billing.grid.export_kwh) }}</div>
+                        <div class="eb-value" style="color: var(--accent, #06b6d4);">{{ flowKwh(billing.grid.export_kwh, 'grid_export') }}</div>
                         <div class="eb-label">{{ $t('energy.kwhFeedIn') }}</div>
                         <div class="eb-sub">{{ $t('energy.toGrid') }}</div>
                     </div>
@@ -284,7 +284,7 @@ const _EnergyPage = {
                                     style="transition: stroke-dashoffset 1s ease;"/>
                             </svg>
                             <div class="autarkie-text">
-                                <div class="autarkie-value" :style="{color: autarkieColor}">{{ billing.autarkie_percent != null ? $n(billing.autarkie_percent, 0) : 0 }}%</div>
+                                <div class="autarkie-value" :style="{color: autarkieColor}">{{ billing.autarkie_percent === null ? '–' : (billing.autarkie_percent != null ? $n(billing.autarkie_percent, 0) : 0) + '%' }}</div>
                                 <div class="autarkie-label">{{ $t('energy.autarky') }}</div>
                             </div>
                         </div>
@@ -559,8 +559,8 @@ const _EnergyPage = {
                             <td style="text-align:right; font-family:var(--font-mono);">{{ $n(m.consumption, 0) }} kWh</td>
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ $n(m.solar, 0) }} kWh</td>
                             <td style="text-align:right;">
-                                <span class="accuracy-badge" :style="{ background: m.autarkie >= 70 ? 'color-mix(in srgb, var(--success, rgb(34, 197, 94)) 20%, transparent)' : m.autarkie >= 40 ? 'color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 20%, transparent)' : 'color-mix(in srgb, var(--chart-series-ai, rgb(168, 85, 247)) 20%, transparent)', color: m.autarkie >= 70 ? 'var(--success, #22c55e)' : m.autarkie >= 40 ? 'var(--solar, #eab308)' : 'var(--chart-series-ai, #a855f7)' }">
-                                    {{ $n(m.autarkie, 0) }}%
+                                <span class="accuracy-badge" :style="m.autarkie === null ? {} : { background: m.autarkie >= 70 ? 'color-mix(in srgb, var(--success, rgb(34, 197, 94)) 20%, transparent)' : m.autarkie >= 40 ? 'color-mix(in srgb, var(--solar, rgb(234, 179, 8)) 20%, transparent)' : 'color-mix(in srgb, var(--chart-series-ai, rgb(168, 85, 247)) 20%, transparent)', color: m.autarkie >= 70 ? 'var(--success, #22c55e)' : m.autarkie >= 40 ? 'var(--solar, #eab308)' : 'var(--chart-series-ai, #a855f7)' }">
+                                    {{ m.autarkie === null ? '–' : $n(m.autarkie, 0) + '%' }}
                                 </span>
                             </td>
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--chart-series-ai, #a855f7);">{{ $n(m.gridImport, 0) }} kWh</td>
@@ -595,7 +595,7 @@ const _EnergyPage = {
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--solar);">{{ $n(monthlyTotals.solar, 0) }} kWh</td>
                             <td style="text-align:right;">
                                 <span class="accuracy-badge" :style="{ background: 'color-mix(in srgb, var(--accent, rgb(0, 212, 255)) 15%, transparent)', color: 'var(--accent)' }">
-                                    {{ $n(monthlyTotals.autarkie, 0) }}%
+                                    {{ monthlyTotals.autarkie === null ? '–' : $n(monthlyTotals.autarkie, 0) + '%' }}
                                 </span>
                             </td>
                             <td style="text-align:right; font-family:var(--font-mono); color:var(--chart-series-ai, #a855f7);">{{ $n(monthlyTotals.gridImport, 0) }} kWh</td>
@@ -1001,18 +1001,22 @@ const _EnergyPage = {
             const consumption = d.reduce((s, m) => s + parseFloat(m.consumption), 0);
             const solar = d.reduce((s, m) => s + parseFloat(m.solar), 0);
             const gridImport = d.reduce((s, m) => s + parseFloat(m.gridImport), 0);
-            const selfCons = d.reduce((s, m) => s + (m.selfCons || 0), 0);
-            const autarkie = consumption > 0 ? Math.min(100, (selfCons / consumption) * 100) : 0;
+            // Months with unknown days carry the sums of their known days instead.
+            const selfCons = d.reduce((s, m) => s + ((m.autarkySelf ?? m.selfCons) || 0), 0);
+            const autarkyBase = d.reduce((s, m) => s + parseFloat(m.autarkyConsumption ?? m.consumption), 0);
+            const autarkyUnknown = autarkyBase <= 0 && d.some(m => m.autarkyConsumption != null);
+            const autarkie = autarkyBase > 0 ? Math.min(100, (selfCons / autarkyBase) * 100) : 0;
             return {
                 consumption: consumption.toFixed(0),
                 solar: solar.toFixed(0),
-                autarkie: autarkie.toFixed(0),
+                autarkie: autarkyUnknown ? null : autarkie.toFixed(0),
                 gridImport: gridImport.toFixed(0),
                 ...money,
             };
         });
 
         const autarkieColor = computed(() => {
+            if (billing.value?.autarkie_percent === null) return getThemeColor('--text-muted', '#6e7681');
             const p = billing.value?.autarkie_percent ?? 0;
             if (p >= 70) return (window.sfmlThemeColor?.("--success") || "#22c55e");
             if (p >= 40) return (window.sfmlThemeColor?.("--solar") || "#eab308");
@@ -1034,6 +1038,17 @@ const _EnergyPage = {
             }
             return window.SFMLI18n.formatNumber(num(b.solar?.to_house_kwh) + num(b.household?.from_battery_kwh), 0);
         });
+
+        function flowUnknown(flow) {
+            return billing.value?.flows_unknown_days?.[flow] > 0;
+        }
+
+        // A period with unknown days shows the sum of its known days as a lower bound.
+        function flowKwh(value, flow) {
+            if (value === null) return '–';
+            if (!flowUnknown(flow)) return fmt(value);
+            return value > 0 ? `≥ ${fmt(value)}` : '–';
+        }
 
         const balanceUnknownKwh = computed(() => {
             const value = Number(billing.value?.household?.from_unknown_kwh ?? 0);
@@ -1402,7 +1417,7 @@ const _EnergyPage = {
                         const solar = m.solar_kwh ?? 0;
                         const gridImport = m.grid_import_kwh ?? 0;
                         const gridExport = m.grid_export_kwh ?? 0;
-                        const autarkie = m.autarkie_percent ?? 0;
+                        const autarkie = m.autarkie_percent === null ? null : m.autarkie_percent ?? 0;
 
                         const avgNumber = finiteMoney(m.avg_price_ct);
                         const selfCons = m.self_consumption_kwh ?? (
@@ -1423,9 +1438,11 @@ const _EnergyPage = {
                             label: MONTH_NAMES[month - 1] + ' ' + year,
                             consumption: consumption.toFixed(0),
                             solar: solar.toFixed(0),
-                            autarkie: autarkie.toFixed(0),
+                            autarkie: autarkie === null ? null : autarkie.toFixed(0),
                             gridImport: gridImport.toFixed(0),
                             selfCons,
+                            autarkyConsumption: m.autarky_consumption_kwh,
+                            autarkySelf: m.autarky_self_kwh,
                             cost: costShown.amount,
                             costIncomplete: costShown.incomplete,
                             daysWithoutPrice: Array.isArray(m.days_without_price) ? m.days_without_price : [],
@@ -1577,7 +1594,7 @@ const _EnergyPage = {
                 series: [
                     { name: t('flow.stat.solarToHouse'), type: 'line', stack: 'pos', areaStyle: { color: (window.sfmlThemeColor?.("--solar", 0.3) || 'rgba(251,191,36,0.3)') }, lineStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24"), width: 1.5 }, itemStyle: { color: (window.sfmlThemeColor?.("--solar") || "#fbbf24") }, symbol: 'none', smooth: true, data: data.map(d => d.solar_to_house ?? 0) },
                     { name: t('flow.stat.batteryToHouse'), type: 'line', stack: 'pos', areaStyle: { color: (window.sfmlThemeColor?.("--success", 0.2) || 'rgba(34,197,94,0.2)') }, lineStyle: { color: (window.sfmlThemeColor?.("--success") || "#22c55e"), width: 1.5 }, itemStyle: { color: (window.sfmlThemeColor?.("--success") || "#22c55e") }, symbol: 'none', smooth: true, data: data.map(d => d.battery_to_house ?? 0) },
-                    { name: t('flow.stat.gridToHouse'), type: 'line', stack: 'pos', areaStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai", 0.2) || 'rgba(139,92,246,0.2)') }, lineStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7"), width: 1.5 }, itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7") }, symbol: 'none', smooth: true, data: data.map(d => d.grid_to_house ?? 0) },
+                    { name: t('flow.stat.gridToHouse'), type: 'line', stack: 'pos', areaStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai", 0.2) || 'rgba(139,92,246,0.2)') }, lineStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7"), width: 1.5 }, itemStyle: { color: (window.sfmlThemeColor?.("--chart-series-ai") || "#a855f7") }, symbol: 'none', smooth: true, data: data.map(d => d.grid_to_house === null ? null : d.grid_to_house ?? 0) },
                     { name: t('flow.node.houseConsumption'), type: 'line', lineStyle: { color: getThemeColor('--text-primary', '#f0f6fc'), width: 2, type: 'dashed' }, itemStyle: { color: getThemeColor('--text-primary', '#f0f6fc') }, symbol: 'none', smooth: true, data: data.map(d => d.home_consumption ?? 0) },
                 ],
                 animationDuration: 1000,
@@ -1831,7 +1848,7 @@ const _EnergyPage = {
         });
 
         return {
-            billing, billingError, priceData, priceRanges, monthlyData, monthlyTotals, fmt,
+            billing, billingError, priceData, priceRanges, monthlyData, monthlyTotals, fmt, flowKwh, flowUnknown,
             amortization, amortizationError, amortizationEdit, amortizationSaving, amortizationForm,
             amortizationProgress, amortizationProgressText, amortizationChipPct, amortizationEstimateNote, amortizationDegradation, amortizationRingStyle, amortizationBreakEven,
             billingOriginChips,

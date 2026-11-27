@@ -183,7 +183,7 @@ const ModernStatisticsPage = {
                 <div v-if="message" class="statistics-state error" role="alert">{{ message }}</div>
                 <div class="statistics-kpis" :aria-label="text('statistics.kpi', 'Kennzahlen')">
                     <article class="statistics-card"><span>{{ text('statistics.cost', 'Kosten') }}</span><strong>{{ costMain(totals) }}<span v-if="costShown(totals).incomplete" class="statistics-incomplete"> {{ text('statistics.costIncomplete', 'unvollständig') }}</span></strong><small v-if="costFoot(totals)">{{ costFoot(totals) }}</small><small v-if="missingPriceHint(totals)" class="statistics-price-hint">{{ missingPriceHint(totals) }}<a class="statistics-price-hint-link" href="#gpm/gpm-csv-import" @click.prevent="openGpmCsvImport">{{ text('gpm.missingGpmPricesCsv', 'per CSV-Import in GPM ergänzen') }}</a>{{ text('gpm.missingGpmPricesEnd', '.') }}</small></article>
-                    <button v-for="metric in resultMetrics" :key="metric" class="statistics-card" type="button" :data-metric="metric" :aria-pressed="selectedMetric === metric" @click="selectedMetric = metric"><span>{{ metricLabel(metric) }}</span><strong>{{ kwh(metricTotal(metric)) }}</strong></button>
+                    <button v-for="metric in resultMetrics" :key="metric" class="statistics-card" type="button" :data-metric="metric" :aria-pressed="selectedMetric === metric" @click="selectedMetric = metric"><span>{{ metricLabel(metric) }}</span><strong>{{ kwh(metricTotal(metric)) }}<span v-if="kwhIncomplete(totals, metric)" class="statistics-incomplete"> {{ text('statistics.costIncomplete', 'unvollständig') }}</span></strong></button>
                 </div>
                 <div class="statistics-card">
                     <span class="statistics-kicker">{{ text('statistics.chart', 'Verlauf') }}</span>
@@ -215,7 +215,7 @@ const ModernStatisticsPage = {
                                     <tr v-for="row in rows" :key="row.period">
                                         <td>{{ row.period }}</td>
                                         <td>{{ costMain(row) }}<template v-if="costShown(row).incomplete"> {{ text('statistics.costIncomplete', 'unvollständig') }}</template><div v-if="costFoot(row)" class="statistics-cost-foot">{{ costFoot(row) }}</div><div v-if="missingPriceHint(row)" class="statistics-cost-foot statistics-price-hint">{{ missingPriceHint(row) }}<a class="statistics-price-hint-link" href="#gpm/gpm-csv-import" @click.prevent="openGpmCsvImport">{{ text('gpm.missingGpmPricesCsv', 'per CSV-Import in GPM ergänzen') }}</a>{{ text('gpm.missingGpmPricesEnd', '.') }}</div></td>
-                                        <td v-for="metric in visibleMetrics" :key="metric" :class="{ 'statistics-corrected': correctedMetric(row, metric) }">{{ kwh(row.metrics[metric]) }}</td>
+                                        <td v-for="metric in visibleMetrics" :key="metric" :class="{ 'statistics-corrected': correctedMetric(row, metric) }">{{ kwh(row.metrics[metric]) }}<template v-if="kwhIncomplete(row, metric)"> {{ text('statistics.costIncomplete', 'unvollständig') }}</template></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -265,7 +265,11 @@ const ModernStatisticsPage = {
         function money(value) {
             return statisticsFormatMoney(value);
         }
-        const kwh = (value) => statisticsFormatKwh(value);
+        const kwh = (value) => value === null ? "\u2013" : statisticsFormatKwh(value);
+        // The sum of the known days of a period that also has unknown ones.
+        const kwhIncomplete = (record, metric) => (
+            Number(record?.unknown_days?.[metric]) > 0 && record.metrics?.[metric] !== null
+        );
         const costShown = (record) => statisticsShownCost(record);
         const costMain = (record) => {
             const shown = statisticsShownCost(record);
@@ -273,6 +277,7 @@ const ModernStatisticsPage = {
         };
         const gridImportKwh = (record) => {
             const fromMetric = record?.metrics?.grid_import_day_kwh;
+            if (fromMetric === null) return null;
             if (fromMetric != null && Number.isFinite(Number(fromMetric))) return Number(fromMetric);
             return statisticsFiniteOrNull(record?.kwh);
         };
@@ -370,12 +375,12 @@ const ModernStatisticsPage = {
                 },
                 tooltip: {
                     trigger: "axis",
-                    valueFormatter: (value) => statisticsFormatKwh(value),
+                    valueFormatter: (value) => kwh(value),
                 },
                 series: [{
                     name: metricLabel(metric),
                     type: "line",
-                    data: points.map((row) => Number(row.metrics?.[metric]) || 0),
+                    data: points.map((row) => row.metrics?.[metric] === null ? null : Number(row.metrics?.[metric]) || 0),
                     showSymbol: points.length <= 400,
                     symbolSize: 6,
                     lineStyle: { width: 2, color },
@@ -468,7 +473,7 @@ const ModernStatisticsPage = {
         });
         return {
             periodFrom, periodTo, grain, grains, selectedMetric, showAll, loading, locked, message, rows, totals, metricIds, resultMetrics,
-            visibleMetrics, correctedPeriods, correctionNote, chartEl, text, metricLabel, metricTotal, money, kwh,
+            visibleMetrics, correctedPeriods, correctionNote, chartEl, text, metricLabel, metricTotal, money, kwh, kwhIncomplete,
             costShown, costMain, costFoot, missingPriceHint, openGpmCsvImport, correctedMetric, load, download,
         };
     },

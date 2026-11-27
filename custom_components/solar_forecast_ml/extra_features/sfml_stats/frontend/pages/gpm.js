@@ -671,10 +671,11 @@ const _GPMPage = {
             totalEur: (window.sfmlThemeColor?.("--grid") || "#0284c7"),
             effectiveCt: (window.sfmlThemeColor?.("--solar") || "#fbbf24"),
         };
-        const BILL_BAR_STYLE = {
-            solid: (window.sfmlThemeColor?.("--accent") || "#38bdf8"),
-            light: (window.sfmlThemeColor?.("--accent", 0.6) || "#7dd3fc"),
-            decal: BILL_INCOMPLETE_DECAL,
+        const BILL_INVOICE_DECAL = {
+            symbol: "circle",
+            symbolSize: 0.5,
+            dashArrayX: [4, 2],
+            dashArrayY: [4, 2],
         };
 
         const statusLabel = computed(() => {
@@ -1030,6 +1031,85 @@ const _GPMPage = {
                 incomplete: shown.incomplete,
                 itemStyle,
             };
+        }
+        function billBarStyle() {
+            // Read on every render so the legend and the bars follow the active theme.
+            const color = window.sfmlThemeColor;
+            return {
+                current: {
+                    solid: (color?.("--accent") || "#38bdf8"),
+                    light: (color?.("--accent", 0.6) || "#7dd3fc"),
+                    decal: BILL_INCOMPLETE_DECAL,
+                    invoiceDecal: BILL_INVOICE_DECAL,
+                },
+                previous: {
+                    solid: "rgba(148, 163, 184, 0.6)",
+                    light: "rgba(148, 163, 184, 0.3)",
+                    decal: BILL_INCOMPLETE_DECAL,
+                    invoiceDecal: BILL_INVOICE_DECAL,
+                },
+            };
+        }
+        function billDistributed(row) {
+            const source = row && row.source;
+            return source === "invoice" || source === "mixed";
+        }
+        function billBarPoint(row, style) {
+            const point = chartMoneyBarPoint(row, "total_eur", style);
+            if (!point) return null;
+            const distributed = billDistributed(row);
+            const itemStyle = distributed && point.complete && !point.incomplete
+                ? { color: style.solid, decal: style.invoiceDecal }
+                : point.itemStyle;
+            return {
+                value: point.value,
+                complete: point.complete,
+                incomplete: point.incomplete,
+                distributed,
+                kwh: row.kwh,
+                avg: row.avg_price_ct,
+                coverage: row.coverage_percent,
+                itemStyle,
+            };
+        }
+        function billChartSeries(months, previous, style) {
+            const prior = Array.isArray(previous) ? previous : [];
+            return [
+                {
+                    name: t("gpm.billTitle"),
+                    type: "bar",
+                    color: style.current.solid,
+                    itemStyle: { color: style.current.solid },
+                    data: (months || []).map((row) => billBarPoint(row, style.current)),
+                },
+                {
+                    name: t("gpm.billPreviousYear"),
+                    type: "bar",
+                    color: style.previous.solid,
+                    itemStyle: { color: style.previous.solid },
+                    // Both lists follow the same slice plan, so the position pairs a slice with its prior-year slice.
+                    data: (months || []).map((_row, index) => billBarPoint(prior[index], style.previous)),
+                },
+            ];
+        }
+        function billPreviousLine(prior) {
+            const label = t("gpm.billPreviousYear");
+            if (!prior || typeof prior !== "object") return `${label}: —`;
+            const shown = shownMoney(prior, "total_eur");
+            const amount = shown.amount == null ? "—" : formatChartEuro(shown.amount);
+            const parts = [`${label} ${String(prior.month || "")}: ${amount}`];
+            if (!prior.complete) parts.push(t("gpm.billIncomplete"));
+            if (billDistributed(prior)) parts.push(t("gpm.billDistributed"));
+            return parts.join(" · ");
+        }
+        function billInvoiceLines(row) {
+            const invoices = Array.isArray(row && row.invoices) ? row.invoices : [];
+            return invoices.map((item) => t("gpm.billInvoiceShare", {
+                label: String((item && item.label) || ""),
+                days: formatLocaleNumber(item && item.days, 0, 0),
+                kwh: formatLocaleNumber(item && item.kwh, 1, 1),
+                eur: formatChartEuro(item && item.total_eur),
+            }));
         }
         function compressMissingDayRanges(days) {
             if (!Array.isArray(days) || !days.length) return [];
@@ -1422,29 +1502,8 @@ const _GPMPage = {
             if (!billChart) billChart = window.echarts.init(billEl.value);
             const months = bill.value.months || [];
             const previous = bill.value.previous_year || [];
-            const prevByMonth = {};
-            previous.forEach((row) => {
-                const key = String(row.month || "");
-                prevByMonth[key.slice(5, 7)] = row;
-            });
             const labels = months.map((row) => String(row.month || "").slice(5, 7));
-            const currentData = months.map((row) => {
-                const point = chartMoneyBarPoint(row, "total_eur", BILL_BAR_STYLE);
-                if (!point) return null;
-                return {
-                    value: point.value,
-                    complete: point.complete,
-                    incomplete: point.incomplete,
-                    kwh: row.kwh,
-                    avg: row.avg_price_ct,
-                    coverage: row.coverage_percent,
-                    itemStyle: point.itemStyle,
-                };
-            });
-            const ghostData = months.map((row) => {
-                const prior = prevByMonth[String(row.month || "").slice(5, 7)];
-                return prior ? prior.total_eur : null;
-            });
+            const series = billChartSeries(months, previous, billBarStyle());
             billChart.setOption({
                 tooltip: {
                     trigger: "axis",
@@ -1455,33 +1514,28 @@ const _GPMPage = {
                         if (!point || !months[point.dataIndex]) return "";
                         const row = months[point.dataIndex];
                         const incomplete = row.complete ? "" : ` · ${t("gpm.billIncomplete")}`;
+                        const distributed = billDistributed(row) ? ` · ${t("gpm.billDistributed")}` : "";
                         const billShown = shownMoney(row, "total_eur");
                         const avg = finiteComponent(row.avg_price_ct);
                         const fallback = billMonthFallbackLine(row);
                         const lines = [
                             row.month,
-                            `${formatChartEuro(billShown.amount)}${incomplete}`,
+                            `${formatChartEuro(billShown.amount)}${incomplete}${distributed}`,
                             `${t("gpm.billKwh")}: ${formatLocaleNumber(row.kwh, 1, 1)}`,
                             `${t("gpm.billAvgPrice")}: ${avg == null ? "—" : window.SFMLI18n.formatNumber(avg, 1)}`,
                             `${t("gpm.billCoverage")}: ${formatLocaleNumber(row.coverage_percent, 0, 0)}%`,
                         ];
+                        billInvoiceLines(row).forEach((line) => lines.push(line));
                         chartMoneyGapTooltipLines(row).forEach((line) => lines.push(line));
                         if (fallback) lines.push(fallback);
+                        lines.push(billPreviousLine(previous[point.dataIndex]));
                         return lines.join("<br/>");
                     },
                 },
                 legend: { data: [t("gpm.billTitle"), t("gpm.billPreviousYear")] },
                 xAxis: { type: "category", data: labels },
                 yAxis: { type: "value", name: "€" },
-                series: [
-                    { name: t("gpm.billTitle"), type: "bar", data: currentData },
-                    {
-                        name: t("gpm.billPreviousYear"),
-                        type: "bar",
-                        data: ghostData,
-                        itemStyle: { color: "rgba(148, 163, 184, 0.35)" },
-                    },
-                ],
+                series,
             }, true);
         }
 
@@ -1797,7 +1851,7 @@ const _GPMPage = {
                 yearlyMessage.value = t("gpm.yearly.saved");
                 yearlyMessageError.value = false;
                 resetYearlyForm();
-                await loadYearly();
+                await Promise.allSettled([loadYearly(), loadBill()]);
             } catch (error) {
                 yearlyMessage.value = yearlyErrorText(error);
                 yearlyMessageError.value = true;
@@ -1829,7 +1883,7 @@ const _GPMPage = {
                 yearlyMessage.value = t("gpm.yearly.deleted");
                 yearlyMessageError.value = false;
                 if (yearlyForm.value.id === invoiceId) resetYearlyForm();
-                await loadYearly();
+                await Promise.allSettled([loadYearly(), loadBill()]);
             } catch (error) {
                 yearlyMessage.value = yearlyErrorText(error);
                 yearlyMessageError.value = true;
@@ -1935,9 +1989,11 @@ const _GPMPage = {
             window.addEventListener("resize", handleResize);
             scrollCsvImportIfRequested();
             window.addEventListener("hashchange", scrollCsvImportIfRequested);
+            window.addEventListener("sfml-modern-themechange", renderBill);
         });
         onUnmounted(() => {
             window.removeEventListener("resize", handleResize);
+            window.removeEventListener("sfml-modern-themechange", renderBill);
             if (chart) {
                 chart.dispose();
                 chart = null;

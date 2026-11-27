@@ -543,7 +543,7 @@ const CORRECTION_TEMPLATE = `
                     <div :class="{ 'corrections-stale': reviewBusy }">
                         <p class="corrections-summary" data-correction-summary>{{ summaryText }}</p>
                         <p v-if="detectedText" class="corrections-detected" data-correction-detected>{{ detectedText }}</p>
-                        <p v-if="review.fallback" class="corrections-hint">{{ t('corrections.review.uniformFallback') }}</p>
+                        <p v-if="review.fallback" class="corrections-hint">{{ t(review.unknownFallback ? 'corrections.review.unknownFallback' : 'corrections.review.uniformFallback') }}</p>
 
                         <section v-if="ambiguity" class="corrections-ask" role="group" aria-labelledby="correction-ask-title" data-correction-ask>
                             <h4 id="correction-ask-title">{{ ambiguity.title }}</h4>
@@ -891,7 +891,7 @@ const ModernCorrectionsPage = {
             [makeRow(data.target_date, data.metric, data.before_kwh, data.after_kwh, null)]);
         const reviewFromRange = (data) => buildReview("range", data,
             (data.days || []).map((item) => makeRow(item.date, data.metric, item.before_kwh, item.after_kwh, null)),
-            { fallback: Boolean(data.fallback_reason) });
+            { fallback: Boolean(data.fallback_reason), unknownFallback: data.fallback_reason === "raw_unknown" });
         const reviewFromFile = (data) => buildReview("file", data,
             (data.days || []).map((item) => makeRow(item.date, item.metric, item.before_kwh, item.after_kwh, item.line)), {
                 unchanged: Number(data.unchanged || 0),

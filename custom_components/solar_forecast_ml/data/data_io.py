@@ -17,6 +17,9 @@ All file I/O replaced with database operations via DatabaseManager.
 
 import asyncio
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from time import monotonic
 from typing import Any, Optional
 
@@ -25,6 +28,64 @@ from homeassistant.core import HomeAssistant
 from .db_manager import DatabaseManager
 
 _LOGGER = logging.getLogger(__name__)
+
+_failed_reads: ContextVar[Optional[list[str]]] = ContextVar(
+    "sfml_failed_reads", default=None
+)
+
+
+@contextmanager
+def collect_failed_reads() -> Iterator[list[str]]:
+    """Collect why fetch_one/fetch_all could not read inside the block. @zara
+
+    Applies to the running context; child tasks started inside the block
+    inherit the collector, a nested block collects on its own.
+    """
+    failed: list[str] = []
+    token = _failed_reads.set(failed)
+    try:
+        yield failed
+    finally:
+        # A coroutine closed from another context cannot reset the token.
+        with suppress(ValueError):
+            _failed_reads.reset(token)
+
+
+@contextmanager
+def watch_failed_reads() -> Iterator[list[str]]:
+    """Collect failed reads of the block and pass them on to an outer collector. @zara"""
+    outer = _failed_reads.get()
+    with collect_failed_reads() as failed:
+        try:
+            yield failed
+        finally:
+            if outer is not None:
+                outer.extend(failed)
+
+
+def _record_failed_read(error: Exception) -> None:
+    """Note the reason of a read that raised, for the active collector. @zara"""
+    failed = _failed_reads.get()
+    if failed is None:
+        return
+    reason = type(error).__name__
+    with suppress(Exception):
+        reason = f"{reason}: {error}"
+    failed.append(reason)
+
+
+def _record_refused_read(io: "DataManagerIO", answer: Any) -> None:
+    """Note an empty answer of a connection that refuses reads. @zara"""
+    failed = _failed_reads.get()
+    if failed is None:
+        return
+    # Observation only: a foreign database object must not break the read.
+    with suppress(Exception):
+        if answer is not None and len(answer) > 0:
+            return
+        probe = getattr(io.db, "refuses_reads", None)
+        if callable(probe) and probe() is True:
+            failed.append("database connection closed or closing")
 
 
 class DataManagerIO:
@@ -117,10 +178,13 @@ class DataManagerIO:
             Row data or None if not found
         """
         try:
-            return await self.db.fetchone(sql, parameters)
+            row = await self.db.fetchone(sql, parameters)
         except Exception as e:
             _LOGGER.error("Failed to fetch row (%s): %s", sql[:100], e)
+            _record_failed_read(e)
             return None
+        _record_refused_read(self, row)
+        return row
 
     async def fetch_all(
         self,
@@ -137,10 +201,13 @@ class DataManagerIO:
             List of rows or empty list on error
         """
         try:
-            return await self.db.fetchall(sql, parameters)
+            rows = await self.db.fetchall(sql, parameters)
         except Exception as e:
             _LOGGER.error("Failed to fetch rows (%s): %s", sql[:100], e)
+            _record_failed_read(e)
             return []
+        _record_refused_read(self, rows)
+        return rows
 
     async def get_db_stats(self) -> dict[str, Any]:
         """Get database statistics. @zara

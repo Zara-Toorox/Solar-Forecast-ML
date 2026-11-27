@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -30,8 +31,9 @@ from homeassistant.helpers.update_coordinator import (
 )
 
 from . import contract, dc_energy
-from .const import DOMAIN
+from .const import AC_SOURCE_NON_SOLAR, CONF_AC_SOURCE, DOMAIN
 from .entity import assign_role_identity, vendor_free_entity_id
+from .vendors import apsystems
 
 
 async def async_setup_local_sensors(
@@ -44,8 +46,17 @@ async def async_setup_local_sensors(
     @callback
     def add_new() -> None:
         new: list[LocalVendorSensor] = []
+        entry_non_solar = (
+            isinstance(getattr(entry, "data", None), Mapping)
+            and entry.data.get(CONF_AC_SOURCE) == AC_SOURCE_NON_SOLAR
+        )
         for serial, device in (coordinator.data or {}).items():
+            non_solar = entry_non_solar or bool(getattr(device, "non_solar", False))
             for role in device.roles:
+                if non_solar:
+                    split = contract.split_role(role)
+                    if split is not None and split[0].base in contract.SOLAR_ROLE_BASES:
+                        continue
                 if (serial, role) not in known:
                     known.add((serial, role))
                     new.append(LocalVendorSensor(coordinator, serial, role=role))
@@ -156,9 +167,24 @@ class LocalVendorSensor(CoordinatorEntity[DataUpdateCoordinator], SensorEntity):
     def _device(self) -> Any:
         return (self.coordinator.data or {}).get(self._serial)
 
+    def _is_non_solar(self) -> bool:
+        entry = getattr(self.coordinator, "config_entry", None)
+        data = getattr(entry, "data", None)
+        if isinstance(data, Mapping) and data.get(CONF_AC_SOURCE) == AC_SOURCE_NON_SOLAR:
+            return True
+        return bool(getattr(self._device, "non_solar", False))
+
+    def _blocked_solar_role(self) -> bool:
+        if not self._role or not self._is_non_solar():
+            return False
+        split = contract.split_role(self._role)
+        return split is not None and split[0].base in contract.SOLAR_ROLE_BASES
+
     @property
     def available(self) -> bool:
         """Available while the device reports this value. @zara"""
+        if self._blocked_solar_role():
+            return False
         device = self._device
         if not super().available or device is None:
             return False
@@ -205,6 +231,8 @@ class LocalVendorSensor(CoordinatorEntity[DataUpdateCoordinator], SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return the current value. @zara"""
+        if self._blocked_solar_role():
+            return None
         device = self._device
         if device is None:
             return None
@@ -233,4 +261,13 @@ class LocalVendorSensor(CoordinatorEntity[DataUpdateCoordinator], SensorEntity):
             source = getattr(device, "dc_source", None)
             if isinstance(source, str) and source:
                 attributes[dc_energy.SOURCE_ATTR] = source
+        if (
+            self._vendor.VENDOR == apsystems.VENDOR
+            and self._role in apsystems.AC_SOURCE_ROLES
+        ):
+            attributes[apsystems.AC_SOURCE_ATTR] = (
+                apsystems.AC_SOURCE_NON_SOLAR
+                if self._is_non_solar()
+                else apsystems.AC_SOURCE
+            )
         return attributes

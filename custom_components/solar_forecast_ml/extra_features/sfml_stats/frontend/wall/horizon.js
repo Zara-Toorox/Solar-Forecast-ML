@@ -619,11 +619,19 @@
             var label = document.createElement("dt");
             label.textContent = copy[row[0]];
             var value = document.createElement("dd");
-            value.textContent = powerParts(row[1] || 0).join(" ");
+            value.textContent = powerParts(row[1] === null ? null : row[1] || 0).join(" ");
             if (row[2] && (row[1] || 0) > 0) value.className = "hot";
             host.appendChild(label);
             host.appendChild(value);
         });
+    }
+
+    // A withheld grid charge (null) hides the charging power; a larger discharge is still measured.
+    function batteryWatts(power) {
+        var charge = (power.solar_to_battery_w || 0) + (power.grid_to_battery_w || 0);
+        var discharge = power.battery_to_house_w || 0;
+        if (power.grid_to_battery_w === null && discharge <= charge) return null;
+        return Math.max(charge, discharge);
     }
 
     function renderFlow(power) {
@@ -632,10 +640,9 @@
         var soc = power.battery_soc_percent;
         byId("hzBattery").hidden = soc == null;
         if (soc != null) {
-            var charge = (power.solar_to_battery_w || 0) + (power.grid_to_battery_w || 0);
             var discharge = power.battery_to_house_w || 0;
             byId("hzSoc").textContent = whole.format(soc) + " %";
-            setContent("hzBatteryValue", powerNode(Math.max(charge, discharge)));
+            setContent("hzBatteryValue", powerNode(batteryWatts(power)));
             setRows("hzBatteryRows", [["batteryDischarge", discharge], ["batterySolar", power.solar_to_battery_w, true], ["batteryGrid", power.grid_to_battery_w]]);
         }
         setContent("hzGridValue", powerNode(gridWatts(power)));

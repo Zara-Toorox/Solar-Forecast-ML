@@ -19,7 +19,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntry
 
-from .const import CONF_DEYE_MPPT_SEEN, CONF_LOGGER_SERIAL, CONF_VENDOR, DOMAIN, LOCAL_VENDORS
+from .const import CONF_AC_SOURCE_STORAGE, CONF_DEYE_MPPT_SEEN, CONF_LOGGER_SERIAL, CONF_VENDOR, DOMAIN, LOCAL_VENDORS
 from .coordinator import AnkerSolixDataUpdateCoordinator
 
 TO_REDACT = {
@@ -39,6 +39,12 @@ TO_REDACT = {
     "gateway_serial",
     CONF_LOGGER_SERIAL,
     CONF_DEYE_MPPT_SEEN,
+    # APsystems EZ1 device info and stored serial
+    "ssid",
+    "ipAddr",
+    "deviceId",
+    "device_serial",
+    CONF_AC_SOURCE_STORAGE,
 }
 
 
@@ -88,10 +94,13 @@ def _local_diagnostics(entry: ConfigEntry) -> dict[str, Any]:
     """Return the parsed devices of a local-API instance (no credentials exist). @zara"""
     coordinator = getattr(entry, "runtime_data", None)
     devices = (coordinator.data or {}) if coordinator else {}
-    return {
+    result = {
         "config_entry": async_redact_data(entry.as_dict(), TO_REDACT),
         "devices": {
             serial: {**asdict(device), "derived": sorted(device.derived)}
             for serial, device in devices.items()
         },
     }
+    if callable(vendor_info := getattr(coordinator, "diagnostics", None)):
+        result["vendor"] = async_redact_data(vendor_info(), TO_REDACT)
+    return result

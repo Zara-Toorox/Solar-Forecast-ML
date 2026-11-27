@@ -547,6 +547,10 @@ class StatsFlowCard extends HTMLElement {
     const homePower = data.home?.consumption != null
       ? pos(data.home.consumption)
       : solarToHouse + batteryToHouse + gridToHouse;
+    // The backend lists the flows it withholds; their null is unknown, not 0.
+    const withheld = Array.isArray(f.withheld) ? f.withheld : [];
+    const splitUnknown = withheld.includes("grid_to_house");
+    const homeUnknown = splitUnknown && data.home?.consumption == null;
 
     // Solar
     this._el("val-solar").textContent = this._power(solarPower);
@@ -556,11 +560,19 @@ class StatsFlowCard extends HTMLElement {
     // Grid: separate import and export like the HA energy card
     const gridImport = gridToHouse + gridToBattery;
     // Arrows follow the flow in the diagram: import runs right towards the house, export left into the grid
-    this._el("val-import").textContent = `→ ${this._power(gridImport)}`;
-    this._el("val-export").textContent = `← ${this._power(houseToGrid)}`;
+    if (splitUnknown) {
+      this._el("val-import").textContent = f.smartmeter_import == null
+        ? "–"
+        : `→ ${this._power(pos(f.smartmeter_import))}`;
+    } else {
+      this._el("val-import").textContent = `→ ${this._power(gridImport)}`;
+    }
+    this._el("val-export").textContent = withheld.includes("house_to_grid") && f.house_to_grid == null
+      ? "–"
+      : `← ${this._power(houseToGrid)}`;
 
     // Home: live consumption and self-sufficiency
-    this._el("val-home").textContent = this._power(homePower);
+    this._el("val-home").textContent = homeUnknown ? "–" : this._power(homePower);
     const autarky = homePower >= STATS_FLOW_MIN_W && f.grid_to_house != null
       ? Math.max(0, Math.min(100, Math.round((1 - gridToHouse / homePower) * 100)))
       : null;
@@ -569,7 +581,9 @@ class StatsFlowCard extends HTMLElement {
       : "";
 
     // Home ring: share of each source in the live supply
-    const supply = solarToHouse + batteryToHouse + gridToHouse;
+    // With a withheld grid share the home consumption is the whole ring.
+    let supply = solarToHouse + batteryToHouse + gridToHouse;
+    if (splitUnknown) supply = homeUnknown ? 0 : Math.max(supply, homePower);
     const shares = supply > 0
       ? [solarToHouse / supply, batteryToHouse / supply, gridToHouse / supply].map((s) => s * 100)
       : [0, 0, 0];
@@ -605,10 +619,12 @@ class StatsFlowCard extends HTMLElement {
 
     // Daily totals
     this._el("tot-solar").textContent = this._kwh(stats.solar_yield_daily);
-    this._el("tot-import").textContent = this._kwh(stats.grid_import_daily);
-    this._el("tot-battery").textContent = this._kwh(
-      pos(stats.battery_charge_solar_daily) + pos(stats.battery_charge_grid_daily),
-    );
+    this._el("tot-import").textContent = stats.grid_import_daily === null
+      ? "–"
+      : this._kwh(stats.grid_import_daily);
+    this._el("tot-battery").textContent = stats.battery_charge_grid_daily === null
+      ? "–"
+      : this._kwh(pos(stats.battery_charge_solar_daily) + pos(stats.battery_charge_grid_daily));
 
     this._renderFlows({
       solarHome: solarToHouse,

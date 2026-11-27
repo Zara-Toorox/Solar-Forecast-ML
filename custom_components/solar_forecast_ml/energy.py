@@ -72,7 +72,22 @@ async def async_get_solar_forecast(
         return None
 
     _LOGGER.debug("Energy forecast: %d hourly entries provided", len(wh_hours))
-    return {"wh_hours": wh_hours}
+    return {"wh_hours": _sorted_wh_hours(wh_hours)}
+
+
+def _sorted_wh_hours(wh_hours: dict[str, float]) -> dict[str, float]:
+    """Return wh_hours ordered by point in time. @zara
+
+    The dashboard draws the line in dict order. Sorting by the parsed
+    timestamp (not the ISO text) keeps days with a changing UTC offset in
+    the right order.
+    """
+    return dict(
+        sorted(
+            wh_hours.items(),
+            key=lambda item: datetime.fromisoformat(item[0]).timestamp(),
+        )
+    )
 
 
 def _get_today_predictions(coordinator) -> list[dict[str, Any]]:

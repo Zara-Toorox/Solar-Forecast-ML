@@ -297,7 +297,15 @@ def flow_inputs(role: str, has_battery: bool) -> tuple[str, ...]:
     return ()
 
 
-def derived_flow_roles(roles: Iterable[str]) -> frozenset[str]:
+SOLAR_FLOW_ROLES = frozenset(("power_solar_to_house", "power_solar_to_battery"))
+
+
+def derived_flow_roles(
+    roles: Iterable[str],
+    *,
+    has_generation: bool | None = None,
+    has_non_solar_ac: bool = False,
+) -> frozenset[str]:
     """Flows to publish because no device reports them and their inputs exist. @zara"""
     present = set(roles)
     has_battery = site_daily.battery_present(present)
@@ -305,8 +313,19 @@ def derived_flow_roles(roles: Iterable[str]) -> frozenset[str]:
     for role in FLOW_ROLES:
         if role in present:
             continue
+        if has_generation is False and role in SOLAR_FLOW_ROLES:
+            continue
         needed = flow_inputs(role, has_battery)
-        if needed and all(_input_present(item, present) for item in needed):
+        if not needed:
+            continue
+        if all(
+            (
+                has_generation or has_non_solar_ac
+                if item == "power_solar" and has_generation is not None
+                else _input_present(item, present)
+            )
+            for item in needed
+        ):
             derived.add(role)
     return frozenset(derived)
 
@@ -318,17 +337,29 @@ def derive_power_flows(
     house: float | None,
     *,
     has_battery: bool,
+    other: float | None = 0.0,
+    has_solar: bool = True,
+    linked_discharge_unknown: bool = False,
 ) -> dict[str, float | None]:
     """Split installation power. A missing input stays None, never 0. @zara
 
-    While the battery charges, PV fills the battery first and the rest goes to
-    the house. Otherwise PV goes to the house first. The grid covers what
-    remains. Every finite input is clamped at 0 before the split. Without a
-    battery the charge and discharge terms are 0 and the battery flows are
-    omitted.
+    Allocation priority:
+    1. Proven solar: while the battery charges, PV fills the battery first and
+       the rest goes to the house; otherwise PV goes to the house first.
+    2. Proven battery discharge covers remaining house demand.
+    3. Known AC power of unknown origin (``other``) covers remaining house
+       demand first, and any unused remainder covers at most the open battery
+       charge demand. Each watt of ``other`` is counted once.
+    4. Grid covers what remains for house and battery charge.
+
+    A missing ``other`` keeps affected grid flows ``None`` without hold or zero
+    replacement. When ``linked_discharge_unknown`` is True, a battery's AC
+    share behind a non-solar inverter is unknown so ``power_battery_to_house``
+    stays ``None`` while ``other`` remains the common AC bound.
     """
-    produced = _non_negative(solar)
+    produced = _non_negative(solar) if has_solar else 0.0
     consumed = _non_negative(house)
+    other_ac = _non_negative(other)
     if has_battery:
         charging = _non_negative(charge)
         discharging = _non_negative(discharge)
@@ -337,27 +368,69 @@ def derive_power_flows(
         discharging = 0.0
     charging_first = charging is not None and charging > 0
     if produced is None or consumed is None:
+        solar_to_house: float | None = None
+        solar_to_battery: float | None = None
+        proven_solar_to_house: float | None = None
+        proven_solar_to_battery: float | None = None
+    elif not has_solar:
         solar_to_house = None
         solar_to_battery = None
-        grid_to_battery = None
+        proven_solar_to_house = 0.0
+        proven_solar_to_battery = 0.0
     elif charging_first:
         solar_to_battery = min(charging, produced)
         solar_to_house = min(produced - solar_to_battery, consumed)
-        grid_to_battery = max(0.0, charging - solar_to_battery)
+        proven_solar_to_house = solar_to_house
+        proven_solar_to_battery = solar_to_battery
     else:
         solar_to_house = min(produced, consumed)
+        proven_solar_to_house = solar_to_house
         if charging is None:
             solar_to_battery = None
-            grid_to_battery = None
+            proven_solar_to_battery = None
         else:
             solar_to_battery = min(charging, produced - solar_to_house)
-            grid_to_battery = max(0.0, charging - solar_to_battery)
-    if solar_to_house is None or discharging is None or consumed is None:
-        battery_to_house = None
-        grid_to_house = None
+            proven_solar_to_battery = solar_to_battery
+
+    if proven_solar_to_house is None or discharging is None or consumed is None:
+        proven_battery_to_house: float | None = None
+        battery_to_house: float | None = None
+        other_to_house: float | None = None
+        other_left: float | None = None
+        grid_to_house: float | None = None
     else:
-        battery_to_house = min(discharging, consumed - solar_to_house)
-        grid_to_house = max(0.0, consumed - solar_to_house - battery_to_house)
+        proven_battery_to_house = min(discharging, consumed - proven_solar_to_house)
+        battery_to_house = (
+            None if linked_discharge_unknown else proven_battery_to_house
+        )
+        remaining_house = max(
+            0.0, consumed - proven_solar_to_house - proven_battery_to_house
+        )
+        if other_ac is None:
+            other_to_house = None
+            other_left = None
+            grid_to_house = None
+        else:
+            other_to_house = min(other_ac, remaining_house)
+            other_left = other_ac - other_to_house
+            grid_to_house = max(0.0, remaining_house - other_to_house)
+
+    if (
+        proven_solar_to_battery is None
+        or charging is None
+        or consumed is None
+        or other_ac is None
+    ):
+        grid_to_battery: float | None = None
+    elif other_ac == 0.0:
+        grid_to_battery = max(0.0, charging - proven_solar_to_battery)
+    elif other_left is None:
+        grid_to_battery = None
+    else:
+        open_charge = max(0.0, charging - proven_solar_to_battery)
+        other_to_battery = min(other_left, open_charge)
+        grid_to_battery = max(0.0, open_charge - other_to_battery)
+
     flows: dict[str, float | None] = {
         "power_solar_to_house": solar_to_house,
         "power_grid_to_house": grid_to_house,

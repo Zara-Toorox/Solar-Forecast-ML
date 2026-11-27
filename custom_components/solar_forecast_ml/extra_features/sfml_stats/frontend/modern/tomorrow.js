@@ -730,7 +730,7 @@ window.TomorrowPage = {
                     <article v-for="item in comparisonCards" :key="item.id" class="tomorrow-insight">
                         <p>{{ item.label }}</p>
                         <strong>{{ formatPercent(item.autonomy_percent) }}</strong>
-                        <span>{{ formatEnergy(item.own_energy_kwh) }}</span>
+                        <span>{{ knownPart(item, formatEnergy(item.own_energy_kwh)) }}</span>
                     </article>
                 </section>
 
@@ -1068,7 +1068,12 @@ window.TomorrowPage = {
             if (kpi.value === null || kpi.value === undefined || !Number.isFinite(Number(kpi.value))) return "—";
             return kpi.id === "autonomous_days"
                 ? window.SFMLI18n.formatNumber(kpi.value, 0)
-                : window.SFMLI18n.formatNumber(kpi.value, 1);
+                : knownPart(kpi, window.SFMLI18n.formatNumber(kpi.value, 1));
+        }
+
+        // A sum that leaves out days with an unknown grid charge is at least the shown value.
+        function knownPart(record, text) {
+            return Number(record.unknown_days) > 0 && text !== "—" ? `≥ ${text}` : text;
         }
 
         function kpiLabel(kpi) {
@@ -1133,7 +1138,7 @@ window.TomorrowPage = {
             hasDeviceInsights, deviceInsightHint, visibleMonths, calendarCells, weekdayLabels,
             calendarStyle, monthStyle, dayFinance, hasFinance, hasPeakSolar, hasDayInsights,
             hasRecords, hasComparisons, comparisonCards, coverageLabel, reasonLabel,
-            load, selectDay, metricCorrected, formatEnergy, formatMoney, formatPrice, formatPower,
+            load, selectDay, metricCorrected, formatEnergy, knownPart, formatMoney, formatPrice, formatPower,
             formatPercent, formatQuality, formatKpi, kpiLabel, kpiDetail, kpiUnit,
             band, dayLabel, consumerCaption, openWeather, tomorrowDate,
         };

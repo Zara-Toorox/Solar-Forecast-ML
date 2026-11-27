@@ -12,10 +12,48 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+from datetime import datetime
 from pathlib import Path
 import aiosqlite
 
 _LOGGER = logging.getLogger(__name__)
+
+# An open write transaction blocks every other writer of the shared database.
+_OPEN_TRANSACTION_WARN_SECONDS = 60.0
+_LOCK_RETRIES = 3
+
+
+class _TransactionOwner:
+    """Task that opened the write transaction on the shared connection."""
+
+    __slots__ = ("task", "task_name", "since", "started", "handle")
+
+    def __init__(self, task: asyncio.Task | None, started: float) -> None:
+        self.task = task
+        self.task_name = task.get_name() if task is not None else "none"
+        self.since = datetime.now().astimezone().isoformat(timespec="seconds")
+        self.started = started
+        self.handle: asyncio.TimerHandle | None = None
+
+
+async def _await_to_end(awaitable) -> tuple[asyncio.Future, bool]:
+    """Wait until ``awaitable`` finished, even when the caller is cancelled meanwhile.
+
+    Returns the finished future and whether the caller was cancelled.
+    """
+    task = asyncio.ensure_future(awaitable)
+    cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # Remember every cancellation of the caller, also one that arrives
+            # just as the task finishes; only a cancelled task itself is not ours.
+            if not task.cancelled():
+                cancelled = True
+        except BaseException:
+            pass
+    return task, cancelled
 
 
 class GPMDatabaseConnector:
@@ -32,6 +70,7 @@ class GPMDatabaseConnector:
         """
         self.db_path = db_path
         self._db: aiosqlite.Connection | None = None
+        self._owner: _TransactionOwner | None = None
 
     async def connect(self) -> None:
         """Establish database connection and ensure tables exist @zara"""
@@ -61,10 +100,15 @@ class GPMDatabaseConnector:
         return self._db is not None
 
     async def close(self) -> None:
-        """Close database connection @zara"""
-        if self._db:
-            await self._db.close()
+        """Roll back an open transaction, then close the connection @zara"""
+        db = self._db
+        if db is None:
+            return
+        try:
+            await self._rollback_to_end()
+        finally:
             self._db = None
+            await db.close()
             _LOGGER.debug("GPM database connection closed")
 
     async def _retry_on_locked(self, operation, max_retries: int = 3):
@@ -92,13 +136,16 @@ class GPMDatabaseConnector:
         parameters: tuple = (),
         auto_commit: bool = True,
     ) -> None:
-        """Execute a SQL statement with retry on lock @zara"""
+        """Execute a SQL statement with retry on lock @zara
+
+        With ``auto_commit`` the statement is its own transaction and is rolled
+        back on any failure. Without it the caller owns the transaction and ends
+        it with ``commit()`` or ``rollback()``.
+        """
         async def _do():
             await self._db.execute(sql, parameters)
-            if auto_commit:
-                await self._db.commit()
 
-        await self._retry_on_locked(_do)
+        await self._write(_do, auto_commit)
 
     async def fetchone(
         self,
@@ -134,24 +181,141 @@ class GPMDatabaseConnector:
         """Execute SQL with multiple parameter sets with retry on lock @zara"""
         async def _do():
             await self._db.executemany(sql, parameters_list)
-            if auto_commit:
-                await self._db.commit()
 
-        await self._retry_on_locked(_do)
+        await self._write(_do, auto_commit)
         return len(parameters_list)
 
+    async def _write(self, operation, auto_commit: bool) -> None:
+        """Run one write statement, alone or inside the caller's transaction."""
+        if self._db is None:
+            _LOGGER.warning("GPM DB operation skipped: no active connection")
+            return
+        if not auto_commit:
+            self._claim_transaction()
+            await self._retry_on_locked(operation)
+            return
+        for attempt in range(_LOCK_RETRIES + 1):
+            try:
+                await operation()
+                await self._db.commit()
+            except BaseException as err:
+                owner = self._owner
+                if self._owned_by_other_task(owner):
+                    # Rolling back would also discard the owner's earlier steps.
+                    _LOGGER.warning(
+                        "GPM DB statement failed inside the open transaction of task %s: %r",
+                        owner.task_name,
+                        err,
+                    )
+                    raise
+                joined_own_transaction = owner is not None
+                await self._rollback_to_end()
+                if (
+                    not joined_own_transaction
+                    and isinstance(err, Exception)
+                    and "database is locked" in str(err)
+                    and attempt < _LOCK_RETRIES
+                ):
+                    wait = (0.1 * (3 ** attempt)) + random.uniform(0, 0.05)
+                    _LOGGER.warning(
+                        "GPM DB locked (attempt %d/%d), retrying in %.2fs",
+                        attempt + 1, _LOCK_RETRIES, wait
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+                raise
+            # The commit also ended a transaction that was open before.
+            self._release_transaction()
+            return
+
     async def commit(self) -> None:
-        """Commit current transaction @zara"""
+        """Commit current transaction; a failed commit is rolled back @zara"""
         if self._db is None:
             _LOGGER.warning("GPM DB commit skipped: no active connection")
             return
-        await self._db.commit()
+        try:
+            await self._db.commit()
+        except BaseException:
+            await self._rollback_to_end()
+            raise
+        self._release_transaction()
 
     async def rollback(self) -> None:
-        """Roll back the current transaction."""
-        if self._db is None:
+        """Roll back the current transaction, also when the caller is cancelled."""
+        await self._rollback_to_end()
+
+    async def _rollback_to_end(self) -> None:
+        """Roll back completely; a cancellation of the caller is passed on afterwards."""
+        self._release_transaction()
+        db = self._db
+        if db is None:
             return
-        await self._db.rollback()
+        _task, cancelled = await _await_to_end(self._rollback_quietly(db))
+        if cancelled:
+            raise asyncio.CancelledError
+
+    @staticmethod
+    async def _rollback_quietly(db: aiosqlite.Connection) -> None:
+        try:
+            await db.rollback()
+        except Exception as err:
+            _LOGGER.warning("GPM DB rollback did not complete: %s", err)
+
+    @staticmethod
+    def _owned_by_other_task(owner: _TransactionOwner | None) -> bool:
+        """True while another, still running task owns the open transaction."""
+        if owner is None or owner.task is None:
+            return False
+        return owner.task is not asyncio.current_task() and not owner.task.done()
+
+    def _claim_transaction(self) -> None:
+        """The task whose statement opens the transaction owns it until it ends."""
+        if self._owner is not None:
+            return
+        owner = _TransactionOwner(
+            asyncio.current_task(), asyncio.get_running_loop().time()
+        )
+        self._owner = owner
+        self._watch_transaction(owner)
+
+    def _release_transaction(self) -> None:
+        owner = self._owner
+        self._owner = None
+        if owner is not None and owner.handle is not None:
+            owner.handle.cancel()
+            owner.handle = None
+
+    def _watch_transaction(self, owner: _TransactionOwner) -> None:
+        owner.handle = asyncio.get_running_loop().call_later(
+            _OPEN_TRANSACTION_WARN_SECONDS, self._report_open_transaction, owner
+        )
+
+    def _report_open_transaction(self, owner: _TransactionOwner) -> None:
+        """Warn once while a write transaction stays open."""
+        if self._owner is not owner:
+            return
+        owner.handle = None
+        db = self._db
+        if db is None:
+            return
+        try:
+            still_open = db.in_transaction
+        except Exception:
+            return
+        if not still_open:
+            if owner.task is not None and owner.task.done():
+                self._release_transaction()
+            else:
+                # The opening statement may still wait for the database lock.
+                self._watch_transaction(owner)
+            return
+        elapsed = asyncio.get_running_loop().time() - owner.started
+        _LOGGER.warning(
+            "GPM DB write transaction still open after %gs (task %s, since %s)",
+            round(elapsed, 1),
+            owner.task_name,
+            owner.since,
+        )
 
     async def _ensure_tables(self) -> None:
         """Create all GPM tables if they don't exist @zara"""

@@ -285,6 +285,15 @@ class DailyTracker:
         tracker._house = _parse_house(raw.get("house"))
         return tracker
 
+    def forget_installation(self) -> bool:
+        """Clear inverter baselines and accumulated house energy. @zara"""
+        changed = self._house is not None
+        self._house = None
+        for role in TODAY_FROM_TOTAL.values():
+            if self._roles.pop(role, None) is not None:
+                changed = True
+        return changed
+
     def update(self, role: str, total: float | None, day: str) -> float | None:
         """Record ``total`` on local ``day`` and return today's energy. @zara"""
         if role not in _TRACKED_TOTALS:

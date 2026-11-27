@@ -330,6 +330,7 @@ const _HomePage = {
                     <span class="info-value" :style="{color: gridImportW > 10 ? 'var(--price-expensive)' : flow.house_to_grid > 10 ? 'var(--price-cheap)' : 'var(--text-secondary)'}">
                         <template v-if="gridImportW > 10">{{ fmtW(gridImportW) }} ↓</template>
                         <template v-else-if="flow.house_to_grid > 10">{{ fmtW(flow.house_to_grid) }} ↑</template>
+                        <template v-else-if="gridUnknown">--</template>
                         <template v-else>0 W</template>
                     </span>
                 </div>
@@ -874,6 +875,8 @@ const _HomePage = {
             grid_to_house: 0,
             house_to_grid: 0,
             grid_to_battery: 0,
+            withheld: [],
+            smartmeter_import: null,
         });
 
         const consumers = reactive({
@@ -1147,6 +1150,8 @@ const _HomePage = {
                 data,
                 (point) => (Number(point.solar_to_battery) || 0) + (Number(point.grid_to_battery) || 0),
             );
+            const chargeUnknown = data.some((point) => point.grid_to_battery === null);
+            const chargeText = `${window.SFMLI18n.formatNumber(charge, 2)} kWh`;
             const discharge = integratePowerKwh(data, (point) => point.battery_to_house);
             const socPoint = [...data].reverse().find((point) => point.battery_soc != null);
             const soc = isSelectedToday.value
@@ -1168,13 +1173,20 @@ const _HomePage = {
                 socText: soc == null ? '--' : `${window.SFMLI18n.formatNumber(Number(soc), 0)}%`,
                 minSocText: minSoc == null ? '--' : `${window.SFMLI18n.formatNumber(minSoc, 0)}%`,
                 maxSocText: maxSoc == null ? '--' : `${window.SFMLI18n.formatNumber(maxSoc, 0)}%`,
-                chargeKwh: `${window.SFMLI18n.formatNumber(charge, 2)} kWh`,
+                chargeKwh: !chargeUnknown ? chargeText : charge > 0 ? `≥ ${chargeText}` : '--',
                 dischargeKwh: `${window.SFMLI18n.formatNumber(discharge, 2)} kWh`,
             };
         });
 
         const gridImportW = computed(() => (
-            Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0)
+            flow.withheld.includes('grid_to_house')
+                ? flow.smartmeter_import
+                : Number(flow.grid_to_house || 0) + Number(flow.grid_to_battery || 0)
+        ));
+
+        const gridUnknown = computed(() => (
+            gridImportW.value === null
+            || (flow.withheld.includes('house_to_grid') && gridImportW.value <= 10)
         ));
 
         const gridPowerAbsText = computed(() => {
@@ -1182,6 +1194,7 @@ const _HomePage = {
             const exportW = Number(flow.house_to_grid || 0);
             if (exportW > 10) return fmtW(exportW);
             if (importW > 10) return fmtW(importW);
+            if (gridUnknown.value) return '--';
             return '0 W';
         });
 
@@ -1190,6 +1203,7 @@ const _HomePage = {
             const exportW = Number(flow.house_to_grid || 0);
             if (exportW > 10) return localText('grid_export');
             if (importW > 10) return localText('grid_import');
+            if (gridUnknown.value) return '--';
             return localText('grid_neutral');
         });
 
@@ -1202,6 +1216,9 @@ const _HomePage = {
         });
 
         const routes = computed(() => {
+            const routeImportW = flow.withheld.includes('grid_to_house')
+                ? Number(flow.smartmeter_import) || 0
+                : (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0);
             const routeList = [
                 // 1. Solar to Inverter
                 {
@@ -1238,13 +1255,13 @@ const _HomePage = {
                 // 5. Grid Connections
                 {
                     id: 'grid-inverter',
-                    d: (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0) > 10 
+                    d: routeImportW > 10
                         ? 'M 378 492 L 378 460 L 437 460 L 437 398' 
                         : 'M 437 398 L 437 460 L 378 460 L 378 492',
-                    power: (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0) > 10
-                        ? (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0)
+                    power: routeImportW > 10
+                        ? routeImportW
                         : flow.house_to_grid,
-                    theme: (Number(flow.grid_to_house) || 0) + (Number(flow.grid_to_battery) || 0) > 10 ? 'grid' : 'export',
+                    theme: routeImportW > 10 ? 'grid' : 'export',
                 }
             ];
 
@@ -1827,10 +1844,10 @@ const _HomePage = {
             const windowLabel = formatHubbleWindow(bestWindow);
             const forecast = formatHubbleNumber(metrics.forecast_today_kwh, 1);
             const solarYield = formatHubbleNumber(metrics.solar_yield_kwh, 1);
-            const autarky = formatHubbleNumber(metrics.autarky_percent, 0);
+            const autarky = metrics.autarky_unknown ? '--' : formatHubbleNumber(metrics.autarky_percent, 0);
             const quality = formatHubbleNumber(metrics.forecast_quality_percent, 1);
             const error = formatHubbleSigned(metrics.forecast_error_percent, 1);
-            const gridImport = formatHubbleNumber(metrics.grid_import_kwh, 2);
+            const gridImport = metrics.grid_import_unknown ? '--' : formatHubbleNumber(metrics.grid_import_kwh, 2);
             const batteryCharge = formatHubbleNumber(metrics.solar_to_battery_kwh, 2);
             const avgBattery = formatHubbleNumber(metrics.avg_battery_charge_7d_kwh, 1);
             const avgConsumption = formatHubbleNumber(metrics.avg_home_consumption_7d_kwh, 1);
@@ -2137,7 +2154,7 @@ const _HomePage = {
                 similarity: formatHubbleNumber(match.similarity_percent, 0),
                 yield: formatHubbleNumber(match.yield_kwh, 1),
                 forecast: formatHubbleNumber(match.forecast_kwh, 1),
-                autarky: formatHubbleNumber(match.autarky_percent, 0),
+                autarky: match.autarky_unknown ? '--' : formatHubbleNumber(match.autarky_percent, 0),
                 window: match.window ? formatHubbleWindow(match.window) : t('home.hubble.noWindow'),
             }));
             const bestMatch = matches[0];
@@ -2154,7 +2171,9 @@ const _HomePage = {
                 similarity: formatHubbleNumber(memory.avg_similarity_percent, 0),
                 yield: formatHubbleNumber(memory.avg_yield_kwh, 1),
                 forecast: formatHubbleNumber(memory.avg_forecast_kwh, 1),
-                autarky: formatHubbleNumber(memory.avg_autarky_percent, 0),
+                autarky: memory.avg_autarky_percent == null && memory.matches.some(match => match.autarky_unknown)
+                    ? '--'
+                    : formatHubbleNumber(memory.avg_autarky_percent, 0),
                 window: commonWindow || t('home.hubble.noWindow'),
             };
 
@@ -2224,12 +2243,17 @@ const _HomePage = {
 
         function getGridPower() {
             if (flow.house_to_grid > 0) return '-' + window.SFMLI18n.formatNumber(flow.house_to_grid, 0);
-            const imp = (flow.grid_to_house || 0) + (flow.grid_to_battery || 0);
+            if (gridUnknown.value) return '--';
+            const imp = flow.withheld.length
+                ? gridImportW.value
+                : (flow.grid_to_house || 0) + (flow.grid_to_battery || 0);
             return imp > 0 ? '+' + window.SFMLI18n.formatNumber(imp, 0) : '0';
         }
 
         function getGridLabel() {
             if (flow.house_to_grid > 0) return 'Export';
+            if (gridUnknown.value) return '--';
+            if (flow.withheld.length && gridImportW.value > 0) return 'Import';
             if (flow.grid_to_house > 0 || flow.grid_to_battery > 0) return 'Import';
             return 'Idle';
         }
@@ -2487,9 +2511,11 @@ const _HomePage = {
                 const yParams = {
                     solar: formatHubbleNumber(yesterday.solar_yield_kwh, 1),
                     consumption: formatHubbleNumber(yesterday.home_consumption_kwh, 1),
-                    grid: formatHubbleNumber(yesterday.grid_import_kwh, 1),
-                    autarky: formatHubbleNumber(yesterday.autarky_percent, 0),
-                    savings: formatHubbleNumber(yesterday.savings_eur, 2),
+                    grid: yesterday.grid_import_unknown ? '--' : formatHubbleNumber(yesterday.grid_import_kwh, 1),
+                    autarky: yesterday.autarky_unknown ? '--' : formatHubbleNumber(yesterday.autarky_percent, 0),
+                    savings: yesterday.savings_eur == null && yesterday.price_reasons?.flow_unknown
+                        ? '--'
+                        : formatHubbleNumber(yesterday.savings_eur, 2),
                     quality: formatHubbleNumber(yesterday.accuracy_percent, 0),
                     error: formatHubbleNumber(yesterday.error_percent, 0),
                     batterySentence: '',
@@ -2761,6 +2787,9 @@ const _HomePage = {
                 flow.grid_to_house = f.grid_to_house ?? 0;
                 flow.house_to_grid = f.house_to_grid ?? 0;
                 flow.grid_to_battery = f.grid_to_battery ?? 0;
+                // Flows the backend withholds; the measured import then stands in for the split.
+                flow.withheld = Array.isArray(f.withheld) ? f.withheld : [];
+                flow.smartmeter_import = flow.withheld.length ? f.smartmeter_import ?? null : null;
 
                 if (data.consumers) {
                     Object.assign(consumers, data.consumers);
@@ -3972,7 +4001,7 @@ const _HomePage = {
             getWeatherSymbol, statusChipClass, statusChipTitle,
             consumers, routes, batteryPowerText, batteryStateTextLocal,
             batteryStateClass, gridPowerAbsText, gridStateTextLocal,
-            gridStateColorClass, gridImportW, localText,
+            gridStateColorClass, gridImportW, gridUnknown, localText,
             hasBatteryChart, batteryChartStats,
             getConsumerName,
             smartChargingLine, smartChargingHeadline, smartChargingWhy, smartChargingNext,

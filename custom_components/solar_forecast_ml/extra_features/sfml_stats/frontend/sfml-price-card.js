@@ -994,12 +994,17 @@ class SfmlPriceCard extends HTMLElement {
     const avg = this._finite(today.avg_price_ct);
     const saved = this._finite(today.savings_eur);
     const euro = new Intl.NumberFormat(this._locale, { style: "currency", currency: "EUR" });
+    // With an unknown grid charge the amount is the known part only.
+    const unknown = Boolean(today.price_reasons?.flow_unknown);
+    const charged = unknown && kwh <= 0
+      ? "–"
+      : `${unknown ? "≥ " : ""}${this._num(kwh, 2)} <small>kWh</small>`;
     return `
       <div class="kpis-title">${this._t("today")}</div>
       <div class="kpis">
         <div class="fact">
           <div class="fact-label"><ha-icon icon="mdi:battery-arrow-up-outline"></ha-icon>${this._t("charged")}</div>
-          <div class="fact-value">${this._num(kwh, 2)} <small>kWh</small></div>
+          <div class="fact-value">${charged}</div>
         </div>
         <div class="fact">
           <div class="fact-label"><ha-icon icon="mdi:tag-outline"></ha-icon>${this._t("avgPrice")}</div>

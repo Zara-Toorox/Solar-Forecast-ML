@@ -566,7 +566,7 @@ const SmartChargingPage = ((Vue) => {
                     <div class="eb-item">
                         <div class="eb-icon">⚡🔋</div>
                         <div class="eb-value" style="color: var(--solar);">
-                            {{ (dashboardData.advisor && !dashboardData.advisor.has_battery) ? localText('noBattery') : fmtKwh(currentKpis.charged_kwh) }}
+                            {{ (dashboardData.advisor && !dashboardData.advisor.has_battery) ? localText('noBattery') : knownPart(currentKpis, currentKpis.charged_kwh, fmtKwh) }}
                         </div>
                         <div class="eb-label">{{ $t('smart_charging.gridChargedKwh') }}</div>
                         <div class="eb-sub">{{ $t('smart_charging.chargedInPeriod') }}</div>
@@ -600,7 +600,7 @@ const SmartChargingPage = ((Vue) => {
                     <div class="eb-grid">
                         <div class="eb-item" v-for="period in gridChargePeriods" :key="period.id">
                             <div class="eb-label">{{ period.label }}</div>
-                            <div class="eb-value" style="color: var(--solar);">{{ fmtKwh(period.kwh) }}</div>
+                            <div class="eb-value" style="color: var(--solar);">{{ knownPart(period, period.kwh, fmtKwh) }}</div>
                             <div class="eb-sub" v-if="period.avg_ct_kwh != null || !period.unpriced_kwh">{{ kpiMoney(period, 'cost_eur') }}<span v-if="kpiIncomplete(period, 'cost_eur')"> {{ $t('gpm.billIncomplete') }}</span></div>
                             <div class="eb-sub" v-if="period.avg_ct_kwh != null">{{ $t('smart_charging.gridChargeAvg', { price: fmtPrice(period.avg_ct_kwh) }) }}</div>
                             <div class="eb-sub" v-if="period.unpriced_kwh > 0">{{ $t('smart_charging.gridChargeUnpriced', { kwh: $n(period.unpriced_kwh, 1) }) }}</div>
@@ -736,7 +736,7 @@ const SmartChargingPage = ((Vue) => {
                                 
                                 <div class="advisor-metric-row">
                                     <span class="metric-label">{{ localText('autarkyRate') }}</span>
-                                    <span class="metric-value" style="color: var(--success, #22c55e);">{{ $n(dashboardData.advisor.avg_autarky_percent, 1) }}%</span>
+                                    <span class="metric-value" style="color: var(--success, #22c55e);">{{ dashboardData.advisor.avg_autarky_percent === null ? '–' : $n(dashboardData.advisor.avg_autarky_percent, 1) + '%' }}</span>
                                 </div>
                                 <div class="metric-help-text">{{ localText('autarkyRateSub') }}</div>
                             </div>
@@ -755,30 +755,30 @@ const SmartChargingPage = ((Vue) => {
                                 <div class="advisor-metric-row">
                                     <span class="metric-label">{{ localText('totalCharged') }}</span>
                                     <span class="metric-value" style="color: var(--chart-series-ai, #a855f7);">
-                                        {{ dashboardData.advisor.has_battery ? formatKwh(dashboardData.advisor.battery_charge_solar_kwh + dashboardData.advisor.battery_charge_grid_kwh) : localText('noBattery') }}
+                                        {{ dashboardData.advisor.has_battery ? knownPart(dashboardData.advisor, dashboardData.advisor.battery_charge_solar_kwh + dashboardData.advisor.battery_charge_grid_kwh, formatKwh) : localText('noBattery') }}
                                     </span>
                                 </div>
                                 <div class="metric-help-text" v-if="dashboardData.advisor.has_battery">
-                                    {{ localText('totalChargedSub').replace('{pv}', getPvChargePercent()).replace('{grid}', getGridChargePercent()) }}
+                                    {{ localText('totalChargedSub').replace('{pv}%', chargeShare(getPvChargePercent())).replace('{grid}%', chargeShare(getGridChargePercent())) }}
                                 </div>
                                 
                                 <div class="advisor-metric-row">
                                     <span class="metric-label">{{ localText('batteryCycles') }}</span>
-                                    <span class="metric-value">{{ dashboardData.advisor.has_battery ? $n(dashboardData.advisor.battery_cycles, 1) : localText('noBattery') }}</span>
+                                    <span class="metric-value">{{ dashboardData.advisor.has_battery ? knownPart(dashboardData.advisor, dashboardData.advisor.battery_cycles, (value) => $n(value, 1)) : localText('noBattery') }}</span>
                                 </div>
                                 <div class="metric-help-text" v-if="dashboardData.advisor.has_battery">
-                                    {{ localText('batteryCyclesSub').replace('{cycles}', $n(dashboardData.advisor.battery_cycles / dashboardData.advisor.total_days, 2)) }}
+                                    {{ localText('batteryCyclesSub').replace('{cycles}', knownPart(dashboardData.advisor, dashboardData.advisor.battery_cycles / dashboardData.advisor.total_days, (value) => $n(value, 2))) }}
                                 </div>
                                 
                                 <!-- Simple Cycle Progress Bar -->
                                 <div style="margin-top: var(--space-md);" v-if="dashboardData.advisor.has_battery">
                                     <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">
-                                        <span>PV: {{ getPvChargePercent() }}%</span>
-                                        <span>Netz: {{ getGridChargePercent() }}%</span>
+                                        <span>PV: {{ chargeShare(getPvChargePercent()) }}</span>
+                                        <span>Netz: {{ chargeShare(getGridChargePercent()) }}</span>
                                     </div>
                                     <div style="height: 6px; width: 100%; background: rgba(255,255,255,0.05); border-radius: 3px; display: flex; overflow: hidden;">
-                                        <div :style="{ width: getPvChargePercent() + '%', background: 'var(--solar)' }"></div>
-                                        <div :style="{ width: getGridChargePercent() + '%', background: 'var(--chart-series-ai, #a855f7)' }"></div>
+                                        <div :style="{ width: (getPvChargePercent() ?? 0) + '%', background: 'var(--solar)' }"></div>
+                                        <div :style="{ width: (getGridChargePercent() ?? 0) + '%', background: 'var(--chart-series-ai, #a855f7)' }"></div>
                                     </div>
                                 </div>
                             </div>
@@ -1652,8 +1652,23 @@ const SmartChargingPage = ((Vue) => {
                 }
             }
 
+            function flowUnknown(record) {
+                return Boolean(record?.price_reasons?.flow_unknown);
+            }
+
+            // The sum of the known part of a window that also has unknown grid charge.
+            function knownPart(record, value, format) {
+                if (!flowUnknown(record)) return format(value);
+                return Number(value) > 0 ? `≥ ${format(value)}` : '–';
+            }
+
+            function chargeShare(percent) {
+                return percent === null ? '–' : percent + '%';
+            }
+
             function getPvChargePercent() {
                 if (!dashboardData.advisor) return '0';
+                if (flowUnknown(dashboardData.advisor)) return null;
                 const total = dashboardData.advisor.battery_charge_solar_kwh + dashboardData.advisor.battery_charge_grid_kwh;
                 if (total <= 0) return '0';
                 return ((dashboardData.advisor.battery_charge_solar_kwh / total) * 100).toFixed(0);
@@ -1661,6 +1676,7 @@ const SmartChargingPage = ((Vue) => {
 
             function getGridChargePercent() {
                 if (!dashboardData.advisor) return '0';
+                if (flowUnknown(dashboardData.advisor)) return null;
                 const total = dashboardData.advisor.battery_charge_solar_kwh + dashboardData.advisor.battery_charge_grid_kwh;
                 if (total <= 0) return '0';
                 return ((dashboardData.advisor.battery_charge_grid_kwh / total) * 100).toFixed(0);
@@ -1936,6 +1952,8 @@ const SmartChargingPage = ((Vue) => {
                 kpiPriceHint,
                 openGpmCsvImport,
                 localText,
+                knownPart,
+                chargeShare,
                 getSizingRecommendation,
                 sizingWindowText,
                 sizingAssumptionsText,

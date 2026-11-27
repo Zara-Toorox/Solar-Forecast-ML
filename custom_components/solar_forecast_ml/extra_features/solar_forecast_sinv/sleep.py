@@ -23,6 +23,7 @@ read, the failure stays visible.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 import math
@@ -35,7 +36,7 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from homeassistant.util import dt as dt_util
 
 from . import site_daily
-from .const import DOMAIN, LOGGER
+from .const import AC_SOURCE_NON_SOLAR, CONF_AC_SOURCE, DOMAIN, LOGGER
 
 # Inverters start a few degrees above the horizon; below that an unreachable
 # PV device is taken as switched off, above it as a fault.
@@ -73,6 +74,7 @@ class SleepingDevice:
     vendor: dict[str, Any] = field(default_factory=dict)
     derived: set[str] = field(default_factory=set)
     day: str | None = None
+    non_solar: bool = False
 
 
 def is_unreachable(err: BaseException) -> bool:
@@ -94,7 +96,11 @@ def is_unreachable(err: BaseException) -> bool:
 
 
 def may_sleep(device: Any) -> bool:
-    """Return True for a pure PV device: no battery, grid or house values. @zara"""
+    """Return True for a pure PV device: no battery, grid, house or non-solar AC values. @zara"""
+    if getattr(device, "non_solar", False):
+        return False
+    if getattr(device, "ac_source", None) == AC_SOURCE_NON_SOLAR:
+        return False
     roles = getattr(device, "roles", None)
     if not isinstance(roles, dict) or not roles:
         return False
@@ -153,6 +159,8 @@ def snapshot(devices: dict[str, Any], day: str | None = None) -> dict[str, Any]:
         }
         if day is not None:
             item["day"] = day
+        if getattr(device, "non_solar", False):
+            item["non_solar"] = True
         result[serial] = item
     return result
 
@@ -193,7 +201,14 @@ def restore(raw: Any) -> dict[str, SleepingDevice]:
             continue
         kind, name, manufacturer, model = texts
         devices[serial] = SleepingDevice(
-            serial, kind, name, manufacturer, model, roles, day=day
+            serial,
+            kind,
+            name,
+            manufacturer,
+            model,
+            roles,
+            day=day,
+            non_solar=bool(item.get("non_solar", False)),
         )
     return devices
 
@@ -233,6 +248,7 @@ class SleepGuard:
     def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
         """Bind the guard to one config entry. @zara"""
         self._hass = hass
+        self._entry = entry
         self._store: Store = _store(hass, entry)
         self._last: dict[str, Any] | None = None
         self._stored: dict[str, SleepingDevice] = {}
@@ -250,11 +266,19 @@ class SleepGuard:
         days = {device.day for device in self._stored.values()}
         self._stored_day = next(iter(days)) if len(days) == 1 else None
 
+    def _entry_is_non_solar(self) -> bool:
+        data = getattr(self._entry, "data", None)
+        return isinstance(data, Mapping) and data.get(CONF_AC_SOURCE) == AC_SOURCE_NON_SOLAR
+
     def remember(self, devices: dict[str, Any]) -> None:
         """Keep a good reading and store it when every device may sleep. @zara"""
         if self.asleep:
             LOGGER.info("%s woke up", self._name(devices))
         self.asleep = False
+        if self._entry_is_non_solar():
+            self._last = None
+            self._stored = {}
+            return
         if not devices:
             return
         self._last = devices
@@ -269,6 +293,8 @@ class SleepGuard:
 
     def sleeping(self, err: BaseException) -> dict[str, Any] | None:
         """Asleep devices for this failure, or None to let it stand. @zara"""
+        if self._entry_is_non_solar():
+            return None
         today = site_daily.local_day(dt_util.as_local(dt_util.now()))
         measured = self._day if self._last is not None else self._stored_day
         devices = sleeping_devices(
